@@ -1,0 +1,35 @@
+## Contexto
+Se trata de un desarollo para la firma Papelera San Andres de Giles (PSAG) puntualmente para su sector de Converting de papel
+Esta empresa fabrica productos de papel Tissue y tiene un modelo en el cual fabrica la bobina de papel principal y luego, posee 6 lineas de converting de esa bobina. 
+Estas areas de convertin desarrollan principalmente Rollos de cocina, Papel Higienico, Servilletas, Pañuelos descartables, entre otros
+El Gerente de planta me solicita generar una webApp que estara disponible en los puestos de las 6 lineas de converting para inicialmente dejar registro de los eventos donde existieron paradas de maquina. 
+Estas paradas de maquina pueden darse por eventos aleatorios de rupturas o mantenimiento en diferentes momentos de la jornada y actualmente lo que sucede es que el sector de "mantenimiento" acude de manera urgente al lugar para poder resolver los problemas pero lo que les falta es 
+1) Informacion estadistica de los eventos
+2) Capacida de usar informacion para detectar patrones e incluso anteponerse a los eventos sucedidos
+Lo que me solicitan ESPECIFICAMENTE para el corto plazo es desarrollar un sistema de "Registro de de Eventos" en las paradas de maquina donde quede la informacion de los motivos, fecha, hora, solucion, tiempo, etc. y que todo registro de parada de mauqina que no este dentro de este sistema se penalizara por no ser informado. 
+Lo que me cuentan es que hoy se trabaja BIEN, de manera reactiva pero que luego el Jefe de la linea nunca se entera de lo que paso, ni por que paso ni como se resolvio
+Objetivo--->> pasar de REACTIVO a PREDICTIVO 
+
+
+
+
+## Plan de busqueda del objetivo
+- Vamos a desarrollar una WebApp para que sea la CENTRAL de control del sector de Converting general
+- Inicialmente se va a tratar de un modelo de administracion de registro de Eventos de Mantenimiento pero seguramente ira evolucionando
+- Hoy necesito que un Usurio de tipo (a) pueda registrar un evento de parada de mauqina (disparador manual) donde deja registro de dia, hora, Tipo de Evento (nomenclado), descripcion, Resolucion "descripcion abierta", Estado del evento (Nomenclado), Fecha y hora de cambio de estado (Historico)
+- Un usaurio de tipo (e)tendra un panel de control donde puede ver los eventos que se generan y tendra la capacidad de EDITARLOS pero no borrarlos. Este usuario podra Momdificar el Estado y describir el problema y la solucion o bien la descripcion del estado
+ - Los Estados pueden ser
+  - INICIADO: es el momento en el que se Genera el evento creado por el usaurio a)
+  - EN CURSO: es el momento en el que usuario (a o e quieren dejar registro de que estan trabajando en el tema pero no lo estan pudiendo cerrar aun) 
+  - CERRADO: es el momento en el que se Cierra el evento (usuarios A o e dejan registro de la resolucion "observacion obligatoria" y el motivo del problema descubierto (obligatorio)
+  
+
+
+- Stack (ver lo que tenemos hoy en Control de ingresos) 
+  - Tenemos que plantear un esquema de Usurios ya que vamos a tener diferentes niveles ROLES (a) Operarios (b) Supervisores (c) Gerencia General (d) Administradores (e) Mantenimiento
+  - El sitema estara alojado dentro de una red interna de la empresa, no teniendo posibilidad de acceso por fuera de la red
+  - Operara contra una base de datos en SQL server configurable
+  - Tecnologia en .NET 9 con conexion hacia SQL via API
+   
+
+

@@ -1,0 +1,35 @@
+Repositorio
+
+  URL: https://github.com/psag-arg/psag-produccion-converting
+
+  Contenido subido:
+  - 310 archivos
+  - API (.NET 9)
+  - Web (Blazor WASM)
+  - Scripts SQL (database/)
+  - Scripts de deploy (deploy/)
+  - Documentación (docs/)
+
+  ---
+  En el servidor productivo (2K22RECIMG)
+
+  # 1. Clonar el repositorio
+  cd C:\
+  git clone https://github.com/psag-arg/psag-produccion-converting.git PSAG_Converting
+
+  # 2. Ir a la carpeta de deploy
+  cd C:\PSAG_Converting\deploy
+
+  # 3. Publicar la aplicación
+  .\02-Publicar-Aplicacion.ps1 -OutputPath "C:\PSAG\Mantenimiento"
+
+  # 4. Ejecutar instalación completa
+  .\00-Instalacion-Completa.ps1
+
+  O para actualizar en el futuro:
+
+  cd C:\PSAG_Converting
+  git pull
+  .\deploy\02-Publicar-Aplicacion.ps1
+  Restart-Service PSAG_Mantenimiento_API
+  iisreset

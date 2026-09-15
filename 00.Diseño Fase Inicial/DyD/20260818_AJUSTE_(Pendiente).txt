@@ -1,0 +1,3 @@
+** Aclarcion sobre como activar las Detenciones
+
+-- Puede suceder que una detencion sea GENERAL para toda la Maquina (Linea) dado eso, no estariamos imputando una detencion hacia un cuerpo en particular sino a toda la maquina (Linea) Completa. 

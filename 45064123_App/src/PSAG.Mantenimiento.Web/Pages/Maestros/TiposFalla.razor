@@ -1,0 +1,231 @@
+@page "/maestros/tipos-falla"
+@using Microsoft.AspNetCore.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize(Roles = "ADMINISTRADOR")]
+@inject ICatalogosService CatalogosService
+@inject IJSRuntime JS
+
+<PageTitle>Tipos de Falla - PSAG Produccion</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3>Tipos de Falla</h3>
+        <button class="btn btn-primary" @onclick="NuevoTipoFalla">
+            <i class="bi bi-plus-circle me-2"></i>Nuevo Tipo de Falla
+        </button>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card">
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Nombre</th>
+                            <th>Descripcion</th>
+                            <th class="text-center">Activo</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (tiposFalla.Any())
+                        {
+                            @foreach (var tipo in tiposFalla)
+                            {
+                                <tr>
+                                    <td>@tipo.TipoFallaId</td>
+                                    <td><strong>@tipo.Nombre</strong></td>
+                                    <td>@tipo.Descripcion</td>
+                                    <td class="text-center">
+                                        @if (tipo.Activo)
+                                        {
+                                            <span class="badge bg-success">Activo</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">Inactivo</span>
+                                        }
+                                    </td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => EditarTipoFalla(tipo)">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmarDesactivar(tipo)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-4">No hay tipos de falla registrados</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@* Modal para crear/editar *@
+@if (showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(editando ? "Editar" : "Nuevo") Tipo de Falla</h5>
+                    <button type="button" class="btn-close" @onclick="CerrarModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nombre *</label>
+                        <input type="text" class="form-control" @bind="tipoFallaActual.Nombre" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descripcion</label>
+                        <textarea class="form-control" rows="3" @bind="tipoFallaActual.Descripcion"></textarea>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="activo" @bind="tipoFallaActual.Activo" />
+                        <label class="form-check-label" for="activo">Activo</label>
+                    </div>
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger mt-3 mb-0">@errorMessage</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CerrarModal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" @onclick="GuardarTipoFalla" disabled="@isSaving">
+                        @if (isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        Guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<TipoFallaDto> tiposFalla = new();
+    private TipoFallaDto tipoFallaActual = new();
+    private bool isLoading = true;
+    private bool showModal = false;
+    private bool editando = false;
+    private bool isSaving = false;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarTiposFalla();
+    }
+
+    private async Task CargarTiposFalla()
+    {
+        isLoading = true;
+        try
+        {
+            tiposFalla = await CatalogosService.GetTiposFallaAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void NuevoTipoFalla()
+    {
+        tipoFallaActual = new TipoFallaDto { Activo = true };
+        editando = false;
+        errorMessage = null;
+        showModal = true;
+    }
+
+    private void EditarTipoFalla(TipoFallaDto tipo)
+    {
+        tipoFallaActual = new TipoFallaDto
+        {
+            TipoFallaId = tipo.TipoFallaId,
+            Nombre = tipo.Nombre,
+            Descripcion = tipo.Descripcion,
+            Activo = tipo.Activo
+        };
+        editando = true;
+        errorMessage = null;
+        showModal = true;
+    }
+
+    private void CerrarModal()
+    {
+        showModal = false;
+        tipoFallaActual = new();
+    }
+
+    private async Task GuardarTipoFalla()
+    {
+        if (string.IsNullOrWhiteSpace(tipoFallaActual.Nombre))
+        {
+            errorMessage = "El nombre es requerido";
+            return;
+        }
+
+        isSaving = true;
+        errorMessage = null;
+
+        try
+        {
+            if (editando)
+            {
+                await CatalogosService.UpdateTipoFallaAsync(tipoFallaActual);
+            }
+            else
+            {
+                await CatalogosService.CreateTipoFallaAsync(tipoFallaActual);
+            }
+
+            showModal = false;
+            await CargarTiposFalla();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task ConfirmarDesactivar(TipoFallaDto tipo)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", $"¿Desea desactivar el tipo de falla '{tipo.Nombre}'?");
+        if (confirmed)
+        {
+            tipo.Activo = false;
+            await CatalogosService.UpdateTipoFallaAsync(tipo);
+            await CargarTiposFalla();
+        }
+    }
+}

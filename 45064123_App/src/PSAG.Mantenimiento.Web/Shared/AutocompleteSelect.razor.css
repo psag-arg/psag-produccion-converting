@@ -1,0 +1,30 @@
+.autocomplete-container {
+    width: 100%;
+}
+
+.autocomplete-dropdown {
+    animation: slideDown 0.15s ease-out;
+    background-color: var(--bs-body-bg);
+    border-color: var(--bs-border-color);
+}
+
+.autocomplete-item {
+    transition: background-color 0.1s;
+    color: var(--bs-body-color);
+}
+
+.autocomplete-item:hover {
+    background-color: var(--bs-primary);
+    color: white;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

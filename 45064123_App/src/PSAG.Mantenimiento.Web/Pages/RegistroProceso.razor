@@ -1,0 +1,513 @@
+@page "/registros-proceso/{Id:long}"
+@using Microsoft.AspNetCore.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize]
+@inject IRegistroProcesoService RegistroProcesoService
+@inject NavigationManager Navigation
+
+<PageTitle>Registro de Proceso - PSAG Produccion</PageTitle>
+
+<div class="container-fluid">
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+        </div>
+    }
+    else if (registro == null)
+    {
+        <div class="alert alert-danger">
+            Registro no encontrado.
+            <button class="btn btn-link" @onclick="Volver">Volver al listado</button>
+        </div>
+    }
+    else
+    {
+        <!-- Encabezado -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="mb-1">Variables de Proceso</h2>
+                <p class="text-muted mb-0">
+                    @registro.LineaNombre - @registro.ProductoNombre |
+                    @registro.Fecha.ToString("dd/MM/yyyy") - @registro.TurnoNombre
+                </p>
+            </div>
+            <div>
+                <span class="badge @GetEstadoBadgeClass(registro.Estado) fs-6 me-2">
+                    @registro.EstadoDescripcion
+                </span>
+                @if (registro.Estado != "CERRADO")
+                {
+                    <button class="btn btn-outline-secondary me-2" @onclick="Volver">
+                        <i class="bi bi-arrow-left"></i> Volver
+                    </button>
+                }
+                else
+                {
+                    <button class="btn btn-outline-secondary" @onclick="Volver">
+                        <i class="bi bi-arrow-left"></i> Volver
+                    </button>
+                }
+            </div>
+        </div>
+
+        <!-- Resumen de progreso -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-4">
+                        <h4 class="mb-0">@registro.CantidadCompletados / @registro.CantidadParametros</h4>
+                        <small class="text-muted">Parametros completados</small>
+                    </div>
+                    <div class="col-md-4">
+                        <h4 class="mb-0 @(registro.CantidadDesvios > 0 ? "text-warning" : "text-success")">
+                            @registro.CantidadDesvios
+                        </h4>
+                        <small class="text-muted">Desvios detectados</small>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="progress" style="height: 25px;">
+                            @{
+                                var porcentaje = registro.CantidadParametros > 0
+                                    ? (registro.CantidadCompletados * 100 / registro.CantidadParametros)
+                                    : 0;
+                            }
+                            <div class="progress-bar @(porcentaje == 100 ? "bg-success" : "bg-info")"
+                                 role="progressbar"
+                                 style="width: @porcentaje%">
+                                @porcentaje%
+                            </div>
+                        </div>
+                        <small class="text-muted">Progreso</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger alert-dismissible">
+                @errorMessage
+                <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            <div class="alert alert-success alert-dismissible">
+                @successMessage
+                <button type="button" class="btn-close" @onclick="() => successMessage = null"></button>
+            </div>
+        }
+
+        <!-- Tabs de grupos -->
+        @if (registro.Grupos.Any())
+        {
+            <ul class="nav nav-tabs mb-3">
+                @foreach (var grupo in registro.Grupos.OrderBy(g => g.Orden))
+                {
+                    var grupoCompletados = grupo.Detalles.Count(d => d.ValorReal.HasValue || !string.IsNullOrEmpty(d.ValorRealTexto));
+                    var grupoTotal = grupo.Detalles.Count;
+                    var grupoDesvios = grupo.Detalles.Count(d => d.FueraDeEstandar);
+
+                    <li class="nav-item">
+                        <button class="nav-link @(selectedGrupoId == grupo.GrupoParametroId ? "active" : "")"
+                                @onclick="() => selectedGrupoId = grupo.GrupoParametroId">
+                            @grupo.Nombre
+                            <span class="badge @(grupoCompletados == grupoTotal ? "bg-success" : "bg-secondary") ms-1">
+                                @grupoCompletados/@grupoTotal
+                            </span>
+                            @if (grupoDesvios > 0)
+                            {
+                                <span class="badge bg-warning text-dark ms-1">@grupoDesvios</span>
+                            }
+                        </button>
+                    </li>
+                }
+            </ul>
+
+            <!-- Contenido del grupo seleccionado -->
+            @if (GetGrupoActual() is { } grupoActual)
+            {
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">@grupoActual.Nombre</h5>
+                        @if (registro.Estado != "CERRADO")
+                        {
+                            <button class="btn btn-primary" @onclick="GuardarGrupoActual" disabled="@isSaving">
+                                @if (isSaving)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                }
+                                <i class="bi bi-save me-1"></i> Guardar Grupo
+                            </button>
+                        }
+                    </div>
+                    <div class="card-body">
+                        @foreach (var seccion in grupoActual.Detalles.GroupBy(d => d.Seccion ?? "General").OrderBy(s => s.Key))
+                        {
+                            <h6 class="text-primary mt-3 mb-3 border-bottom pb-2">@seccion.Key</h6>
+
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="width: 25%">Parametro</th>
+                                            <th style="width: 15%">Estandar</th>
+                                            <th style="width: 15%">Valor Real</th>
+                                            <th style="width: 10%">Unidad</th>
+                                            <th style="width: 25%">Observacion</th>
+                                            <th style="width: 10%">Estado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var detalle in seccion.OrderBy(d => d.ParametroCodigo))
+                                        {
+                                            var localDetalle = detalle;
+                                            var isReadOnly = registro.Estado == "CERRADO";
+
+                                            <tr class="@(detalle.FueraDeEstandar ? "table-warning" : "")">
+                                                <td>
+                                                    <strong>@detalle.ParametroCodigo</strong>
+                                                    <br />
+                                                    <small class="text-muted">@detalle.ParametroNombre</small>
+                                                </td>
+                                                <td>
+                                                    <span class="badge bg-info">@(detalle.ValorEstandarSnapshot ?? "-")</span>
+                                                </td>
+                                                <td>
+                                                    @if (detalle.TipoDato == "NUMERICO" || detalle.TipoDato == "RANGO")
+                                                    {
+                                                        <input type="number"
+                                                               step="0.01"
+                                                               class="form-control form-control-sm @(detalle.FueraDeEstandar ? "border-warning" : "")"
+                                                               value="@detalle.ValorReal"
+                                                               @onchange="e => OnValorChanged(localDetalle, e)"
+                                                               disabled="@isReadOnly" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <input type="text"
+                                                               class="form-control form-control-sm"
+                                                               value="@detalle.ValorRealTexto"
+                                                               @onchange="e => OnValorTextoChanged(localDetalle, e)"
+                                                               disabled="@isReadOnly" />
+                                                    }
+                                                </td>
+                                                <td>
+                                                    <small class="text-muted">@(detalle.UnidadMedida ?? "")</small>
+                                                </td>
+                                                <td>
+                                                    <input type="text"
+                                                           class="form-control form-control-sm @(detalle.FueraDeEstandar && string.IsNullOrEmpty(detalle.Observacion) ? "border-danger" : "")"
+                                                           value="@detalle.Observacion"
+                                                           placeholder="@(detalle.FueraDeEstandar ? "Obligatorio - fuera de estandar" : "")"
+                                                           @onchange="e => OnObservacionChanged(localDetalle, e)"
+                                                           disabled="@isReadOnly" />
+                                                </td>
+                                                <td class="text-center">
+                                                    @if (detalle.ValorReal.HasValue || !string.IsNullOrEmpty(detalle.ValorRealTexto))
+                                                    {
+                                                        @if (detalle.FueraDeEstandar)
+                                                        {
+                                                            <span class="badge bg-warning text-dark">
+                                                                <i class="bi bi-exclamation-triangle"></i>
+                                                            </span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="badge bg-success">
+                                                                <i class="bi bi-check"></i>
+                                                            </span>
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-secondary">
+                                                            <i class="bi bi-dash"></i>
+                                                        </span>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            <!-- Acciones finales -->
+            @if (registro.Estado != "CERRADO")
+            {
+                <div class="card mt-4">
+                    <div class="card-body d-flex justify-content-between">
+                        <button class="btn btn-outline-primary" @onclick="GuardarTodo" disabled="@isSaving">
+                            @if (isSaving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            <i class="bi bi-save me-1"></i> Guardar Todo
+                        </button>
+
+                        @if (registro.CantidadCompletados == registro.CantidadParametros)
+                        {
+                            <button class="btn btn-success" @onclick="CerrarRegistro" disabled="@isSaving">
+                                <i class="bi bi-check-circle me-1"></i> Cerrar Registro
+                            </button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-outline-success" disabled title="Complete todos los parametros para poder cerrar">
+                                <i class="bi bi-check-circle me-1"></i> Cerrar Registro (@registro.CantidadCompletados/@registro.CantidadParametros)
+                            </button>
+                        }
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="alert alert-info">
+                No hay parametros configurados para este registro.
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter]
+    public long Id { get; set; }
+
+    private RegistroProcesoCompletoDto? registro;
+    private int selectedGrupoId;
+    private bool isLoading = true;
+    private bool isSaving;
+    private string? errorMessage;
+    private string? successMessage;
+
+    // Almacena los valores modificados localmente
+    private Dictionary<int, ValorParametroRequest> valoresModificados = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarRegistro();
+    }
+
+    private async Task CargarRegistro()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            registro = await RegistroProcesoService.GetRegistroAsync(Id);
+
+            if (registro != null && registro.Grupos.Any())
+            {
+                selectedGrupoId = registro.Grupos.OrderBy(g => g.Orden).First().GrupoParametroId;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error al cargar el registro: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private GrupoConDetallesDto? GetGrupoActual()
+    {
+        return registro?.Grupos.FirstOrDefault(g => g.GrupoParametroId == selectedGrupoId);
+    }
+
+    private void OnValorChanged(RegistroProcesoDetalleDto detalle, ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out var valor))
+        {
+            detalle.ValorReal = valor;
+            RegistrarCambio(detalle);
+        }
+        else if (string.IsNullOrEmpty(e.Value?.ToString()))
+        {
+            detalle.ValorReal = null;
+            RegistrarCambio(detalle);
+        }
+    }
+
+    private void OnValorTextoChanged(RegistroProcesoDetalleDto detalle, ChangeEventArgs e)
+    {
+        detalle.ValorRealTexto = e.Value?.ToString();
+        RegistrarCambio(detalle);
+    }
+
+    private void OnObservacionChanged(RegistroProcesoDetalleDto detalle, ChangeEventArgs e)
+    {
+        detalle.Observacion = e.Value?.ToString();
+        RegistrarCambio(detalle);
+    }
+
+    private void RegistrarCambio(RegistroProcesoDetalleDto detalle)
+    {
+        valoresModificados[detalle.ParametroId] = new ValorParametroRequest
+        {
+            ParametroId = detalle.ParametroId,
+            ValorReal = detalle.ValorReal,
+            ValorRealTexto = detalle.ValorRealTexto,
+            Observacion = detalle.Observacion
+        };
+    }
+
+    private async Task GuardarGrupoActual()
+    {
+        if (registro == null) return;
+
+        var grupoActual = registro.Grupos.FirstOrDefault(g => g.GrupoParametroId == selectedGrupoId);
+        if (grupoActual == null) return;
+
+        var valoresDelGrupo = grupoActual.Detalles
+            .Where(d => d.ValorReal.HasValue || !string.IsNullOrEmpty(d.ValorRealTexto))
+            .Select(d => new ValorParametroRequest
+            {
+                ParametroId = d.ParametroId,
+                ValorReal = d.ValorReal,
+                ValorRealTexto = d.ValorRealTexto,
+                Observacion = d.Observacion
+            })
+            .ToList();
+
+        if (!valoresDelGrupo.Any())
+        {
+            errorMessage = "No hay valores para guardar en este grupo.";
+            return;
+        }
+
+        await GuardarValores(valoresDelGrupo);
+    }
+
+    private async Task GuardarTodo()
+    {
+        if (registro == null) return;
+
+        var todosLosValores = registro.Grupos
+            .SelectMany(g => g.Detalles)
+            .Where(d => d.ValorReal.HasValue || !string.IsNullOrEmpty(d.ValorRealTexto))
+            .Select(d => new ValorParametroRequest
+            {
+                ParametroId = d.ParametroId,
+                ValorReal = d.ValorReal,
+                ValorRealTexto = d.ValorRealTexto,
+                Observacion = d.Observacion
+            })
+            .ToList();
+
+        if (!todosLosValores.Any())
+        {
+            errorMessage = "No hay valores para guardar.";
+            return;
+        }
+
+        await GuardarValores(todosLosValores);
+    }
+
+    private async Task GuardarValores(List<ValorParametroRequest> valores)
+    {
+        if (registro == null) return;
+
+        isSaving = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var request = new GuardarValoresRequest
+            {
+                RegistroProcesoId = registro.RegistroProcesoId,
+                RowVersion = registro.RowVersion,
+                Valores = valores
+            };
+
+            var (success, error) = await RegistroProcesoService.GuardarValoresAsync(request);
+
+            if (success)
+            {
+                successMessage = "Valores guardados correctamente.";
+                valoresModificados.Clear();
+                await CargarRegistro(); // Recargar para obtener RowVersion actualizado
+            }
+            else
+            {
+                errorMessage = error ?? "Error al guardar los valores.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task CerrarRegistro()
+    {
+        if (registro == null) return;
+
+        // Primero guardar todos los valores pendientes
+        await GuardarTodo();
+
+        if (!string.IsNullOrEmpty(errorMessage)) return;
+
+        isSaving = true;
+        errorMessage = null;
+
+        try
+        {
+            var request = new CerrarRegistroProcesoRequest
+            {
+                RegistroProcesoId = registro.RegistroProcesoId,
+                RowVersion = registro.RowVersion
+            };
+
+            var (success, error) = await RegistroProcesoService.CerrarRegistroAsync(Id, request);
+
+            if (success)
+            {
+                successMessage = "Registro cerrado correctamente.";
+                await CargarRegistro();
+            }
+            else
+            {
+                errorMessage = error ?? "Error al cerrar el registro.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void Volver()
+    {
+        Navigation.NavigateTo("/registros-proceso");
+    }
+
+    private string GetEstadoBadgeClass(string estado) => estado switch
+    {
+        "PARCIAL" => "bg-warning text-dark",
+        "COMPLETO" => "bg-info",
+        "CERRADO" => "bg-success",
+        _ => "bg-secondary"
+    };
+}

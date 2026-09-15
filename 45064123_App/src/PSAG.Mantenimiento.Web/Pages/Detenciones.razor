@@ -1,0 +1,757 @@
+@page "/detenciones"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize]
+@inject IDetencionesService DetencionesService
+@inject ICatalogosService CatalogosService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Detenciones - PSAG Produccion</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Detenciones</h2>
+        <button class="btn btn-primary" @onclick="AbrirModalNueva">
+            <i class="bi bi-plus-lg me-2"></i>Nueva Detencion
+        </button>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <!-- Buscador universal -->
+                <div class="col-md-4">
+                    <label class="form-label">Buscar</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" placeholder="Codigo, equipo, tipo falla, descripcion..."
+                               @bind="filtroBusqueda" @bind:event="oninput" @onkeyup="OnBusquedaKeyUp" />
+                        @if (!string.IsNullOrEmpty(filtroBusqueda))
+                        {
+                            <button class="btn btn-outline-secondary" type="button" @onclick="LimpiarBusqueda">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        }
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Fecha Desde</label>
+                    <input type="date" class="form-control" @bind="filtroFechaDesde" @bind:after="@(async () => await CargarDetenciones())" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Fecha Hasta</label>
+                    <input type="date" class="form-control" @bind="filtroFechaHasta" @bind:after="@(async () => await CargarDetenciones())" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Linea</label>
+                    <select class="form-select" @bind="filtroLineaId" @bind:after="@(async () => await CargarDetenciones())">
+                        <option value="">Todas</option>
+                        @foreach (var linea in lineas)
+                        {
+                            <option value="@linea.LineaId">@linea.Nombre</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Estado</label>
+                    <select class="form-select" @bind="filtroEstado" @bind:after="@(async () => await CargarDetenciones())">
+                        <option value="">Todos</option>
+                        <option value="REGISTRADA">Registrada</option>
+                        <option value="EN_SEGUIMIENTO">En Seguimiento</option>
+                        <option value="CERRADA">Cerrada</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row mt-2">
+                <div class="col-12 d-flex justify-content-end">
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="LimpiarFiltros">
+                        <i class="bi bi-x-circle me-1"></i>Limpiar filtros
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de detenciones -->
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+        </div>
+    }
+    else if (detenciones.Items.Any())
+    {
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Codigo</th>
+                            <th>Fecha</th>
+                            <th>Linea</th>
+                            <th>Equipo</th>
+                            <th>Tipo Falla</th>
+                            <th>Minutos</th>
+                            <th>Estado</th>
+                            <th>Turno</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var det in detenciones.Items)
+                        {
+                            <tr @onclick="() => VerDetalle(det.DetencionId)" style="cursor: pointer;">
+                                <td><strong>@det.Codigo</strong></td>
+                                <td>@det.Fecha.ToString("dd/MM/yyyy")</td>
+                                <td>@det.LineaNombre</td>
+                                <td>@(det.EquipoNombre ?? "-")</td>
+                                <td>@(det.TipoFallaNombre ?? "-")</td>
+                                <td>
+                                    <span class="badge bg-secondary">@det.MinutosEfectivos min</span>
+                                </td>
+                                <td>
+                                    <span class="badge @GetEstadoBadgeClass(det.EstadoActual)">
+                                        @det.EstadoActualDescripcion
+                                    </span>
+                                </td>
+                                <td>@det.TurnoNombre</td>
+                                <td class="text-end" @onclick:stopPropagation="true">
+                                    <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => VerDetalle(det.DetencionId)">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                    @if (det.EstadoActual != "CERRADA")
+                                    {
+                                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => EditarDetencion(det)">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Paginacion -->
+        @if (detenciones.TotalPages > 1)
+        {
+            <nav class="mt-3">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                        <button class="page-link" @onclick="() => CambiarPagina(currentPage - 1)">Anterior</button>
+                    </li>
+                    @for (int i = 1; i <= Math.Min(detenciones.TotalPages, 5); i++)
+                    {
+                        var pageNum = i;
+                        <li class="page-item @(currentPage == pageNum ? "active" : "")">
+                            <button class="page-link" @onclick="() => CambiarPagina(pageNum)">@pageNum</button>
+                        </li>
+                    }
+                    <li class="page-item @(currentPage == detenciones.TotalPages ? "disabled" : "")">
+                        <button class="page-link" @onclick="() => CambiarPagina(currentPage + 1)">Siguiente</button>
+                    </li>
+                </ul>
+            </nav>
+        }
+
+        <p class="text-muted text-center mt-2">
+            Mostrando @detenciones.Items.Count de @detenciones.TotalCount registros
+        </p>
+    }
+    else
+    {
+        <div class="alert alert-info">
+            No se encontraron detenciones con los filtros seleccionados.
+        </div>
+    }
+</div>
+
+@* Modal Nueva/Editar Detencion *@
+@if (showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(editando ? "Editar" : "Nueva") Detencion</h5>
+                    <button type="button" class="btn-close" @onclick="CerrarModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-lg-8">
+                            @if (!string.IsNullOrEmpty(errorMessage))
+                            {
+                                <div class="alert alert-danger">@errorMessage</div>
+                            }
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Linea *</label>
+                                    <AutocompleteSelect TItem="LineaDto"
+                                                        TValue="int"
+                                                        Items="lineasDisponibles"
+                                                        @bind-SelectedValue="selectedLineaId"
+                                                        OnValueChanged="OnLineaChanged"
+                                                        ValueSelector="@(l => l.LineaId)"
+                                                        TextSelector="@(l => l.Nombre)"
+                                                        Placeholder="Buscar linea...">
+                                        <ItemTemplate Context="linea">
+                                            @linea.Nombre
+                                        </ItemTemplate>
+                                    </AutocompleteSelect>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Fecha *</label>
+                                    <input type="date" class="form-control" @bind="model.Fecha" />
+                                </div>
+                            </div>
+
+                            @* Información de Maquinista y Turno *@
+                            @if (selectedLineaId > 0)
+                            {
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Maquinista @(puedeSeleccionarMaquinista ? "*" : "")</label>
+                                        @if (puedeSeleccionarMaquinista)
+                                        {
+                                            @* Admin/Gerencia/Supervisor pueden seleccionar cualquier maquinista de la linea *@
+                                            <select class="form-select" @bind="selectedMaquinistaId" @bind:after="OnMaquinistaChanged">
+                                                <option value="0">-- Seleccione maquinista --</option>
+                                                @foreach (var maq in maquinistasLinea)
+                                                {
+                                                    <option value="@maq.UsuarioLineaId">@maq.NombreUsuario (@maq.TurnoNombre)</option>
+                                                }
+                                            </select>
+                                        }
+                                        else if (maquinistaActual != null)
+                                        {
+                                            <div class="form-control bg-light">
+                                                <i class="bi bi-person-fill me-2 text-primary"></i>@maquinistaActual.NombreUsuario
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="form-control bg-warning-subtle text-warning-emphasis">
+                                                <i class="bi bi-exclamation-triangle me-2"></i>Sin asignación
+                                            </div>
+                                        }
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Turno</label>
+                                        @if (!string.IsNullOrEmpty(turnoAsignado))
+                                        {
+                                            <div class="form-control bg-light">
+                                                <i class="bi bi-clock-fill me-2 text-success"></i>@turnoAsignado
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="form-control bg-warning-subtle text-warning-emphasis">
+                                                <i class="bi bi-exclamation-triangle me-2"></i>Por hora actual
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Equipo</label>
+                                    <AutocompleteSelect TItem="EquipoDto"
+                                                        TValue="int?"
+                                                        Items="equipos"
+                                                        @bind-SelectedValue="model.EquipoId"
+                                                        OnValueChanged="OnEquipoChanged"
+                                                        ValueSelector="@(e => (int?)e.EquipoId)"
+                                                        TextSelector="@(e => e.Nombre)"
+                                                        Placeholder="Buscar equipo...">
+                                        <ItemTemplate Context="equipo">
+                                            @equipo.Nombre
+                                        </ItemTemplate>
+                                    </AutocompleteSelect>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Tipo de Falla</label>
+                                    <AutocompleteSelect TItem="TipoFallaDto"
+                                                        TValue="int?"
+                                                        Items="tiposFalla"
+                                                        @bind-SelectedValue="model.TipoFallaId"
+                                                        OnValueChanged="OnTipoFallaChanged"
+                                                        ValueSelector="@(t => (int?)t.TipoFallaId)"
+                                                        TextSelector="@(t => t.Nombre)"
+                                                        Placeholder="Buscar tipo de falla...">
+                                        <ItemTemplate Context="tipo">
+                                            @tipo.Nombre
+                                        </ItemTemplate>
+                                    </AutocompleteSelect>
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Detalle de Falla</label>
+                                    <AutocompleteSelect TItem="DetalleFallaDto"
+                                                        TValue="int?"
+                                                        Items="detallesFalla"
+                                                        @bind-SelectedValue="model.DetalleFallaId"
+                                                        ValueSelector="@(d => (int?)d.DetalleFallaId)"
+                                                        TextSelector="@(d => d.Nombre)"
+                                                        Placeholder="Buscar detalle...">
+                                        <ItemTemplate Context="detalle">
+                                            @detalle.Nombre
+                                        </ItemTemplate>
+                                    </AutocompleteSelect>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Minutos de Parada *</label>
+                                    <input type="number" class="form-control" @bind="model.MinutosDeclarados" min="1" />
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Descripcion *</label>
+                                <textarea class="form-control" @bind="model.Descripcion" rows="4"
+                                    placeholder="Describa la causa de la detencion..."></textarea>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4">
+                            <div class="card bg-light">
+                                <div class="card-header bg-info text-white">
+                                    <h6 class="mb-0">
+                                        <i class="bi bi-clock-history me-2"></i>
+                                        Acumulado del Turno
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    @if (isLoadingResumen)
+                                    {
+                                        <div class="text-center py-3">
+                                            <div class="spinner-border spinner-border-sm text-info"></div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="mb-2">
+                                            <small class="text-muted">Turno:</small>
+                                            <strong class="ms-2">@resumenTurno.TurnoNombre</strong>
+                                        </div>
+                                        @if (resumenTurno.Items.Any())
+                                        {
+                                            <table class="table table-sm mb-0">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Tipo</th>
+                                                        <th class="text-center">Cant</th>
+                                                        <th class="text-end">Min</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach (var item in resumenTurno.Items.Take(5))
+                                                    {
+                                                        <tr>
+                                                            <td><small>@item.TipoFallaNombre</small></td>
+                                                            <td class="text-center">@item.CantidadDetenciones</td>
+                                                            <td class="text-end">@item.TotalMinutos</td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                                <tfoot class="fw-bold">
+                                                    <tr>
+                                                        <td>Total</td>
+                                                        <td class="text-center">@resumenTurno.Items.Sum(i => i.CantidadDetenciones)</td>
+                                                        <td class="text-end">@resumenTurno.TotalMinutos</td>
+                                                    </tr>
+                                                </tfoot>
+                                            </table>
+                                        }
+                                        else
+                                        {
+                                            <p class="text-muted text-center mb-0">Sin detenciones</p>
+                                        }
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CerrarModal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" @onclick="GuardarDetencion" disabled="@isSubmitting">
+                        @if (isSubmitting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        @(editando ? "Actualizar" : "Registrar")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private PagedResult<DetencionDto> detenciones = new();
+    private List<LineaDto> lineas = new();
+    private List<LineaDto> lineasDisponibles = new();
+    private List<MaquinistaDto> misAsignaciones = new();
+    private List<MaquinistaDto> maquinistasLinea = new();  // Maquinistas de la linea seleccionada
+    private MaquinistaDto? maquinistaActual;
+    private string? turnoAsignado;
+    private int selectedMaquinistaId;
+    private bool puedeSeleccionarMaquinista;  // True si es Admin/Gerencia/Supervisor
+    private List<EquipoDto> equipos = new();
+    private List<TipoFallaDto> tiposFalla = new();
+    private List<DetalleFallaDto> detallesFalla = new();
+    private ResumenTurnoResponse resumenTurno = new();
+
+    private bool isLoading = true;
+    private bool showModal = false;
+    private bool editando = false;
+    private bool isSubmitting = false;
+    private bool isLoadingResumen = false;
+    private string? errorMessage;
+
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int? filtroLineaId;
+    private string? filtroEstado;
+    private DateTime? filtroFechaDesde;
+    private DateTime? filtroFechaHasta;
+    private string? filtroBusqueda;
+    private System.Timers.Timer? debounceTimer;
+
+    private CrearDetencionRequest model = new();
+    private int selectedLineaId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Verificar si el usuario puede seleccionar maquinista (Admin/Gerencia/Supervisor)
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        puedeSeleccionarMaquinista = user.IsInRole("ADMINISTRADOR") ||
+                                      user.IsInRole("GERENCIA") ||
+                                      user.IsInRole("SUPERVISOR");
+
+        await CargarLineas();
+        await CargarDetenciones();
+    }
+
+    private async Task CargarLineas()
+    {
+        try
+        {
+            var lineasTask = CatalogosService.GetLineasAsync();
+            var tiposFallaTask = CatalogosService.GetTiposFallaAsync();
+            var asignacionesTask = CatalogosService.GetMisAsignacionesAsync();
+
+            await Task.WhenAll(lineasTask, tiposFallaTask, asignacionesTask);
+
+            lineas = await lineasTask;
+            tiposFalla = await tiposFallaTask;
+            misAsignaciones = await asignacionesTask;
+
+            // Si el usuario tiene asignaciones, filtrar lineas a solo las asignadas
+            if (misAsignaciones.Any())
+            {
+                var lineasAsignadasIds = misAsignaciones.Select(a => a.LineaId).ToHashSet();
+                lineasDisponibles = lineas.Where(l => lineasAsignadasIds.Contains(l.LineaId)).ToList();
+            }
+            else
+            {
+                // Sin asignaciones: mostrar todas las lineas (admin/supervisor)
+                lineasDisponibles = lineas;
+            }
+        }
+        catch { }
+    }
+
+    private async Task CargarDetenciones()
+    {
+        isLoading = true;
+        try
+        {
+            var filtro = new DetencionFiltroRequest
+            {
+                Page = currentPage,
+                PageSize = pageSize,
+                LineaId = filtroLineaId,
+                Estado = filtroEstado,
+                FechaDesde = filtroFechaDesde.HasValue ? DateOnly.FromDateTime(filtroFechaDesde.Value) : null,
+                FechaHasta = filtroFechaHasta.HasValue ? DateOnly.FromDateTime(filtroFechaHasta.Value) : null,
+                Busqueda = filtroBusqueda
+            };
+            detenciones = await DetencionesService.GetDetencionesConFiltrosAsync(filtro);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task CambiarPagina(int page)
+    {
+        currentPage = page;
+        await CargarDetenciones();
+    }
+
+    private async Task LimpiarFiltros()
+    {
+        filtroLineaId = null;
+        filtroEstado = null;
+        filtroFechaDesde = null;
+        filtroFechaHasta = null;
+        filtroBusqueda = null;
+        currentPage = 1;
+        await CargarDetenciones();
+    }
+
+    private void OnBusquedaKeyUp()
+    {
+        debounceTimer?.Stop();
+        debounceTimer?.Dispose();
+        debounceTimer = new System.Timers.Timer(400);
+        debounceTimer.Elapsed += async (s, e) =>
+        {
+            debounceTimer?.Stop();
+            await InvokeAsync(async () =>
+            {
+                currentPage = 1;
+                await CargarDetenciones();
+                StateHasChanged();
+            });
+        };
+        debounceTimer.AutoReset = false;
+        debounceTimer.Start();
+    }
+
+    private async Task LimpiarBusqueda()
+    {
+        filtroBusqueda = null;
+        currentPage = 1;
+        await CargarDetenciones();
+    }
+
+    private async Task AbrirModalNueva()
+    {
+        model = new CrearDetencionRequest();
+        selectedLineaId = 0;
+        selectedMaquinistaId = 0;
+        maquinistaActual = null;
+        turnoAsignado = null;
+        maquinistasLinea.Clear();
+        equipos.Clear();
+        detallesFalla.Clear();
+        editando = false;
+        errorMessage = null;
+        showModal = true;
+        await CargarResumenTurno();
+    }
+
+    private async Task EditarDetencion(DetencionDto det)
+    {
+        model = new CrearDetencionRequest
+        {
+            LineaId = det.LineaId,
+            EquipoId = det.EquipoId,
+            TipoFallaId = det.TipoFallaId,
+            DetalleFallaId = det.DetalleFallaId,
+            Fecha = DateOnly.FromDateTime(det.Fecha),
+            MinutosDeclarados = det.MinutosEfectivos,
+            Descripcion = det.Descripcion
+        };
+        selectedLineaId = det.LineaId;
+
+        if (model.LineaId > 0)
+        {
+            equipos = await CatalogosService.GetEquiposAsync(model.LineaId);
+        }
+        if (model.TipoFallaId.HasValue)
+        {
+            detallesFalla = await CatalogosService.GetDetallesFallaAsync(model.TipoFallaId, model.EquipoId);
+        }
+
+        editando = true;
+        errorMessage = null;
+        showModal = true;
+        await CargarResumenTurno();
+    }
+
+    private void CerrarModal()
+    {
+        showModal = false;
+        model = new();
+    }
+
+    private async Task OnLineaChanged()
+    {
+        model.LineaId = selectedLineaId;
+        maquinistaActual = null;
+        turnoAsignado = null;
+        selectedMaquinistaId = 0;
+        maquinistasLinea.Clear();
+
+        if (selectedLineaId > 0)
+        {
+            if (puedeSeleccionarMaquinista)
+            {
+                // Admin/Gerencia/Supervisor: cargar todos los maquinistas de la linea
+                maquinistasLinea = await CatalogosService.GetMaquinistasAsync(selectedLineaId);
+            }
+            else
+            {
+                // Operario: buscar su propia asignacion para esta linea
+                var asignacion = misAsignaciones.FirstOrDefault(a => a.LineaId == selectedLineaId);
+                if (asignacion != null)
+                {
+                    maquinistaActual = asignacion;
+                    if (asignacion.TurnoId.HasValue)
+                    {
+                        turnoAsignado = asignacion.TurnoNombre;
+                    }
+                }
+            }
+
+            equipos = await CatalogosService.GetEquiposAsync(selectedLineaId);
+            await CargarResumenTurno();
+        }
+        else
+        {
+            equipos.Clear();
+        }
+        model.EquipoId = null;
+    }
+
+    private async Task OnMaquinistaChanged()
+    {
+        turnoAsignado = null;
+
+        if (selectedMaquinistaId > 0)
+        {
+            var maquinista = maquinistasLinea.FirstOrDefault(m => m.UsuarioLineaId == selectedMaquinistaId);
+            if (maquinista != null)
+            {
+                turnoAsignado = maquinista.TurnoNombre;
+            }
+        }
+        await Task.CompletedTask;
+    }
+
+    private async Task OnEquipoChanged()
+    {
+        // Recargar detalles de falla si hay tipo de falla seleccionado
+        if (model.TipoFallaId.HasValue)
+        {
+            detallesFalla = await CatalogosService.GetDetallesFallaAsync(model.TipoFallaId, model.EquipoId);
+        }
+    }
+
+    private async Task OnTipoFallaChanged()
+    {
+        if (model.TipoFallaId.HasValue)
+        {
+            detallesFalla = await CatalogosService.GetDetallesFallaAsync(model.TipoFallaId, model.EquipoId);
+        }
+        else
+        {
+            detallesFalla.Clear();
+        }
+        model.DetalleFallaId = null;
+    }
+
+    private async Task CargarResumenTurno()
+    {
+        isLoadingResumen = true;
+        try
+        {
+            resumenTurno = await DetencionesService.GetResumenTurnoAsync(selectedLineaId > 0 ? selectedLineaId : null);
+        }
+        catch { }
+        finally
+        {
+            isLoadingResumen = false;
+        }
+    }
+
+    private async Task GuardarDetencion()
+    {
+        errorMessage = null;
+
+        if (selectedLineaId == 0)
+        {
+            errorMessage = "Debe seleccionar una linea";
+            return;
+        }
+        model.LineaId = selectedLineaId;
+
+        // Si puede seleccionar maquinista, validar que haya seleccionado uno
+        if (puedeSeleccionarMaquinista)
+        {
+            if (selectedMaquinistaId <= 0)
+            {
+                errorMessage = "Debe seleccionar un maquinista";
+                return;
+            }
+            model.UsuarioLineaId = selectedMaquinistaId;
+        }
+
+        if (model.MinutosDeclarados == null || model.MinutosDeclarados <= 0)
+        {
+            errorMessage = "Debe ingresar los minutos de parada";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(model.Descripcion))
+        {
+            errorMessage = "Debe ingresar una descripcion";
+            return;
+        }
+
+        isSubmitting = true;
+
+        try
+        {
+            var result = await DetencionesService.CrearDetencionAsync(model);
+            if (result != null)
+            {
+                showModal = false;
+                await CargarDetenciones();
+            }
+            else
+            {
+                errorMessage = "Error al guardar la detencion";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void VerDetalle(long id)
+    {
+        Navigation.NavigateTo($"/detenciones/{id}");
+    }
+
+    private string GetEstadoBadgeClass(string estado) => estado switch
+    {
+        "REGISTRADA" => "bg-primary",
+        "EN_SEGUIMIENTO" => "bg-warning text-dark",
+        "CERRADA" => "bg-success",
+        _ => "bg-secondary"
+    };
+}

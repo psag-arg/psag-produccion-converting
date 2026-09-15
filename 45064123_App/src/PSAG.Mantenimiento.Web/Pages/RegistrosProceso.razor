@@ -1,0 +1,270 @@
+@page "/registros-proceso"
+@using Microsoft.AspNetCore.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize]
+@inject IRegistroProcesoService RegistroProcesoService
+@inject ICatalogosService CatalogosService
+@inject NavigationManager Navigation
+
+<PageTitle>Variables de Proceso - PSAG Produccion</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Variables de Proceso</h2>
+        <button class="btn btn-primary" @onclick="NuevoRegistro">
+            <i class="bi bi-plus-lg"></i> Nuevo Registro
+        </button>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-2">
+                    <label class="form-label">Linea</label>
+                    <select class="form-select" @bind="filtroLineaId" @bind:after="OnLineaChanged">
+                        <option value="">Todas</option>
+                        @foreach (var linea in lineas)
+                        {
+                            <option value="@linea.LineaId">@linea.Nombre</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Producto</label>
+                    <select class="form-select" @bind="filtroProductoId" @bind:after="CargarRegistros">
+                        <option value="">Todos</option>
+                        @foreach (var producto in productos)
+                        {
+                            <option value="@producto.ProductoId">@producto.Nombre</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Estado</label>
+                    <select class="form-select" @bind="filtroEstado" @bind:after="CargarRegistros">
+                        <option value="">Todos</option>
+                        <option value="PARCIAL">Parcial</option>
+                        <option value="COMPLETO">Completo</option>
+                        <option value="CERRADO">Cerrado</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Fecha Desde</label>
+                    <InputDate class="form-control" @bind-Value="filtroFechaDesde" @bind-Value:after="CargarRegistros" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Fecha Hasta</label>
+                    <InputDate class="form-control" @bind-Value="filtroFechaHasta" @bind-Value:after="CargarRegistros" />
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-outline-secondary" @onclick="LimpiarFiltros">
+                        Limpiar filtros
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de registros -->
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+        </div>
+    }
+    else if (registros.Items.Any())
+    {
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Linea</th>
+                            <th>Producto</th>
+                            <th>Turno</th>
+                            <th>Completados</th>
+                            <th>Desvios</th>
+                            <th>Estado</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var reg in registros.Items)
+                        {
+                            <tr>
+                                <td>@reg.Fecha.ToString("dd/MM/yyyy")</td>
+                                <td>@reg.LineaNombre</td>
+                                <td>@reg.ProductoNombre</td>
+                                <td>@reg.TurnoNombre</td>
+                                <td>
+                                    <span class="badge bg-info">@reg.CantidadCompletados</span>
+                                </td>
+                                <td>
+                                    @if (reg.CantidadDesvios > 0)
+                                    {
+                                        <span class="badge bg-warning text-dark">@reg.CantidadDesvios</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-success">0</span>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="badge @GetEstadoBadgeClass(reg.Estado)">
+                                        @reg.EstadoDescripcion
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => VerRegistro(reg.RegistroProcesoId)">
+                                        @(reg.Estado == "CERRADO" ? "Ver" : "Editar")
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Paginacion -->
+        @if (registros.TotalPages > 1)
+        {
+            <nav class="mt-3">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                        <button class="page-link" @onclick="() => CambiarPagina(currentPage - 1)">Anterior</button>
+                    </li>
+                    @for (int i = 1; i <= registros.TotalPages; i++)
+                    {
+                        var pageNum = i;
+                        <li class="page-item @(currentPage == pageNum ? "active" : "")">
+                            <button class="page-link" @onclick="() => CambiarPagina(pageNum)">@pageNum</button>
+                        </li>
+                    }
+                    <li class="page-item @(currentPage == registros.TotalPages ? "disabled" : "")">
+                        <button class="page-link" @onclick="() => CambiarPagina(currentPage + 1)">Siguiente</button>
+                    </li>
+                </ul>
+            </nav>
+        }
+
+        <p class="text-muted text-center mt-2">
+            Mostrando @registros.Items.Count de @registros.TotalCount registros
+        </p>
+    }
+    else
+    {
+        <div class="alert alert-info">
+            No se encontraron registros con los filtros seleccionados.
+        </div>
+    }
+</div>
+
+@code {
+    private PagedResult<RegistroProcesoDto> registros = new();
+    private List<LineaDto> lineas = new();
+    private List<ProductoDto> productos = new();
+    private bool isLoading = true;
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int? filtroLineaId;
+    private int? filtroProductoId;
+    private string? filtroEstado;
+    private DateOnly? filtroFechaDesde;
+    private DateOnly? filtroFechaHasta;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarCatalogos();
+        await CargarRegistros();
+    }
+
+    private async Task CargarCatalogos()
+    {
+        try
+        {
+            lineas = await CatalogosService.GetLineasAsync();
+            productos = await CatalogosService.GetProductosAsync();
+        }
+        catch { }
+    }
+
+    private async Task OnLineaChanged()
+    {
+        if (filtroLineaId.HasValue)
+        {
+            productos = await CatalogosService.GetProductosAsync(filtroLineaId);
+        }
+        else
+        {
+            productos = await CatalogosService.GetProductosAsync();
+        }
+        filtroProductoId = null;
+        await CargarRegistros();
+    }
+
+    private async Task CargarRegistros()
+    {
+        isLoading = true;
+        try
+        {
+            registros = await RegistroProcesoService.GetRegistrosAsync(
+                currentPage,
+                pageSize,
+                filtroLineaId,
+                filtroProductoId,
+                filtroEstado,
+                filtroFechaDesde,
+                filtroFechaHasta);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task CambiarPagina(int page)
+    {
+        currentPage = page;
+        await CargarRegistros();
+    }
+
+    private async Task LimpiarFiltros()
+    {
+        filtroLineaId = null;
+        filtroProductoId = null;
+        filtroEstado = null;
+        filtroFechaDesde = null;
+        filtroFechaHasta = null;
+        currentPage = 1;
+        productos = await CatalogosService.GetProductosAsync();
+        await CargarRegistros();
+    }
+
+    private void NuevoRegistro()
+    {
+        Navigation.NavigateTo("/registros-proceso/nuevo");
+    }
+
+    private void VerRegistro(long id)
+    {
+        Navigation.NavigateTo($"/registros-proceso/{id}");
+    }
+
+    private string GetEstadoBadgeClass(string estado) => estado switch
+    {
+        "PARCIAL" => "bg-warning text-dark",
+        "COMPLETO" => "bg-info",
+        "CERRADO" => "bg-success",
+        _ => "bg-secondary"
+    };
+}

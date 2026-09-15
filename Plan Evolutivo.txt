@@ -1,0 +1,4 @@
+1) meter planos y manuales de las maquinas para interpretar y anticipar problemas e incluso relacionar con los repuestos
+2) establecer solicitud de respuestos a pañol y compras
+3) implementar IA para evaluacion de estado via historial de paradas (Diagnostico) 
+

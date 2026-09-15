@@ -1,0 +1,4 @@
+Mensaje 207, Nivel 16, Estado 1, Servidor pillowsrv001, Línea 4
+El nombre de columna 'Observaciones' no es válido.
+Mensaje 207, Nivel 16, Estado 1, Servidor pillowsrv001, Línea 4
+El nombre de columna 'Prioridad' no es válido.

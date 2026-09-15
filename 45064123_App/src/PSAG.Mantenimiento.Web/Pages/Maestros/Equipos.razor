@@ -1,0 +1,287 @@
+@page "/maestros/equipos"
+@using Microsoft.AspNetCore.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize(Roles = "ADMINISTRADOR")]
+@inject ICatalogosService CatalogosService
+@inject IJSRuntime JS
+
+<PageTitle>Equipos - PSAG Produccion</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3>Equipos</h3>
+        <div class="d-flex gap-2 align-items-center">
+            <div style="width: 250px;">
+                <AutocompleteSelect TItem="LineaDto"
+                                    TValue="int"
+                                    Items="lineas"
+                                    @bind-SelectedValue="filtroLineaId"
+                                    OnValueChanged="CargarEquipos"
+                                    ValueSelector="@(l => l.LineaId)"
+                                    TextSelector="@(l => l.Nombre)"
+                                    Placeholder="Filtrar por linea...">
+                    <ItemTemplate Context="linea">
+                        @linea.Nombre
+                    </ItemTemplate>
+                </AutocompleteSelect>
+            </div>
+            <button class="btn btn-primary" @onclick="NuevoEquipo">
+                <i class="bi bi-plus-circle me-2"></i>Nuevo Equipo
+            </button>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card">
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Linea</th>
+                            <th>Nombre</th>
+                            <th>Descripcion</th>
+                            <th class="text-center">Activo</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (equiposFiltrados.Any())
+                        {
+                            @foreach (var equipo in equiposFiltrados)
+                            {
+                                <tr>
+                                    <td>@equipo.EquipoId</td>
+                                    <td><span class="badge bg-info">@equipo.LineaNombre</span></td>
+                                    <td><strong>@equipo.Nombre</strong></td>
+                                    <td>@equipo.Descripcion</td>
+                                    <td class="text-center">
+                                        @if (equipo.Activo)
+                                        {
+                                            <span class="badge bg-success">Activo</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">Inactivo</span>
+                                        }
+                                    </td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => EditarEquipo(equipo)">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmarDesactivar(equipo)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">No hay equipos registrados</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@* Modal para crear/editar *@
+@if (showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(editando ? "Editar" : "Nuevo") Equipo</h5>
+                    <button type="button" class="btn-close" @onclick="CerrarModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Linea *</label>
+                        <AutocompleteSelect TItem="LineaDto"
+                                            TValue="int"
+                                            Items="lineas"
+                                            @bind-SelectedValue="equipoActual.LineaId"
+                                            ValueSelector="@(l => l.LineaId)"
+                                            TextSelector="@(l => l.Nombre)"
+                                            Placeholder="Buscar linea...">
+                            <ItemTemplate Context="linea">
+                                @linea.Nombre
+                            </ItemTemplate>
+                        </AutocompleteSelect>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Codigo *</label>
+                        <input type="text" class="form-control" @bind="equipoActual.Codigo" placeholder="Ej: REB-1, GOF-1" />
+                        <small class="text-muted">Codigo unico por linea</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nombre *</label>
+                        <input type="text" class="form-control" @bind="equipoActual.Nombre" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descripcion</label>
+                        <textarea class="form-control" rows="3" @bind="equipoActual.Descripcion"></textarea>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="activo" @bind="equipoActual.Activo" />
+                        <label class="form-check-label" for="activo">Activo</label>
+                    </div>
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger mt-3 mb-0">@errorMessage</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CerrarModal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" @onclick="GuardarEquipo" disabled="@isSaving">
+                        @if (isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        Guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<LineaDto> lineas = new();
+    private List<EquipoDto> equipos = new();
+    private EquipoDto equipoActual = new();
+    private int filtroLineaId = 0;
+    private bool isLoading = true;
+    private bool showModal = false;
+    private bool editando = false;
+    private bool isSaving = false;
+    private string? errorMessage;
+
+    private IEnumerable<EquipoDto> equiposFiltrados => filtroLineaId > 0
+        ? equipos.Where(e => e.LineaId == filtroLineaId)
+        : equipos;
+
+    protected override async Task OnInitializedAsync()
+    {
+        lineas = await CatalogosService.GetLineasAsync();
+        await CargarEquipos();
+    }
+
+    private async Task CargarEquipos()
+    {
+        isLoading = true;
+        try
+        {
+            equipos = await CatalogosService.GetEquiposAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void NuevoEquipo()
+    {
+        equipoActual = new EquipoDto { Activo = true, LineaId = filtroLineaId > 0 ? filtroLineaId : 0 };
+        editando = false;
+        errorMessage = null;
+        showModal = true;
+    }
+
+    private void EditarEquipo(EquipoDto equipo)
+    {
+        equipoActual = new EquipoDto
+        {
+            EquipoId = equipo.EquipoId,
+            LineaId = equipo.LineaId,
+            Codigo = equipo.Codigo,
+            Nombre = equipo.Nombre,
+            Descripcion = equipo.Descripcion,
+            Activo = equipo.Activo
+        };
+        editando = true;
+        errorMessage = null;
+        showModal = true;
+    }
+
+    private void CerrarModal()
+    {
+        showModal = false;
+        equipoActual = new();
+    }
+
+    private async Task GuardarEquipo()
+    {
+        if (equipoActual.LineaId == 0)
+        {
+            errorMessage = "Debe seleccionar una linea";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(equipoActual.Codigo))
+        {
+            errorMessage = "El codigo es requerido";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(equipoActual.Nombre))
+        {
+            errorMessage = "El nombre es requerido";
+            return;
+        }
+
+        isSaving = true;
+        errorMessage = null;
+
+        try
+        {
+            if (editando)
+            {
+                await CatalogosService.UpdateEquipoAsync(equipoActual);
+            }
+            else
+            {
+                await CatalogosService.CreateEquipoAsync(equipoActual);
+            }
+
+            showModal = false;
+            await CargarEquipos();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task ConfirmarDesactivar(EquipoDto equipo)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", $"¿Desea desactivar el equipo '{equipo.Nombre}'?");
+        if (confirmed)
+        {
+            equipo.Activo = false;
+            await CatalogosService.UpdateEquipoAsync(equipo);
+            await CargarEquipos();
+        }
+    }
+}

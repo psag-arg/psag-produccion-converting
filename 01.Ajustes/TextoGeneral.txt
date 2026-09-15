@@ -1,0 +1,21 @@
+* Dentro del Arbol de quiero que tengamos la posibilidad de ocultar y mostrar el Arbol general
+* Vamos a crear Secciones
+ 1) Dashboard
+ 2) Maestros
+ 3) Detenciones
+ 4) Registros
+ 5) Inspecciones
+Por debajo de cada una se guardara la Accion ejecutable y por defecto aparcen solo las opciones principales o secciones
+
+* Dentro de MAESTROS tenemos que tener
+ - ABM de Lineas
+ - ABM de Equipos (Relacionado con la Liea) o sea son los Equipos de la linea tal
+ - ABM de Tipos de Falla
+ - ABM de Falla (Relacionadoc on el Tipo de Falla) o sea son las FAllas del tipo tal 
+
+* La opcion de Ingresar a Detenciones deberia ser una grilla con las detenciones donde tengo la opcion de Seleccionar una existente para editar o bien un boton que diga NUEVA detencion y me levante un modal con lo que hoy es http://localhost:5188/detenciones/nueva 
+
+* Dentro de http://localhost:5188/detenciones/nueva todos los campos que pusite con lista desplegable tienen que tener un buscador inteligente para ir encontrando a medida que el usaurio escribe
+
+* Activar Modo Claro y Oscuro
+

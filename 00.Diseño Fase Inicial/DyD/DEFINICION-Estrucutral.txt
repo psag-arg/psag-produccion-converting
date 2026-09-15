@@ -1,0 +1,17 @@
+  En las Anotaciones de la Fase 3 (reunión 11/08/2026) aparece esta jerarquía:
+
+  MÁQUINA ? CUERPO ? Tipo de falla ? Detalle ? Descripción
+
+  Pero el modelo actual tiene:
+
+  LÍNEA ? EQUIPO ? TipoFalla ? DetalleFalla ? Descripción
+
+  Las fotos de Tango 2 nombran los componentes como "Cuerpo 1 - Rebobinadora", "Cuerpo 2 - Gofrado", etc.
+
+  Pregunta clave: ¿"Cuerpo" es equivalente a lo que ya tenemos como "Equipo"? ¿O necesitamos agregar un nivel intermedio entre Línea y Equipo?
+
+Decidion tomada
+1) Vamos a mantener el modelo actual   LÍNEA ? EQUIPO ? TipoFalla ? DetalleFalla ? Descripción
+2) la LINEA = a lo que se define como MAQUINA pero queda en el sistema como LINEA
+3) El EQUIPO = a lo que se define como CUERPO pero queda en el sistema como EQUIPO
+ 

@@ -1,0 +1,74 @@
+@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthStateProvider
+@inject PSAG.Mantenimiento.Web.Services.IAuthService AuthService
+@inject PSAG.Mantenimiento.Web.Services.IThemeService ThemeService
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<div class="page">
+    <AuthorizeView>
+        <Authorized>
+            <div class="sidebar">
+                <NavMenu />
+            </div>
+
+            <main>
+                <div class="top-row px-4">
+                    <button class="btn btn-outline-secondary btn-sm me-3" @onclick="ToggleTheme" title="@(isDarkMode ? "Cambiar a modo claro" : "Cambiar a modo oscuro")">
+                        <i class="bi @(isDarkMode ? "bi-sun-fill" : "bi-moon-stars-fill")"></i>
+                    </button>
+                    <span class="me-3 text-dark">@context.User.Identity?.Name</span>
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="Logout">
+                        Cerrar sesion
+                    </button>
+                </div>
+
+                <article class="content px-4">
+                    @Body
+                </article>
+            </main>
+        </Authorized>
+        <NotAuthorized>
+            @Body
+        </NotAuthorized>
+    </AuthorizeView>
+</div>
+
+@code {
+    private bool isDarkMode;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await ThemeService.InitializeAsync();
+            isDarkMode = ThemeService.IsDarkMode;
+            ThemeService.OnThemeChanged += OnThemeChanged;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ToggleTheme()
+    {
+        await ThemeService.ToggleThemeAsync();
+        isDarkMode = ThemeService.IsDarkMode;
+    }
+
+    private void OnThemeChanged()
+    {
+        isDarkMode = ThemeService.IsDarkMode;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task Logout()
+    {
+        await AuthService.LogoutAsync();
+        Navigation.NavigateTo("/login", true);
+    }
+
+    public void Dispose()
+    {
+        ThemeService.OnThemeChanged -= OnThemeChanged;
+    }
+}

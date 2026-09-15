@@ -1,0 +1,396 @@
+@page "/detenciones/nueva"
+@using Microsoft.AspNetCore.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize]
+@inject IDetencionesService DetencionesService
+@inject ICatalogosService CatalogosService
+@inject NavigationManager Navigation
+
+<PageTitle>Nueva Detención - PSAG Produccion</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <!-- Formulario de nueva detención -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Registrar Nueva Detención</h4>
+                </div>
+                <div class="card-body">
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger">@errorMessage</div>
+                    }
+
+                    @if (successMessage != null)
+                    {
+                        <div class="alert alert-success">
+                            @successMessage
+                            <button class="btn btn-sm btn-success ms-2" @onclick="IrAlListado">
+                                Ver listado
+                            </button>
+                        </div>
+                    }
+
+                    <EditForm Model="@model" OnValidSubmit="HandleSubmit">
+                        <DataAnnotationsValidator />
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Línea *</label>
+                                <select class="form-select" @bind="model.LineaId" @bind:after="@(async () => await OnLineaChanged())">
+                                    <option value="0">-- Seleccione --</option>
+                                    @foreach (var linea in lineasDisponibles)
+                                    {
+                                        <option value="@linea.LineaId">@linea.Nombre</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Fecha *</label>
+                                <InputDate class="form-control" @bind-Value="model.Fecha" />
+                            </div>
+                        </div>
+
+                        @* Información de Maquinista y Turno *@
+                        @if (model.LineaId > 0)
+                        {
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Maquinista</label>
+                                    @if (maquinistaActual != null)
+                                    {
+                                        <div class="form-control bg-light">
+                                            <i class="bi bi-person-fill me-2 text-primary"></i>@maquinistaActual.NombreUsuario
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="form-control bg-warning-subtle text-warning-emphasis">
+                                            <i class="bi bi-exclamation-triangle me-2"></i>Sin asignación de maquinista
+                                        </div>
+                                    }
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Turno</label>
+                                    @if (!string.IsNullOrEmpty(turnoAsignado))
+                                    {
+                                        <div class="form-control bg-light">
+                                            <i class="bi bi-clock-fill me-2 text-success"></i>@turnoAsignado
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="form-control bg-warning-subtle text-warning-emphasis">
+                                            <i class="bi bi-exclamation-triangle me-2"></i>Se usará turno por hora actual
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Equipo</label>
+                                <select class="form-select" @bind="model.EquipoId">
+                                    <option value="">-- Sin especificar --</option>
+                                    @foreach (var equipo in equipos)
+                                    {
+                                        <option value="@equipo.EquipoId">@equipo.Nombre</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Tipo de Falla</label>
+                                <select class="form-select" @bind="model.TipoFallaId" @bind:after="OnTipoFallaChanged">
+                                    <option value="">-- Sin especificar --</option>
+                                    @foreach (var tipo in tiposFalla)
+                                    {
+                                        <option value="@tipo.TipoFallaId">@tipo.Nombre</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Detalle de Falla</label>
+                                <select class="form-select" @bind="model.DetalleFallaId">
+                                    <option value="">-- Sin especificar --</option>
+                                    @foreach (var detalle in detallesFalla)
+                                    {
+                                        <option value="@detalle.DetalleFallaId">@detalle.Nombre</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Minutos de Parada *</label>
+                                <InputNumber class="form-control" @bind-Value="model.MinutosDeclarados" min="1" />
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Descripción *</label>
+                            <InputTextArea class="form-control" @bind-Value="model.Descripcion" rows="4"
+                                placeholder="Describa la causa de la detención..." />
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <button type="button" class="btn btn-outline-secondary" @onclick="Cancelar">
+                                Cancelar
+                            </button>
+                            <button type="submit" class="btn btn-primary" disabled="@isSubmitting">
+                                @if (isSubmitting)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2"></span>
+                                    <span>Guardando...</span>
+                                }
+                                else
+                                {
+                                    <span>Registrar Detención</span>
+                                }
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel de Acumulado del Turno -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-clock-history me-2"></i>
+                        Acumulado del Turno
+                    </h5>
+                </div>
+                <div class="card-body">
+                    @if (isLoadingResumen)
+                    {
+                        <div class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm text-info" role="status">
+                                <span class="visually-hidden">Cargando...</span>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="mb-3">
+                            <small class="text-muted">Turno:</small>
+                            <strong class="ms-2">@resumenTurno.TurnoNombre</strong>
+                        </div>
+
+                        @if (resumenTurno.Items.Any())
+                        {
+                            <table class="table table-sm">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Tipo Falla</th>
+                                        <th class="text-center">Cant.</th>
+                                        <th class="text-end">Min.</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var item in resumenTurno.Items)
+                                    {
+                                        <tr>
+                                            <td>@item.TipoFallaNombre</td>
+                                            <td class="text-center">@item.CantidadDetenciones</td>
+                                            <td class="text-end">@item.TotalMinutos</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot class="table-light fw-bold">
+                                    <tr>
+                                        <td>Total</td>
+                                        <td class="text-center">@resumenTurno.Items.Sum(i => i.CantidadDetenciones)</td>
+                                        <td class="text-end">@resumenTurno.TotalMinutos</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        }
+                        else
+                        {
+                            <div class="text-muted text-center py-3">
+                                <i class="bi bi-check-circle fs-3 d-block mb-2"></i>
+                                Sin detenciones en este turno
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private CrearDetencionRequest model = new();
+    private List<LineaDto> lineas = new();
+    private List<LineaDto> lineasDisponibles = new();
+    private List<MaquinistaDto> misAsignaciones = new();
+    private MaquinistaDto? maquinistaActual;
+    private List<EquipoDto> equipos = new();
+    private List<TipoFallaDto> tiposFalla = new();
+    private List<DetalleFallaDto> detallesFalla = new();
+    private ResumenTurnoResponse resumenTurno = new();
+    private string? turnoAsignado;
+    private string? errorMessage;
+    private string? successMessage;
+    private bool isSubmitting;
+    private bool isLoadingResumen = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(CargarCatalogos(), CargarResumenTurno());
+    }
+
+    private async Task CargarResumenTurno()
+    {
+        isLoadingResumen = true;
+        try
+        {
+            resumenTurno = await DetencionesService.GetResumenTurnoAsync(model.LineaId > 0 ? model.LineaId : null);
+        }
+        catch { }
+        finally
+        {
+            isLoadingResumen = false;
+        }
+    }
+
+    private async Task CargarCatalogos()
+    {
+        try
+        {
+            // Cargar todas las lineas y tipos de falla
+            var lineasTask = CatalogosService.GetLineasAsync();
+            var tiposFallaTask = CatalogosService.GetTiposFallaAsync();
+            var asignacionesTask = CatalogosService.GetMisAsignacionesAsync();
+
+            await Task.WhenAll(lineasTask, tiposFallaTask, asignacionesTask);
+
+            lineas = await lineasTask;
+            tiposFalla = await tiposFallaTask;
+            misAsignaciones = await asignacionesTask;
+
+            // Si el usuario tiene asignaciones, filtrar lineas a solo las asignadas
+            if (misAsignaciones.Any())
+            {
+                var lineasAsignadasIds = misAsignaciones.Select(a => a.LineaId).ToHashSet();
+                lineasDisponibles = lineas.Where(l => lineasAsignadasIds.Contains(l.LineaId)).ToList();
+            }
+            else
+            {
+                // Sin asignaciones: mostrar todas las lineas (admin/supervisor)
+                lineasDisponibles = lineas;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error al cargar catálogos: {ex.Message}";
+        }
+    }
+
+    private async Task OnLineaChanged()
+    {
+        turnoAsignado = null;
+        maquinistaActual = null;
+
+        if (model.LineaId > 0)
+        {
+            // Buscar si el usuario tiene asignacion para esta linea
+            var asignacion = misAsignaciones.FirstOrDefault(a => a.LineaId == model.LineaId);
+            if (asignacion != null)
+            {
+                maquinistaActual = asignacion;
+                if (asignacion.TurnoId.HasValue)
+                {
+                    turnoAsignado = asignacion.TurnoNombre;
+                }
+            }
+
+            equipos = await CatalogosService.GetEquiposAsync(model.LineaId);
+            await CargarResumenTurno();
+        }
+        else
+        {
+            equipos.Clear();
+        }
+        model.EquipoId = null;
+    }
+
+    private async Task OnTipoFallaChanged()
+    {
+        if (model.TipoFallaId.HasValue)
+        {
+            detallesFalla = await CatalogosService.GetDetallesFallaAsync(model.TipoFallaId, model.EquipoId);
+        }
+        else
+        {
+            detallesFalla.Clear();
+        }
+        model.DetalleFallaId = null;
+    }
+
+    private async Task HandleSubmit()
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        if (model.LineaId == 0)
+        {
+            errorMessage = "Debe seleccionar una línea";
+            return;
+        }
+
+        if (model.MinutosDeclarados == null || model.MinutosDeclarados <= 0)
+        {
+            errorMessage = "Debe ingresar los minutos de parada";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(model.Descripcion))
+        {
+            errorMessage = "Debe ingresar una descripción";
+            return;
+        }
+
+        isSubmitting = true;
+
+        try
+        {
+            var result = await DetencionesService.CrearDetencionAsync(model);
+
+            if (result != null)
+            {
+                successMessage = $"Detención {result.Codigo} registrada exitosamente. Turno: {result.TurnoNombre}. Minutos: {result.MinutosEfectivos}";
+                model = new();
+                await CargarResumenTurno();
+            }
+            else
+            {
+                errorMessage = "Error al crear la detención. Verifique los datos e intente nuevamente.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void Cancelar()
+    {
+        Navigation.NavigateTo("/detenciones");
+    }
+
+    private void IrAlListado()
+    {
+        Navigation.NavigateTo("/detenciones");
+    }
+}

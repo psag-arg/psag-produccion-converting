@@ -1,0 +1,481 @@
+@page "/configuracion/usuarios"
+@using Microsoft.AspNetCore.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize(Roles = "ADMINISTRADOR")]
+@inject ICatalogosService CatalogosService
+@inject IUsuariosService UsuariosService
+@inject IJSRuntime JS
+
+<PageTitle>Usuarios - PSAG Produccion</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3>Usuarios del Sistema</h3>
+        <button class="btn btn-primary" @onclick="NuevoUsuario">
+            <i class="bi bi-plus-circle me-2"></i>Nuevo Usuario
+        </button>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card">
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Usuario</th>
+                            <th>Nombre Completo</th>
+                            <th>Email</th>
+                            <th>Roles</th>
+                            <th>Lineas</th>
+                            <th class="text-center">Activo</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (usuarios.Any())
+                        {
+                            @foreach (var usuario in usuarios)
+                            {
+                                <tr>
+                                    <td><strong>@usuario.UserName</strong></td>
+                                    <td>@usuario.NombreCompleto</td>
+                                    <td>@usuario.Email</td>
+                                    <td>
+                                        @foreach (var rol in usuario.Roles)
+                                        {
+                                            <span class="badge bg-primary me-1">@rol</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @foreach (var linea in usuario.LineasAsignadas)
+                                        {
+                                            <span class="badge bg-info me-1">@linea.Nombre</span>
+                                        }
+                                    </td>
+                                    <td class="text-center">
+                                        @if (usuario.Activo)
+                                        {
+                                            <span class="badge bg-success">Activo</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">Inactivo</span>
+                                        }
+                                    </td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => EditarUsuario(usuario)" title="Editar">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-warning me-1" @onclick="() => ResetPassword(usuario)" title="Restablecer password">
+                                            <i class="bi bi-key"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmarEliminar(usuario)" title="Eliminar/Desactivar">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">No hay usuarios registrados</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@* Modal para crear/editar usuario *@
+@if (showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(editando ? "Editar" : "Nuevo") Usuario</h5>
+                    <button type="button" class="btn-close" @onclick="CerrarModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Nombre de Usuario *</label>
+                            <input type="text" class="form-control" @bind="usuarioActual.UserName" disabled="@editando" />
+                            @if (!editando)
+                            {
+                                <small class="text-muted">No se puede cambiar despues</small>
+                            }
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Email *</label>
+                            <input type="email" class="form-control" @bind="usuarioActual.Email" />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nombre Completo *</label>
+                        <input type="text" class="form-control" @bind="usuarioActual.NombreCompleto" />
+                    </div>
+                    @if (!editando)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Password *</label>
+                            <input type="password" class="form-control" @bind="password" />
+                            <small class="text-muted">Minimo 6 caracteres, una mayuscula, un numero</small>
+                        </div>
+                    }
+                    <div class="mb-3">
+                        <label class="form-label">Roles *</label>
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach (var rol in rolesDisponibles)
+                            {
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="rol_@rol"
+                                           checked="@rolesSeleccionados.Contains(rol)"
+                                           @onchange="(e) => ToggleRol(rol, (bool)e.Value!)" />
+                                    <label class="form-check-label" for="rol_@rol">@rol</label>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Lineas Asignadas</label>
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach (var linea in lineas)
+                            {
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="linea_@linea.LineaId"
+                                           checked="@lineasSeleccionadas.Contains(linea.LineaId)"
+                                           @onchange="(e) => ToggleLinea(linea.LineaId, (bool)e.Value!)" />
+                                    <label class="form-check-label" for="linea_@linea.LineaId">@linea.Nombre</label>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                    @if (editando)
+                    {
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="activo" @bind="usuarioActual.Activo" />
+                            <label class="form-check-label" for="activo">Usuario Activo</label>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger mt-3 mb-0">@errorMessage</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CerrarModal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" @onclick="GuardarUsuario" disabled="@isSaving">
+                        @if (isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        Guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* Modal para reset password *@
+@if (showResetPasswordModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Restablecer Password</h5>
+                    <button type="button" class="btn-close" @onclick="() => showResetPasswordModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Restablecer password para: <strong>@usuarioParaReset?.NombreCompleto</strong></p>
+                    <div class="mb-3">
+                        <label class="form-label">Nueva Password *</label>
+                        <input type="password" class="form-control" @bind="nuevaPassword" />
+                        <small class="text-muted">Minimo 6 caracteres, una mayuscula, un numero</small>
+                    </div>
+                    @if (!string.IsNullOrEmpty(resetErrorMessage))
+                    {
+                        <div class="alert alert-danger mb-0">@resetErrorMessage</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => showResetPasswordModal = false">Cancelar</button>
+                    <button type="button" class="btn btn-warning" @onclick="ConfirmarResetPassword" disabled="@isResetting">
+                        @if (isResetting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        Restablecer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<UsuarioDto> usuarios = new();
+    private List<LineaDto> lineas = new();
+    private List<string> rolesDisponibles = new();
+    private UsuarioDto usuarioActual = new();
+    private HashSet<string> rolesSeleccionados = new();
+    private HashSet<int> lineasSeleccionadas = new();
+    private string password = string.Empty;
+    private bool isLoading = true;
+    private bool showModal = false;
+    private bool editando = false;
+    private bool isSaving = false;
+    private string? errorMessage;
+
+    // Reset password
+    private bool showResetPasswordModal = false;
+    private UsuarioDto? usuarioParaReset;
+    private string nuevaPassword = string.Empty;
+    private bool isResetting = false;
+    private string? resetErrorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(
+            CargarUsuarios(),
+            CargarLineas(),
+            CargarRoles()
+        );
+    }
+
+    private async Task CargarUsuarios()
+    {
+        isLoading = true;
+        try
+        {
+            usuarios = await UsuariosService.GetUsuariosAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error cargando usuarios: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task CargarLineas()
+    {
+        try
+        {
+            lineas = await CatalogosService.GetLineasAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error cargando lineas: {ex.Message}");
+        }
+    }
+
+    private async Task CargarRoles()
+    {
+        try
+        {
+            rolesDisponibles = await UsuariosService.GetRolesAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error cargando roles: {ex.Message}");
+        }
+    }
+
+    private void NuevoUsuario()
+    {
+        usuarioActual = new UsuarioDto { Activo = true };
+        rolesSeleccionados = new HashSet<string>();
+        lineasSeleccionadas = new HashSet<int>();
+        password = string.Empty;
+        editando = false;
+        errorMessage = null;
+        showModal = true;
+    }
+
+    private void EditarUsuario(UsuarioDto usuario)
+    {
+        usuarioActual = new UsuarioDto
+        {
+            Id = usuario.Id,
+            UserName = usuario.UserName,
+            Email = usuario.Email,
+            NombreCompleto = usuario.NombreCompleto,
+            Activo = usuario.Activo
+        };
+        rolesSeleccionados = new HashSet<string>(usuario.Roles);
+        lineasSeleccionadas = new HashSet<int>(usuario.LineasAsignadas.Select(l => l.LineaId));
+        editando = true;
+        errorMessage = null;
+        showModal = true;
+    }
+
+    private void CerrarModal()
+    {
+        showModal = false;
+        usuarioActual = new();
+        password = string.Empty;
+    }
+
+    private void ToggleRol(string rol, bool seleccionado)
+    {
+        if (seleccionado)
+            rolesSeleccionados.Add(rol);
+        else
+            rolesSeleccionados.Remove(rol);
+    }
+
+    private void ToggleLinea(int lineaId, bool seleccionado)
+    {
+        if (seleccionado)
+            lineasSeleccionadas.Add(lineaId);
+        else
+            lineasSeleccionadas.Remove(lineaId);
+    }
+
+    private async Task GuardarUsuario()
+    {
+        if (string.IsNullOrWhiteSpace(usuarioActual.UserName))
+        {
+            errorMessage = "El nombre de usuario es requerido";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(usuarioActual.Email))
+        {
+            errorMessage = "El email es requerido";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(usuarioActual.NombreCompleto))
+        {
+            errorMessage = "El nombre completo es requerido";
+            return;
+        }
+        if (!editando && string.IsNullOrWhiteSpace(password))
+        {
+            errorMessage = "La password es requerida";
+            return;
+        }
+        if (!rolesSeleccionados.Any())
+        {
+            errorMessage = "Debe seleccionar al menos un rol";
+            return;
+        }
+
+        isSaving = true;
+        errorMessage = null;
+
+        try
+        {
+            if (editando)
+            {
+                var request = new ActualizarUsuarioRequest
+                {
+                    Email = usuarioActual.Email,
+                    NombreCompleto = usuarioActual.NombreCompleto,
+                    Roles = rolesSeleccionados.ToList(),
+                    LineasAsignadas = lineasSeleccionadas.ToList(),
+                    Activo = usuarioActual.Activo
+                };
+                await UsuariosService.UpdateUsuarioAsync(usuarioActual.Id, request);
+            }
+            else
+            {
+                var request = new CrearUsuarioRequest
+                {
+                    UserName = usuarioActual.UserName,
+                    Email = usuarioActual.Email,
+                    NombreCompleto = usuarioActual.NombreCompleto,
+                    Password = password,
+                    Roles = rolesSeleccionados.ToList(),
+                    LineasAsignadas = lineasSeleccionadas.ToList()
+                };
+                await UsuariosService.CreateUsuarioAsync(request);
+            }
+
+            showModal = false;
+            await CargarUsuarios();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void ResetPassword(UsuarioDto usuario)
+    {
+        usuarioParaReset = usuario;
+        nuevaPassword = string.Empty;
+        resetErrorMessage = null;
+        showResetPasswordModal = true;
+    }
+
+    private async Task ConfirmarResetPassword()
+    {
+        if (string.IsNullOrWhiteSpace(nuevaPassword))
+        {
+            resetErrorMessage = "La password es requerida";
+            return;
+        }
+
+        isResetting = true;
+        resetErrorMessage = null;
+
+        try
+        {
+            await UsuariosService.ResetPasswordAsync(usuarioParaReset!.Id, nuevaPassword);
+            showResetPasswordModal = false;
+            await JS.InvokeVoidAsync("alert", "Password restablecida correctamente. El usuario debera cambiarla al iniciar sesion.");
+        }
+        catch (Exception ex)
+        {
+            resetErrorMessage = ex.Message;
+        }
+        finally
+        {
+            isResetting = false;
+        }
+    }
+
+    private async Task ConfirmarEliminar(UsuarioDto usuario)
+    {
+        var mensaje = $"¿Desea eliminar al usuario '{usuario.NombreCompleto}'?\n\n" +
+                      "Si el usuario tiene movimientos registrados (detenciones, registros, etc.), " +
+                      "sera desactivado en lugar de eliminado para mantener la trazabilidad.";
+
+        var confirmed = await JS.InvokeAsync<bool>("confirm", mensaje);
+        if (confirmed)
+        {
+            try
+            {
+                var resultado = await UsuariosService.DeleteUsuarioAsync(usuario.Id);
+                await JS.InvokeVoidAsync("alert", resultado.Mensaje);
+                await CargarUsuarios();
+            }
+            catch (Exception ex)
+            {
+                await JS.InvokeVoidAsync("alert", $"Error: {ex.Message}");
+            }
+        }
+    }
+}

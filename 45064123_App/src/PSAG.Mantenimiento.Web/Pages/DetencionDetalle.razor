@@ -1,0 +1,295 @@
+@page "/detenciones/{Id:long}"
+@using Microsoft.AspNetCore.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize]
+@inject IDetencionesService DetencionesService
+@inject NavigationManager Navigation
+
+<PageTitle>Detención @(detencion?.Codigo ?? "") - PSAG Produccion</PageTitle>
+
+<div class="container">
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+        </div>
+    }
+    else if (detencion == null)
+    {
+        <div class="alert alert-warning">
+            No se encontró la detención.
+            <button class="btn btn-link" @onclick="VolverAlListado">Volver al listado</button>
+        </div>
+    }
+    else
+    {
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2>@detencion.Codigo</h2>
+                <span class="badge @GetEstadoBadgeClass(detencion.EstadoActual) fs-6">
+                    @detencion.EstadoActualDescripcion
+                </span>
+            </div>
+            <div>
+                @if (detencion.EstadoActual != "CERRADA")
+                {
+                    <button class="btn btn-success" @onclick="() => showCerrarModal = true">
+                        Cerrar Detención
+                    </button>
+                }
+                <button class="btn btn-outline-secondary ms-2" @onclick="VolverAlListado">
+                    Volver
+                </button>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Información principal -->
+            <div class="col-md-8">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Información General</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="text-muted small">Fecha</label>
+                                <div><strong>@detencion.Fecha.ToString("dd/MM/yyyy")</strong></div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="text-muted small">Turno</label>
+                                <div><strong>@detencion.TurnoNombre</strong></div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="text-muted small">Línea</label>
+                                <div><strong>@detencion.LineaNombre</strong></div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="text-muted small">Equipo</label>
+                                <div><strong>@(detencion.EquipoNombre ?? "No especificado")</strong></div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="text-muted small">Tipo de Falla</label>
+                                <div><strong>@(detencion.TipoFallaNombre ?? "No especificado")</strong></div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="text-muted small">Detalle de Falla</label>
+                                <div><strong>@(detencion.DetalleFallaNombre ?? "No especificado")</strong></div>
+                            </div>
+                        </div>
+
+                        <hr />
+
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="text-muted small">Minutos Efectivos</label>
+                                <div><span class="badge bg-primary fs-5">@detencion.MinutosEfectivos min</span></div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="text-muted small">Minutos Declarados</label>
+                                <div><strong>@(detencion.MinutosDeclarados?.ToString() ?? "-") min</strong></div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="text-muted small">Registrado</label>
+                                <div><strong>@detencion.FechaHoraCreacion.ToString("dd/MM/yyyy HH:mm")</strong></div>
+                            </div>
+                        </div>
+
+                        <hr />
+
+                        <div class="mb-3">
+                            <label class="text-muted small">Descripción</label>
+                            <div class="p-3 bg-light rounded">@detencion.Descripcion</div>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(detencion.AccionesRealizadas))
+                        {
+                            <div class="mb-3">
+                                <label class="text-muted small">Acciones Realizadas</label>
+                                <div class="p-3 bg-light rounded">@detencion.AccionesRealizadas</div>
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrEmpty(detencion.ResolucionDescripcion))
+                        {
+                            <div class="mb-3">
+                                <label class="text-muted small">Resolución</label>
+                                <div class="p-3 bg-success bg-opacity-10 rounded">@detencion.ResolucionDescripcion</div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel lateral -->
+            <div class="col-md-4">
+                <!-- Historial de estados -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h6 class="mb-0">Historial de Estados</h6>
+                    </div>
+                    <div class="card-body p-0">
+                        @if (detencion.HistorialEstados.Any())
+                        {
+                            <ul class="list-group list-group-flush">
+                                @foreach (var hist in detencion.HistorialEstados.OrderByDescending(h => h.FechaHora))
+                                {
+                                    <li class="list-group-item">
+                                        <div class="d-flex justify-content-between">
+                                            <span class="badge @GetEstadoBadgeClass(hist.EstadoNuevo)">@hist.EstadoNuevo</span>
+                                            <small class="text-muted">@hist.FechaHora.ToString("dd/MM HH:mm")</small>
+                                        </div>
+                                        @if (!string.IsNullOrEmpty(hist.Observacion))
+                                        {
+                                            <small class="text-muted d-block mt-1">@hist.Observacion</small>
+                                        }
+                                    </li>
+                                }
+                            </ul>
+                        }
+                        else
+                        {
+                            <div class="p-3 text-muted">Sin historial</div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Notas -->
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">Notas</h6>
+                    </div>
+                    <div class="card-body p-0">
+                        @if (detencion.Notas.Any())
+                        {
+                            <ul class="list-group list-group-flush">
+                                @foreach (var nota in detencion.Notas.OrderByDescending(n => n.FechaHora))
+                                {
+                                    <li class="list-group-item">
+                                        <small class="text-muted">@nota.FechaHora.ToString("dd/MM HH:mm")</small>
+                                        <div>@nota.Texto</div>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                        else
+                        {
+                            <div class="p-3 text-muted">Sin notas</div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Cerrar Detención -->
+        @if (showCerrarModal)
+        {
+            <div class="modal show d-block" style="background-color: rgba(0,0,0,0.5);">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Cerrar Detención</h5>
+                            <button type="button" class="btn-close" @onclick="() => showCerrarModal = false"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label">Acciones Realizadas</label>
+                                <textarea class="form-control" @bind="cerrarRequest.AccionesRealizadas" rows="3"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Resolución *</label>
+                                <textarea class="form-control" @bind="cerrarRequest.ResolucionDescripcion" rows="3" required></textarea>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" @onclick="() => showCerrarModal = false">Cancelar</button>
+                            <button type="button" class="btn btn-success" @onclick="CerrarDetencion" disabled="@isCerrando">
+                                @if (isCerrando)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2"></span>
+                                }
+                                Cerrar Detención
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter]
+    public long Id { get; set; }
+
+    private DetencionDetalleDto? detencion;
+    private bool isLoading = true;
+    private bool showCerrarModal = false;
+    private bool isCerrando = false;
+    private CerrarDetencionRequest cerrarRequest = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarDetencion();
+    }
+
+    private async Task CargarDetencion()
+    {
+        isLoading = true;
+        try
+        {
+            detencion = await DetencionesService.GetDetencionAsync(Id);
+            if (detencion != null)
+            {
+                cerrarRequest.RowVersion = detencion.RowVersion;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task CerrarDetencion()
+    {
+        if (string.IsNullOrWhiteSpace(cerrarRequest.ResolucionDescripcion))
+        {
+            return;
+        }
+
+        isCerrando = true;
+        try
+        {
+            var success = await DetencionesService.CerrarDetencionAsync(Id, cerrarRequest);
+            if (success)
+            {
+                showCerrarModal = false;
+                await CargarDetencion();
+            }
+        }
+        finally
+        {
+            isCerrando = false;
+        }
+    }
+
+    private void VolverAlListado()
+    {
+        Navigation.NavigateTo("/detenciones");
+    }
+
+    private string GetEstadoBadgeClass(string estado) => estado switch
+    {
+        "REGISTRADA" => "bg-primary",
+        "EN_SEGUIMIENTO" => "bg-warning text-dark",
+        "CERRADA" => "bg-success",
+        _ => "bg-secondary"
+    };
+}

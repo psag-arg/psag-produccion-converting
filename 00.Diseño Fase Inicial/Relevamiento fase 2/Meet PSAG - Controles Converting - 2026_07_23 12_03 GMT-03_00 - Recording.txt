@@ -1,0 +1,469 @@
+Me manda el resumen y con eso puedo concluir toda la data.
+Bueno.
+Y espérame que...
+Listo.
+Ahora sí, estoy cuando quieras.
+Bueno, para quien te comparto, a ver.
+Toda la pantalla.
+Ahí me estás viendo?
+Sí.
+Bueno.
+A ver, para ponerte un poquito en tema, seguramente ya algo te adelantó Sebastián.
+Bueno, la idea, vos viste, entiendo.
+Yo no te conocía, pero voy a, más o menos, conocer todos los procesos.
+Voy a laburarte acá, si ya entendés más o menos todo lo que es la parte de conversión y demás.
+Sí, a ver, yo con Gilles hace casi cuatro años, estamos laburando.
+Bien.
+En realidad mi rol previo era gerente de financiero.
+Entonces no estaba traducido en planta.
+Bien.
+Pero como mi perfil está más enfocado en procesos y desarrollo del software con inteligencia artificial
+y blá blá blá.
+Bien.
+Entré para este mundo y mi primera experiencia más presencial en el mundo de la planta
+es la de la inteligencia artificial enfocada en la BEMA que hace...
+Lo que vimos ayer.
+Exactamente.
+Así que mi contacto con lo que es productivo lleva, más o menos, un año y medio.
+Bien, bien.
+Bueno, pero lo voy a entender.
+Es decir, un poquito para entender el estado de la planta.
+Para entender el estadio.
+Yo lo que más quería.
+El objetivo de lo que queremos hoy, básicamente si lo que se está persiguiendo es incrementar
+la eficiencia de la planta, es el objetivo macro.
+Ya vemos como el lineamiento estratégico.
+Y hoy la realidad es que para poder mejorar hay que medirse, ¿no?
+Es decir, que claramente no te voy a decir nada que voy a saber.
+Entonces el objetivo principal de lo que queremos hacer ahora es hoy todo lo que son registro
+de tensiones de máquina para medir esa eficiencia, es de modo manual.
+Es decir, a través de lo mismo que la trazabilidad del producto, se hace todo manual.
+Pero bueno, en esta primera etapa lo que queríamos, viste, el papelera no tiene un sistema, lo
+que se llaman RP, si es de lo que es gestión de manufactura, solamente tiene el base.
+¿Tienen pero no lo usan?
+Ah, no sabía eso.
+Yo no lo conozco al base.
+Yo venía de otra empresa laburando, viste, Conorak, lo con, viste, SAP.
+Pero bueno, entiendo que, bueno, por alguna definición no se definió de usarlo, entonces
+todo lo que son registro de trazabilidad y detención, se hace manual, se crea en maquinista
+lo que es una hoja.
+Cuestión que hoy yo, por ejemplo, que estoy en la parte del proceso, me demoro todos los
+días una hora pasando lo que se describe a mano cargándolo en una planilla, en una
+ex y armando un indicador.
+Entonces, algo que le dije a Sebastián de 8, mira, parece que estamos trazando 20 años,
+me parece con todo lo que hay hoy ya tendríamos que empezar a educar a nuestra gente, que
+también tenemos un tema, si hoy me cuesta entenderle de letra a mucha gente, y hay gente
+que se va a tener que hallornar un poco a migar con la parte digital, viste, si es que es
+lo que va.
+Así que el objetivo básicamente es eliminar el registro que tenemos del papel, teniendo
+la información de los datos de detenciones y variables de proceso que hoy se toman en
+papel de manera digital y compartirla con cliente o con áreas de interés, ¿se entiende?
+Sí.
+Hoy lo que nos pasa es que la información la manejo yo sola y, por ejemplo, un jefe
+en mantenimiento ni se entera cuánto minuto tuvo detenida la máquina por un fallo de
+equipo, excepto que le llegue por otro lado.
+Espera, de una pregunta.
+Sí.
+¿Vos oí cuál es el rol que tenés?
+Analista de proceso.
+Ok.
+O sea, vos sos analista de procesos y...
+De conversión.
+De conversión.
+Está el mismo rol para que te des una idea de Valmet.
+Ok, perfecto.
+Ahora, dentro del mundo Converting, los otros roles son el operador.
+Sí.
+¿Vos tenés?
+Converting tenés.
+En nivel de máquina tenés el maquinista, el operador maquinista, el operador ayudante,
+que básicamente se encarga de todo lo que son, la carga de bobinas y todo lo que es
+generación de tubetes o conos, viste, para el producto y después tenés otro rol más
+que se llama operador de packaging, que es el que se encarga todo lo que son la parte
+de armado del packaging del producto, todo lo que es empaquetadora, envolvedora, embolsadora
+y lo que es la BEMA y salía de producto, todo lo que es suministrarlo y operar todo
+ese proceso.
+Sí.
+Y después tenés, a nivel de conducción, ya me molé, tenés un supervisor por línea,
+que se encarga básicamente de seguir el día a día todo el tema de la gente, si hay
+licencia, las vacaciones, las anormalidades que hay en la máquina, lleva la coordina
+para que se solucione y después yo estoy, a nivel como una lista de proceso, viendo
+temas propios de procesos de todas las líneas de Converting, ¿te entiendes?
+Sí.
+Esto, llevándolo la eficiencia, viendo a dónde están las principales detenciones
+de las máquinas, estudiando el proceso, mejorando las cuestiones de costo, adhesivos, repuestos
+importantes como el proceso de gofrado y demás.
+Entiende, más o menos, un poco la estructura de Converting.
+Perfecto.
+Y atrás de esto tenemos salaria de mantenimiento.
+Correcto.
+Que es como un staff de cada línea.
+Correcto.
+Mantenimiento también, no ve solamente una línea, ve toda la planta y lo que estamos
+haciendo, implementando ahora, lo que se llaman mantenimientos programados.
+Nosotros tenemos un calendario y decimos, bueno, tal día para esta máquina, relevamos todas
+las tareas que hay para hacer, antes no se trabajaba así, un poco lo que estoy trabajando
+yo, antes se trabajaba la falla, si la máquina producía, producía, producía, fallaba y
+ahí se intervenía a resolver la falla.
+Hoy lo que estamos tratando de hacer con esta recopilación de información es tratar
+de reducir esos tiempos de falla trabajando preventivamente.
+Es decir, yo sé que el equipo, no sé, un rodamiento, es decir, dura 4 meses, la idea
+de no esperar a los 4 meses que se te rompa un sábado de la noche y tenga que venir alguien
+de guardia a resolverlo, que tarda mucho tiempo, sino que a los 3 meses y medio cambia
+de ese rodamiento, se entiende.
+Para eso, todos nos nutrimos de esta información que declara el maquinista, que antes, obviamente
+el primer paso que yo hice es tratar de mejorar la calidad de información que el maquinista
+me declara y lo que realmente pase, ¿te entiendes?
+Un poco la preocupación de Sebastián, lo que decía Che, la máquina hizo la mitad
+de la producción. ¿A dónde está la justificación de que por qué hizo la mitad de la producción?
+Bueno, el primer etapa fue hablar con todos los maquinistas para que en papel me declare
+bien lo que cada vez que la máquina se detiene, vos me tenés que declarar, no una parada de
+un minuto, pero a partir de 5 o 10 minutos, vos me tenés que decir, estuve parado 30 minutos
+porque me falló tal cosa, porque se me cortó el papel, porque... ¿te entiendes?
+Bueno, entonces esa tapa ya está un poco aprendida, es decir, que el operador declares
+lo que realmente le pase, pero entonces un poco cuál es la idea de digitalizar, son
+tres ejes de información. Uno es la detención de la máquina, la idea es si podemos armar
+tipo una plantilla, yo te hice algo que más o menos en lo que yo laburaba antes y demás,
+pero vos va a tener capaz que mejores ideas, yo ahora vemos en la próxima slide. La idea
+es que el operador tenga una plantilla donde ingrese su usuario, automáticamente le aparezca
+la fecha o el turno, y él tenga campos desplegables, que yo ya lo tengo armado porque yo así
+lo estoy pasando en forma manual, donde el operador tenga que desplegar un campo, poner
+el motivo, lo que está acá, el tipo de falla, qué equipo le falló, el detalle que ya va a
+estar preestablecido, y que un campo que tenga una descripción donde el operador va a tener que
+describir qué le pasó complementando a esta información, ¿se entiendes? Bueno, es el primer
+punto. El segundo punto de información a digitalizar son las variables de proceso,
+que no tiene nada que ver con las detenciones. Acá hoy la máquina obviamente tiene parámetros,
+que de acuerdo a cada producto se tiene que ajustar, esto principalmente lo hace el maquinista,
+entonces la idea que nosotros tenemos es hoy lo hace también de forma manual, ahora te muestro un
+poco qué es, cuáles son esos parámetros. La idea es que él tenga una tablet y que esos parámetros
+también estén en una plantilla donde tenga de acuerdo al producto su valor estándar o de referencia,
+y el operador tenga que poner el valor actual de la máquina que está operando,
+y si hay una discrepancia que se abra una solapa donde él tenga una descripción para justificar,
+si por ejemplo él tiene que trabajar a una presión, no sé, de dos, si él por algún motivo tiene que
+estar trabajando en una presión de tres, él tiene que decir, estoy trabajando con una presión de tres
+porque no sé, tal parte está dejastada, porque el papel es diferente, porque, porque lo que sea,
+entiendes? Bueno y el tercer punto que queremos digitalizar son las inspecciones de las máquinas
+que hace el operador, ahora te muestro un ejemplo, la idea de esto, esto un poco ya en mi trabajo,
+yo lo que estoy desarrollando es antes que la máquina falle, la idea mientras la máquina esté
+funcionando, inspeccionar diferentes partes de la máquina con lo que yo llamo un estándar o una
+condición del equipo, y el operador tiene que mirar, por lo general esa inspección es o visual,
+o a tomar una medición o algo, y en base a eso a un valor definido él tiene que poner en qué
+estado está y que básicamente está ok o no ok, entiendes? Tipo un check list que tiene que hacer,
+bueno eso serían los tres ejes inicialmente para poder hacer, no? Obviamente que en cada
+uno podemos definir estadios después, acordá lo que dijo lo que dijo Sebastián, el primer estadio es
+que el operador cargue a mano el tiempo de detención, a futuro capaz que el segundo estadio es poner
+una cámara como hablamos y que la detención se detecte automáticamente y que el operador
+solamente cargue el motivo, eso sería lo ideal, porque cuál sería este primer estadio? Si el operador
+no tiene voluntad o no tiene ganas, me pueden mentir en el tiempo de la parada, se entiendes?
+Entonces bueno la idea si lo podemos después automatizar, el tipo tiene automáticamente
+que le haya una detención con un pendiente de declaración y el tipo al final del turno no le
+deje cerrar el turno sino declarar no pone los motivos que de cada detención, bueno ahora
+vamos al primer punto de estos tres, detenciones de máquina, entonces el objeto de la idea es
+desarrollar una plantilla donde el operador ingrese a un menú desplegable donde se debe
+seleccionar una opción, los motivos son, tipo de falla, entonces y acá te puse por ejemplo
+cuál son, yo ya te las voy a predefinir, cuando existe una falla un motivo puede ser de proceso,
+un motivo puede ser que falló el equipo, otro motivo es porque cambiaste, estás cambiando
+de formato, otro motivo es por un tema de suministro por ejemplo no tenés energía
+eléctrica o no tuviste un insumo y después otro rango que son otros que son otros motivos,
+en equipo lo mismo, yo después ya lo tengo armado este árbol y bueno y un poco lo que sería el
+modelo que yo había pensado que acá sí volaba a tener más clara como armarlo, yo me imagino como
+que el operador tenga que entrar a esta pantalla o una plantilla donde él tenga que poner el usuario,
+acá pone el nombre, el maquinista, la fecha, que eso se puede que sea automático, la fecha
+y acá empieza lo que tiene que declarar el operador, el operador tiene que declarar el tiempo
+de detención, entonces en este campo el operador va a tener que poner 15 minutos, 20 minutos, 30
+minutos inicialmente en base a lo que a lo que le pasó la máquina, ¿te entiendes? Después tipo de
+falla y acá hable un menú desplegable y le van a aparecer esas opciones que te dije yo, yo te doy
+un ejemplo, vamos a este caso, por ejemplo yo te digo esto es la plantilla que llevo yo hoy que
+la cargo toda mano, imaginate que a mí me pasó tengo que declarar esta falla, entonces yo agarro,
+tuve 80 minutos parado, entonces yo tendría que venir acá, poner 80 minutos, tipo de falla y ahí
+se me va a desplegar, pongo falla de equipo. Es una pregunta, el tema del tiempo, en esta fase 1
+donde no vamos a tener digamos la levantada del dato real, yo me pregunto cuando, o sea la persona
+que va a cargar esto es el operario, ¿no? Vamos hablando del solio operador que entiendo que es
+el operador maquinista, correcto, bien, el operador maquinista va a tener acceso a la computadora que
+está ahí en la línea, ¿no? Sí, es en esa misma, en esa misma va a cargar esta información,
+en una computadora. Esa la usa para declarar el BAS por ejemplo, todo lo que son consumos,
+él ya lo usa, es como que nosotros deberíamos generar BAS más este, más este sistema.
+Perfecto, cuando el operador se le para la máquina, en el momento que se le para,
+¿cuál es la instancia en la que va y declara esta planilla? Debería ser, él tiene una detención,
+se resuelve el problema de la detención y él debería, en condiciones ideales,
+él debería venir, sentarse a la PC y hacer la declaración del registro de esa falla que tuvo.
+Ok, primero resuelve, primero se enfocó. Correcto, correcto, correcto.
+Bien. Ahora, después tienen maquinistas y maquinistas, ellos lo que tienen también una
+ayuda en las máquinas más modernas donde ellos tienen un graficito tipo electrocardiograma,
+en la consola de la máquina, donde ellos le dice la velocidad, un gráfico que tiene la
+velocidad y cuando la velocidad 0 que se detuvo, le aparece y tiene una escala de tiempo y velocidad.
+Entonces, hay maquinistas que son bichos y agarran y a final del turno, agarran y con la
+planicita manual van a ese gráfico y dicen yo paré de las 8.30 a 8.45, 15 minutos,
+entonces pone 15 minutos, motivo tanto y me declaraban así. Pero en condiciones ideales
+sería que esta detención la detecte automática. Sí, sí, sí, sí, eso. Y él cargue esto nada más.
+Ya ahí es un tema que después tengo que ver con Nico Wanzini porque lo más lógico es que Nico
+me dispara en un evento desde el pérdice de la máquina. Correcto. Y yo tenga el dato, pero te
+pregunto porque para una fase 1 yo quería saber cuál es el momento en el que la persona me lo va a
+cargar porque pienso en el circuito. Yo hoy le arme un sistema donde básicamente tiene que cerrar
+un turno. Cuando cierra el turno, si al otro día viene y no cerró la anterior, no puede cerrar el
+siguiente. Correcto. Pero yo todavía no le detengo la máquina, simplemente lo que hago es cerrar el
+primero para que el segundo lo pueda cerrar. Bien. Ahora, ¿qué pasa? Yo a esto le puedo anexar un
+bloqueo que deache. No podés cerrar el turno porque no registraste el fallo de máquina, pero para
+eso que hubo un fallo de máquina. Correcto. Bien. Si yo no me entero que hubo un fallo de máquina,
+no puedo determinar si la persona se olvidó de cargar la plantilla. Entonces, primera etapa,
+lo que haría es armar todo el modelo conceptual, se nos van a escapar los elefantes por todo lado,
+es obvio, pero lo planteamos como esquema general de trabajo. Cuando sabemos que el esquema nos
+convence, pasamos a la fase de lectura del PLC. Tal cual, tal cual. Pero ojo, te digo cuál es la
+ventaja de la primera etapa. Primero, la ventaja es que toda esta información, primero yo como
+persona yo, no estoy cargando, traduciendo la planilla manual a pasar lo digital. Quiere decir
+que yo voy a tener esta plantilla para sacar los indicadores. Segunda ventaja, la persona de
+mantenimiento entra a las 8 de la mañana o a la hora que entre y ya puede consultar esto. ¿Se
+entiende? Bien. Y ya puede saber que en este turno, Aristoy, le falló el equipo 80 minutos y
+saltó esta descripción, alarma, sermo de correas rápidas y falló este equipo. ¿Se entiende?
+Sí. Todo el mundo está enterado de lo que realmente pasó. Ahora, ¿qué va a pasar en
+esta etapa? El operador se va a olvidar de cargar detenciones, el operador me la carga mal, por
+ejemplo, en vez de poner un afallo de equipo, acá me pone cambio de formato, por ejemplo,
+puede pasar. Bueno, pero para eso voy a estar yo para, en este caso no para cargar la información,
+sino para supervisar la información. ¿Entiendes? Sí, sí, sí, está claro, para aguditar el
+dato. Correcto. Entonces, yo me imaginaba algo así, me entendía algo, algo, vos pensás que tenés
+gente que casi no está familiarizada también con, por eso lo armaba con desplegable para evitar
+los errores. Entonces, cuando digo tipo de falla, acá le aparecen cuatro motivos y el tipo tiene
+que elegir entre esos cuatro motivos, lo mismo en equipo, lo mismo en detalle y solamente lo que
+tiene que tipiar a mano el operador es la descripción, esta parte. Por ejemplo, en esta falla, fíjate
+que todo y puso la descripción de lo que dice eso. Se cambia soldador inferior por pegado
+deficiente, luego del cambio, bueno, y así fue poniendo lo que le pasó. ¿Entiendes? Sí. Bueno,
+eso es en detenciones. Ahora, vamos al segundo punto, que son las variables de proceso. Esto
+ya iríamos con tablet, ¿no? No iríamos con la PC fija. ¿Por qué? Porque en este caso, fíjate lo que
+hice acá. Por medio de una tablet, el operador verifica las condiciones del proceso y carga el
+valor real de cada variable. En caso de no coincidir con estándar, se debe justificar en el campo
+de observación. Ahora te explico esto. Al completar el registro de las variables, la información debe
+quedar archivada en un formato de tabla para luego ser consultada en caso de ser necesario.
+Esto como es el tema, ¿no? Esto más por un tema de calidad y por un tema así para ver que el
+operador lograr la repetibilidad de los productos. Entonces, por ejemplo, y acá está, yo lo marqué
+con otro color, las variables que se tienen que medir, los parámetros. Por ejemplo, en este caso,
+son parámetros de producto y de máquina y el operador lo que tiene que hacer cada vez que
+ingresa al turno, donde debe mirar las variables en cual la máquina está operando. Por ejemplo,
+estas variables de producto, no sé, en la máquina se llama el número de roturas y el estándar para
+este producto es 152. Lo que tiene que ser el operador es ir a esta parte del proceso, que en
+este caso es el display, donde se regule la máquina y verificar que este que tenga que
+ser 152, ¿no? Si es 153, la idea no coincide con el estándar, por algún motivo está en 153,
+tiene que poner la observación de realmente por qué. Perdón, número de roturas, ¿serían
+roturas de qué? En este caso es, viste la cantidad, el rollo de papel higiénico, por ejemplo, tiene
+lo que se llama precorte, ¿viste el momento donde vuelo a cortar? Sí. Bueno, para el producto de 30
+metros tiene 152 precortes, quiere decir que te va a durar, en los 30 metros hay 152 cortes.
+Bien. Entonces, para lograr el diámetro y demás tiene que estar 152. Lo mismo, el largo de perforación,
+bueno, son todas variables propias de la máquina o el diámetro, vuelve a tener que certear a la
+máquina el diámetro del loco, el diámetro del rollo. Está bien, pero una pregunta. Sí. ¿Cómo me
+estás diciendo? Me hace pensar que cada máquina, vos ahí, yo por lo que veo acá, tengo tres variables
+en la cabeza. Correcto. La variable 1 es máquina, variable 1 es máquina, la variable 2 es tipo,
+tipo de parámetro, que se llama dato de producto. Correcto. Tipo parámetro y la variable 3 es el
+parámetro en sí mismo. No, yo, fíjate, ahora te me adelanto un poquito más para que lo entiendas.
+Vos acá tenés, parámetros de producto y máquina, es decir, el parámetro va a ser siempre lo mismo,
+es decir, es lo que vos querés medir, el parámetro. En este caso vas a medir datos de producto y datos
+de máquina, fíjate qué está, producto y máquina. Después mirad, te paso otro. Acá el parámetro que
+voy a medir es la calidad de la manga, yo tengo que hacer mediciones sobre la calidad de la manga
+y ¿qué mido dentro de la calidad de la manga? El diámetro y el rollo. Después. Acá mido el
+grupo gofrador, ¿qué mido? La presión de gofrado. ¿Se entiende cómo está raro? Sí, sí, entiendo, lo
+que no me escierra, lo que no entiendo es algo, pero ahí veo que tenés nivel 1, 2 y 3, está claro,
+el negro es nivel 1, el 2, el gris es nivel 2 y el blanco es nivel 3. Correcto. Hay un nivel por
+arriba del 1 que es la máquina, la línea. Sí, la línea fíjate el primero, acá está la línea.
+Ah, listo, ahí está. Vos tendrías, esto es línea futura 2, el operador debería hacer, esto es por
+turno también, debería hacer. Yo soy maquinista, ¿no? Perdón, perdón, te tengo un segundo para
+no marearme. Vale. El turno, a ver, perdón, vamos al revés, la línea futura 2. Correcto. No importa
+en el turno 1, 2 o 3, va a medir siempre lo mismo. Correcto. Bien, la diferencia es en qué momento lo
+medís y también al turno que lo hizo. Correcto. Pero los parámetros que vas a usar para la futura 2
+son diferentes de la futura 3. Exactamente, porque el que te cambia el parámetro es este, este jugador,
+el producto. Ah. ¿Se entiende? Y puede estar que vos hagas dos productos diferentes adentro de la
+misma línea. Correcto. Ok. Puede ser 80 metros, yo te cambio 80 metros, estos valores, si bien esto
+va a ser lo mismo, estos valores van a cambiar, el estándar va a cambiar. O sea, entonces lo que,
+el hilado que yo tengo que armar es producto, entonces, parámetro. Y ahí empiezo con todos
+los parámetros a medir. Claro. ¿Se entiende? Ok. Y esos parámetros se miden con qué frecuencia,
+una vez por turno. Yo ingreso al turno y tengo que agarrarlo y registrarlo con mi usuario, por
+ejemplo, cada grupo que es el usuario, maquinista, veo qué producto estoy corriendo, levanto el producto,
+me van a aparecer los estándares, esto te lo tengo que terminar de pasar yo y el operador lo
+que tiene que cargar el real a mano. Digitalizado, ¿no? Bien. ¿Qué tiene que cargar? Parámetros de
+producto en máquina, parámetros de calidad de manga, parámetros del grupo gofrador,
+parámetros de tensión de papel, parámetros de rebobinadora y todos con el mismo modelo. Yo sé
+cómo pensaba Emiliano, como que yo pongo el producto, como que estas son todas pestañas,
+¿viste? Pestañas que están al costado, ¿viste? Si fuera así. Sí. Apretas, abris y se te despliega
+esto. Sí, entiendo. Entende? Sí. Y después ponés esta pestaña, se te despliego esto. Esta
+pestaña se te despliego esto. Y son todas las cosas que tiene que ir decalando el operador, ¿entiendes?
+Sí, entiendo. ¿Por qué las armé así? Por bloques. Porque están pensadas para que el operador,
+este bloque producto en máquina, está en una misma pantalla que él ve en la máquina, ¿viste?
+En la pantalla madre. Sí. Entonces él va a esa pantalla y carga toda esta información. Este caso,
+calidad de manda, él tiene que agarrar, sacar el producto afuera, medir y en este caso cargas de
+información, el real. Bien. Este va al grupo gofrador y cargas de información. ¿Tiene alguna
+lógica de orden obligatorio? No, no, es indistinto. Ok. Lo importante es que cuando vaya al grupo
+gofrador acumular todo lo que tiene que, todas las variables del grupo gofrador. Cuando vea
+tensión de papel, ve todas las variables de tensión de papel. Bien. ¿Te entiendes? Bien. Y una vez que carga
+el real. Sí. ¿Qué pasa con la info que compara entre estándar y real? Bueno, ahí por eso,
+como te puse acá arriba, en el caso que no coincida, imagínate que yo estoy, estoy, llevo, voy, pongo
+este producto, me dice que tengo que tener el estándar 152 número de rotura. Imagínate por algún
+motivo la máquina está descalibrada o algo y tengo que poner 160 para que el producto salga bien.
+Bueno, acá la idea es que si haya una diferencia, se abra esta ventana de observación y la persona
+ponga la observación porque no cumple con el estándar. Y después, estos datos, la idea es buscarlo
+para que se archiven por turno en una tabla donde imagínate que yo quiera ver de acá 10 días
+para atrás, yo puedo ver cómo se operó 10 días para atrás. ¿Te entiendes? Sí. Pero eso te tiene
+que inducir alguna conclusión o la sacamos de las conclusiones. No, no, la conclusión la sacamos
+nosotros. Bien. Imagínate que venga un día, yo agarro y yo soy operador, ¿no? Y digo, Che,
+quiero ver la máquina como estaba calibrada 15 días para atrás. La idea es que pueda consultar y
+que me aparezcan esta misma plantilla en forma de tabla 15 días para atrás. Y hoy yo digo, Che,
+15 días para atrás, yo acá el valor era 160. Ya de ahí se estaba desregulada la máquina, ¿se entiende?
+O el supervisor o cualquiera que pueda. Imagínate que es un problema de calidad. Estuviste un problema
+de calidad y tal día. A ver, ¿en qué variables estaba la máquina de ese tal día? Ah, no. Y tenía
+la presión de agofrado, por ejemplo, en vez de estar entre este valor estaba en 6. Entonces,
+es lógico que el papel se rompa, ¿me entendés? Que fue el problema de calidad. Sí, básicamente,
+de alguna manera, podés inducir cantidad de desvíos versus cantidad de paradas de máquinas.
+Correcto. Bien, pero ponéle que lo hacemos más adelante esa lógica, ¿sabes? Claro, por eso,
+por ahora no cruzar lo que es parada con, como que son tres, esto que vimos acá,
+estos son tres cosas diferentes. Uno es el análisis de detenciones, que esto justifica de
+alguna manera la producción. El segundo es qué bien yo estoy procesando con calidad y cómo son
+muy variables de proceso. Y el tercer punto es cómo yo inspecciono la máquina para que no se rompan.
+¿Se entiende? Que todavía no llegamos al punto tres. Está clarísimo. Bueno, ese sería el punto
+dos. ¿A dónde termina? Acá te di el ejemplo de todo lo que es una máquina de un producto. Termina
+acá. Acá termina ahí. El punto tres, que es la inspección de una máquina, este es el modelo
+donde también la idea es hacerla en una tablet de forma amigable, que yo para mí la forma amigable
+es muy parecida a esta. Es decir, vos fijate que acá te dice qué tiene que hacer el operador. En
+este caso es el operador de packaging, fijate que lo que tiene que hacer el operador de packaging,
+lo que te comenté. ¿En qué equipo está diciendo que hay que hacer este trabajo? ¿Y qué está
+anda? En este caso, inspeccionar y en la línea. Y acá está un poco lo que tiene que hacer el
+operador. El operador tiene que leer esta secuencia de información y completar este último campo,
+que básicamente para que lo entienda es, esto es la parte del equipo, te dice que yo tengo que
+inspeccionar difusores de rollos. ¿Qué estaría tengo que hacer? Inspeccionar el estado de la
+correa, la correa de mando, correa. ¿Cuál es el estándar? Que el estándar es la condición
+ideal de que debería estar sin excesivo desgaste, tensionada y sin ruptura. El método que lo tiene
+que hacer mirándolo y al tacto, la frecuencia con que debe hacer esta actividad y acá pone
+el estado. Y acá pone ok, si está ok, es decir que esto está bien. Y si está no ok,
+ahí sí le podemos hacer algo, es decir que después me agrupe los no ok, cosa que venga
+al supervisor y filtre. A ver que tengo no ok en la máquina. ¿Me entendés? Bien.
+Bueno, ese sería en los tres modelos de lo que tendríamos que parametrizar y armar.
+Perfecto. Dejáme de pensar esta parte, acá pone responsable, parte equipo.
+Está bien. Esto es parametrizable por máquina. Por máquina. Está bien. Por máquina y por equipo,
+es decir, acá está, es decir, esto no va a ser lo mismo para la tango 1 o para la tango 3.
+Y yo, para la misma máquina de equipo es lo mismo, ¿qué diferencia hay?
+Pero mismo, lo mismo. Ah, por eso, máquina de equipo es lo mismo.
+Sí, sí, sí. No, no, perdón, perdón, perdón, no, no, no. Máquina hace referencia a la línea.
+Viste que tenemos cinco líneas de conversión nosotros. Bueno, y el equipo es la parte de la
+máquina. Ah. ¿Me entendés? Dentro de la línea es la parte de la máquina, para no, para no englobar
+como una máquina sola. ¿Me entendés? En este caso es una parte chiquita, la empaquetadora es,
+viste, lo que, lo, lo que envuelve el rollo de alguna manera, lo que empaqueta el rollo.
+Bien, está perfecto. O sea, vos dentro de una línea tenés muchas partes que se
+pudieran en equipos. Correcto, correcto. En esa parte no la tenía tan clara.
+Bien. Bueno, acá termina el powercoin. Sí. Bien, vos me lo podés mandar el powercoin.
+Sí, obvio, obvio. Bien. Yo me pareció la forma más fácil de explicarte,
+cosa que te quede a vos un poco la idea general, ¿me entendés?
+Está clarísimo, está clarísimo, súper concreto. Yo lo que te propongo es, con lo que vos me
+mandes, más esto que ya noté y un poco lo que baje en limpio, planteo un diseño.
+Bien. Un diseño, lo miramos juntos. Bien. El esqueleto conceptual de, de por dónde va a ir,
+y eso lo, lo trabajamos en conjunto y bueno, le vamos ajustando a las tuercas hasta que,
+cuando tengamos el mapa construido como creemos que va, sacamos una primera etapa y hacemos una
+prueba, mis temores. ¿Tal cual? Para ver cómo va. ¿Tal cual? Yo lo que voy a hacer, no es la arquitectura,
+nosotros tenemos en un servidor de, de, de, de la planta, al sistema de control de turnos.
+Bien. Que convive en una base de datos de SQL, pero tiene como todo un frontend visual para
+los usuarios, que yo voy a tratar de, esto va a hacerlo de otra forma. Yo lo voy a construir
+por otro lado, pero sí voy a convivir dentro de la misma estructura de base de datos. Entonces,
+lo que puedo hacer ahí es que tranquilamente después de eso se hable, entre una cosa y la otra.
+Bueno. Para, por ejemplo, lograr bloquear un turno como consecuencia de que no se hizo un parte.
+Claro. O sea, pero. La otra, mirá, yo te digo, de vuelta, yo de esa parte no, no sé nada,
+es decir, pero estoy pensando en la lógica. Hoy el operador que tiene arraigado y no falla,
+él entra al base y declara. Sí. Yo que me imagino, no sé si se puede, que antes de ser raro cuando
+vos declarás el base. No. No te digo que no. No se puede vincular como diciendo, mirá, che,
+tenés que ir a este, a otra. ¿Qué va a pasar? El tema es que acá hay un tema que me adelanto.
+A ver, son varios los puntos acá. Primero principal, base es un RP, es bueno, no te voy a decir que es
+malo porque es bueno, pero no es un RP productivo. Bien. O sea, es un RP que te toca lo productivo por
+el costado, te resuelve cosas básicas, elementales, como cargar un parte de producción para dar de
+alta stock. Bien. Básicamente, pero no es productivo como tal, no es SAP, no es Oracle,
+ni SAP. Bien. Bien. Primero punto, segundo punto, nosotros estamos dentro del sistema de control
+de turnos llegando a un momento en donde el operador no va a cargar más el parte. Correcto.
+Porque el parte se va a cargar automáticamente con el cierre del turno. Entonces, ahí hay un
+automatismo que le falta una patita, que es una patita estatada con la charla del otro día que
+escuchaste vos antes de la nuestra. Y el tercer punto es que base está íntimamente relacionado
+con la gente de IT de Leonardo. Bien. Y nosotros lo que estamos queriendo hacer en este mundo es
+dejar las puertas 100% divididas en esto. Bien. De acá para acá. Bien. Manejamos la planta. De acá
+para acá, si te tengo que dejar un tequistete, te lo dejo para que insertes el stock. Bien. Pero lo
+que pasó del tequistete para atrás. Bien. No te metas. Bien. Eso es súper importante.
+Te entiendo. No, te entiendo, te entiendo, te entiendo. Yo, por eso, lo que yo digo,
+la palabra amigable, es decir, nosotros obviamente no vamos a entender, es decir, porque la manejamos,
+el concepto y demás. Yo lo que digo es que también tenemos que hacer algo pensado para el piso,
+para el piso de planta, que sea algo. Está clarísimo, está clarísimo. Sí, porque vos,
+capaz que le hacemos el súper, que el tipo no sabe, se recontra marea, es decir. Ahora,
+yo lo que sé y lo que tomo es que la gente se amigó con el base. Toda la verdad me ponía
+amigo en el base. Yo lo que vi es algo sencillo voludo, es decir, para hacerlo. Bueno, listo. Si
+sabemos que ese modelo de plantilla o de formato funciona, bueno, no tengo problema. Yo lo que
+quiero es que la información se cargue, que sea lo más preciera posible y que esté
+deslizada y que todo el mundo esté disponible. La parte más difícil, la más de todas en este
+tipo de desarrollos es encontrar que la persona sea amigo en el sistema. Correcto. Y viceversa.
+Correcto. Antiguamente, las políticas de los que hacen software siempre fueron amigate con el
+sistema. Claro. Yo no pienso de esa manera. Yo pienso al revés. Bien. El sistema se tiene que
+amigar con la persona porque si no la persona lo esquiva. Sí. Y la persona va a encontrar todas
+las excusas sabidas y por haber para esquivar al sistema. Claro. Hace algunos años atrás lograr
+que el sistema se amigue con la persona era extremadamente costoso porque no, porque lleva
+horas y horas de interpretación, de deducción, de borrar y volver a escribir porque te entendí
+una cosa y cuando te lo di me quisiste decir otra y no me lo supiste decir, etcétera. Claro. Hoy la
+realidad es que esa tecnología evolucionó a unos niveles que no tienen precedentes. Entonces,
+yo te doy una pantalla y no te gusta, imagínate doy otra. ¿De cuál? ¿Se entiende? De igual. Entonces,
+si me gusta evitar tener que escribir y borrar, escribir y borrar, porque la realidad es que
+también eso deja residuos. El cual. Entonces prefiero evitarlos. Por eso es lo que te propongo,
+es que yo con vos voy a contrastar principalmente el concepto de amigabilidad, según tu criterio de
+amigabilidad, que entiendo que va a estar allornado al criterio que tenga el operador final.
+Correcto. Cosa de que cuando lleguemos al operador, ya haya pasado mínimamente por el filtro tuyo y
+el mío. ¿Sal cual? ¿Sal cual? Sí, sí, no le va a morrar, no le va a morrar. Pero creeme que yo
+pongo mucho foco en eso. Por eso te digo que lo voy a hacer a mi gusto y piacere las pantallas en
+el sentido de no basarme en lo que ya tengo ahí hecho del otro lado, porque me parece mucho más
+pero el hijo pensarlo de cero. Claro. Pero yo vi, por ejemplo, sin mirar, no vi cuánto el proyecto
+que ustedes hicieron en la BEMA, ya la pantalla como lo desarrollaron y está bien armadito,
+rápidamente para filtrar. Por eso yo lo que te decía, te lo armaba así tipo en powerpoint,
+es decir, campos desplegables, conceptos, campos desplegables y abajo el listado que le aparezca.
+Sí, sí, sí. En una misma pantalla ya tenga todo. Incluso yo, de lo que vos me decís,
+no solamente tomo, sino que te agrego. Claro. Aún me decís desplegable, yo te invito a que
+pongamos un campo con un buscador inteligente donde escribas dos letres y ya te aparezca al
+final 2 de la data. Excelente, excelente. La básica del campo desplegable del año 90 y cuando
+tiene más de 20 cosas no la encontrarán en pedas. Es que hasta mí me cuesta mirar, yo me quedé con la
+era de la edad que tengo capaz de tabla dinámica y excel. Yo hoy ya está obsoleto, es powerpoint,
+es PowerVBI y ya estás evolucionando a eso, pero uno se arraiga a lo que realmente aprendió,
+más o menos yo de vuelta hice tú un modelo para calcular eficiencia, que me lo ves vos y seguramente
+me disinché esto de arcaico. Pero funciona. Pero funciona ahora. Lo que sé es que no puedo estar
+una hora, todos los días trascribiendo datos para sacar un valor de cuánto fue la eficiencia
+de la máquina. Hoy ya tiene que ser online. Básicamente cuando me decís que armaste un
+modelo de eficiencia es porque entiendo que te basas en todo esto que me contaste para hacer un
+cálculo. Te lo muestro dos segundos para que lo veas. Claro, para que te comparte dos segundos
+y ya te digo la finalidad de la información para que vos veas. Ahí me estás viendo, no?
+Sí. Bueno, esto. Lo que hago básicamente es lo siguiente. Mira, esta información básicamente
+agarro. Tengo una solapa arcaico de las detenciones. Cargo una a una las detenciones. Agarro el papel
+y cargo una a una las detenciones. Turno de 15 minutos. Todo esto lo cargo toda mano. De eso
+cargar a mano hago un reporte y acá puedo saber la eficiencia de cada máquina. Entonces yo digo que
+el turno uno del sargentale pasó ocho bovinas. Hizo esta producción. Logro esta eficiencia así,
+me entender. Y acá agrupo la información. Perdón, el texto de las ocho bovinas ¿dónde lo sacaba?
+Del parte. Claro, del parte también. Y acá está por ejemplo por cada máquina de crear
+dos tipos de información. ¿Qué producto hizo? Todo el parte. ¿Cuánto rollo? Acá está la bovina.
+Te empieza a contar la bovina, la cantidad de producción que hizo, la velocidad objetivo.
+Todo esto se carga a mano, algunas partes se calculan y con la otra hoja de detenciones yo
+logro esto. ¿Qué es esto? Entonces te digo, por ejemplo, la máquina tango uno pasó 51 bovinas
+por mes, 51 turnos acumulados, pasó esta bovina, esta producción está haciendo, esta eficiencia
+que se descompone en esto y tuvo toda esta farada. Esto es lo que termino. Básicamente lo que
+tenemos que hacer es en fase siguiente llegar a la registración del parte. Correcto. Para
+desembocar en esto automatizado. Tal cual. Pero por eso yo digo que vamos paso a paso. ¿Qué
+problemas tengo hoy? Yo sé porque lo sigo día a día y tengo el supervisor y le pregunto,
+hoy el operador por ejemplo vino mal día y no me declaró nada. Y yo sé que por la
+producción que hizo tuvo un montón de detenciones. ¿Qué hago hoy? Me junto con el supervisor y
+dije, ¿qué problema hubo acá? Y más o menos tuvo más o menos, besamos 20 minutos, paro por
+esto, 30 por esto, más o menos. Y estamos teniendo una información porque la idea es que con esa
+información ver qué equipo, ahí puedo empezar a cruzar. ¿Qué equipo más me falla? Me entenderé
+si cada cuánto me falla el equipo. Empezar a meterme ya en el corazón de la máquina.
+Entonces esto es crucial para mejorar. Es la primera etapa, medir. Está clarísimo. Gracias por
+el tiempo y por la apertura del dato. Yo te comparto esto. Compartímelo, por favor. Después, no sé,
+vos la semana que viene está de vacaciones, no sé, una vez por semana, no sé, nos juntamos,
+cuando vos venís acá, no sé cómo. Nos podemos juntar igual, remoto, eso es lo de menos, pero
+sí lo que te propongo como para la próxima juntada. El tema que yo los avance que tenga de acá a la
+próxima juntada no sé cuál le van a hacer porque va a estar en el medio. Pero me pongo, a ver,
+déjame pensar un poco.
+Pongámonos un objetivo, si querés, para...
+A ver, déjame ver.
+Y el juntémonos el viernes, siete. Bien. Puede ser tipo nueve de la mañana. Bien. Bien. Voy a poner
+acá un meet. Puede ser más como esta hora, porque justo, nosotros tenemos realmente producción en
+la mañana, ¿viste? A las nueve. A las doce. Vale. Yo te pongo acá un meet. Y de última,
+si comentáme lo que vos pudiste avanzar, si pudiste poco a poco, si no, devorará 10 minutos y después
+seguimos. Sí, sí, sí, por eso te digo, vamos a poner avances, avances, converting. El agente no se
+ha molido. Vía en las siete, a ocho, a las doce, a uno, fin. Choco, obviamente que si tengo cosas en el
+medio te la voy informando, pero por lo menos ya tenemos plamado una agenda para ver ese día que
+mostrarte. La realidad es que al tener una semana en el medio totalmente cortada, no tengo idea
+de los avances que voy a tener, pero voy a apuntar a tener. Pero capaz que tenés dudas, como le vas a
+empezar a dudarse. Sí, sí, sí. Algo vamos a usar de ese día, eso que es tranquilo. Bien. Bien. Lo
+que sí, por favor, mandame, no sé si me lo mandas por mail o por WhatsApp. Te lo mando por mail. Vale,
+mandame eso así ya con esos juntos y puedo empezar a armar algo. Bueno, bien. Vamos con eso. Vale,
+bueno, así, bueno, vacaciones. Nos vemos. Gracias, chau.

@@ -1,0 +1,23 @@
+
+========================================
+  PSAG.Mantenimiento - Base de Datos
+  CONFIGURACION SQLite COMPLETADA
+========================================
+
+Ubicacion: C:\PSAG_Mantenimiento\data\mantenimiento.db
+
+Usuario inicial:
+  Email: admin@psag.local
+  Password: Admin123!
+
+========================================
+
+Servicio:
+  Nombre:  PSAG_Mantenimiento_API
+  Display: PSAG Mantenimiento API
+  Estado:  Running
+  URL:     http://localhost:5188
+
+
+========================================
+

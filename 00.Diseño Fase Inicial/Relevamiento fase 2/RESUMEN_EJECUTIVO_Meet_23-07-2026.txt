@@ -1,0 +1,193 @@
+================================================================================
+                     RESUMEN EJECUTIVO - RELEVAMIENTO PSAG
+                   Control Converting - Reunion 23/07/2026
+================================================================================
+
+PARTICIPANTES:
+- Analista de Proceso de Conversion (PSAG)
+- Representante de Pillow (desarrollo de software/IA)
+
+--------------------------------------------------------------------------------
+1. CONTEXTO Y OBJETIVO MACRO
+--------------------------------------------------------------------------------
+
+Empresa: Papelera San Andres de Giles (PSAG)
+Area: Converting (conversion de papel)
+
+OBJETIVO PRINCIPAL: Incrementar la eficiencia de la planta mediante la
+digitalizacion de procesos que actualmente son 100% manuales (registro en papel).
+
+SITUACION ACTUAL:
+- Todos los registros de detenciones de maquina y trazabilidad se hacen en papel
+- El analista de proceso demora 1 hora diaria pasando datos manuales a planillas
+- La informacion no es compartida en tiempo real con otras areas (ej: mantenimiento)
+- No existe sistema MES/MRP productivo (solo tienen BASE como ERP basico)
+- Dificultad para leer letra de algunos operadores
+
+BENEFICIOS ESPERADOS:
+- Eliminar registro manual en papel
+- Informacion disponible en tiempo real para todas las areas
+- Reducir tiempo de carga administrativa del analista
+- Mejorar calidad y confiabilidad de los datos
+- Facilitar mantenimiento preventivo
+
+--------------------------------------------------------------------------------
+2. ESTRUCTURA ORGANIZACIONAL - AREA CONVERTING
+--------------------------------------------------------------------------------
+
+ROLES EN NIVEL DE MAQUINA:
+- Maquinista (Operador Maquinista): Opera la maquina principal
+- Operador Ayudante: Carga bobinas, genera tubetes/conos
+- Operador de Packaging: Empaquetadora, envolvedora, embolsadora, BEMA, salida producto
+
+ROLES DE CONDUCCION:
+- Supervisor por Linea: Gestion diaria de personal, licencias, anormalidades
+- Analista de Proceso: Control de eficiencia, detenciones, costos (todas las lineas)
+- Area de Mantenimiento: Transversal a toda la planta
+
+LINEAS DE PRODUCCION: 5 lineas de conversion (Futura 2, Futura 3, Tango 1, Tango 3, etc.)
+
+--------------------------------------------------------------------------------
+3. TRES EJES DE INFORMACION A DIGITALIZAR
+--------------------------------------------------------------------------------
+
+EJE 1: DETENCIONES DE MAQUINA
+-----------------------------
+Objetivo: Registrar y justificar cada parada de maquina (>5-10 minutos)
+
+Campos requeridos:
+- Usuario/Maquinista (automatico)
+- Fecha/Turno (automatico)
+- Tiempo de detencion (minutos)
+- Tipo de falla (menu desplegable):
+  * Proceso
+  * Falla de equipo
+  * Cambio de formato
+  * Suministro (falta energia, insumos)
+  * Otros
+- Equipo afectado (menu desplegable, arbol jerarquico)
+- Detalle (menu desplegable, predefinido)
+- Descripcion libre (texto que ingresa el operador)
+
+Dispositivo: PC fija en linea de produccion
+Momento de carga: Despues de resolver la detencion
+Quien carga: Operador Maquinista
+
+FASE 1: Operador carga tiempo manualmente
+FASE 2 (Futuro): Deteccion automatica via camara/PLC, operador solo justifica motivo
+
+
+EJE 2: VARIABLES DE PROCESO
+---------------------------
+Objetivo: Registrar parametros de operacion por producto/turno para asegurar
+repetibilidad y calidad
+
+Estructura jerarquica:
+- LINEA (ej: Futura 2)
+  - PRODUCTO (ej: Rollo 30 metros)
+    - GRUPO DE PARAMETROS:
+      * Parametros de Producto y Maquina
+      * Calidad de Manga
+      * Grupo Gofrador
+      * Tension de Papel
+      * Rebobinadora
+
+Para cada parametro:
+- Valor ESTANDAR (predefinido por producto)
+- Valor REAL (ingresa el operador)
+- Observacion (obligatoria si hay discrepancia)
+
+Ejemplos de variables:
+- Numero de roturas/precortes (ej: 152 para producto 30m)
+- Largo de perforacion
+- Diametro del rollo
+- Presion de gofrado
+- Tension de papel
+
+Dispositivo: Tablet (para moverse por la maquina)
+Frecuencia: Una vez por turno al ingresar
+Quien carga: Maquinista
+
+Consulta historica: Poder ver valores de X dias atras para diagnosticar problemas
+
+
+EJE 3: INSPECCIONES DE MAQUINA
+------------------------------
+Objetivo: Mantenimiento preventivo mediante checklists de inspeccion
+
+Campos por inspeccion:
+- Responsable (ej: Operador Packaging)
+- Parte del equipo a inspeccionar
+- Estandar/Condicion ideal
+- Metodo de inspeccion (visual, tacto, medicion)
+- Frecuencia
+- Estado: OK / NO OK
+
+Si NO OK: Se agrupa para revision del supervisor
+
+Parametrizable por:
+- Maquina (linea)
+- Equipo (parte de la maquina)
+
+Dispositivo: Tablet
+
+--------------------------------------------------------------------------------
+4. CONSIDERACIONES TECNICAS Y DE ARQUITECTURA
+--------------------------------------------------------------------------------
+
+INFRAESTRUCTURA EXISTENTE:
+- Servidor de planta con Sistema de Control de Turnos
+- Base de datos SQL
+- ERP BASE (basico, no productivo)
+- PCs en lineas de produccion (usadas para declarar partes en BASE)
+
+ARQUITECTURA PROPUESTA:
+- Sistema nuevo independiente pero conviviendo en misma estructura de BD SQL
+- Frontend separado del Sistema de Control de Turnos
+- Integracion futura con PLCs para deteccion automatica de paradas
+- Independiente del area de IT corporativa (Leonardo)
+
+LOGICA DE CIERRE DE TURNO:
+- Sistema actual: No puede cerrar turno nuevo si no cerro el anterior
+- Futuro: Bloquear cierre si no registro detenciones (requiere integracion con PLC)
+
+CONTACTOS CLAVE:
+- Nico Wanzini: Para integracion con PLCs/automatizacion
+
+--------------------------------------------------------------------------------
+5. PROXIMOS PASOS ACORDADOS
+--------------------------------------------------------------------------------
+
+1. Envio de PowerPoint con diagramas y ejemplos (de PSAG a Pillow)
+
+2. Disenar modelo conceptual/esqueleto del sistema
+
+3. Revisar juntos el diseno propuesto
+
+4. Ajustar iterativamente hasta acordar MVP
+
+5. Desarrollar primera etapa (Fase 1 - carga manual)
+
+6. Prueba piloto para validar funcionamiento
+
+7. Fase 2: Automatizacion (integracion con PLCs, camaras)
+
+--------------------------------------------------------------------------------
+6. NOTAS ADICIONALES
+--------------------------------------------------------------------------------
+
+- La gente de planta no esta familiarizada con herramientas digitales
+  -> UI debe ser muy simple, principalmente menus desplegables
+  -> Minimizar tipeo libre (solo descripcion)
+
+- El rol del analista de proceso pasara de "cargar datos" a "supervisar/auditar datos"
+
+- El sistema debe estar separado del ERP BASE y del area de IT corporativa
+
+- Las 5 lineas de conversion tienen parametros diferentes segun el producto
+
+- Diferencia importante: "Maquina" = Linea completa, "Equipo" = Parte de la maquina
+
+================================================================================
+                         FIN DEL RESUMEN EJECUTIVO
+================================================================================

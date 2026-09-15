@@ -1,0 +1,276 @@
+0.850	6.810	Bueno lo que vamos a ver ahora en este momento es para el área de converting el objetivo de poder
+6.810	12.530	poner información dentro del dashboard de la aplicación de converting y uno de los primeros
+12.530	16.530	puntos que me plantearon es el concepto de eficiencia. Lo que vamos a hablar ahora es cómo
+16.530	24.080	se llega a calcular esa eficiencia. Entonces la eficiencia debe ser primero dividida por turnos,
+24.080	30.440	turno mañana, turno tarde y turno noche, y ese turno tiene un nombre, es decir, un
+30.440	39.730	maquinista, en este caso el rol es el de maquinista como se toma como jerarquía.
+39.730	47.480	El operador debería declarar todas sus detenciones, al cerrar el turno debería,
+47.480	55.310	me imagino, aparecer un indicador donde el operador debe declarar la producción
+55.310	61.590	que hizo, que en este caso son las cantidades de mangas, automáticamente compara contra
+61.590	67.090	la cantidad de mangas objetivo y saca la eficiencia, se entiende?
+67.090	71.010	Todo ese proceso se da en el cierre de turno, perdón, hay un tema con el cierre
+71.010	76.330	de turno que me pasó con la implementación, que es que suele pasar de que el cierre
+76.330	81.850	de turno se da muchas veces cuando la persona está como que se quiere ir, lo
+81.850	86.330	que significa que tiene que ser como pa pa pa pa pa pa pa y se va, cuantos tiempo le
+86.330	91.650	lleva cargar datos hoy en día antes de irse? No es que hoy no está cargando
+91.650	95.530	cero datos por que lo hace todo en papel, hace eso. Pero que lo va llenando durante el
+95.530	99.550	horario del turno? Claro. No es que espera hasta el final? Claro, lo debería ir cargando.
+99.550	103.310	Osea lo podría ir cargando durante. Vos tenes una detención, arrancaste la
+103.310	107.830	maquina, asististe, voy meciendo a la maquina y declaro. Lo único que tienen que
+107.830	115.050	están declarando eso en el base, estos datos no los ponen esto, que producto es, y nada
+115.050	120.910	más, entonces van cargando una bobina, anotan esto, cargan otra bobina y se van acumulando,
+120.910	125.750	lo que si anotan por ahí de un principio es el número de lotes de los pales, de
+125.750	130.710	film, de cartón, todas esas cosas, entonces cuando ellos llegaron al final del turno,
+130.710	134.270	todo esto ya lo fueron haciendo durante el rato, lo fueron haciendo, cuando termina
+134.270	141.990	turno que hacen, verifican si están o tres con las cámaras de que vos comentaste recién o
+141.990	149.870	los que ven en el contador van y cambian de producto y eran 31, siguieron y al final eran
+149.870	156.490	20, hacen el total este y esto es lo que cargan en el VAS que es como ingreso de
+156.490	160.890	mercadería. O sea ellos hacen el ingreso y el ingreso a VAS lo hacen durante este
+160.890	179.390	antes de IC? Si. Esto le llamamos parte diario de producción. Las bobinas. Esperamos un
+179.390	184.810	segundo, la foto del papel verde que veas que dice parte diario de
+184.810	189.990	producción es lo que estamos hablando en este minuto 3.
+189.990	195.230	Esto es ingreso de mercadería, esto que está acá ya estaba en el VAS es
+195.230	197.670	es egreso de mercadería, es la jobina que se consumieron.
+197.670	201.170	Claro, mercadería de insumo y este es ingreso de producto terminado.
+201.170	205.950	Bien, y después, que esto sigue lo mismo, si vos en la otra línea tenés tinta también
+205.950	209.150	te hacen el egreso de las tintas o lo que sea, y acá la descripción de las
+209.150	213.110	cosas que pasaron al turno, la descripción de si fue cosa de mantenimiento, si fue
+213.110	216.430	eléctrico o que cosas hubo en eléctricas.
+216.430	218.230	Ok, bueno, está bueno porque...
+218.230	222.070	Lo que queremos trasladar es esto, digitalizar esto con una estructura de
+222.070	223.070	datos.
+223.070	226.420	digitalizamos todo. ¿Por qué no digitalizamos el parte del grafoto?
+226.420	230.420	No, no, es lo que apuntamos, lo que pasa es que ahí se nos amplía el proyecto.
+230.420	233.420	¿Para qué está esto? ¿Para la trazabilidad de datos?
+233.420	238.420	Yo te entiendo que se nos amplía el proyecto, pero para mí es importante
+238.420	243.420	entender hacia dónde voy, claro, porque me cambia de la pantalla.
+243.420	247.420	A ver, yo ya sé que ahora tengo que ir a esto, pero que hoy vos me contaste
+247.420	251.420	solamente esta parte. Para mí es clave entender que acá dentro voy a meter
+251.420	258.340	voy a meter esto y para mí es clave entender que esto sucede durante y no al final, porque si
+258.340	263.700	sucede al final yo puedo pensar que va con el sistema de allá, pero si sucede durante va con
+263.700	270.380	este, para que también yo logre darle facilidad mental al operador, porque yo el operador,
+270.380	277.380	A ver, vos recién me decías ¿lo voy a hacer en el table? Yo te digo, a mi me dice distinto, el tema es que le doy, porque si el tipo anda con esto para otro lado...
+277.380	291.380	Otra cosa, mira, otra cosa, eso es en la parte de producción de final, la eficiencia, otra de las tareas que tienen que hacer los chicos son, esta es una sencilla, que son las prensas de control del proceso, lo que te pasé, yo te lo pasé.
+291.380	293.380	Sí, sí, esa sería como esta parte.
+293.380	317.540	que esto lo hizo el turno de la mañana, vos viniste a la tarde, viniste a la noche, estas renegando, no andas ni plantar la maquina, que hacer, a ver vamos a poner los parámetros que el turno anterior te tuvo bien, agarras esta hojita y te fijas, por ejemplo le cambiaste algo y no anduvo, o cambió algún insumo, cambió algo mecánico, no andas, te fijas como lo hicieron a la mañana, pones esos valores, la maquina sale. No, esta perfecto.
+317.540	331.280	Entonces es como que es, no es solamente esto lo que queremos hacer y yo en futuro uno probó con una tablet de estos mismos cargablos, que lo hizo Dugrevich, Juan Pávez, y era muy...
+331.280	332.280	Cuando le hicieron eso?
+332.280	333.280	Hace bastante.
+333.280	334.280	Mucho tiempo.
+334.280	345.280	Pero era una planilla de Excel, en una tablet que vos ibas cargando uno por uno, si ponías un número mal, cuando vos lo ponías a guardar, deseaba que había un error, te borraba todo y te ibas a cargar todo.
+345.280	346.280	Ah, está bien.
+346.280	350.020	que vos querías ver algo de esto, tenías que venir con la tabla y enchufaron el cable
+350.020	354.280	red, bajar, ahí se cargaban los datos y cuando vos querías ver algo, era una planilla
+354.280	359.400	de Excel que nosotros por ahí lo entendemos que los chicos bajan la línea, ellos entienden
+359.400	364.600	esto, entienden una tabla de Excel con valores o parámetros, y era muy obsoleto
+364.600	369.000	eso, se dejó de usar y la tabla está, por eso yo me refería. Yo lo que propongo
+369.000	374.600	con esto es lo siguiente, nosotros esta pata la tengo en cuenta, lo que decíamos
+374.600	380.600	recién con Sebastián es, va a ser como la fase siguiente, para no marear está
+380.600	383.640	claro, igualmente cuando llegue este momento vamos a ir sobre la foto y todo
+383.640	390.560	sobre eso, hoy lo que se me ocurre como para dividir es, si nosotros tenemos, o
+390.560	395.960	sea yo acá creé tres construcciones, mirá a ver Sebastián si estás de acuerdo con esto.
+395.960	403.320	Y otra cosa, que si en algún momento esto como que llega a funcionar es, vos acá ponen un valor, le ponen el
+403.320	412.580	un trabajo entre 5. Si vos lo pones entre 3 y 4 siempre, y en algún momento tenes que ponerlo en 6,
+412.580	420.580	que te salte como una alarma o alguna cosa, que te avise por que esta en 6, que tenga un rango de trabajo
+420.580	424.580	y que de un aviso hoy, hacen esto, lo ponen en 6 y quedan estas flanillas en las flanillas que van.
+424.580	430.580	A ver, yo lo que pienso es lo siguiente, se me está ocurriendo, como nosotros dijimos de vivir en 3,
+430.580	435.580	esta que se llama detenciones, esta que se llama registros, esta que se llama inspecciones, se me ocurre que por ahí pueden ser...
+435.580	436.580	Tras habilidad.
+436.580	439.580	Sí, más que tras habilidad yo a esta le pondría parte.
+439.580	443.740	Yo trataría de que esto sea un registro de partes.
+443.740	448.740	¿Por qué? Porque en vez de ser detenciones, yo ya sé que acá voy a tener, esto va a ser un parte.
+448.740	455.740	Cuando yo haga el nuevo parte, técnicamente lo que le voy a dar a la pantalla de la persona es esto.
+455.740	458.740	Para que durante su turno navegue con esto.
+458.740	464.100	con esto. Acá dentro de todo este parte va a tener lo que tiene que hacer si querés
+464.100	469.220	con solapita. Y en esta primera etapa digitalizar esta. Y ahora solamente me apunto en esta,
+469.220	473.180	pero yo la dejo construido para el resto. Ahí si llego a la eficiencia que me pedí
+473.180	479.730	porque tengo todo. ¿Les parece ok eso? Vamos por ahí. Bien. Ahora para hacer logros
+479.730	485.530	en etapas chiquititas, yo lo que te propongo es, ya después de irme de acá
+485.530	492.810	y algún que otro ajuste que notemos, dejártelo para que empiecen a cargar detenciones, a sabiendas
+492.810	496.250	de donde estamos yendo, porque por ahí al usuario lo vamos a empezar a marear si no
+496.250	497.250	le damos.
+497.250	499.570	No, pero para, hasta más, ¿sabes lo que hago hoy?
+499.570	500.570	Lo pones vos.
+500.570	504.450	Yo estas detenciones las estoy haciendo yo a mano, entonces en esta primera etapa
+504.450	509.130	ya te la cargo yo, si es lo mismo que estoy haciendo hoy, agarramos una semana
+509.130	512.370	y vemos si hay errores, no hay errores, che me faltó este equipo, me faltó otra
+512.370	513.370	parte.
+513.370	519.370	A ver, yo te lo digo para que sepas, para mi hoy, absorber información es una pelotudez,
+519.370	523.370	si no me pasas ese ex en histórico, yo te lo importo y ya tenés toda la historia,
+523.370	528.370	si no tenés que estar mirando dos sistemas, eso si querés, mandamelo, yo tengo
+528.370	533.370	eso desde el 2015, 2016, yo tengo de tango 2, por que te digo, mandamelo, perdón
+533.370	538.370	eh, ya te digo, lo único que si, mandamelo y yo si veo que hay alguna inconsistencia
+538.370	542.370	de nombre, de equipo o algo te digo, porque eso es lo que te decía, la estructura
+542.370	547.370	la estructura la tenemos que cargar primero, como se llama la máquina, como se llama los equipos y vos me vas a decir
+547.370	552.370	equipo tal, máquina tal, observación subo, si eso no encaja no se donde subirlo
+556.680	560.680	como te iba a decir, la idea es, con esta información
+560.680	567.680	nosotros llegamos a esto, donde vos tenes datos de producción, esta parte lo que produce la máquina
+567.680	574.660	dato de eficiencia y productividad y acá empezamos a ver el otro dashboard que me gustaría
+574.660	580.820	que este si sale de las detenciones que es esto, fíjate que acá están todos los motivos
+580.820	593.000	fallo de proceso, fallo de equipo ¿me entendes? este no y bueno esto es una división
+593.000	596.840	que nosotros llamamos fallo mayor y hay detenciones mayores de 60 minutos y detectamos
+596.840	606.310	la cantidad de eventos, que podamos hacerlo también. Ok, entonces la pantalla que dice
+606.310	617.390	indisponibilidad de tango 1, sale de como llegas a esta? De el registro mensual de
+617.390	622.110	todas las descripciones de los tipos de falla, es decir, fallo de proceso, fallo
+622.110	630.150	de equipo es la sumatoria de todas las fallas que fuiste cargando de fallo de equipo y después
+630.150	637.630	lo divido por la cantidad de turnos que trabajó y te da un porcentaje. Bien y el
+637.630	643.710	otro que se llama fallos mayores fallos mayores es nosotros identificamos como fallo
+643.710	649.630	mayor todas aquellas detenciones que son mayor a 60 minutos y la estamos registrando
+649.630	656.990	en eventos y en tipo si es de proceso o de equipo perfecto después todo esto que está
+656.990	663.230	acá que son las eficiencias van a requerir primero llegar a cargar el parte completo
+663.230	667.510	correcto porque si no tenemos el parte completo no tenemos la cantidad de mangas y alguna
+667.510	673.340	que otras cuestiones más bueno podemos empezar por eso así que como vas a iniciar
+673.340	681.480	veníamos en disponibilidad y fallo mayor. Bien, a ver lo que podemos hacer acá, voy
+681.480	685.960	a ir a dashboard por ahora. Si, si le dejas lo bajo claro. Vamos a tomar los que se
+685.960	705.900	llaman. Indisponibilidad, fallo mayor. Bien, ya que estamos vamos a ver porque me tiró
+705.900	710.340	error a ver si lo podemos arreglar ahora. Y otro dashboard que podemos hacer es el
+710.340	723.500	pareto de un diagrama de de pareto de de cuerpos me entendés dame un segundo
+739.090	741.420	perdón cuál era la que me decías
+745.510	789.100	por equipo digamos no si cuerpo equipo notas importantes minuto 13 acá adelante
+789.100	794.380	tengo el parte diario de producción que es la hoja verde que te comenté antes tiene
+794.380	799.260	dos páginas, página 1, página 2, lo que veo es que dentro de este parte de
+799.260	804.940	producción se registran bloques, los bloques son el título producción lo que
+804.940	809.820	determina cuál es el producto saliente con sus ciertas características y con
+809.820	815.540	eso se genera la inserción dentro de VAS, el título papel lo que dice es
+815.540	819.140	cuáles fueron los números de bobina que se insertaron dentro de la máquina
+819.140	823.700	técnicamente es el consumo de materia prima, después abajo tenés otro que
+823.700	827.580	dice adhesivos y tintas que técnicamente es lo mismo que el consumo
+827.580	833.480	de papel pero en este caso adhesivos y tintas, otro que es film y cartón y
+833.480	839.560	bajas de bobinas, todos los consumos que se usan para poder terminar el
+839.560	843.840	producto definitivo, después hay un título que se llama mermas retornos
+843.840	847.370	y scraps y hay otro que se llama control de parada de máquina
+847.370	851.570	técnicamente lo que vamos a estar enfocados ahora es estrictamente en
+851.570	855.210	este bloque que está dentro de un par de producción que es el control de parada de
+855.210	868.640	máquina, dale, tomá este te lo dejo, y escuchá recién me nombraste otra cosa que
+868.640	876.220	era diagrama de pareto, ahí tiene un ejemplo de lo que estaría bueno, es tipo una tabla
+876.220	884.620	como dashboard donde vos tenés el equipo, el detalle y ordenado de mayor a menor y
+884.620	892.920	qué porcentaje sobre el total, me entendés. El equipo, esto es máquina por máquina.
+892.920	898.000	Máquina por máquina, entonces yo puedo ir acumulado al día a tanto que se vaya
+898.000	907.210	acumulando. El diorama de Pareto es la foto que acabo de sacar que se llama Detención
+907.210	915.290	Tango 1, que técnicamente lo que hace es un peso porcentual del total de razones
+915.290	920.050	o motivos de falla y cómo pesó eso en el total y por equipo.
+920.050	926.600	Esto es foto, imagen...
+926.600	933.980	¿Qué estás corriendo, hace correr ahí?
+933.980	939.980	Esto estoy, le acabo de decir al sistema, o sea, yo acá estoy adentro del Visual Studio Code.
+939.980	941.980	¿Con esos programas vos?
+941.980	942.980	Claro.
+942.980	944.980	Adentro del Visual Studio Code estoy dentro de...
+944.980	945.980	N8N.
+945.980	946.980	Sí.
+946.980	947.980	¿Es algo parecido a esto?
+947.980	949.980	N8N es una...
+949.980	955.940	no están dando la capacitación de cosas yo obviamente no entiendo de programación mucho y algo
+955.940	967.340	N8N es un programa ya construido como puede ser excel que te sirve para hacer algo, ese algo es
+967.340	977.140	automatización de circuitos, flujos de procesos, yo acá trabajo de una manera distinta yo
+977.140	982.260	yo acá estoy construyendo el programa, es como que estoy atrás de N8VN, yo estoy construyendo
+982.260	988.060	lo que no existe, entonces, ¿me sirve para resolver automatizaciones de flujo?, si,
+988.060	990.780	lo podrías hacer con N8VN, en algún punto puede ser.
+990.780	996.770	No, yo iba a hacer un proyectito más chiquito para entender, pero entiendo que esto lleva
+996.770	1002.690	más lo que estamos haciendo nosotros es más programación con inteligencia artificial
+1002.690	1003.690	que estás haciendo.
+1003.690	1010.110	programando a través de la inteligencia artificial, o sea, básicamente vos hacías esto, vos antes...
+1010.110	1012.550	con Python tenías...
+1012.550	1021.280	una máquina para que no me grabes cosas, tengo dos, descripción de tango 2,
+1021.280	1025.720	¿quieren decirle algo en particular a la descripción? es una máquina que hace algo en
+1025.720	1031.160	particular, algo que les sirva a ustedes. ¿Qué es esta descripción? simplemente estás dando de
+1031.160	1035.400	alta la máquina tango 2 y por ahí le podés decir alguna característica de tango 2 que
+1035.400	1052.670	querés que sepa. Es una máquina especializada en higiénico simple hoja. Bien vamos con otra
+1052.670	1058.510	tango. Si pero hagamos todos sobre el lado que vamos a ir modelo o no. Ah querés hacerlo
+1058.510	1063.110	ahí listo. Yo lo que decía para implementarlo vamos a hacer lo mismo, hagamos todos
+1063.110	1067.110	sobre una línea, probemos todo y después. Perfecto, entonces voy a limpiar todas las
+1067.110	1070.110	otra para laburar sobre las herramientas que vamos a laburar.
+1070.110	1074.270	Esto que estás haciendo ahí, eso que es de administrador o eso de los que ven el operario?
+1074.270	1077.270	No, yo estoy como administrador acá. Después del operario le vamos a ver otro.
+1077.270	1081.270	Yo estoy armando la estructura, entonces acá no lo va a ver el operador porque viene peor.
+1081.270	1084.270	No, porque si no viene uno y puede borrar.
+1084.270	1090.270	No, no, de hecho justamente lo que me tengo que llevar es que hoy estoy logueado,
+1090.270	1095.270	ves que dice estoy logueado como admin, pero lo que no me está ofreciendo es que
+1095.270	1099.830	que yo como admin pueda manipular los usuarios que es una de las cosas que me
+1099.830	1103.150	anoté para revisar. Esto por qué mantenimiento pusiste acá porque no
+1103.150	1110.390	volvés? No, que sé yo, porque no queda siempre así, vos se podes modificar.
+1110.390	1116.890	Lo que vos quieras, que le dio? Ah no, producción sería.
+1116.890	1121.610	Claro, el tema es ese, a dónde vamos a llegar no sé, puede ser PESAK
+1121.610	1122.610	¿Hoy es producción?
+1122.610	1123.610	Hoy es producción, si.
+1123.610	1138.940	Bien, mira, para que entiendas lo que te digo, actualmente el sistema dice arriba
+1138.940	1147.120	del árbol, PESAC, mantenimiento, puta madre.
+1147.120	1150.120	Esto es como programa.
+1150.120	1159.160	Lo siempre damos en N89, pero este es otro. Ahora te digo, ¿verdad? Y quiero que viva
+1159.160	1168.310	Pesad Producción, cambialo, chau. Esto es así, si, no es así. Lo bueno es que
+1168.310	1175.550	puedo maltratar. Ligate, le puedes decir, te voy a putear. Esto oficialmente yo estoy
+1175.550	1183.150	metido dentro de Visual Studio Code, que se llama IDE, es el donde se desarrolló toda la vida,
+1183.150	1191.270	pero yo adentro de Visual Studio Code estoy dentro de Terminal. Entrar en Terminal es como haber
+1191.270	1199.400	entrado en el CMD, es como entrar en DOS. Sí, con el primer curso que yo hice de computadora,
+1199.400	1209.280	este es de OBS, vos podes entrar a la terminal nativa de la computadora o podes entrar a
+1209.280	1215.560	la terminal nativa de la computadora en este caso desde Visual Studio Code, yo acá di
+1215.560	1220.680	de alta en este caso tres terminales, esto es lo que estoy haciendo con ustedes, esto
+1220.680	1226.640	es otro cliente y esto es otro cliente, es más mira esto, esto que está acá no
+1226.640	1232.020	es un cliente, es algo mío, yo necesito para todos mis clientes organizarme algunas cosas
+1232.020	1237.380	y dije ¿sabes que? me lo voy a hacer, me lo voy a auto desarrollar y me dice esto,
+1237.380	1242.380	me dice un sistema de nodos, donde básicamente me voy armando los nodos y vos podés,
+1242.380	1246.220	por ejemplo esto es un sistema de servidores, es un servidor central que levanta datos
+1246.220	1250.140	de base de datos que están en zona este, zona sur, no se que, y adentro cuando
+1250.140	1257.920	tengo toda la data del sistema, la tengo apagada, me levanta toda la data que yo quiero
+1257.920	1262.160	del sistema con todas sus relaciones, entonces si tengo accesos al servidor, hago clic y
+1262.160	1267.980	entro al servidor, esto me lo hice en 40 minutos. Si, que locura, era que no explicaban
+1267.980	1273.720	los otros días. O sea todo esto, el sistema entero. Bueno, el N8N tiene este formato.
+1273.720	1279.600	Bueno, es que yo lo que construí técnicamente es el N8N, para que le voy a apagar.
+1279.600	1283.400	gente y todas las cosas que me están explicando. Claro, pero online es gratis supuestamente
+1283.400	1288.640	si lo usan. Si, pero sale lo que pasa, ya llega un punto que quiero que sea verde,
+1288.640	1293.400	ahora quiero que cuando le tiro me saque una foto, ya con lo que se me caen los huevos,
+1293.400	1298.280	en el otro tenés que cumplir con lo que el otro diseño, entonces llega un punto
+1298.280	1302.280	que se está poniendo muy difícil que vos realmente puedas vender un producto,
+1302.280	1306.400	o sea claro, lo vendés solo si el otro realmente no tiene conocimiento de cómo
+1306.400	1314.540	hacerlo él. Si no lo puedo hacer cualquiera. Claro. Y tiene vos pagas alguno? Si, si,
+1314.540	1321.200	yo estoy pagando ChachiPT y Cloud a los dos. A ChachiPT le pago 20 por mes, lo uso para
+1321.200	1327.860	una cosa y a Cloud le pago 100 por mes. Cloud es como mi fabrica de software, es
+1327.860	1334.060	como que ahí fabrico software. En ChachiPT hablo de todo. Son mas limitados. No,
+1334.060	1342.060	es para un nivel como el que yo empiezo a laburar con esto, no puedo tenerlo gratis ni en pedo, nada porque me vuelo loco
+1342.060	1345.060	Puedes hacer servicios de inteligencia artificial o...
+1345.060	1354.160	Yo en realidad soy, o sea mi nombre es Pillow, Pillow como consultora, cual es mi slogan, decisiones que descansan en datos
+1354.160	1360.160	Pillow por la almohada y como las decisiones se toman con la almohada conceptualmente viene por ahí, es como toma las decisiones conmigo
+1360.160	1368.860	Mi modelo, que lo vengo dando forma, te diré, el último semestre, es traer métodos a las empresas.
+1368.860	1374.860	Yo me encargo de dos métodos puntuales, me especializo, métodos de gestión y métodos de producción.
+1374.860	1377.050	Con usted estoy trabajando en el método de producción.
+1377.050	1380.180	¿Qué hay acá adentro? Lo que estamos viendo acá.
+1380.180	1385.180	O sea, es, construimos un método de administrar un sistema productivo.
+1385.180	1414.780	¿Qué hago acá en gestión? Me encargo de generar métodos para controles de gestión de estado de resultado, flujos de caja y análisis financiero, porque mi palo nace acá, de hecho yo estaba como gesto financiero acá, y estas son otras cosas, ahora para dar este servicio, yo construyo herramientas que me permiten dar lo que antes se llamaba software as a service, bueno ahora se le llama software with a service, que es básicamente mi servicio,
+1414.780	1418.780	Pero quiero que... Bueno, acá quiere que...
+1418.780	1421.130	Claro.
+1421.130	1424.130	Y me permite, por ahora, no tener gente.
+1424.130	1425.130	Por ahora.
+1425.130	1428.130	En algún punto te quedas corto.
+1428.130	1434.680	Bueno, no me lo cambió.
+1434.680	1435.680	¿Por qué no me lo cambió?
+1435.680	1438.070	Mantenimiento.
+1438.070	1440.070	Listo, cambié. Empezá mantenimiento.
+1440.070	1442.070	Puedo hacer producciones.
+1442.070	1448.230	Refrescar navegadores de 5.
+1448.230	1450.230	Sigo... ¿Ves? Pasa esto.
+1450.230	1460.310	viendo arriba del árbol que dice mantenimiento. Es más, podría hacerle un print de pantalla
+1460.310	1470.610	y pegárselo y más efectivo. Bueno, cuestión, vamos de vuelta acá, son las 11. Equipos
+1470.610	1477.220	de la Tango 2. ¿Esto lo cargaste en base a la XQT? Ni me acuerdo, puede ser. No
+1477.220	1485.860	para mí no sé porque me crió todas las líneas, veis acá hay un problema me permitió
+1485.860	1497.780	acá acabo de detectar un error me permitió eliminar líneas que estaban asociadas a
+1497.780	1505.590	equipos esto no puede pasar o sea fíjate que di de baja todas y desde que solo
+1505.590	1510.310	tango 2 y acá por ejemplo me dice que esto está asociado a la línea 2, o sea está mal,
+1513.310	1518.070	pero bueno para porque me tengo que ir a uno al otro. Yo lo que te propongo es lo siguiente,
+1518.070	1525.110	dejame que pasen limpio, yo tango 2 te la puedo dar de alta con lo que ya tengo porque el
+1525.110	1529.860	dato lo tengo, el último a cambiar el nombre, si no se llama cortador hacemos otra manera y
+1529.860	1536.060	se los habilito en el server para que ustedes ya tengan acceso y empezar a trabajar ustedes
+1536.060	1545.950	cuando eso está abierto yo te aviso, lo vas a empezar a trabajar en fase solamente esto
+1545.950	1552.110	el resto lo voy metiendo después, yo ahí lo de che mira que actualice la versión vas a entrar y va a cambiar la pantalla
+1552.110	1556.840	pero en esta etapa por lo menos para que vos ya empieces a meter y que empieces a registrar información
+1556.840	1561.840	Si puede, por favor, pásenme ese listado de 2015, si...
+1561.840	1564.840	Si, R.I.Z.Z.O
+1564.840	1570.090	Pero para vos gasto una vez, quien es el que más te dice?
+1570.090	1575.090	Yo le digo los datos de este 2017, tubestera.
+1575.090	1581.090	Desde que yo entré en el 2017, se gira a la rafamadora, forma malos tubestes,
+1581.090	1585.090	a la rafamadora, todo está mal. La inscripción te lo ha sido yo desde que entré.
+1585.090	1587.090	Ah, está bien, pero no tienes el tiempo de defensa.
+1587.090	1616.790	yo tengo todo, yo la falla del mantenimiento, yo te paso de la tango 2, no porque necesito el tiempo, el tiempo y los turnos todos, porque a nosotros no se que cuantas se cambia la barra formadora y el primer tiempo y yo que se, entonces cada cosa que es importante, claro es lo que puede ir dando los motivos de fallo, si si esta bien, pero me sirve el otro porque es el que me dice el tiempo, si yo no te puedo sacar los dashes, yo te paso un mes por mes todo del tango 2
+1616.790	1624.080	Así tenemos la historia, y así ya puedes verificar el dashboard y toda la...
+1624.080	1625.080	Perfecto
+1627.080	1631.080	Sebastián queda en pasarme el informe histórico de detenciones, así lo subimos
+1631.080	1637.080	y por otro lado, me queda a mí de tarea limpiar todos los equipos que están dados de alta hoy
+1637.080	1643.080	y dejar solamente el caso modelo para Tango 2, para que puedan empezar a hacer las primeras registraciones

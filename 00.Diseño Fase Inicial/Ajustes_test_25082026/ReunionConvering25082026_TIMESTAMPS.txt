@@ -1,0 +1,276 @@
+[00:00:00 --> 00:00:06] Bueno lo que vamos a ver ahora en este momento es para el área de converting el objetivo de poder
+[00:00:06 --> 00:00:12] poner información dentro del dashboard de la aplicación de converting y uno de los primeros
+[00:00:12 --> 00:00:16] puntos que me plantearon es el concepto de eficiencia. Lo que vamos a hablar ahora es cómo
+[00:00:16 --> 00:00:24] se llega a calcular esa eficiencia. Entonces la eficiencia debe ser primero dividida por turnos,
+[00:00:24 --> 00:00:30] turno mañana, turno tarde y turno noche, y ese turno tiene un nombre, es decir, un
+[00:00:30 --> 00:00:39] maquinista, en este caso el rol es el de maquinista como se toma como jerarquía.
+[00:00:39 --> 00:00:47] El operador debería declarar todas sus detenciones, al cerrar el turno debería,
+[00:00:47 --> 00:00:55] me imagino, aparecer un indicador donde el operador debe declarar la producción
+[00:00:55 --> 00:01:01] que hizo, que en este caso son las cantidades de mangas, automáticamente compara contra
+[00:01:01 --> 00:01:07] la cantidad de mangas objetivo y saca la eficiencia, se entiende?
+[00:01:07 --> 00:01:11] Todo ese proceso se da en el cierre de turno, perdón, hay un tema con el cierre
+[00:01:11 --> 00:01:16] de turno que me pasó con la implementación, que es que suele pasar de que el cierre
+[00:01:16 --> 00:01:21] de turno se da muchas veces cuando la persona está como que se quiere ir, lo
+[00:01:21 --> 00:01:26] que significa que tiene que ser como pa pa pa pa pa pa pa y se va, cuantos tiempo le
+[00:01:26 --> 00:01:31] lleva cargar datos hoy en día antes de irse? No es que hoy no está cargando
+[00:01:31 --> 00:01:35] cero datos por que lo hace todo en papel, hace eso. Pero que lo va llenando durante el
+[00:01:35 --> 00:01:39] horario del turno? Claro. No es que espera hasta el final? Claro, lo debería ir cargando.
+[00:01:39 --> 00:01:43] Osea lo podría ir cargando durante. Vos tenes una detención, arrancaste la
+[00:01:43 --> 00:01:47] maquina, asististe, voy meciendo a la maquina y declaro. Lo único que tienen que
+[00:01:47 --> 00:01:55] están declarando eso en el base, estos datos no los ponen esto, que producto es, y nada
+[00:01:55 --> 00:02:00] más, entonces van cargando una bobina, anotan esto, cargan otra bobina y se van acumulando,
+[00:02:00 --> 00:02:05] lo que si anotan por ahí de un principio es el número de lotes de los pales, de
+[00:02:05 --> 00:02:10] film, de cartón, todas esas cosas, entonces cuando ellos llegaron al final del turno,
+[00:02:10 --> 00:02:14] todo esto ya lo fueron haciendo durante el rato, lo fueron haciendo, cuando termina
+[00:02:14 --> 00:02:21] turno que hacen, verifican si están o tres con las cámaras de que vos comentaste recién o
+[00:02:21 --> 00:02:29] los que ven en el contador van y cambian de producto y eran 31, siguieron y al final eran
+[00:02:29 --> 00:02:36] 20, hacen el total este y esto es lo que cargan en el VAS que es como ingreso de
+[00:02:36 --> 00:02:40] mercadería. O sea ellos hacen el ingreso y el ingreso a VAS lo hacen durante este
+[00:02:40 --> 00:02:59] antes de IC? Si. Esto le llamamos parte diario de producción. Las bobinas. Esperamos un
+[00:02:59 --> 00:03:04] segundo, la foto del papel verde que veas que dice parte diario de
+[00:03:04 --> 00:03:09] producción es lo que estamos hablando en este minuto 3.
+[00:03:09 --> 00:03:15] Esto es ingreso de mercadería, esto que está acá ya estaba en el VAS es
+[00:03:15 --> 00:03:17] es egreso de mercadería, es la jobina que se consumieron.
+[00:03:17 --> 00:03:21] Claro, mercadería de insumo y este es ingreso de producto terminado.
+[00:03:21 --> 00:03:25] Bien, y después, que esto sigue lo mismo, si vos en la otra línea tenés tinta también
+[00:03:25 --> 00:03:29] te hacen el egreso de las tintas o lo que sea, y acá la descripción de las
+[00:03:29 --> 00:03:33] cosas que pasaron al turno, la descripción de si fue cosa de mantenimiento, si fue
+[00:03:33 --> 00:03:36] eléctrico o que cosas hubo en eléctricas.
+[00:03:36 --> 00:03:38] Ok, bueno, está bueno porque...
+[00:03:38 --> 00:03:42] Lo que queremos trasladar es esto, digitalizar esto con una estructura de
+[00:03:42 --> 00:03:43] datos.
+[00:03:43 --> 00:03:46] digitalizamos todo. ¿Por qué no digitalizamos el parte del grafoto?
+[00:03:46 --> 00:03:50] No, no, es lo que apuntamos, lo que pasa es que ahí se nos amplía el proyecto.
+[00:03:50 --> 00:03:53] ¿Para qué está esto? ¿Para la trazabilidad de datos?
+[00:03:53 --> 00:03:58] Yo te entiendo que se nos amplía el proyecto, pero para mí es importante
+[00:03:58 --> 00:04:03] entender hacia dónde voy, claro, porque me cambia de la pantalla.
+[00:04:03 --> 00:04:07] A ver, yo ya sé que ahora tengo que ir a esto, pero que hoy vos me contaste
+[00:04:07 --> 00:04:11] solamente esta parte. Para mí es clave entender que acá dentro voy a meter
+[00:04:11 --> 00:04:18] voy a meter esto y para mí es clave entender que esto sucede durante y no al final, porque si
+[00:04:18 --> 00:04:23] sucede al final yo puedo pensar que va con el sistema de allá, pero si sucede durante va con
+[00:04:23 --> 00:04:30] este, para que también yo logre darle facilidad mental al operador, porque yo el operador,
+[00:04:30 --> 00:04:37] A ver, vos recién me decías ¿lo voy a hacer en el table? Yo te digo, a mi me dice distinto, el tema es que le doy, porque si el tipo anda con esto para otro lado...
+[00:04:37 --> 00:04:51] Otra cosa, mira, otra cosa, eso es en la parte de producción de final, la eficiencia, otra de las tareas que tienen que hacer los chicos son, esta es una sencilla, que son las prensas de control del proceso, lo que te pasé, yo te lo pasé.
+[00:04:51 --> 00:04:53] Sí, sí, esa sería como esta parte.
+[00:04:53 --> 00:05:17] que esto lo hizo el turno de la mañana, vos viniste a la tarde, viniste a la noche, estas renegando, no andas ni plantar la maquina, que hacer, a ver vamos a poner los parámetros que el turno anterior te tuvo bien, agarras esta hojita y te fijas, por ejemplo le cambiaste algo y no anduvo, o cambió algún insumo, cambió algo mecánico, no andas, te fijas como lo hicieron a la mañana, pones esos valores, la maquina sale. No, esta perfecto.
+[00:05:17 --> 00:05:31] Entonces es como que es, no es solamente esto lo que queremos hacer y yo en futuro uno probó con una tablet de estos mismos cargablos, que lo hizo Dugrevich, Juan Pávez, y era muy...
+[00:05:31 --> 00:05:32] Cuando le hicieron eso?
+[00:05:32 --> 00:05:33] Hace bastante.
+[00:05:33 --> 00:05:34] Mucho tiempo.
+[00:05:34 --> 00:05:45] Pero era una planilla de Excel, en una tablet que vos ibas cargando uno por uno, si ponías un número mal, cuando vos lo ponías a guardar, deseaba que había un error, te borraba todo y te ibas a cargar todo.
+[00:05:45 --> 00:05:46] Ah, está bien.
+[00:05:46 --> 00:05:50] que vos querías ver algo de esto, tenías que venir con la tabla y enchufaron el cable
+[00:05:50 --> 00:05:54] red, bajar, ahí se cargaban los datos y cuando vos querías ver algo, era una planilla
+[00:05:54 --> 00:05:59] de Excel que nosotros por ahí lo entendemos que los chicos bajan la línea, ellos entienden
+[00:05:59 --> 00:06:04] esto, entienden una tabla de Excel con valores o parámetros, y era muy obsoleto
+[00:06:04 --> 00:06:09] eso, se dejó de usar y la tabla está, por eso yo me refería. Yo lo que propongo
+[00:06:09 --> 00:06:14] con esto es lo siguiente, nosotros esta pata la tengo en cuenta, lo que decíamos
+[00:06:14 --> 00:06:20] recién con Sebastián es, va a ser como la fase siguiente, para no marear está
+[00:06:20 --> 00:06:23] claro, igualmente cuando llegue este momento vamos a ir sobre la foto y todo
+[00:06:23 --> 00:06:30] sobre eso, hoy lo que se me ocurre como para dividir es, si nosotros tenemos, o
+[00:06:30 --> 00:06:35] sea yo acá creé tres construcciones, mirá a ver Sebastián si estás de acuerdo con esto.
+[00:06:35 --> 00:06:43] Y otra cosa, que si en algún momento esto como que llega a funcionar es, vos acá ponen un valor, le ponen el
+[00:06:43 --> 00:06:52] un trabajo entre 5. Si vos lo pones entre 3 y 4 siempre, y en algún momento tenes que ponerlo en 6,
+[00:06:52 --> 00:07:00] que te salte como una alarma o alguna cosa, que te avise por que esta en 6, que tenga un rango de trabajo
+[00:07:00 --> 00:07:04] y que de un aviso hoy, hacen esto, lo ponen en 6 y quedan estas flanillas en las flanillas que van.
+[00:07:04 --> 00:07:10] A ver, yo lo que pienso es lo siguiente, se me está ocurriendo, como nosotros dijimos de vivir en 3,
+[00:07:10 --> 00:07:15] esta que se llama detenciones, esta que se llama registros, esta que se llama inspecciones, se me ocurre que por ahí pueden ser...
+[00:07:15 --> 00:07:16] Tras habilidad.
+[00:07:16 --> 00:07:19] Sí, más que tras habilidad yo a esta le pondría parte.
+[00:07:19 --> 00:07:23] Yo trataría de que esto sea un registro de partes.
+[00:07:23 --> 00:07:28] ¿Por qué? Porque en vez de ser detenciones, yo ya sé que acá voy a tener, esto va a ser un parte.
+[00:07:28 --> 00:07:35] Cuando yo haga el nuevo parte, técnicamente lo que le voy a dar a la pantalla de la persona es esto.
+[00:07:35 --> 00:07:38] Para que durante su turno navegue con esto.
+[00:07:38 --> 00:07:44] con esto. Acá dentro de todo este parte va a tener lo que tiene que hacer si querés
+[00:07:44 --> 00:07:49] con solapita. Y en esta primera etapa digitalizar esta. Y ahora solamente me apunto en esta,
+[00:07:49 --> 00:07:53] pero yo la dejo construido para el resto. Ahí si llego a la eficiencia que me pedí
+[00:07:53 --> 00:07:59] porque tengo todo. ¿Les parece ok eso? Vamos por ahí. Bien. Ahora para hacer logros
+[00:07:59 --> 00:08:05] en etapas chiquititas, yo lo que te propongo es, ya después de irme de acá
+[00:08:05 --> 00:08:12] y algún que otro ajuste que notemos, dejártelo para que empiecen a cargar detenciones, a sabiendas
+[00:08:12 --> 00:08:16] de donde estamos yendo, porque por ahí al usuario lo vamos a empezar a marear si no
+[00:08:16 --> 00:08:17] le damos.
+[00:08:17 --> 00:08:19] No, pero para, hasta más, ¿sabes lo que hago hoy?
+[00:08:19 --> 00:08:20] Lo pones vos.
+[00:08:20 --> 00:08:24] Yo estas detenciones las estoy haciendo yo a mano, entonces en esta primera etapa
+[00:08:24 --> 00:08:29] ya te la cargo yo, si es lo mismo que estoy haciendo hoy, agarramos una semana
+[00:08:29 --> 00:08:32] y vemos si hay errores, no hay errores, che me faltó este equipo, me faltó otra
+[00:08:32 --> 00:08:33] parte.
+[00:08:33 --> 00:08:39] A ver, yo te lo digo para que sepas, para mi hoy, absorber información es una pelotudez,
+[00:08:39 --> 00:08:43] si no me pasas ese ex en histórico, yo te lo importo y ya tenés toda la historia,
+[00:08:43 --> 00:08:48] si no tenés que estar mirando dos sistemas, eso si querés, mandamelo, yo tengo
+[00:08:48 --> 00:08:53] eso desde el 2015, 2016, yo tengo de tango 2, por que te digo, mandamelo, perdón
+[00:08:53 --> 00:08:58] eh, ya te digo, lo único que si, mandamelo y yo si veo que hay alguna inconsistencia
+[00:08:58 --> 00:09:02] de nombre, de equipo o algo te digo, porque eso es lo que te decía, la estructura
+[00:09:02 --> 00:09:07] la estructura la tenemos que cargar primero, como se llama la máquina, como se llama los equipos y vos me vas a decir
+[00:09:07 --> 00:09:12] equipo tal, máquina tal, observación subo, si eso no encaja no se donde subirlo
+[00:09:16 --> 00:09:20] como te iba a decir, la idea es, con esta información
+[00:09:20 --> 00:09:27] nosotros llegamos a esto, donde vos tenes datos de producción, esta parte lo que produce la máquina
+[00:09:27 --> 00:09:34] dato de eficiencia y productividad y acá empezamos a ver el otro dashboard que me gustaría
+[00:09:34 --> 00:09:40] que este si sale de las detenciones que es esto, fíjate que acá están todos los motivos
+[00:09:40 --> 00:09:53] fallo de proceso, fallo de equipo ¿me entendes? este no y bueno esto es una división
+[00:09:53 --> 00:09:56] que nosotros llamamos fallo mayor y hay detenciones mayores de 60 minutos y detectamos
+[00:09:56 --> 00:10:06] la cantidad de eventos, que podamos hacerlo también. Ok, entonces la pantalla que dice
+[00:10:06 --> 00:10:17] indisponibilidad de tango 1, sale de como llegas a esta? De el registro mensual de
+[00:10:17 --> 00:10:22] todas las descripciones de los tipos de falla, es decir, fallo de proceso, fallo
+[00:10:22 --> 00:10:30] de equipo es la sumatoria de todas las fallas que fuiste cargando de fallo de equipo y después
+[00:10:30 --> 00:10:37] lo divido por la cantidad de turnos que trabajó y te da un porcentaje. Bien y el
+[00:10:37 --> 00:10:43] otro que se llama fallos mayores fallos mayores es nosotros identificamos como fallo
+[00:10:43 --> 00:10:49] mayor todas aquellas detenciones que son mayor a 60 minutos y la estamos registrando
+[00:10:49 --> 00:10:56] en eventos y en tipo si es de proceso o de equipo perfecto después todo esto que está
+[00:10:56 --> 00:11:03] acá que son las eficiencias van a requerir primero llegar a cargar el parte completo
+[00:11:03 --> 00:11:07] correcto porque si no tenemos el parte completo no tenemos la cantidad de mangas y alguna
+[00:11:07 --> 00:11:13] que otras cuestiones más bueno podemos empezar por eso así que como vas a iniciar
+[00:11:13 --> 00:11:21] veníamos en disponibilidad y fallo mayor. Bien, a ver lo que podemos hacer acá, voy
+[00:11:21 --> 00:11:25] a ir a dashboard por ahora. Si, si le dejas lo bajo claro. Vamos a tomar los que se
+[00:11:25 --> 00:11:45] llaman. Indisponibilidad, fallo mayor. Bien, ya que estamos vamos a ver porque me tiró
+[00:11:45 --> 00:11:50] error a ver si lo podemos arreglar ahora. Y otro dashboard que podemos hacer es el
+[00:11:50 --> 00:12:03] pareto de un diagrama de de pareto de de cuerpos me entendés dame un segundo
+[00:12:19 --> 00:12:21] perdón cuál era la que me decías
+[00:12:25 --> 00:13:09] por equipo digamos no si cuerpo equipo notas importantes minuto 13 acá adelante
+[00:13:09 --> 00:13:14] tengo el parte diario de producción que es la hoja verde que te comenté antes tiene
+[00:13:14 --> 00:13:19] dos páginas, página 1, página 2, lo que veo es que dentro de este parte de
+[00:13:19 --> 00:13:24] producción se registran bloques, los bloques son el título producción lo que
+[00:13:24 --> 00:13:29] determina cuál es el producto saliente con sus ciertas características y con
+[00:13:29 --> 00:13:35] eso se genera la inserción dentro de VAS, el título papel lo que dice es
+[00:13:35 --> 00:13:39] cuáles fueron los números de bobina que se insertaron dentro de la máquina
+[00:13:39 --> 00:13:43] técnicamente es el consumo de materia prima, después abajo tenés otro que
+[00:13:43 --> 00:13:47] dice adhesivos y tintas que técnicamente es lo mismo que el consumo
+[00:13:47 --> 00:13:53] de papel pero en este caso adhesivos y tintas, otro que es film y cartón y
+[00:13:53 --> 00:13:59] bajas de bobinas, todos los consumos que se usan para poder terminar el
+[00:13:59 --> 00:14:03] producto definitivo, después hay un título que se llama mermas retornos
+[00:14:03 --> 00:14:07] y scraps y hay otro que se llama control de parada de máquina
+[00:14:07 --> 00:14:11] técnicamente lo que vamos a estar enfocados ahora es estrictamente en
+[00:14:11 --> 00:14:15] este bloque que está dentro de un par de producción que es el control de parada de
+[00:14:15 --> 00:14:28] máquina, dale, tomá este te lo dejo, y escuchá recién me nombraste otra cosa que
+[00:14:28 --> 00:14:36] era diagrama de pareto, ahí tiene un ejemplo de lo que estaría bueno, es tipo una tabla
+[00:14:36 --> 00:14:44] como dashboard donde vos tenés el equipo, el detalle y ordenado de mayor a menor y
+[00:14:44 --> 00:14:52] qué porcentaje sobre el total, me entendés. El equipo, esto es máquina por máquina.
+[00:14:52 --> 00:14:58] Máquina por máquina, entonces yo puedo ir acumulado al día a tanto que se vaya
+[00:14:58 --> 00:15:07] acumulando. El diorama de Pareto es la foto que acabo de sacar que se llama Detención
+[00:15:07 --> 00:15:15] Tango 1, que técnicamente lo que hace es un peso porcentual del total de razones
+[00:15:15 --> 00:15:20] o motivos de falla y cómo pesó eso en el total y por equipo.
+[00:15:20 --> 00:15:26] Esto es foto, imagen...
+[00:15:26 --> 00:15:33] ¿Qué estás corriendo, hace correr ahí?
+[00:15:33 --> 00:15:39] Esto estoy, le acabo de decir al sistema, o sea, yo acá estoy adentro del Visual Studio Code.
+[00:15:39 --> 00:15:41] ¿Con esos programas vos?
+[00:15:41 --> 00:15:42] Claro.
+[00:15:42 --> 00:15:44] Adentro del Visual Studio Code estoy dentro de...
+[00:15:44 --> 00:15:45] N8N.
+[00:15:45 --> 00:15:46] Sí.
+[00:15:46 --> 00:15:47] ¿Es algo parecido a esto?
+[00:15:47 --> 00:15:49] N8N es una...
+[00:15:49 --> 00:15:55] no están dando la capacitación de cosas yo obviamente no entiendo de programación mucho y algo
+[00:15:55 --> 00:16:07] N8N es un programa ya construido como puede ser excel que te sirve para hacer algo, ese algo es
+[00:16:07 --> 00:16:17] automatización de circuitos, flujos de procesos, yo acá trabajo de una manera distinta yo
+[00:16:17 --> 00:16:22] yo acá estoy construyendo el programa, es como que estoy atrás de N8VN, yo estoy construyendo
+[00:16:22 --> 00:16:28] lo que no existe, entonces, ¿me sirve para resolver automatizaciones de flujo?, si,
+[00:16:28 --> 00:16:30] lo podrías hacer con N8VN, en algún punto puede ser.
+[00:16:30 --> 00:16:36] No, yo iba a hacer un proyectito más chiquito para entender, pero entiendo que esto lleva
+[00:16:36 --> 00:16:42] más lo que estamos haciendo nosotros es más programación con inteligencia artificial
+[00:16:42 --> 00:16:43] que estás haciendo.
+[00:16:43 --> 00:16:50] programando a través de la inteligencia artificial, o sea, básicamente vos hacías esto, vos antes...
+[00:16:50 --> 00:16:52] con Python tenías...
+[00:16:52 --> 00:17:01] una máquina para que no me grabes cosas, tengo dos, descripción de tango 2,
+[00:17:01 --> 00:17:05] ¿quieren decirle algo en particular a la descripción? es una máquina que hace algo en
+[00:17:05 --> 00:17:11] particular, algo que les sirva a ustedes. ¿Qué es esta descripción? simplemente estás dando de
+[00:17:11 --> 00:17:15] alta la máquina tango 2 y por ahí le podés decir alguna característica de tango 2 que
+[00:17:15 --> 00:17:32] querés que sepa. Es una máquina especializada en higiénico simple hoja. Bien vamos con otra
+[00:17:32 --> 00:17:38] tango. Si pero hagamos todos sobre el lado que vamos a ir modelo o no. Ah querés hacerlo
+[00:17:38 --> 00:17:43] ahí listo. Yo lo que decía para implementarlo vamos a hacer lo mismo, hagamos todos
+[00:17:43 --> 00:17:47] sobre una línea, probemos todo y después. Perfecto, entonces voy a limpiar todas las
+[00:17:47 --> 00:17:50] otra para laburar sobre las herramientas que vamos a laburar.
+[00:17:50 --> 00:17:54] Esto que estás haciendo ahí, eso que es de administrador o eso de los que ven el operario?
+[00:17:54 --> 00:17:57] No, yo estoy como administrador acá. Después del operario le vamos a ver otro.
+[00:17:57 --> 00:18:01] Yo estoy armando la estructura, entonces acá no lo va a ver el operador porque viene peor.
+[00:18:01 --> 00:18:04] No, porque si no viene uno y puede borrar.
+[00:18:04 --> 00:18:10] No, no, de hecho justamente lo que me tengo que llevar es que hoy estoy logueado,
+[00:18:10 --> 00:18:15] ves que dice estoy logueado como admin, pero lo que no me está ofreciendo es que
+[00:18:15 --> 00:18:19] que yo como admin pueda manipular los usuarios que es una de las cosas que me
+[00:18:19 --> 00:18:23] anoté para revisar. Esto por qué mantenimiento pusiste acá porque no
+[00:18:23 --> 00:18:30] volvés? No, que sé yo, porque no queda siempre así, vos se podes modificar.
+[00:18:30 --> 00:18:36] Lo que vos quieras, que le dio? Ah no, producción sería.
+[00:18:36 --> 00:18:41] Claro, el tema es ese, a dónde vamos a llegar no sé, puede ser PESAK
+[00:18:41 --> 00:18:42] ¿Hoy es producción?
+[00:18:42 --> 00:18:43] Hoy es producción, si.
+[00:18:43 --> 00:18:58] Bien, mira, para que entiendas lo que te digo, actualmente el sistema dice arriba
+[00:18:58 --> 00:19:07] del árbol, PESAC, mantenimiento, puta madre.
+[00:19:07 --> 00:19:10] Esto es como programa.
+[00:19:10 --> 00:19:19] Lo siempre damos en N89, pero este es otro. Ahora te digo, ¿verdad? Y quiero que viva
+[00:19:19 --> 00:19:28] Pesad Producción, cambialo, chau. Esto es así, si, no es así. Lo bueno es que
+[00:19:28 --> 00:19:35] puedo maltratar. Ligate, le puedes decir, te voy a putear. Esto oficialmente yo estoy
+[00:19:35 --> 00:19:43] metido dentro de Visual Studio Code, que se llama IDE, es el donde se desarrolló toda la vida,
+[00:19:43 --> 00:19:51] pero yo adentro de Visual Studio Code estoy dentro de Terminal. Entrar en Terminal es como haber
+[00:19:51 --> 00:19:59] entrado en el CMD, es como entrar en DOS. Sí, con el primer curso que yo hice de computadora,
+[00:19:59 --> 00:20:09] este es de OBS, vos podes entrar a la terminal nativa de la computadora o podes entrar a
+[00:20:09 --> 00:20:15] la terminal nativa de la computadora en este caso desde Visual Studio Code, yo acá di
+[00:20:15 --> 00:20:20] de alta en este caso tres terminales, esto es lo que estoy haciendo con ustedes, esto
+[00:20:20 --> 00:20:26] es otro cliente y esto es otro cliente, es más mira esto, esto que está acá no
+[00:20:26 --> 00:20:32] es un cliente, es algo mío, yo necesito para todos mis clientes organizarme algunas cosas
+[00:20:32 --> 00:20:37] y dije ¿sabes que? me lo voy a hacer, me lo voy a auto desarrollar y me dice esto,
+[00:20:37 --> 00:20:42] me dice un sistema de nodos, donde básicamente me voy armando los nodos y vos podés,
+[00:20:42 --> 00:20:46] por ejemplo esto es un sistema de servidores, es un servidor central que levanta datos
+[00:20:46 --> 00:20:50] de base de datos que están en zona este, zona sur, no se que, y adentro cuando
+[00:20:50 --> 00:20:57] tengo toda la data del sistema, la tengo apagada, me levanta toda la data que yo quiero
+[00:20:57 --> 00:21:02] del sistema con todas sus relaciones, entonces si tengo accesos al servidor, hago clic y
+[00:21:02 --> 00:21:07] entro al servidor, esto me lo hice en 40 minutos. Si, que locura, era que no explicaban
+[00:21:07 --> 00:21:13] los otros días. O sea todo esto, el sistema entero. Bueno, el N8N tiene este formato.
+[00:21:13 --> 00:21:19] Bueno, es que yo lo que construí técnicamente es el N8N, para que le voy a apagar.
+[00:21:19 --> 00:21:23] gente y todas las cosas que me están explicando. Claro, pero online es gratis supuestamente
+[00:21:23 --> 00:21:28] si lo usan. Si, pero sale lo que pasa, ya llega un punto que quiero que sea verde,
+[00:21:28 --> 00:21:33] ahora quiero que cuando le tiro me saque una foto, ya con lo que se me caen los huevos,
+[00:21:33 --> 00:21:38] en el otro tenés que cumplir con lo que el otro diseño, entonces llega un punto
+[00:21:38 --> 00:21:42] que se está poniendo muy difícil que vos realmente puedas vender un producto,
+[00:21:42 --> 00:21:46] o sea claro, lo vendés solo si el otro realmente no tiene conocimiento de cómo
+[00:21:46 --> 00:21:54] hacerlo él. Si no lo puedo hacer cualquiera. Claro. Y tiene vos pagas alguno? Si, si,
+[00:21:54 --> 00:22:01] yo estoy pagando ChachiPT y Cloud a los dos. A ChachiPT le pago 20 por mes, lo uso para
+[00:22:01 --> 00:22:07] una cosa y a Cloud le pago 100 por mes. Cloud es como mi fabrica de software, es
+[00:22:07 --> 00:22:14] como que ahí fabrico software. En ChachiPT hablo de todo. Son mas limitados. No,
+[00:22:14 --> 00:22:22] es para un nivel como el que yo empiezo a laburar con esto, no puedo tenerlo gratis ni en pedo, nada porque me vuelo loco
+[00:22:22 --> 00:22:25] Puedes hacer servicios de inteligencia artificial o...
+[00:22:25 --> 00:22:34] Yo en realidad soy, o sea mi nombre es Pillow, Pillow como consultora, cual es mi slogan, decisiones que descansan en datos
+[00:22:34 --> 00:22:40] Pillow por la almohada y como las decisiones se toman con la almohada conceptualmente viene por ahí, es como toma las decisiones conmigo
+[00:22:40 --> 00:22:48] Mi modelo, que lo vengo dando forma, te diré, el último semestre, es traer métodos a las empresas.
+[00:22:48 --> 00:22:54] Yo me encargo de dos métodos puntuales, me especializo, métodos de gestión y métodos de producción.
+[00:22:54 --> 00:22:57] Con usted estoy trabajando en el método de producción.
+[00:22:57 --> 00:23:00] ¿Qué hay acá adentro? Lo que estamos viendo acá.
+[00:23:00 --> 00:23:05] O sea, es, construimos un método de administrar un sistema productivo.
+[00:23:05 --> 00:23:34] ¿Qué hago acá en gestión? Me encargo de generar métodos para controles de gestión de estado de resultado, flujos de caja y análisis financiero, porque mi palo nace acá, de hecho yo estaba como gesto financiero acá, y estas son otras cosas, ahora para dar este servicio, yo construyo herramientas que me permiten dar lo que antes se llamaba software as a service, bueno ahora se le llama software with a service, que es básicamente mi servicio,
+[00:23:34 --> 00:23:38] Pero quiero que... Bueno, acá quiere que...
+[00:23:38 --> 00:23:41] Claro.
+[00:23:41 --> 00:23:44] Y me permite, por ahora, no tener gente.
+[00:23:44 --> 00:23:45] Por ahora.
+[00:23:45 --> 00:23:48] En algún punto te quedas corto.
+[00:23:48 --> 00:23:54] Bueno, no me lo cambió.
+[00:23:54 --> 00:23:55] ¿Por qué no me lo cambió?
+[00:23:55 --> 00:23:58] Mantenimiento.
+[00:23:58 --> 00:24:00] Listo, cambié. Empezá mantenimiento.
+[00:24:00 --> 00:24:02] Puedo hacer producciones.
+[00:24:02 --> 00:24:08] Refrescar navegadores de 5.
+[00:24:08 --> 00:24:10] Sigo... ¿Ves? Pasa esto.
+[00:24:10 --> 00:24:20] viendo arriba del árbol que dice mantenimiento. Es más, podría hacerle un print de pantalla
+[00:24:20 --> 00:24:30] y pegárselo y más efectivo. Bueno, cuestión, vamos de vuelta acá, son las 11. Equipos
+[00:24:30 --> 00:24:37] de la Tango 2. ¿Esto lo cargaste en base a la XQT? Ni me acuerdo, puede ser. No
+[00:24:37 --> 00:24:45] para mí no sé porque me crió todas las líneas, veis acá hay un problema me permitió
+[00:24:45 --> 00:24:57] acá acabo de detectar un error me permitió eliminar líneas que estaban asociadas a
+[00:24:57 --> 00:25:05] equipos esto no puede pasar o sea fíjate que di de baja todas y desde que solo
+[00:25:05 --> 00:25:10] tango 2 y acá por ejemplo me dice que esto está asociado a la línea 2, o sea está mal,
+[00:25:13 --> 00:25:18] pero bueno para porque me tengo que ir a uno al otro. Yo lo que te propongo es lo siguiente,
+[00:25:18 --> 00:25:25] dejame que pasen limpio, yo tango 2 te la puedo dar de alta con lo que ya tengo porque el
+[00:25:25 --> 00:25:29] dato lo tengo, el último a cambiar el nombre, si no se llama cortador hacemos otra manera y
+[00:25:29 --> 00:25:36] se los habilito en el server para que ustedes ya tengan acceso y empezar a trabajar ustedes
+[00:25:36 --> 00:25:45] cuando eso está abierto yo te aviso, lo vas a empezar a trabajar en fase solamente esto
+[00:25:45 --> 00:25:52] el resto lo voy metiendo después, yo ahí lo de che mira que actualice la versión vas a entrar y va a cambiar la pantalla
+[00:25:52 --> 00:25:56] pero en esta etapa por lo menos para que vos ya empieces a meter y que empieces a registrar información
+[00:25:56 --> 00:26:01] Si puede, por favor, pásenme ese listado de 2015, si...
+[00:26:01 --> 00:26:04] Si, R.I.Z.Z.O
+[00:26:04 --> 00:26:10] Pero para vos gasto una vez, quien es el que más te dice?
+[00:26:10 --> 00:26:15] Yo le digo los datos de este 2017, tubestera.
+[00:26:15 --> 00:26:21] Desde que yo entré en el 2017, se gira a la rafamadora, forma malos tubestes,
+[00:26:21 --> 00:26:25] a la rafamadora, todo está mal. La inscripción te lo ha sido yo desde que entré.
+[00:26:25 --> 00:26:27] Ah, está bien, pero no tienes el tiempo de defensa.
+[00:26:27 --> 00:26:56] yo tengo todo, yo la falla del mantenimiento, yo te paso de la tango 2, no porque necesito el tiempo, el tiempo y los turnos todos, porque a nosotros no se que cuantas se cambia la barra formadora y el primer tiempo y yo que se, entonces cada cosa que es importante, claro es lo que puede ir dando los motivos de fallo, si si esta bien, pero me sirve el otro porque es el que me dice el tiempo, si yo no te puedo sacar los dashes, yo te paso un mes por mes todo del tango 2
+[00:26:56 --> 00:27:04] Así tenemos la historia, y así ya puedes verificar el dashboard y toda la...
+[00:27:04 --> 00:27:05] Perfecto
+[00:27:07 --> 00:27:11] Sebastián queda en pasarme el informe histórico de detenciones, así lo subimos
+[00:27:11 --> 00:27:17] y por otro lado, me queda a mí de tarea limpiar todos los equipos que están dados de alta hoy
+[00:27:17 --> 00:27:23] y dejar solamente el caso modelo para Tango 2, para que puedan empezar a hacer las primeras registraciones

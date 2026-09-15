@@ -1,0 +1,37 @@
+polyfills.ts:122 
+ GET http://localhost:5188/_framework/PSAG.Mantenimiento.Web.xesc5n134n.pdb 404 (Not Found)
+
+(index):1 Failed to find a valid digest in the 'integrity' attribute for resource 'http://localhost:5188/_framework/PSAG.Mantenimiento.Web.xesc5n134n.pdb' with computed SHA-256 integrity '47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='. The resource has been blocked.
+(index):1 Fetch API cannot load http://localhost:5188/_framework/PSAG.Mantenimiento.Web.xesc5n134n.pdb. SRI's integrity checks failed.
+blazor.webassembly.js:1 Error in mono_download_assets: Error: download 'http://localhost:5188/_framework/PSAG.Mantenimiento.Web.xesc5n134n.pdb' for PSAG.Mantenimiento.Web.xesc5n134n.pdb failed 0 TypeError: Failed to fetch
+blazor.webassembly.js:1 Error in mono_download_assets: Error: download 'http://localhost:5188/_framework/PSAG.Mantenimiento.Web.xesc5n134n.pdb' for PSAG.Mantenimiento.Web.xesc5n134n.pdb failed 0 TypeError: Failed to fetch
+polyfills.ts:122 
+ GET http://localhost:5188/_framework/PSAG.Mantenimiento.Web.40g38uyvlb.wasm 404 (Not Found)
+(index):1 Failed to find a valid digest in the 'integrity' attribute for resource 'http://localhost:5188/_framework/PSAG.Mantenimiento.Web.40g38uyvlb.wasm' with computed SHA-256 integrity '47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='. The resource has been blocked.
+(index):1 Fetch API cannot load http://localhost:5188/_framework/PSAG.Mantenimiento.Web.40g38uyvlb.wasm. SRI's integrity checks failed.
+blazor.webassembly.js:1 Error in mono_download_assets: Error: download 'http://localhost:5188/_framework/PSAG.Mantenimiento.Web.40g38uyvlb.wasm' for PSAG.Mantenimiento.Web.40g38uyvlb.wasm failed 0 TypeError: Failed to fetch
+polyfills.ts:122 Uncaught (in promise) TypeError: Failed to fetch. SRI's integrity checks failed.
+    at Object.W [as fetch_like] (polyfills.ts:122:31)
+    at assets.ts:764:26
+    at assets.ts:726:26
+3
+assets.ts:642 Uncaught (in promise) Error: download 'http://localhost:5188/_framework/PSAG.Mantenimiento.Web.xesc5n134n.pdb' for PSAG.Mantenimiento.Web.xesc5n134n.pdb failed 0 TypeError: Failed to fetch
+assets.ts:642 Uncaught (in promise) Error: download 'http://localhost:5188/_framework/PSAG.Mantenimiento.Web.xesc5n134n.pdb' for PSAG.Mantenimiento.Web.xesc5n134n.pdb failed 0 TypeError: Failed to fetch
+3
+assets.ts:642 Uncaught (in promise) Error: download 'http://localhost:5188/_framework/PSAG.Mantenimiento.Web.xesc5n134n.pdb' for PSAG.Mantenimiento.Web.xesc5n134n.pdb failed 0 TypeError: Failed to fetch
+startup.ts:513 Uncaught (in promise) Error: download 'http://localhost:5188/_framework/PSAG.Mantenimiento.Web.xesc5n134n.pdb' for PSAG.Mantenimiento.Web.xesc5n134n.pdb failed 0 TypeError: Failed to fetch
+assets.ts:642 Uncaught (in promise) Error: download 'http://localhost:5188/_framework/PSAG.Mantenimiento.Web.xesc5n134n.pdb' for PSAG.Mantenimiento.Web.xesc5n134n.pdb failed 0 TypeError: Failed to fetch
+blazor.webassembly.js:1 Uncaught (in promise) Error: Failed to start platform. Reason: Error: download 'http://localhost:5188/_framework/PSAG.Mantenimiento.Web.xesc5n134n.pdb' for PSAG.Mantenimiento.Web.xesc5n134n.pdb failed 0 TypeError: Failed to fetch
+    at qt (blazor.webassembly.js:1:55759)
+polyfills.ts:122 Uncaught (in promise) TypeError: Failed to fetch. SRI's integrity checks failed.
+    at Object.W [as fetch_like] (polyfills.ts:122:31)
+    at assets.ts:764:26
+    at assets.ts:726:26
+assets.ts:642 Uncaught (in promise) Error: download 'http://localhost:5188/_framework/PSAG.Mantenimiento.Web.40g38uyvlb.wasm' for PSAG.Mantenimiento.Web.40g38uyvlb.wasm failed 0 TypeError: Failed to fetch
+?
+
+Press ctrl i to turn on code suggestions. Press ctrl x to disable code suggestions.
+ctrl
+i
+ to turn on code suggestions. Don't show again
+

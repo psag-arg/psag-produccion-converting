@@ -1,0 +1,60 @@
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Bb]in/
+[Oo]bj/
+publish/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider
+.idea/
+
+# NuGet
+*.nupkg
+**/packages/*
+!**/packages/repositories.config
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Mac
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Database files
+*.db
+*.sqlite
+
+# Environment files
+appsettings.Development.json
+appsettings.Production.json
+
+# Publish output
+/deploy/*.zip
+
+# Windows reserved names
+nul
+NUL
+**/nul
+**/NUL
+
+# Large media files (exceed GitHub 100MB limit)
+*.mp4
+*.mp3
+*.m4a
+*.mov
+*.avi
+*.wav

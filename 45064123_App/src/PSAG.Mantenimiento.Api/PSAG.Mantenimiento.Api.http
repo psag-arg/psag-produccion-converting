@@ -1,0 +1,6 @@
+@PSAG.Mantenimiento.Api_HostAddress = http://localhost:5186
+
+GET {{PSAG.Mantenimiento.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

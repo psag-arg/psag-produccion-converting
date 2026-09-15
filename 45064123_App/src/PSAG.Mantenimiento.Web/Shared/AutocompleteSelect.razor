@@ -1,0 +1,199 @@
+@typeparam TItem
+@typeparam TValue
+
+<div class="autocomplete-container position-relative" @onfocusout="OnFocusOut">
+    <div class="input-group">
+        <input type="text"
+               class="form-control @(IsOpen ? "border-primary" : "")"
+               placeholder="@Placeholder"
+               @bind="searchText"
+               @bind:event="oninput"
+               @onfocus="OnFocus"
+               @onkeydown="OnKeyDown" />
+        @if (!string.IsNullOrEmpty(searchText) || SelectedValue != null)
+        {
+            <button type="button" class="btn btn-outline-secondary" @onclick="Clear" tabindex="-1">
+                <i class="bi bi-x"></i>
+            </button>
+        }
+        <button type="button" class="btn btn-outline-secondary" @onclick="ToggleDropdown" tabindex="-1">
+            <i class="bi bi-chevron-down"></i>
+        </button>
+    </div>
+
+    @if (IsOpen && filteredItems.Any())
+    {
+        <div class="autocomplete-dropdown position-absolute w-100 border rounded shadow-sm mt-1" style="z-index: 1050; max-height: 250px; overflow-y: auto;">
+            @foreach (var (item, index) in filteredItems.Select((x, i) => (x, i)))
+            {
+                <div class="autocomplete-item px-3 py-2 @(index == highlightedIndex ? "bg-primary text-white" : "")"
+                     style="cursor: pointer;"
+                     @onclick="() => SelectItem(item)"
+                     @onmouseenter="() => highlightedIndex = index">
+                    @ItemTemplate(item)
+                </div>
+            }
+        </div>
+    }
+    else if (IsOpen && !string.IsNullOrEmpty(searchText) && !filteredItems.Any())
+    {
+        <div class="autocomplete-dropdown position-absolute w-100 border rounded shadow-sm mt-1" style="z-index: 1050;">
+            <div class="px-3 py-2 text-muted">Sin resultados</div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public IEnumerable<TItem> Items { get; set; } = Enumerable.Empty<TItem>();
+    [Parameter] public TValue? SelectedValue { get; set; }
+    [Parameter] public EventCallback<TValue?> SelectedValueChanged { get; set; }
+    [Parameter] public EventCallback OnValueChanged { get; set; }
+    [Parameter] public Func<TItem, TValue> ValueSelector { get; set; } = default!;
+    [Parameter] public Func<TItem, string> TextSelector { get; set; } = default!;
+    [Parameter] public Func<TItem, string, bool>? FilterPredicate { get; set; }
+    [Parameter] public RenderFragment<TItem> ItemTemplate { get; set; } = default!;
+    [Parameter] public string Placeholder { get; set; } = "Buscar...";
+    [Parameter] public bool Disabled { get; set; }
+
+    private string searchText = "";
+    private bool IsOpen = false;
+    private int highlightedIndex = 0;
+    private List<TItem> filteredItems = new();
+    private bool skipFocusOut = false;
+
+    protected override void OnParametersSet()
+    {
+        if (SelectedValue != null && !IsOpen)
+        {
+            var selectedItem = Items.FirstOrDefault(i =>
+                EqualityComparer<TValue>.Default.Equals(ValueSelector(i), SelectedValue));
+            if (selectedItem != null)
+            {
+                searchText = TextSelector(selectedItem);
+            }
+        }
+        else if (SelectedValue == null && !IsOpen)
+        {
+            searchText = "";
+        }
+        FilterItems();
+    }
+
+    private void FilterItems()
+    {
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            filteredItems = Items.ToList();
+        }
+        else if (FilterPredicate != null)
+        {
+            filteredItems = Items.Where(i => FilterPredicate(i, searchText)).ToList();
+        }
+        else
+        {
+            var lowerSearch = searchText.ToLowerInvariant();
+            filteredItems = Items.Where(i =>
+                TextSelector(i).ToLowerInvariant().Contains(lowerSearch)).ToList();
+        }
+        highlightedIndex = 0;
+    }
+
+    private void OnFocus()
+    {
+        IsOpen = true;
+        FilterItems();
+    }
+
+    private async Task OnFocusOut()
+    {
+        if (skipFocusOut)
+        {
+            skipFocusOut = false;
+            return;
+        }
+        await Task.Delay(200);
+        IsOpen = false;
+
+        // Restaurar el texto si hay valor seleccionado
+        if (SelectedValue != null)
+        {
+            var selectedItem = Items.FirstOrDefault(i =>
+                EqualityComparer<TValue>.Default.Equals(ValueSelector(i), SelectedValue));
+            if (selectedItem != null)
+            {
+                searchText = TextSelector(selectedItem);
+            }
+        }
+        else
+        {
+            searchText = "";
+        }
+    }
+
+    private void ToggleDropdown()
+    {
+        skipFocusOut = true;
+        IsOpen = !IsOpen;
+        if (IsOpen) FilterItems();
+    }
+
+    private async Task SelectItem(TItem item)
+    {
+        var value = ValueSelector(item);
+        searchText = TextSelector(item);
+        SelectedValue = value;
+        await SelectedValueChanged.InvokeAsync(value);
+        await OnValueChanged.InvokeAsync();
+        IsOpen = false;
+    }
+
+    private async Task Clear()
+    {
+        searchText = "";
+        SelectedValue = default;
+        await SelectedValueChanged.InvokeAsync(default);
+        await OnValueChanged.InvokeAsync();
+        FilterItems();
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "ArrowDown":
+                if (!IsOpen)
+                {
+                    IsOpen = true;
+                    FilterItems();
+                }
+                else if (highlightedIndex < filteredItems.Count - 1)
+                {
+                    highlightedIndex++;
+                }
+                break;
+
+            case "ArrowUp":
+                if (highlightedIndex > 0)
+                {
+                    highlightedIndex--;
+                }
+                break;
+
+            case "Enter":
+                if (IsOpen && filteredItems.Any() && highlightedIndex < filteredItems.Count)
+                {
+                    await SelectItem(filteredItems[highlightedIndex]);
+                }
+                break;
+
+            case "Escape":
+                IsOpen = false;
+                break;
+
+            default:
+                IsOpen = true;
+                FilterItems();
+                break;
+        }
+    }
+}

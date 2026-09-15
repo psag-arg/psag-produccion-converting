@@ -1,0 +1,14 @@
+Necesit que me hagas una subida masiva de DETENCIONES de la linea tANGO 2 segun lo que esta en este EXcel
+
+1- Tenemos la info separada en Solpas por MES (todos son del 2026)
+con @psag.com.ar) 
+3- El turno asignado ponele a todos el de la MAÑANA
+4- Hay dos campos de Tiempo (Tiempo Min) y Hs Prog. vos tene que tomar el que dice TIEMPO (Min) para subir los minutos
+5- Si hay un TIPO de falla que no lo tenes cargado, registralo 
+6-Si hay un Cuerpo/equipo que no lo tenes registrado, hacelo 
+7- En el campo CUERPO/Equipo cuando ponen la palabra MAQUINA significa que el una falla que no esta asociada a un cuperpo en particular, lo que significa que dentro de la detencion se asocia Maquina pero no cuerpo
+8-El campo DETALLE es la FALLA en si misma (Si no tenes la falla en el ABM cargala)
+9- La descripcion es lo que va especificamente en el campo Observaciones de la detencion
+
+Consultar lo que necesites
+	

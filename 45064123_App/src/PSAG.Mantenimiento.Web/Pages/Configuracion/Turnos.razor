@@ -1,0 +1,285 @@
+@page "/configuracion/turnos"
+@using Microsoft.AspNetCore.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize(Roles = "ADMINISTRADOR")]
+@inject ICatalogosService CatalogosService
+@inject IJSRuntime JS
+
+<PageTitle>Turnos - PSAG Produccion</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3>Turnos</h3>
+        <button class="btn btn-primary" @onclick="NuevoTurno">
+            <i class="bi bi-plus-circle me-2"></i>Nuevo Turno
+        </button>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card">
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Codigo</th>
+                            <th>Nombre</th>
+                            <th>Hora Inicio</th>
+                            <th>Hora Fin</th>
+                            <th class="text-center">Activo</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (turnos.Any())
+                        {
+                            @foreach (var turno in turnos)
+                            {
+                                <tr>
+                                    <td>@turno.TurnoId</td>
+                                    <td><span class="badge bg-info">@turno.Codigo</span></td>
+                                    <td><strong>@turno.Nombre</strong></td>
+                                    <td>@turno.HoraInicio.ToString(@"hh\:mm")</td>
+                                    <td>@turno.HoraFin.ToString(@"hh\:mm")</td>
+                                    <td class="text-center">
+                                        @if (turno.Activo)
+                                        {
+                                            <span class="badge bg-success">Activo</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">Inactivo</span>
+                                        }
+                                    </td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => EditarTurno(turno)">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmarDesactivar(turno)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">No hay turnos registrados</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@* Modal para crear/editar *@
+@if (showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(editando ? "Editar" : "Nuevo") Turno</h5>
+                    <button type="button" class="btn-close" @onclick="CerrarModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Codigo *</label>
+                        <input type="text" class="form-control" @bind="turnoActual.Codigo" placeholder="Ej: T1, T2, T3" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nombre *</label>
+                        <input type="text" class="form-control" @bind="turnoActual.Nombre" placeholder="Ej: Turno Manana" />
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label">Hora Inicio *</label>
+                            <input type="text" class="form-control" @bind="horaInicioStr" placeholder="HH:mm" />
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label">Hora Fin *</label>
+                            <input type="text" class="form-control" @bind="horaFinStr" placeholder="HH:mm" />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Orden</label>
+                        <input type="number" class="form-control" @bind="turnoActual.Orden" />
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="activo" @bind="turnoActual.Activo" />
+                        <label class="form-check-label" for="activo">Activo</label>
+                    </div>
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger mt-3 mb-0">@errorMessage</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CerrarModal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" @onclick="GuardarTurno" disabled="@isSaving">
+                        @if (isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        Guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<TurnoDto> turnos = new();
+    private TurnoDto turnoActual = new();
+    private string horaInicioStr = "00:00";
+    private string horaFinStr = "00:00";
+    private bool isLoading = true;
+    private bool showModal = false;
+    private bool editando = false;
+    private bool isSaving = false;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarTurnos();
+    }
+
+    private async Task CargarTurnos()
+    {
+        isLoading = true;
+        try
+        {
+            turnos = await CatalogosService.GetTurnosAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void NuevoTurno()
+    {
+        turnoActual = new TurnoDto { Activo = true, Orden = turnos.Count + 1 };
+        horaInicioStr = "06:00";
+        horaFinStr = "14:00";
+        editando = false;
+        errorMessage = null;
+        showModal = true;
+    }
+
+    private void EditarTurno(TurnoDto turno)
+    {
+        turnoActual = new TurnoDto
+        {
+            TurnoId = turno.TurnoId,
+            Codigo = turno.Codigo,
+            Nombre = turno.Nombre,
+            HoraInicio = turno.HoraInicio,
+            HoraFin = turno.HoraFin,
+            Orden = turno.Orden,
+            Activo = turno.Activo
+        };
+        horaInicioStr = turno.HoraInicio.ToString(@"hh\:mm");
+        horaFinStr = turno.HoraFin.ToString(@"hh\:mm");
+        editando = true;
+        errorMessage = null;
+        showModal = true;
+    }
+
+    private void CerrarModal()
+    {
+        showModal = false;
+        turnoActual = new();
+    }
+
+    private async Task GuardarTurno()
+    {
+        if (string.IsNullOrWhiteSpace(turnoActual.Codigo))
+        {
+            errorMessage = "El codigo es requerido";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(turnoActual.Nombre))
+        {
+            errorMessage = "El nombre es requerido";
+            return;
+        }
+
+        // Parsear horas
+        if (!TimeSpan.TryParse(horaInicioStr, out var horaInicio))
+        {
+            errorMessage = "Hora de inicio invalida";
+            return;
+        }
+        if (!TimeSpan.TryParse(horaFinStr, out var horaFin))
+        {
+            errorMessage = "Hora de fin invalida";
+            return;
+        }
+
+        turnoActual.HoraInicio = horaInicio;
+        turnoActual.HoraFin = horaFin;
+
+        isSaving = true;
+        errorMessage = null;
+
+        try
+        {
+            if (editando)
+            {
+                await CatalogosService.UpdateTurnoAsync(turnoActual);
+            }
+            else
+            {
+                await CatalogosService.CreateTurnoAsync(turnoActual);
+            }
+
+            showModal = false;
+            await CargarTurnos();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task ConfirmarDesactivar(TurnoDto turno)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", $"¿Desea desactivar el turno '{turno.Nombre}'?");
+        if (confirmed)
+        {
+            try
+            {
+                turno.Activo = false;
+                await CatalogosService.UpdateTurnoAsync(turno);
+                await CargarTurnos();
+            }
+            catch (Exception ex)
+            {
+                await JS.InvokeVoidAsync("alert", $"Error: {ex.Message}");
+            }
+        }
+    }
+}

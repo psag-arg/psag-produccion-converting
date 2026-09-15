@@ -1,0 +1,81 @@
+La secuencia de implementación quedaría, por ahora:
+
+
+Fase 1 — Detenciones de máquina 
+Registro, clasificación y sistematización de las paradas.
+
+ 
+Subfase 1.1 — Detección automática de detenciones mediante visión
+Incorporar cámaras y reconocimiento visual para identificar automáticamente cuándo una máquina se detiene, reduciendo o complementando la intervención manual del operador.
+
+Subfase 1.2 — Detección de calidad mediante visión
+Utilizar la misma infraestructura de cámaras para reconocer visualmente condiciones o defectos asociados a la calidad del producto/proceso.
+
+Fase 2 — Variables de proceso
+Avanzar posteriormente sobre la captura, integración y análisis de las variables propias del proceso productivo.
+
+Esto además cambia conceptualmente el roadmap: entre la digitalización inicial y la captura de variables de proceso aparece una capa de visión artificial con dos objetivos distintos: estado de máquina y calidad.
+
+Mandame el resto del relevamiento y lo voy consolidando bajo esta misma estructura.
+
+
+
+** Base de conocimiento de resolución de detenciones
+  
+
+Cada vez que se cierre una detención de máquina, la persona que intervino deberá registrar no sólo la causa, sino también qué diagnóstico realizó, qué acción tomó y cuál fue la resolución efectiva. Esa información debe quedar asociada al evento de detención y almacenarse de forma estructurada.
+
+El objetivo es que, ante futuras detenciones similares, el sistema pueda recuperar antecedentes comparables y ofrecer al operador o al equipo de mantenimiento información como: “este problema ya ocurrió”, “cuál fue la causa”, “cómo se resolvió”, “quién intervino” y “cuánto tiempo demandó la solución”.
+
+A futuro, esto habilita una capa adicional muy potente: que el sistema no sólo muestre antecedentes, sino que utilice IA para sugerir posibles diagnósticos y acciones de resolución basándose en casos históricos similares.
+
+Conceptualmente, el circuito sería:
+
+Detención ? Diagnóstico ? Intervención ? Resolución ? Registro de conocimiento ? Reutilización ante futuras detenciones.
+
+Esto lo incorporaría como un eje transversal del proyecto, no necesariamente como una fase aislada, porque la base empieza a construirse desde la Fase 1 y gana valor progresivamente a medida que acumula eventos.
+
+From: Sebastian Ferretti <sferretti@psag.com.ar>
+Sent: Friday, 14 August 2026 12:50:05
+To: Emiliano Rizzo <erizzo@psag.com.ar>
+Subject: RE: Proyecto Converting
+ 
+Emiliano, como estás!! Te comparto minuta de la reunión del martes 11/8.
+
+ 
+
+Modelo de detenciones de máquina avanzado en 40 %. Tiempo de fin del proyecto pedido por Sebastián è 2 meses è Mediados de Octubre 2026
+Se define máquina tango 2 para avanzar con toma de tiempos de detenciones de forma automática por medio de cámaras (no tomar datos del PLC de máquina). Se definen de colocar 5 cámaras para visualizar detenciones en los siguientes cuerpos:
+Rebobinadora
+Saida de rollos en cortadora
+Salida de paquetes en Empaquetadora
+Salida de bolsones en Embolsadora
+Salida de robot Kuka
+De los registros y declaraciones de detenciones definidas por el operador se debe generar una base de datos con los siguientes usos:
+Fallos online disponibles para usuarios como Supervisor o Mantenimiento.
+En caso de fallos de equipo, se debe generar un desplegable adicional con análisis de causa, solución y repuesto utilizado; para que el equipo de mantenimiento complete y cierre el fallo.
+Book de historial de fallos. Poder filtrar por cuerpo o tipo de falla en un intervalo de tiempo.
+Poder definir el costo de mantenimiento de cada cuerpo de máquina en base a los repuestos utilizados en cada fallo o reparación.
+ 
+
+Jerarquía o árbol de detenciones para trazabilidad de información:
+1) Máquina donde ocurre la detención
+2) Cuerpo donde ocurre la detención
+3) Tipo de falla
+4) Detalle genérico
+5) Descripción (detalle específico de lo ocurrido)
+ 
+
+Se adjunta árbol de detenciones modelo.
+
+Nota: ya se relevó lugar y cámaras para avanzar con presupuesto.
+
+ 
+
+Hablamos.
+
+ 
+
+Slds.
+
+ 
