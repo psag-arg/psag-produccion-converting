@@ -32,6 +32,18 @@ public class DetencionDto
     public string? CreadoPorUsuarioId { get; set; }
     public DateTimeOffset FechaHoraCreacion { get; set; }
     public DateTimeOffset? FechaHoraModificacion { get; set; }
+
+    // Eliminación y análisis
+    public bool Eliminada { get; set; }
+    public bool RequiereAnalisis { get; set; }
+    public string? ResponsableRol { get; set; }
+    public string? ResponsableUsuarioId { get; set; }
+    public string? CausaFalla { get; set; }
+    public string? PlanAccion { get; set; }
+    public string? AnalisisPorUsuarioId { get; set; }
+    public DateTimeOffset? FechaHoraAnalisis { get; set; }
+    public bool EquipoCritico { get; set; }
+
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }
 
