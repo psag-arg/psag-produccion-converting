@@ -56,9 +56,8 @@ public class AnalisisService : IAnalisisService
         if (largo != null)
             return Result<AnalisisDetencionDto>.Failure("VALIDATION", largo);
 
-        var ahora = DateTimeOffset.UtcNow;
         if (detencion.EstadoActual == EstadoDetencion.REGISTRADA)
-            CambiarEstado(detencion, EstadoDetencion.EN_SEGUIMIENTO, usuarioId, "Análisis iniciado", ahora);
+            detencion.CambiarEstado(EstadoDetencion.EN_SEGUIMIENTO, usuarioId, "Análisis iniciado");
 
         AplicarCampos(detencion, request, usuarioId);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -86,9 +85,9 @@ public class AnalisisService : IAnalisisService
         if (motivo != null)
             return Result<AnalisisDetencionDto>.Failure("VALIDATION", motivo);
 
-        var ahora = DateTimeOffset.UtcNow;
-        CambiarEstado(detencion, EstadoDetencion.CERRADA, usuarioId, "Análisis cerrado", ahora);
+        detencion.CambiarEstado(EstadoDetencion.CERRADA, usuarioId, "Análisis cerrado");
 
+        var ahora = DateTimeOffset.UtcNow;
         AplicarCampos(detencion, request, usuarioId);
         detencion.AnalisisPorUsuarioId = usuarioId;
         detencion.FechaHoraAnalisis = ahora;
@@ -328,26 +327,6 @@ public class AnalisisService : IAnalisisService
         }
 
         return dto;
-    }
-
-    private static void CambiarEstado(
-        Detencion detencion,
-        EstadoDetencion nuevoEstado,
-        string usuarioId,
-        string observacion,
-        DateTimeOffset ahora)
-    {
-        var estadoAnterior = detencion.EstadoActual;
-        detencion.EstadoActual = nuevoEstado;
-        detencion.HistorialEstados.Add(new DetencionEstadoHistorial
-        {
-            EstadoAnterior = estadoAnterior,
-            EstadoNuevo = nuevoEstado,
-            FechaHora = ahora,
-            UsuarioId = usuarioId,
-            Observacion = observacion,
-            OrigenAccion = "API"
-        });
     }
 
     private static void AplicarCampos(Detencion detencion, GuardarAnalisisRequest request, string usuarioId)
