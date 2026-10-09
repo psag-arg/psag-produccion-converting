@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using PSAG.Mantenimiento.Domain.Common;
 using PSAG.Mantenimiento.Domain.Entities;
 using PSAG.Mantenimiento.Infrastructure.Data.Conversions;
 using PSAG.Mantenimiento.Infrastructure.Identity;
@@ -57,33 +58,68 @@ public class MantenimientoDbContext : IdentityDbContext<ApplicationUser>
         }
     }
 
-    // SQLite no genera rowversion: EF lo asigna en cada insert y update (en SQL Server lo hace la base).
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
-        AsignarRowVersionSqlite();
+        AplicarValoresAutomaticos();
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 
     public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
-        AsignarRowVersionSqlite();
+        AplicarValoresAutomaticos();
         return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 
-    private void AsignarRowVersionSqlite()
+    /// <summary>
+    /// Completa en cada guardado lo que la aplicación no envía: fechas de auditoría
+    /// y, en SQLite, el valor de rowversion (SQL Server lo genera solo).
+    /// </summary>
+    private void AplicarValoresAutomaticos()
     {
-        if (!EsSqlite)
-            return;
-
         ChangeTracker.DetectChanges();
+        var ahora = DateTimeOffset.UtcNow;
+
         foreach (var entry in ChangeTracker.Entries()
                      .Where(e => e.State is EntityState.Added or EntityState.Modified))
         {
-            var rowVersion = entry.Metadata.FindProperty("RowVersion");
-            if (rowVersion?.ClrType == typeof(byte[]))
+            AplicarFechasDeAuditoria(entry, ahora);
+
+            if (EsSqlite && entry.Metadata.FindProperty("RowVersion")?.ClrType == typeof(byte[]))
             {
+                // EF lo envía en insert y update (ver OnModelCreating).
                 entry.Property("RowVersion").CurrentValue = RandomNumberGenerator.GetBytes(8);
             }
+        }
+    }
+
+    /// <summary>
+    /// Alta: completa sólo las fechas que llegan por defecto. Edición: actualiza la fecha de modificación.
+    /// Las fechas de negocio (inicio, parada, hallazgo) no son auditoría y no se tocan.
+    /// </summary>
+    private static void AplicarFechasDeAuditoria(EntityEntry entry, DateTimeOffset ahora)
+    {
+        if (entry.State == EntityState.Modified)
+        {
+            if (entry.Entity is EntityBase editable)
+                editable.FechaHoraModificacion = ahora;
+            return;
+        }
+
+        switch (entry.Entity)
+        {
+            case EntityBase creable:
+                if (creable.FechaHoraCreacion == default) creable.FechaHoraCreacion = ahora;
+                if (creable.FechaHoraModificacion == default) creable.FechaHoraModificacion = ahora;
+                break;
+            case DetencionEstadoHistorial historial when historial.FechaHora == default:
+                historial.FechaHora = ahora;
+                break;
+            case DetencionNota nota when nota.FechaHora == default:
+                nota.FechaHora = ahora;
+                break;
+            case Auditoria auditoria when auditoria.FechaHora == default:
+                auditoria.FechaHora = ahora;
+                break;
         }
     }
 
