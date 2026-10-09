@@ -112,7 +112,9 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
     {
         var fecha = DateTimeOffset.UtcNow.ToString("yyyyMMdd");
 
+        // IgnoreQueryFilters: el código es único en la tabla, también entre eliminadas.
         var ultimoCodigo = await _dbSet
+            .IgnoreQueryFilters()
             .Where(d => d.Codigo.StartsWith($"DET-{fecha}"))
             .OrderByDescending(d => d.Codigo)
             .Select(d => d.Codigo)

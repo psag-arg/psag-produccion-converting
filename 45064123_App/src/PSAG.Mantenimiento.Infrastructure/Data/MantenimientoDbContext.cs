@@ -22,6 +22,8 @@ public class MantenimientoDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<DetencionNota> DetencionesNotas => Set<DetencionNota>();
     public DbSet<UsuarioLinea> UsuariosLineas => Set<UsuarioLinea>();
     public DbSet<Auditoria> Auditoria => Set<Auditoria>();
+    public DbSet<ReglaAnalisis> ReglasAnalisis => Set<ReglaAnalisis>();
+    public DbSet<TiempoProgramadoDia> TiemposProgramadosDia => Set<TiempoProgramadoDia>();
 
     // Eje 2: Variables de proceso
     public DbSet<Producto> Productos => Set<Producto>();
