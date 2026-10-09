@@ -3,8 +3,10 @@ using Microsoft.AspNetCore.Mvc;
 using PSAG.Mantenimiento.Application.Common;
 using PSAG.Mantenimiento.Application.DTOs.Detenciones;
 using PSAG.Mantenimiento.Application.Services.Interfaces;
+using PSAG.Mantenimiento.Domain.Entities;
 using PSAG.Mantenimiento.Domain.Enums;
 using PSAG.Mantenimiento.Domain.Interfaces;
+using PSAG.Mantenimiento.Domain.Services;
 
 namespace PSAG.Mantenimiento.Api.Controllers;
 
@@ -13,17 +15,25 @@ namespace PSAG.Mantenimiento.Api.Controllers;
 [Authorize]
 public class DetencionesController : ApiControllerBase
 {
+    private const int MaxRegistrosExportacion = 10000;
+
     private readonly IUnitOfWork _unitOfWork;
     private readonly IDetencionService _detencionService;
+    private readonly IExportacionService _exportacionService;
+    private readonly IAuditoriaService _auditoriaService;
     private readonly ILogger<DetencionesController> _logger;
 
     public DetencionesController(
         IUnitOfWork unitOfWork,
         IDetencionService detencionService,
+        IExportacionService exportacionService,
+        IAuditoriaService auditoriaService,
         ILogger<DetencionesController> logger)
     {
         _unitOfWork = unitOfWork;
         _detencionService = detencionService;
+        _exportacionService = exportacionService;
+        _auditoriaService = auditoriaService;
         _logger = logger;
     }
 
@@ -34,24 +44,7 @@ public class DetencionesController : ApiControllerBase
     [ProducesResponseType(typeof(PagedResult<DetencionDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetDetenciones([FromQuery] DetencionFiltroRequest filtro)
     {
-        EstadoDetencion? estadoFiltro = null;
-        if (!string.IsNullOrEmpty(filtro.Estado) && Enum.TryParse<EstadoDetencion>(filtro.Estado, true, out var estado))
-        {
-            estadoFiltro = estado;
-        }
-
-        var (detenciones, total) = await _unitOfWork.Detenciones.GetPaginadoAsync(
-            filtro.Page,
-            filtro.PageSize,
-            filtro.LineaId,
-            filtro.EquipoId,
-            estadoFiltro,
-            filtro.TipoFallaId,
-            filtro.DetalleFallaId,
-            filtro.TurnoId,
-            filtro.FechaDesde,
-            filtro.FechaHasta,
-            filtro.Busqueda);
+        var (detenciones, total) = await BuscarDetencionesAsync(filtro, filtro.Page, filtro.PageSize);
 
         var items = detenciones.Select(d => new DetencionDto
         {
@@ -261,6 +254,30 @@ public class DetencionesController : ApiControllerBase
             }
         }
 
+        // Con hora de inicio y fin, el turno sale de la hora de inicio.
+        var tiempoManual = CalcularTiempoManual(request.Fecha, request.HoraInicio, request.HoraFin);
+        var errorHoras = ValidarHorasManuales(request.HoraInicio, request.HoraFin, tiempoManual);
+        if (errorHoras != null)
+        {
+            return BadRequest(errorHoras);
+        }
+
+        if (tiempoManual.HasValue)
+        {
+            var turnoPorHora = await _unitOfWork.Turnos.GetTurnoPorHoraAsync(request.HoraInicio!.Value);
+            if (turnoPorHora == null)
+            {
+                return BadRequest(new ProblemDetails
+                {
+                    Title = "Turno no encontrado",
+                    Detail = "No hay un turno activo para la hora de inicio ingresada.",
+                    Status = StatusCodes.Status400BadRequest
+                });
+            }
+            turnoId = turnoPorHora.TurnoId;
+            turnoNombre = turnoPorHora.Nombre;
+        }
+
         // Calcular MinutosEfectivos
         int minutosEfectivos;
         OrigenTiempo origenTiempo;
@@ -287,6 +304,12 @@ public class DetencionesController : ApiControllerBase
             minutosEfectivos = 0;
         }
 
+        if (tiempoManual.HasValue)
+        {
+            origenTiempo = OrigenTiempo.CALCULADO;
+            minutosEfectivos = tiempoManual.Value.Minutos;
+        }
+
         // Generar código único
         var codigo = await _unitOfWork.Detenciones.GenerarCodigoDetencionAsync();
 
@@ -300,9 +323,9 @@ public class DetencionesController : ApiControllerBase
             TurnoId = turnoId,
             UsuarioLineaId = usuarioLineaId,
             Fecha = request.Fecha,
-            MinutosDeclarados = request.MinutosDeclarados,
-            FechaHoraParada = request.FechaHoraParada,
-            FechaHoraArranque = request.FechaHoraArranque,
+            MinutosDeclarados = tiempoManual.HasValue ? null : request.MinutosDeclarados,
+            FechaHoraParada = tiempoManual?.Parada ?? request.FechaHoraParada,
+            FechaHoraArranque = tiempoManual?.Arranque ?? request.FechaHoraArranque,
             OrigenTiempo = origenTiempo,
             MinutosEfectivos = minutosEfectivos,
             Descripcion = request.Descripcion,
@@ -368,6 +391,17 @@ public class DetencionesController : ApiControllerBase
             {
                 Title = "Detención ya cerrada",
                 Detail = "Esta detención ya se encuentra cerrada",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        // El cierre de una detención con análisis se hace desde el formulario de análisis (Solución y Causa).
+        if (detencion.RequiereAnalisis)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Requiere análisis",
+                Detail = "Esta detención requiere análisis: cerrala desde el formulario de Identificación de fallas",
                 Status = StatusCodes.Status400BadRequest
             });
         }
@@ -547,13 +581,40 @@ public class DetencionesController : ApiControllerBase
             });
         }
 
+        var tiempoManual = CalcularTiempoManual(request.Fecha ?? detencion.Fecha, request.HoraInicio, request.HoraFin);
+        var errorHoras = ValidarHorasManuales(request.HoraInicio, request.HoraFin, tiempoManual);
+        if (errorHoras != null)
+        {
+            return BadRequest(errorHoras);
+        }
+
+        int? turnoIdPorHora = null;
+        if (tiempoManual.HasValue)
+        {
+            var turnoPorHora = await _unitOfWork.Turnos.GetTurnoPorHoraAsync(request.HoraInicio!.Value);
+            if (turnoPorHora == null)
+            {
+                return BadRequest(new ProblemDetails
+                {
+                    Title = "Turno no encontrado",
+                    Detail = "No hay un turno activo para la hora de inicio ingresada.",
+                    Status = StatusCodes.Status400BadRequest
+                });
+            }
+            turnoIdPorHora = turnoPorHora.TurnoId;
+        }
+
         // Actualizar campos
+        if (request.Fecha.HasValue)
+        {
+            detencion.Fecha = request.Fecha.Value;
+        }
         detencion.EquipoId = request.EquipoId;
         detencion.TipoFallaId = request.TipoFallaId;
         detencion.DetalleFallaId = request.DetalleFallaId;
-        detencion.MinutosDeclarados = request.MinutosDeclarados;
-        detencion.FechaHoraParada = request.FechaHoraParada;
-        detencion.FechaHoraArranque = request.FechaHoraArranque;
+        detencion.MinutosDeclarados = tiempoManual.HasValue ? null : request.MinutosDeclarados;
+        detencion.FechaHoraParada = tiempoManual?.Parada ?? request.FechaHoraParada;
+        detencion.FechaHoraArranque = tiempoManual?.Arranque ?? request.FechaHoraArranque;
         detencion.Descripcion = request.Descripcion;
         detencion.AccionesRealizadas = request.AccionesRealizadas;
         detencion.ResolucionDescripcion = request.ResolucionDescripcion;
@@ -573,6 +634,13 @@ public class DetencionesController : ApiControllerBase
         else if (detencion.OrigenTiempo == OrigenTiempo.CALCULADO && request.FechaHoraParada.HasValue && request.FechaHoraArranque.HasValue)
         {
             detencion.MinutosEfectivos = (int)(request.FechaHoraArranque.Value - request.FechaHoraParada.Value).TotalMinutes;
+        }
+
+        if (tiempoManual.HasValue && turnoIdPorHora.HasValue)
+        {
+            detencion.TurnoId = turnoIdPorHora.Value;
+            detencion.OrigenTiempo = OrigenTiempo.CALCULADO;
+            detencion.MinutosEfectivos = tiempoManual.Value.Minutos;
         }
 
         await _detencionService.AplicarReglaAnalisisAsync(detencion);
@@ -748,6 +816,160 @@ public class DetencionesController : ApiControllerBase
     }
 
     /// <summary>
+    /// Exportar detenciones a Excel (.xlsx) con los mismos filtros de la lista.
+    /// </summary>
+    [HttpGet("export/xlsx")]
+    [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ExportarXlsx([FromQuery] DetencionFiltroRequest filtro)
+    {
+        if (string.IsNullOrEmpty(CurrentUserId))
+        {
+            return Unauthorized();
+        }
+
+        var (detenciones, _) = await BuscarDetencionesAsync(filtro, page: 1, pageSize: MaxRegistrosExportacion);
+        var xlsx = _exportacionService.GenerarDetencionesXlsx(detenciones);
+
+        _logger.LogInformation("Usuario {UserId} exportó {Count} detenciones a Excel", CurrentUserId, detenciones.Count());
+
+        return File(
+            xlsx,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"detenciones_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx");
+    }
+
+    /// <summary>
+    /// Indica si una detención con estos datos va a requerir análisis. No guarda nada.
+    /// </summary>
+    [HttpPost("previsualizar-analisis")]
+    [Authorize(Policy = "CanCreateDetenciones")]
+    [ProducesResponseType(typeof(PrevisualizacionAnalisisResponse), StatusCodes.Status200OK)]
+    public async Task<IActionResult> PrevisualizarAnalisis([FromBody] CrearDetencionRequest request)
+    {
+        var tiempoManual = CalcularTiempoManual(request.Fecha, request.HoraInicio, request.HoraFin);
+
+        var detencion = new Detencion
+        {
+            LineaId = request.LineaId,
+            EquipoId = request.EquipoId,
+            TipoFallaId = request.TipoFallaId,
+            MinutosEfectivos = tiempoManual?.Minutos ?? request.MinutosDeclarados ?? 0
+        };
+        await _detencionService.AplicarReglaAnalisisAsync(detencion);
+
+        return Ok(new PrevisualizacionAnalisisResponse { RequiereAnalisis = detencion.RequiereAnalisis });
+    }
+
+    /// <summary>
+    /// Eliminar una detención (borrado lógico). Sólo administrador. Requiere motivo.
+    /// </summary>
+    [HttpPost("{id:long}/eliminar")]
+    [Authorize(Policy = "RequireAdministrador")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> EliminarDetencion(long id, [FromBody] EliminarDetencionRequest request)
+    {
+        if (string.IsNullOrEmpty(CurrentUserId))
+        {
+            return Unauthorized();
+        }
+
+        var motivo = request.Motivo?.Trim() ?? string.Empty;
+        if (motivo.Length == 0 || motivo.Length > 500)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Motivo no válido",
+                Detail = "El motivo es obligatorio y puede tener hasta 500 caracteres.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        // El filtro global de EF oculta las eliminadas: eliminar una ya eliminada da 404.
+        var detencion = await _unitOfWork.Detenciones.GetByIdAsync(id);
+        if (detencion == null)
+        {
+            return NotFound();
+        }
+
+        detencion.Eliminada = true;
+        detencion.FechaHoraEliminacion = DateTimeOffset.UtcNow;
+        detencion.EliminadaPorUsuarioId = CurrentUserId;
+        detencion.MotivoEliminacion = motivo;
+        detencion.ModificadoPorUsuarioId = CurrentUserId;
+
+        await _unitOfWork.SaveChangesAsync();
+
+        await _auditoriaService.RegistrarAsync(
+            CurrentUserId,
+            TipoAccionAuditoria.CorreccionAdministrativa,
+            "Detencion",
+            id.ToString(),
+            new { Eliminada = false },
+            new { Eliminada = true, Motivo = motivo },
+            $"Detención {detencion.Codigo} eliminada");
+
+        _logger.LogInformation("Detención {DetencionId} eliminada por usuario {UserId}", id, CurrentUserId);
+
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Restaurar una detención eliminada. Sólo administrador.
+    /// </summary>
+    [HttpPost("{id:long}/restaurar")]
+    [Authorize(Policy = "RequireAdministrador")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RestaurarDetencion(long id)
+    {
+        if (string.IsNullOrEmpty(CurrentUserId))
+        {
+            return Unauthorized();
+        }
+
+        var detencion = await _unitOfWork.Detenciones.GetByIdIncluyendoEliminadasAsync(id);
+        if (detencion == null)
+        {
+            return NotFound();
+        }
+
+        if (!detencion.Eliminada)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Detención no eliminada",
+                Detail = "Sólo se pueden restaurar detenciones eliminadas.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        var motivoAnterior = detencion.MotivoEliminacion;
+        detencion.Eliminada = false;
+        detencion.FechaHoraEliminacion = null;
+        detencion.EliminadaPorUsuarioId = null;
+        detencion.MotivoEliminacion = null;
+        detencion.ModificadoPorUsuarioId = CurrentUserId;
+
+        await _unitOfWork.SaveChangesAsync();
+
+        await _auditoriaService.RegistrarAsync(
+            CurrentUserId,
+            TipoAccionAuditoria.CorreccionAdministrativa,
+            "Detencion",
+            id.ToString(),
+            new { Eliminada = true, Motivo = motivoAnterior },
+            new { Eliminada = false },
+            $"Detención {detencion.Codigo} restaurada");
+
+        _logger.LogInformation("Detención {DetencionId} restaurada por usuario {UserId}", id, CurrentUserId);
+
+        return NoContent();
+    }
+
+    /// <summary>
     /// Exportar detenciones a CSV.
     /// </summary>
     [HttpGet("export/csv")]
@@ -788,6 +1010,69 @@ public class DetencionesController : ApiControllerBase
 
         return File(csv, "text/csv; charset=utf-8", fileName);
     }
+
+    private Task<(IEnumerable<Detencion> Items, int TotalCount)> BuscarDetencionesAsync(
+        DetencionFiltroRequest filtro,
+        int page,
+        int pageSize)
+    {
+        EstadoDetencion? estadoFiltro = null;
+        if (!string.IsNullOrEmpty(filtro.Estado) && Enum.TryParse<EstadoDetencion>(filtro.Estado, true, out var estado))
+        {
+            estadoFiltro = estado;
+        }
+
+        // Sólo el administrador ve las eliminadas; para el resto el filtro global de EF las oculta.
+        var verEliminadas = filtro.VerEliminadas && User.IsInRole("ADMINISTRADOR");
+
+        return _unitOfWork.Detenciones.GetPaginadoAsync(
+            page,
+            pageSize,
+            lineaId: filtro.LineaId,
+            equipoId: filtro.EquipoId,
+            estado: estadoFiltro,
+            tipoFallaId: filtro.TipoFallaId,
+            detalleFallaId: filtro.DetalleFallaId,
+            turnoId: filtro.TurnoId,
+            fechaDesde: filtro.FechaDesde,
+            fechaHasta: filtro.FechaHasta,
+            busqueda: filtro.Busqueda,
+            analisisPendiente: filtro.AnalisisPendiente,
+            incluirEliminadas: verEliminadas);
+    }
+
+    /// <summary>
+    /// Horas de inicio y fin van juntas. Devuelve el error de validación o null.
+    /// </summary>
+    private static ProblemDetails? ValidarHorasManuales(TimeOnly? horaInicio, TimeOnly? horaFin, TiempoManual? tiempo)
+    {
+        if (horaInicio.HasValue != horaFin.HasValue)
+        {
+            return new ProblemDetails
+            {
+                Title = "Horas incompletas",
+                Detail = "Ingresá la hora de inicio y la de fin, o ninguna de las dos.",
+                Status = StatusCodes.Status400BadRequest
+            };
+        }
+
+        if (tiempo is { Minutos: <= 0 })
+        {
+            return new ProblemDetails
+            {
+                Title = "Horas no válidas",
+                Detail = "La hora de inicio y la de fin no pueden ser iguales.",
+                Status = StatusCodes.Status400BadRequest
+            };
+        }
+
+        return null;
+    }
+
+    private static TiempoManual? CalcularTiempoManual(DateOnly fecha, TimeOnly? horaInicio, TimeOnly? horaFin) =>
+        horaInicio is { } inicio && horaFin is { } fin
+            ? TiempoManualCalculador.Calcular(fecha, inicio, fin)
+            : null;
 
     private static byte[] GenerarCsv(IEnumerable<Domain.Entities.Detencion> detenciones)
     {

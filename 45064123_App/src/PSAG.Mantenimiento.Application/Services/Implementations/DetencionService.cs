@@ -230,9 +230,10 @@ public class DetencionService : IDetencionService
             filtro.FechaDesde,
             filtro.FechaHasta,
             filtro.Busqueda,
-            filtro.OrdenarPor,
-            filtro.OrdenDescendente,
-            cancellationToken);
+            analisisPendiente: filtro.AnalisisPendiente,
+            ordenarPor: filtro.OrdenarPor,
+            ordenDescendente: filtro.OrdenDescendente,
+            cancellationToken: cancellationToken);
 
         var dtos = items.Select(d => new DetencionListaDto
         {
