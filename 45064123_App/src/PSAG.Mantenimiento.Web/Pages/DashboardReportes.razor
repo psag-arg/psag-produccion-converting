@@ -127,11 +127,11 @@
                                 {
                                     <div class="d-flex flex-column align-items-center" style="flex: 1; max-width: 80px;">
                                         <!-- Barra apilada -->
-                                        <div class="stacked-bar d-flex flex-column-reverse" style="width: 100%; max-width: 50px; height: @(mes.IndisponibilidadTotal * 12)px; max-height: 300px;">
+                                        <div class="stacked-bar d-flex flex-column-reverse" style="width: 100%; max-width: 50px; height: @Px(mes.IndisponibilidadTotal * 12); max-height: 300px;">
                                             @foreach (var tipo in mes.PorTipoFalla.OrderBy(t => t.TipoFallaNombre))
                                             {
                                                 <div class="clickable"
-                                                     style="width: 100%; height: @(tipo.Porcentaje * 12)px; background-color: @GetColorTipoFalla(tipo);"
+                                                     style="width: 100%; height: @Px(tipo.Porcentaje * 12); background-color: @GetColorTipoFalla(tipo);"
                                                      title="@tipo.TipoFallaNombre: @tipo.Porcentaje% - Click para ver detalle"
                                                      @onclick="@(async () => await MostrarDetallePorMesYTipo(mes.Mes, tipo.TipoFallaId, tipo.TipoFallaNombre, mes.MesNombre))"></div>
                                             }
@@ -146,10 +146,10 @@
                                 @if (indisponibilidad.Promedio != null && indisponibilidad.Promedio.PorTipoFalla.Any())
                                 {
                                     <div class="d-flex flex-column align-items-center ms-4" style="flex: 1; max-width: 80px;">
-                                        <div class="stacked-bar d-flex flex-column-reverse" style="width: 100%; max-width: 50px; height: @(indisponibilidad.Promedio.IndisponibilidadTotal * 12)px; max-height: 300px;">
+                                        <div class="stacked-bar d-flex flex-column-reverse" style="width: 100%; max-width: 50px; height: @Px(indisponibilidad.Promedio.IndisponibilidadTotal * 12); max-height: 300px;">
                                             @foreach (var tipo in indisponibilidad.Promedio.PorTipoFalla.OrderBy(t => t.TipoFallaNombre))
                                             {
-                                                <div style="width: 100%; height: @(tipo.Porcentaje * 12)px; background-color: @GetColorTipoFalla(tipo);"
+                                                <div style="width: 100%; height: @Px(tipo.Porcentaje * 12); background-color: @GetColorTipoFalla(tipo);"
                                                      title="@tipo.TipoFallaNombre: @tipo.Porcentaje%"></div>
                                             }
                                         </div>
@@ -1038,4 +1038,7 @@
             StateHasChanged();
         }
     }
+
+    // CSS necesita punto decimal: con la cultura es-AR "61,2px" es inválido y el navegador lo ignora.
+    private static string Px(double valor) => valor.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "px";
 }

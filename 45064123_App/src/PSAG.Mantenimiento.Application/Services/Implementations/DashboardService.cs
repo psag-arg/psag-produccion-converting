@@ -564,8 +564,16 @@ public class DashboardService : IDashboardService
         var excepcionesPorLinea = (await _unitOfWork.TiemposProgramadosDia.GetPorRangoAsync(desde, hasta, lineaId, cancellationToken))
             .ToLookup(e => e.LineaId);
 
+        // "Todas las líneas" suma sólo las líneas con actividad en el año: una línea dada de alta
+        // que no produce no debe sumar 24 h por día al denominador.
+        var conActividad = lineaId.HasValue
+            ? null
+            : (await _unitOfWork.Detenciones.GetLineasConDetencionesAsync(desde, hasta, cancellationToken))
+                .Concat(excepcionesPorLinea.Select(g => g.Key))
+                .ToHashSet();
+
         return lineas
-            .Where(l => l.Activo && (!lineaId.HasValue || l.LineaId == lineaId.Value))
+            .Where(l => l.Activo && (lineaId.HasValue ? l.LineaId == lineaId.Value : conActividad!.Contains(l.LineaId)))
             .SelectMany(l => TiempoProgramadoReporte.DiasDeLinea(
                 l.LineaId, l.Nombre, desde, hasta, turnos, excepcionesPorLinea[l.LineaId]))
             .ToList();

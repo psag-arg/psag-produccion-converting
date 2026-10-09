@@ -142,6 +142,15 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
         return $"DET-{fecha}-{siguienteNumero:D6}";
     }
 
+    public async Task<IReadOnlyList<int>> GetLineasConDetencionesAsync(DateOnly desde, DateOnly hasta, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .Where(d => d.Fecha >= desde && d.Fecha <= hasta)
+            .Select(d => d.LineaId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IEnumerable<Detencion>> GetAnalisisAbiertosAsync(CancellationToken cancellationToken = default)
     {
         return await _dbSet

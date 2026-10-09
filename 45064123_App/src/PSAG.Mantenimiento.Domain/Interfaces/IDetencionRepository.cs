@@ -21,6 +21,7 @@ public interface IDetencionRepository : IRepository<Detencion>
     Task<IEnumerable<Detencion>> GetDetencionesPorFechaAsync(DateOnly desde, DateOnly hasta, CancellationToken cancellationToken = default);
     Task<IEnumerable<Detencion>> GetDetencionesTurnoActualAsync(int lineaId, int turnoId, DateOnly fecha, CancellationToken cancellationToken = default);
     Task<string> GenerarCodigoDetencionAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<int>> GetLineasConDetencionesAsync(DateOnly desde, DateOnly hasta, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Detenciones que requieren análisis y todavía no están cerradas, más antiguas primero.

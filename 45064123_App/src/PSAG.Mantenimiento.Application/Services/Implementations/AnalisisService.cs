@@ -383,7 +383,7 @@ public class AnalisisService : IAnalisisService
     private static string Capitalizar(string texto) =>
         texto.Length == 0 ? texto : char.ToUpperInvariant(texto[0]) + texto[1..].ToLowerInvariant();
 
-    private static string NombreRol(string rol) => $"Rol {Capitalizar(rol)}";
+    private static string NombreRol(string rol) => Capitalizar(rol);
 
     /// <summary>
     /// Responsable por rol. Si el responsable es un usuario, el nombre lo completa la API (ver AnalisisController).
