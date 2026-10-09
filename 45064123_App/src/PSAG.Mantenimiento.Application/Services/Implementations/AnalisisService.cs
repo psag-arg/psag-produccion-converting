@@ -60,7 +60,7 @@ public class AnalisisService : IAnalisisService
         if (detencion.EstadoActual == EstadoDetencion.REGISTRADA)
             CambiarEstado(detencion, EstadoDetencion.EN_SEGUIMIENTO, usuarioId, "Análisis iniciado", ahora);
 
-        AplicarCampos(detencion, request, usuarioId, ahora);
+        AplicarCampos(detencion, request, usuarioId);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Análisis de la detención {DetencionId} guardado como borrador por usuario {UsuarioId}",
@@ -89,7 +89,7 @@ public class AnalisisService : IAnalisisService
         var ahora = DateTimeOffset.UtcNow;
         CambiarEstado(detencion, EstadoDetencion.CERRADA, usuarioId, "Análisis cerrado", ahora);
 
-        AplicarCampos(detencion, request, usuarioId, ahora);
+        AplicarCampos(detencion, request, usuarioId);
         detencion.AnalisisPorUsuarioId = usuarioId;
         detencion.FechaHoraAnalisis = ahora;
         detencion.FechaHoraCierre = ahora;
@@ -349,17 +349,12 @@ public class AnalisisService : IAnalisisService
         });
     }
 
-    private static void AplicarCampos(
-        Detencion detencion,
-        GuardarAnalisisRequest request,
-        string usuarioId,
-        DateTimeOffset ahora)
+    private static void AplicarCampos(Detencion detencion, GuardarAnalisisRequest request, string usuarioId)
     {
         detencion.AccionesRealizadas = Limpiar(request.AccionesRealizadas);
         detencion.CausaFalla = Limpiar(request.CausaFalla);
         detencion.PlanAccion = Limpiar(request.PlanAccion);
         detencion.ModificadoPorUsuarioId = usuarioId;
-        detencion.FechaHoraModificacion = ahora;
     }
 
     private static string? ValidarLargos(GuardarAnalisisRequest request)

@@ -825,8 +825,6 @@ public class CatalogosController : ApiControllerBase
             MinutosMinimos = request.MinutosMinimos,
             ResponsableRol = TextoOpcional(request.ResponsableRol)?.ToUpperInvariant(),
             ResponsableUsuarioId = TextoOpcional(request.ResponsableUsuarioId),
-            FechaHoraCreacion = DateTimeOffset.UtcNow,
-            FechaHoraModificacion = DateTimeOffset.UtcNow,
             CreadoPorUsuarioId = CurrentUserId,
             ModificadoPorUsuarioId = CurrentUserId
         };
@@ -871,7 +869,6 @@ public class CatalogosController : ApiControllerBase
         regla.ResponsableUsuarioId = TextoOpcional(request.ResponsableUsuarioId);
         regla.Activo = request.Activo;
         regla.ModificadoPorUsuarioId = CurrentUserId;
-        regla.FechaHoraModificacion = DateTimeOffset.UtcNow;
 
         await _unitOfWork.ReglasAnalisis.UpdateAsync(regla);
         await _unitOfWork.SaveChangesAsync();
@@ -1053,7 +1050,6 @@ public class CatalogosController : ApiControllerBase
         {
             LineaId = request.LineaId,
             Fecha = request.Fecha,
-            FechaHoraCreacion = DateTimeOffset.UtcNow,
             CreadoPorUsuarioId = CurrentUserId
         };
 
@@ -1062,7 +1058,6 @@ public class CatalogosController : ApiControllerBase
         fila.Origen = "EXCEPCION";
         fila.Activo = true;
         fila.ModificadoPorUsuarioId = CurrentUserId;
-        fila.FechaHoraModificacion = DateTimeOffset.UtcNow;
 
         if (esNueva)
             await _unitOfWork.TiemposProgramadosDia.AddAsync(fila);
@@ -1101,7 +1096,6 @@ public class CatalogosController : ApiControllerBase
 
         fila.Activo = false;
         fila.ModificadoPorUsuarioId = CurrentUserId;
-        fila.FechaHoraModificacion = DateTimeOffset.UtcNow;
 
         await _unitOfWork.TiemposProgramadosDia.UpdateAsync(fila);
         await _unitOfWork.SaveChangesAsync();
