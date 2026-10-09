@@ -96,6 +96,52 @@ public class Detencion : EntityBase
     /// </summary>
     public string? CerradoPorUsuarioId { get; set; }
 
+    // ========== ELIMINACIÓN LÓGICA ==========
+
+    /// <summary>
+    /// Borrado lógico. Las eliminadas quedan fuera de todas las consultas (filtro global de EF).
+    /// </summary>
+    public bool Eliminada { get; set; }
+
+    public DateTimeOffset? FechaHoraEliminacion { get; set; }
+    public string? EliminadaPorUsuarioId { get; set; }
+    public string? MotivoEliminacion { get; set; }
+
+    // ========== ANÁLISIS DE FALLA ==========
+
+    /// <summary>
+    /// Verdadero cuando una regla de análisis aplica. Es una marca, no un estado: la detención sigue REGISTRADA.
+    /// </summary>
+    public bool RequiereAnalisis { get; set; }
+
+    /// <summary>
+    /// Regla que disparó el análisis (la que ganó la evaluación al crear o editar).
+    /// </summary>
+    public int? ReglaAnalisisId { get; set; }
+
+    /// <summary>
+    /// Rol responsable del análisis, copiado de la regla.
+    /// </summary>
+    public string? ResponsableRol { get; set; }
+
+    /// <summary>
+    /// Usuario responsable del análisis, copiado de la regla.
+    /// </summary>
+    public string? ResponsableUsuarioId { get; set; }
+
+    /// <summary>
+    /// Causa de la falla (el análisis). La solución es AccionesRealizadas.
+    /// </summary>
+    public string? CausaFalla { get; set; }
+
+    /// <summary>
+    /// Plan de acción (opcional).
+    /// </summary>
+    public string? PlanAccion { get; set; }
+
+    public string? AnalisisPorUsuarioId { get; set; }
+    public DateTimeOffset? FechaHoraAnalisis { get; set; }
+
     /// <summary>
     /// Control de concurrencia optimista.
     /// </summary>
@@ -108,6 +154,7 @@ public class Detencion : EntityBase
     public virtual DetalleFalla? DetalleFalla { get; set; }
     public virtual Turno Turno { get; set; } = null!;
     public virtual UsuarioLinea? UsuarioLinea { get; set; }
+    public virtual ReglaAnalisis? ReglaAnalisis { get; set; }
     public virtual ICollection<DetencionEstadoHistorial> HistorialEstados { get; set; } = new List<DetencionEstadoHistorial>();
     public virtual ICollection<DetencionNota> Notas { get; set; } = new List<DetencionNota>();
 

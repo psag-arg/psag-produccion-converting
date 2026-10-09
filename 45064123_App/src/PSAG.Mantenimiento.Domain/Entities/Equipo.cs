@@ -15,6 +15,11 @@ public class Equipo : CatalogoBase
     public string? Descripcion { get; set; }
     public int Orden { get; set; }
 
+    /// <summary>
+    /// Equipo crítico: sus paradas se marcan para seguimiento especial en los reportes.
+    /// </summary>
+    public bool Critico { get; set; }
+
     // Navegación
     public virtual Linea Linea { get; set; } = null!;
     public virtual ICollection<Detencion> Detenciones { get; set; } = new List<Detencion>();

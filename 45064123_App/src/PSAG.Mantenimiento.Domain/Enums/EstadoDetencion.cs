@@ -54,7 +54,7 @@ public static class EstadoDetencionExtensions
         return estado switch
         {
             EstadoDetencion.REGISTRADA => "Registrada",
-            EstadoDetencion.EN_SEGUIMIENTO => "En seguimiento",
+            EstadoDetencion.EN_SEGUIMIENTO => "En análisis",
             EstadoDetencion.CERRADA => "Cerrada",
             EstadoDetencion.PENDIENTE_JUSTIFICACION => "Pendiente de justificación",
             _ => estado.ToString()
