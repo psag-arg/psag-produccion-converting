@@ -1,0 +1,224 @@
+@page "/detenciones/soluciones"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Web
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize]
+@inject IAnalisisService AnalisisService
+@inject ICatalogosService CatalogosService
+
+<PageTitle>Base de soluciones - PSAG Produccion</PageTitle>
+
+<div class="container-fluid">
+    <div class="mb-4">
+        <h2>Base de soluciones</h2>
+        <div class="text-muted">Fallas cerradas con solución o causa cargada. Buscá cómo se resolvieron antes.</div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-lg-4">
+                    <label class="form-label">Buscar</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" placeholder="Ej: carro limpieza rodillo"
+                               @bind="busqueda" @bind:event="oninput" @onkeydown="TeclaBusqueda" />
+                        <button class="btn btn-primary" @onclick="Buscar" disabled="@buscando">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="col-lg-2 col-md-4">
+                    <label class="form-label">Línea</label>
+                    <select class="form-select" @bind="lineaId" @bind:after="@(async () => await CambiarLinea())">
+                        <option value="">Todas</option>
+                        @foreach (var linea in lineas)
+                        {
+                            <option value="@linea.LineaId">@linea.Nombre</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-lg-2 col-md-4">
+                    <label class="form-label">Equipo</label>
+                    <select class="form-select" @bind="equipoId" @bind:after="@(async () => await Buscar())">
+                        <option value="">Todos</option>
+                        @foreach (var equipo in equipos)
+                        {
+                            <option value="@equipo.EquipoId">@equipo.Nombre</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-lg-2 col-md-4">
+                    <label class="form-label">Tipo de falla</label>
+                    <select class="form-select" @bind="tipoFallaId" @bind:after="@(async () => await Buscar())">
+                        <option value="">Todos</option>
+                        @foreach (var tipo in tiposFalla)
+                        {
+                            <option value="@tipo.TipoFallaId">@tipo.Nombre</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-lg-2 col-md-4">
+                    <button class="btn btn-outline-secondary w-100" @onclick="LimpiarFiltros">Limpiar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (buscando)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Buscando...</span>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="text-muted mb-3">
+            @resultados.Count análisis cerrados coinciden
+            @if (resultados.Count >= LimiteResultados)
+            {
+                <span>(se muestran los primeros @LimiteResultados; afiná la búsqueda para ver menos)</span>
+            }
+        </div>
+
+        @foreach (var item in resultados)
+        {
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <a href="detenciones/@item.DetencionId"><strong>@item.Codigo</strong></a>
+                            <span class="badge bg-light text-dark border">@item.LineaNombre</span>
+                            @if (item.EquipoNombre != null)
+                            {
+                                <span class="badge bg-light text-dark border">@item.EquipoNombre</span>
+                            }
+                            @if (item.TipoFallaNombre != null)
+                            {
+                                <span class="badge bg-info text-dark">@item.TipoFallaNombre</span>
+                            }
+                            <span class="badge bg-secondary">@item.MinutosEfectivos min</span>
+                        </div>
+                        <small class="text-muted">
+                            @(item.AnalisisPorUsuarioNombre ?? "")
+                            @(item.FechaHoraAnalisis.HasValue ? item.FechaHoraAnalisis.Value.ToString("dd/MM/yyyy") : item.Fecha.ToString("dd/MM/yyyy"))
+                        </small>
+                    </div>
+                    <div><span class="text-muted">Falla:</span> @item.Descripcion</div>
+                    @if (!string.IsNullOrEmpty(item.AccionesRealizadas))
+                    {
+                        <div class="mt-1"><strong>Solución:</strong> @item.AccionesRealizadas</div>
+                    }
+                    @if (!string.IsNullOrEmpty(item.CausaFalla))
+                    {
+                        <div><strong>Causa:</strong> @item.CausaFalla</div>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (!resultados.Any())
+        {
+            <div class="card">
+                <div class="card-body text-center text-muted py-4">
+                    No hay análisis cerrados que coincidan con la búsqueda.
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private const int LimiteResultados = 50;
+
+    [Parameter, SupplyParameterFromQuery]
+    public string? Busqueda { get; set; }
+
+    [Parameter, SupplyParameterFromQuery]
+    public int? LineaId { get; set; }
+
+    [Parameter, SupplyParameterFromQuery]
+    public int? EquipoId { get; set; }
+
+    [Parameter, SupplyParameterFromQuery]
+    public int? TipoFallaId { get; set; }
+
+    private List<LineaDto> lineas = new();
+    private List<EquipoDto> equipos = new();
+    private List<TipoFallaDto> tiposFalla = new();
+    private List<SolucionDto> resultados = new();
+    private bool buscando = true;
+
+    // Enlazados a los filtros (la query string solo define el estado inicial)
+    private string? busqueda;
+    private int? lineaId;
+    private int? equipoId;
+    private int? tipoFallaId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        busqueda = Busqueda;
+        lineaId = LineaId;
+        equipoId = EquipoId;
+        tipoFallaId = TipoFallaId;
+
+        lineas = await CatalogosService.GetLineasAsync();
+        tiposFalla = await CatalogosService.GetTiposFallaAsync();
+        await CargarEquipos();
+        await Buscar();
+    }
+
+    private async Task CargarEquipos()
+    {
+        equipos = await CatalogosService.GetEquiposAsync(lineaId);
+        if (equipoId.HasValue && equipos.All(e => e.EquipoId != equipoId))
+        {
+            equipoId = null;
+        }
+    }
+
+    private async Task CambiarLinea()
+    {
+        await CargarEquipos();
+        await Buscar();
+    }
+
+    private async Task TeclaBusqueda(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await Buscar();
+        }
+    }
+
+    private async Task LimpiarFiltros()
+    {
+        busqueda = null;
+        lineaId = null;
+        tipoFallaId = null;
+        await CargarEquipos();
+        equipoId = null;
+        await Buscar();
+    }
+
+    private async Task Buscar()
+    {
+        buscando = true;
+        try
+        {
+            resultados = await AnalisisService.BuscarSolucionesAsync(new BuscarSolucionesFiltro
+            {
+                Busqueda = busqueda,
+                LineaId = lineaId,
+                EquipoId = equipoId,
+                TipoFallaId = tipoFallaId
+            });
+        }
+        finally
+        {
+            buscando = false;
+        }
+    }
+}
