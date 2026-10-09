@@ -575,7 +575,9 @@ public class DetencionesController : ApiControllerBase
         detencion.TipoFallaId = request.TipoFallaId;
         detencion.DetalleFallaId = request.DetalleFallaId;
         detencion.Descripcion = request.Descripcion;
-        detencion.AccionesRealizadas = request.AccionesRealizadas;
+        // La solución es parte del análisis (/api/analisis): editar la detención no la borra.
+        if (request.AccionesRealizadas != null)
+            detencion.AccionesRealizadas = request.AccionesRealizadas;
         detencion.ResolucionDescripcion = request.ResolucionDescripcion;
         detencion.ModificadoPorUsuarioId = CurrentUserId;
         detencion.FechaHoraModificacion = DateTimeOffset.UtcNow;
