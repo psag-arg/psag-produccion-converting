@@ -125,6 +125,8 @@ public class AnalisisController : ApiControllerBase
         {
             pendiente.ResponsableUsuarioNombre = NombreDe(nombres, pendiente.ResponsableUsuarioId);
             pendiente.AnalisisPorUsuarioNombre = NombreDe(nombres, pendiente.AnalisisPorUsuarioId);
+            pendiente.ResponsableNombre = NombreDelResponsable(
+                pendiente.ResponsableUsuarioId, pendiente.ResponsableUsuarioNombre, pendiente.ResponsableNombre);
         }
 
         foreach (var responsable in dto.Responsables.Where(r => r.UsuarioId != null))
@@ -184,6 +186,7 @@ public class AnalisisController : ApiControllerBase
         dto.CreadoPorUsuarioNombre = NombreDe(nombres, dto.CreadoPorUsuarioId);
         dto.ResponsableUsuarioNombre = NombreDe(nombres, dto.ResponsableUsuarioId);
         dto.AnalisisPorUsuarioNombre = NombreDe(nombres, dto.AnalisisPorUsuarioId);
+        dto.ResponsableNombre = NombreDelResponsable(dto.ResponsableUsuarioId, dto.ResponsableUsuarioNombre, dto.ResponsableNombre);
 
         foreach (var parecida in dto.FallasParecidas)
         {
@@ -214,6 +217,12 @@ public class AnalisisController : ApiControllerBase
 
     private static string? NombreDe(Dictionary<string, string> nombres, string? usuarioId) =>
         usuarioId != null && nombres.TryGetValue(usuarioId, out var nombre) ? nombre : null;
+
+    /// <summary>
+    /// Responsable por usuario: su nombre. Por rol: el nombre que ya armó el servicio.
+    /// </summary>
+    private static string? NombreDelResponsable(string? usuarioId, string? usuarioNombre, string? nombreRol) =>
+        usuarioId != null ? usuarioNombre ?? "Usuario asignado" : nombreRol;
 
     private IActionResult ErrorResult(Result resultado)
     {

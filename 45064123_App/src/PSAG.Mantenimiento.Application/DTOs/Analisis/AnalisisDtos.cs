@@ -31,6 +31,7 @@ public class AnalisisDetencionDto
     public string? ResponsableRol { get; set; }
     public string? ResponsableUsuarioId { get; set; }
     public string? ResponsableUsuarioNombre { get; set; }
+    public string? ResponsableNombre { get; set; }
 
     // Análisis
     public string? AccionesRealizadas { get; set; }
@@ -137,6 +138,7 @@ public class PendienteAnalisisDto
     public int MinutosEfectivos { get; set; }
     public string EstadoActual { get; set; } = string.Empty;
     public string EstadoActualDescripcion { get; set; } = string.Empty;
+    public string? EstadoAnalisisDescripcion { get; set; }
 
     /// <summary>
     /// Días desde la fecha de la detención. Solo para análisis abiertos.
@@ -146,6 +148,7 @@ public class PendienteAnalisisDto
     public string? ResponsableRol { get; set; }
     public string? ResponsableUsuarioId { get; set; }
     public string? ResponsableUsuarioNombre { get; set; }
+    public string? ResponsableNombre { get; set; }
     public string? AnalisisPorUsuarioId { get; set; }
     public string? AnalisisPorUsuarioNombre { get; set; }
     public DateTimeOffset? FechaHoraAnalisis { get; set; }

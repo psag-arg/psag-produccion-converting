@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using PSAG.Mantenimiento.Domain.Common;
 using PSAG.Mantenimiento.Domain.Entities;
 using PSAG.Mantenimiento.Domain.Enums;
@@ -27,12 +28,15 @@ public static class AnalisisFallaReglas
     }
 
     /// <summary>
-    /// Pendiente de análisis: la regla lo marcó y todavía no se cerró.
+    /// Pendiente de análisis: la regla lo marcó y todavía no se cerró. Es la única definición de la condición;
+    /// sirve para consultas (EF la traduce a SQL) y, compilada, para objetos en memoria.
     /// </summary>
-    public static bool EstaAbierto(Detencion detencion)
-    {
-        return detencion.RequiereAnalisis && detencion.EstadoActual != EstadoDetencion.CERRADA;
-    }
+    public static Expression<Func<Detencion, bool>> EstaAbiertoExpr { get; } =
+        d => d.RequiereAnalisis && d.EstadoActual != EstadoDetencion.CERRADA;
+
+    private static readonly Func<Detencion, bool> EstaAbiertoCompilado = EstaAbiertoExpr.Compile();
+
+    public static bool EstaAbierto(Detencion detencion) => EstaAbiertoCompilado(detencion);
 
     /// <summary>
     /// Devuelve el motivo por el que el análisis no se puede cerrar, o null si está completo.

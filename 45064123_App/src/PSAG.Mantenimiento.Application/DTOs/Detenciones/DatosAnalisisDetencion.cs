@@ -15,4 +15,6 @@ public abstract class DatosAnalisisDetencion
     public string? AnalisisPorUsuarioId { get; set; }
     public DateTimeOffset? FechaHoraAnalisis { get; set; }
     public bool EquipoCritico { get; set; }
+    public bool AnalisisPendiente { get; set; }
+    public string? EstadoAnalisisDescripcion { get; set; }
 }

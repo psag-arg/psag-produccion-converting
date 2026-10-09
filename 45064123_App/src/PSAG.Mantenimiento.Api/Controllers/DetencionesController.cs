@@ -1053,6 +1053,8 @@ public class DetencionesController : ApiControllerBase
         dto.AnalisisPorUsuarioId = detencion.AnalisisPorUsuarioId;
         dto.FechaHoraAnalisis = detencion.FechaHoraAnalisis;
         dto.EquipoCritico = detencion.Equipo?.Critico ?? false;
+        dto.AnalisisPendiente = AnalisisFallaReglas.EstaAbierto(detencion);
+        dto.EstadoAnalisisDescripcion = detencion.ObtenerDescripcionAnalisis();
         return dto;
     }
 

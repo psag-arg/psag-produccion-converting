@@ -1,7 +1,9 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using PSAG.Mantenimiento.Domain.Entities;
 using PSAG.Mantenimiento.Domain.Enums;
 using PSAG.Mantenimiento.Domain.Interfaces;
+using PSAG.Mantenimiento.Domain.Services;
 using PSAG.Mantenimiento.Infrastructure.Data;
 
 namespace PSAG.Mantenimiento.Infrastructure.Repositories;
@@ -146,7 +148,7 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
             .Include(d => d.Linea)
             .Include(d => d.Equipo)
             .Include(d => d.TipoFalla)
-            .Where(d => d.RequiereAnalisis && d.EstadoActual != EstadoDetencion.CERRADA)
+            .Where(AnalisisFallaReglas.EstaAbiertoExpr)
             .OrderBy(d => d.Fecha)
             .ThenBy(d => d.DetencionId)
             .ToListAsync(cancellationToken);
@@ -264,12 +266,12 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
         if (fechaHasta.HasValue)
             query = query.Where(d => d.Fecha <= fechaHasta.Value);
 
-        // Pendiente = requiere análisis y todavía no está cerrada (ver badge "Requiere análisis").
         if (analisisPendiente.HasValue)
         {
+            var abierto = AnalisisFallaReglas.EstaAbiertoExpr;
             query = analisisPendiente.Value
-                ? query.Where(d => d.RequiereAnalisis && d.EstadoActual != EstadoDetencion.CERRADA)
-                : query.Where(d => !d.RequiereAnalisis || d.EstadoActual == EstadoDetencion.CERRADA);
+                ? query.Where(abierto)
+                : query.Where(Expression.Lambda<Func<Detencion, bool>>(Expression.Not(abierto.Body), abierto.Parameters));
         }
 
         if (!string.IsNullOrWhiteSpace(busqueda))

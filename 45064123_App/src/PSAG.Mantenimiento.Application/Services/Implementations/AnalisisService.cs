@@ -296,6 +296,7 @@ public class AnalisisService : IAnalisisService
             CreadoPorUsuarioId = detencion.CreadoPorUsuarioId,
             ResponsableRol = detencion.ResponsableRol,
             ResponsableUsuarioId = detencion.ResponsableUsuarioId,
+            ResponsableNombre = NombreResponsableRol(detencion),
             AccionesRealizadas = detencion.AccionesRealizadas,
             CausaFalla = detencion.CausaFalla,
             PlanAccion = detencion.PlanAccion,
@@ -390,7 +391,7 @@ public class AnalisisService : IAnalisisService
             .Select(d => d.ResponsableRol!)
             .Distinct()
             .OrderBy(r => r)
-            .Select(r => new ResponsableOpcionDto { Rol = r, Nombre = $"Rol {Capitalizar(r)}" });
+            .Select(r => new ResponsableOpcionDto { Rol = r, Nombre = NombreRol(r) });
 
         // El nombre del usuario lo completa la API, que tiene acceso a los usuarios.
         var usuarios = abiertos
@@ -405,6 +406,16 @@ public class AnalisisService : IAnalisisService
     private static string Capitalizar(string texto) =>
         texto.Length == 0 ? texto : char.ToUpperInvariant(texto[0]) + texto[1..].ToLowerInvariant();
 
+    private static string NombreRol(string rol) => $"Rol {Capitalizar(rol)}";
+
+    /// <summary>
+    /// Responsable por rol. Si el responsable es un usuario, el nombre lo completa la API (ver AnalisisController).
+    /// </summary>
+    private static string? NombreResponsableRol(Detencion detencion) =>
+        detencion.ResponsableUsuarioId == null && detencion.ResponsableRol != null
+            ? NombreRol(detencion.ResponsableRol)
+            : null;
+
     private static PendienteAnalisisDto MapearPendiente(Detencion detencion, DateOnly hoy) => new()
     {
         DetencionId = detencion.DetencionId,
@@ -417,11 +428,13 @@ public class AnalisisService : IAnalisisService
         MinutosEfectivos = detencion.MinutosEfectivos,
         EstadoActual = detencion.EstadoActual.ToString(),
         EstadoActualDescripcion = detencion.EstadoActual.ObtenerDescripcion(),
+        EstadoAnalisisDescripcion = detencion.ObtenerDescripcionAnalisis(),
         DiasEsperando = AnalisisFallaReglas.EstaAbierto(detencion)
             ? hoy.DayNumber - detencion.Fecha.DayNumber
             : null,
         ResponsableRol = detencion.ResponsableRol,
         ResponsableUsuarioId = detencion.ResponsableUsuarioId,
+        ResponsableNombre = NombreResponsableRol(detencion),
         AnalisisPorUsuarioId = detencion.AnalisisPorUsuarioId,
         FechaHoraAnalisis = detencion.FechaHoraAnalisis
     };
