@@ -1,3 +1,4 @@
+using PSAG.Mantenimiento.Domain.Common;
 using PSAG.Mantenimiento.Domain.Entities;
 using PSAG.Mantenimiento.Domain.Enums;
 
@@ -8,8 +9,6 @@ namespace PSAG.Mantenimiento.Domain.Services;
 /// </summary>
 public static class AnalisisFallaReglas
 {
-    public const string RolAdministrador = "ADMINISTRADOR";
-
     /// <summary>
     /// Es responsable si la regla le asignó el usuario, o si tiene el rol responsable de la regla.
     /// </summary>
@@ -24,7 +23,7 @@ public static class AnalisisFallaReglas
     /// </summary>
     public static bool PuedeEditar(Detencion detencion, string usuarioId, IEnumerable<string> roles)
     {
-        return roles.Contains(RolAdministrador) || EsResponsable(detencion, usuarioId, roles);
+        return roles.Contains(RolesSistema.Administrador) || EsResponsable(detencion, usuarioId, roles);
     }
 
     /// <summary>

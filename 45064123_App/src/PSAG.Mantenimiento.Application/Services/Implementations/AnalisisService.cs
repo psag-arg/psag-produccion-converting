@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using PSAG.Mantenimiento.Application.Common;
 using PSAG.Mantenimiento.Application.DTOs.Analisis;
 using PSAG.Mantenimiento.Application.Services.Interfaces;
+using PSAG.Mantenimiento.Domain.Common;
 using PSAG.Mantenimiento.Domain.Entities;
 using PSAG.Mantenimiento.Domain.Enums;
 using PSAG.Mantenimiento.Domain.Interfaces;
@@ -11,11 +12,6 @@ namespace PSAG.Mantenimiento.Application.Services.Implementations;
 
 public class AnalisisService : IAnalisisService
 {
-    private const string RolAdministrador = "ADMINISTRADOR";
-    private const string RolOperario = "OPERARIO";
-    private const string RolMantenimiento = "MANTENIMIENTO";
-    private const string RolSupervisor = "SUPERVISOR";
-
     private const int LimiteCerradasPorUsuario = 50;
     private const int LimiteFallasParecidas = 3;
     private const int LimiteSoluciones = 50;
@@ -114,7 +110,7 @@ public class AnalisisService : IAnalisisService
         string? responsableUsuarioId = null,
         CancellationToken cancellationToken = default)
     {
-        var esAdministrador = roles.Contains(RolAdministrador);
+        var esAdministrador = roles.Contains(RolesSistema.Administrador);
         var hoy = DateOnly.FromDateTime(DateTime.Today);
         var abiertos = (await _unitOfWork.Detenciones.GetAnalisisAbiertosAsync(cancellationToken)).ToList();
         var visibles = FiltrarVisibles(abiertos, usuarioId, roles, responsableRol, responsableUsuarioId);
@@ -130,12 +126,12 @@ public class AnalisisService : IAnalisisService
             && d.FechaHoraAnalisis >= inicioMes,
             cancellationToken);
 
-        var veDeclaracion = roles.Contains(RolOperario);
+        var veDeclaracion = roles.Contains(RolesSistema.Operario);
         var dto = new MisPendientesDto
         {
             EsAdministrador = esAdministrador,
             VeDeclaracion = veDeclaracion,
-            VeAnalisis = !veDeclaracion || roles.Any(r => r is RolAdministrador or RolMantenimiento or RolSupervisor),
+            VeAnalisis = !veDeclaracion || roles.Any(r => r is RolesSistema.Administrador or RolesSistema.Mantenimiento or RolesSistema.Supervisor),
             ParaAnalizar = visibles
                 .Where(d => d.EstadoActual == EstadoDetencion.REGISTRADA)
                 .Select(d => MapearPendiente(d, hoy))
@@ -165,7 +161,7 @@ public class AnalisisService : IAnalisisService
     {
         var abiertos = await _unitOfWork.Detenciones.GetAnalisisAbiertosAsync(cancellationToken);
         var visibles = FiltrarVisibles(abiertos, usuarioId, roles, null, null);
-        var paraDeclarar = roles.Contains(RolOperario)
+        var paraDeclarar = roles.Contains(RolesSistema.Operario)
             ? (await ObtenerParaDeclararAsync(usuarioId, cancellationToken)).Count
             : 0;
 
@@ -227,7 +223,7 @@ public class AnalisisService : IAnalisisService
         string? responsableRol,
         string? responsableUsuarioId)
     {
-        if (roles.Contains(RolAdministrador))
+        if (roles.Contains(RolesSistema.Administrador))
         {
             return abiertos
                 .Where(d => CoincideResponsable(d, responsableRol, responsableUsuarioId))
