@@ -74,4 +74,18 @@ Cada unidad escribe `registro-U<n>.md` en esta carpeta (qué hizo, decisiones, c
 | U3 | integrada | 40072f5 | VERIFICADO en pantalla local, Excel abierto con openpyxl, 403 para OPERARIO |
 | U4 | integrada | 82c00d2 | VERIFICADO en pantalla local con usuarios MANTENIMIENTO y OPERARIO |
 
-| S1/S2 | simplificación en curso | | |
+| S1/S2 | integrada | 469e659 | VERIFICADO con tests (100) y API local; S2 con capturas |
+| Coordinador | correcciones finales | c70b0c0 | VERIFICADO: e2e 28/28 en API local, capturas por rol en `capturas/verificacion-final/` |
+
+## Verificación final (09/10/2026)
+
+- Build 0 errores / 0 warnings. Tests: 100 en verde (base: 50).
+- Prueba de punta a punta `scripts-verificacion/e2e.py` contra la API local con SQLite y el historial real de Tango 2 (764 detenciones): 28/28 OK. Cubre regla, permisos por rol, flujo de análisis, borrado lógico, Excel e indisponibilidad.
+- Indisponibilidad Tango 2 2026 (antes → ahora): mar 11,2 → 12,9 · abr 8,8 → 10,3 · may 6,4 → 7,6 · jun 9,4 → 10,5 · jul 9,6 → 10,7 · ago 5,9 → 6,7.
+- NO VERIFICADO: scripts 17 y 18 en SQL Server real (no hay SQL Server local en esta Mac); la app sólo corrió con SQLite.
+
+## Pendientes para decidir
+- Agosto: el historial llega al 20/08; del 21 al 31 cuenta 24 h/día estándar.
+- Horario real de turnos (el seed dice 06-14/14-22/22-06; la minuta, 05-13/13-21/21-05). Se cambia desde Configuración → Turnos.
+- Si se borra `NuevaDetencion.razor` (sin enlaces) y los endpoints viejos sin uso (CSV, abiertas, iniciar-seguimiento).
+- Quién completa el Plan de acción (hoy: el mismo responsable, opcional).
