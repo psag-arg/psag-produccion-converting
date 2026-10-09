@@ -157,4 +157,19 @@ public class DashboardController : ApiControllerBase
         var result = await _dashboardService.ObtenerParetoDetencionesAsync(filtro);
         return HandleResult(result);
     }
+
+    /// <summary>
+    /// Obtener el tiempo programado de un mes, día por día, con su origen (estándar, excepción o histórico).
+    /// Sin linea, suma todas las líneas activas.
+    /// </summary>
+    [HttpGet("tiempo-programado")]
+    [ProducesResponseType(typeof(IReadOnlyList<TiempoProgramadoDiaDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetTiempoProgramado(
+        [FromQuery] int? lineaId,
+        [FromQuery] int anio,
+        [FromQuery] int mes)
+    {
+        var result = await _dashboardService.ObtenerTiempoProgramadoDiasAsync(lineaId, anio, mes);
+        return HandleResult(result);
+    }
 }
