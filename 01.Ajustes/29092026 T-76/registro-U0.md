@@ -1,7 +1,8 @@
 # Registro U0 · Fundación T-76
 
-**Estado: ISSUES.** Dominio, EF, script 17, funciones de reglas y tiempo programado, DTOs y menú están hechos y probados.
-La regla de análisis **no se dispara desde la API real**: `DetencionesController` no usa `DetencionService` (ver ISSUE 1).
+**Estado: ISSUES (menores).** Los cuatro puntos del follow-up del coordinador están hechos y verificados en SQLite.
+La regla de análisis ya dispara desde la API real. Quedan dos cosas: el script 17 no se pudo ejecutar en un SQL Server real,
+y hay brechas previas de auditoría en el alta (ISSUE 1).
 Nada está mergeado, desplegado ni publicado. Solo commits locales en `t76-u0`.
 
 ## Commits
@@ -16,66 +17,107 @@ Nada está mergeado, desplegado ni publicado. Solo commits locales en `t76-u0`.
 | c165996 | fix(sqlite): check de horas compatible con decimal |
 | 46f5e07 | feat(db): script 17 de ajustes T-76 (idempotente) |
 | d817160 | test(dominio): EN_SEGUIMIENTO se describe como En análisis |
+| 1b15949 | docs(t76): registro de la unidad U0 |
+| 31e7ab0 | fix(sqlite): asignar RowVersion al insertar y actualizar |
+| d78812e | feat(api): aplicar reglas de análisis al crear y editar detenciones |
+| f0bdc35 | feat(api): devolver campos de análisis en lista, detalle y respuesta de edición |
+| 9d28e2f | fix(db): PENDIENTE_JUSTIFICACION en estados de detención |
+| 30931d0 | feat(db): vistas de detenciones sin eliminadas en script 17 |
 
 ## Qué se hizo
 
 - **Dominio**: campos de análisis y borrado lógico en `Detencion`; `Equipo.Critico`; `TipoFalla.Color`; entidades `ReglaAnalisis` y `TiempoProgramadoDia`.
 - **Funciones puras**: `ReglaAnalisisEvaluador.Evaluar` (gana mayor `MinutosMinimos`, luego menor Id; ignora inactivas; `null` en línea o equipo = cualquiera) y `TiempoProgramadoCalculador.MinutosProgramadosPorDia` (excepción activa = horas × 60; si no, suma de turnos activos; turno nocturno cuenta su duración real).
-- **EF**: configuraciones, filtro global `!Eliminada`, repositorios y `UnitOfWork`. `GenerarCodigoDetencionAsync` ignora el filtro para no reutilizar un código de una eliminada (el código es único).
-- **Aplicación**: `DetencionService` evalúa reglas en crear y actualizar. Sin regla y sin análisis previo, limpia la marca y el responsable. DTOs de lista y detalle con los campos pedidos. `EN_SEGUIMIENTO` se describe como "En análisis" sin renombrar el enum.
+- **EF**: configuraciones, filtro global `!Eliminada`, repositorios y `UnitOfWork`. `GenerarCodigoDetencionAsync` ignora el filtro para no reutilizar el código de una eliminada.
+- **Aplicación**: `IDetencionService.AplicarReglaAnalisisAsync` (público). `DetencionService` lo usa al crear y editar. `DetencionesController` lo llama en POST y PUT antes de guardar. Sin regla y sin análisis previo, limpia la marca y el responsable. `EN_SEGUIMIENTO` se describe como "En análisis" sin renombrar el enum.
+- **API**: el controller devuelve los campos de análisis en lista, abiertas, detalle y respuesta de PUT. Sin export, borrado ni filtros (eso es U3).
 - **Web**: modelos reflejan los DTOs. `NavMenu` tiene "Reglas de análisis", "Mis pendientes" y "Base de soluciones". No se crearon páginas.
 - **SQL**: `database/17_t76_ajustes.sql` (idempotente) y entrada en `database/README.md`.
-- **Pedido extra del coordinador**: en SQLite, `DateTimeOffset` se guarda como `DateTime` UTC (solo con proveedor SQLite). SQL Server no cambia.
 
-## Decisiones y desvíos del PLAN
+## Follow-up del coordinador
 
-| Tema | Decisión | Motivo |
-|---|---|---|
-| Nombres de tabla | `ReglasAnalisis`, `TiemposProgramadosDia` | El PLAN no los fija |
-| Filas inactivas en tiempo programado | Se ignoran, como si no existieran | `TiempoProgramadoDia` hereda `Activo`; desactivar una excepción debe devolver el estándar |
-| Checks extra | `CK_ReglasAnalisis_MinutosMinimos`, `CK_ReglasAnalisis_Responsable` (exactamente uno de rol o usuario), `CK_TiemposProgramadosDia_Horas` (0 a 24), `CK_TiemposProgramadosDia_Origen` | Integridad del modelo del PLAN |
-| Check de horas con `CAST` | `CAST([Horas] AS FLOAT)` | SQLite guarda `decimal` como texto y comparaba mal (7.5 fallaba). Verificado |
-| Auditoría en tablas nuevas | Sin `DEFAULT SYSDATETIMEOFFSET()` | EF no modela ese default y la app siempre completa los campos. Las tablas viejas sí lo tienen (diferencia previa) |
-| Nombres de FK e índice | FK con nombre por defecto de EF (`FK_Detenciones_ReglasAnalisis_ReglaAnalisisId`); único `UX_TiemposProgramadosDia_LineaId_Fecha` | Para que el script coincida con EF |
-| Regla al editar | Usa `MinutosEfectivos` actual | `ActualizarDetencionAsync` no cambia minutos |
-| `ReglaAnalisisId` en DTOs | No expuesto | No estaba en la lista pedida |
-| `EquipoDto.Critico`, `TipoFallaDto.Color` | No expuestos | Son de U2 (catálogos) |
-| Cierre con análisis completo | No implementado | No estaba en el alcance de U0 |
-| Payload de login | `{"usuario":"admin","password":"Admin123!"}` | El pedido decía `userName`; el controller usa `usuario` |
+1. **Regla en la API real (antes ISSUE 1).** Evaluación pública en `IDetencionService`. El controller la llama en POST y PUT: una inyección, dos llamadas, cuatro mapeos de campos. No se duplicó la lógica.
+2. **RowVersion en SQLite (antes ISSUE 2).** En SQLite la propiedad `RowVersion` de todas las entidades se marca `ValueGeneratedNever`, para que EF la envíe en el insert. `SaveChanges` le asigna 8 bytes aleatorios en insert y update. No sirve un generador de valores: EF solo genera cuando el valor es el default del CLR, y `RowVersion` arranca como arreglo vacío. SQL Server no cambia.
+3. **Vistas (decisión: se actualizan).** Ningún código de la aplicación lee las vistas de `06_create_views.sql`. Igual se recrean en script 17 con `CREATE OR ALTER`: `VW_DetencionesDetalle`, `VW_DetencionesAbiertas`, `VW_DetencionesIndicadores` y `VW_ResumenTurnoActual`. Son copias de 06 con sólo el filtro `Eliminada = 0`. Verificado con diff: solo se agregan líneas de filtro y el encabezado. `VW_LineasConEquipos` y `VW_UsuariosConLineas` no leen detenciones y no se tocaron.
+4. **Estados (antes punto 4).** `PENDIENTE_JUSTIFICACION` sí sería rechazado por SQL Server: el check de script 05 no lo incluye y, además, las columnas eran `VARCHAR(20)` (el valor tiene 23 caracteres). Por eso se hacen tres cosas en script 17, todas idempotentes:
+   - DROP y ADD de `CK_Detenciones_EstadoActual`.
+   - DROP y ADD de `CK_DetencionesEstadoHistorial_EstadoNuevo`. Es la misma regla en el historial, decidida por mí.
+   - `EstadoActual`, `EstadoAnterior` y `EstadoNuevo` pasan a `NVARCHAR(30)`, igual que EF.
+
+## E2E en SQLite (build final)
+
+Base nueva. Regla insertada por SQL: tipo 1, 60 min, rol MANTENIMIENTO, línea NULL (cualquiera). Salida completa en `scratchpad/run/u0/e2e_final.txt`.
+
+```
+== 1. Regla insertada por SQL
+1||1||60|MANTENIMIENTO|1
+== 2. POST 145 min, tipo 1
+HTTP 201
+{"detencionId":1,"codigo":"DET-20261009-000001","estado":"REGISTRADA","minutosEfectivos":145,"turnoNombre":"Turno 2 (Tarde)","fechaHoraRegistro":"0001-01-01T00:00:00+00:00"}
+== 3. GET detalle tras POST
+HTTP 200
+    "detencionId": 1,
+    "minutosEfectivos": 145,
+    "eliminada": false,
+    "requiereAnalisis": true,
+    "responsableRol": "MANTENIMIENTO",
+    "equipoCritico": false,
+    "rowVersion": "/y6rKdcf2U4=",
+== 4. GET lista tras POST
+HTTP 200
+{'detencionId': 1, 'requiereAnalisis': True, 'responsableRol': 'MANTENIMIENTO', 'responsableUsuarioId': None, 'eliminada': False, 'equipoCritico': False}
+== 5. PUT a 30 min con el rowVersion de GET
+HTTP 200
+    "detencionId": 1,
+    "minutosEfectivos": 30,
+    "requiereAnalisis": false,
+    "rowVersion": "Q/vHOxCq52s="
+== 6. GET detalle tras PUT
+HTTP 200
+    "detencionId": 1,
+    "minutosEfectivos": 30,
+    "requiereAnalisis": false,
+    "rowVersion": "Q/vHOxCq52s="
+== 7. Estado en BD
+1|30|0||
+== errores en log del API: 0
+```
+
+Además: PUT con el `rowVersion` vigente da 200 y devuelve un `rowVersion` nuevo. Un PUT con el valor anterior da 409.
 
 ## Verificación
 
-| Qué | Comando o método | Resultado | Nivel |
+| Qué | Cómo | Resultado | Nivel |
 |---|---|---|---|
-| Build | `dotnet build PSAG.Mantenimiento.sln` | `0 Error(s)`, `0 Warning(s)` (la base también 0) | Compila |
-| Tests | `dotnet test PSAG.Mantenimiento.sln` | Domain 73 passed (48 previas + 25 nuevas), Application 1, Integration 1. Total 75, 0 failed (base: 50) | Tests |
-| Boot SQLite | `dotnet run ... --urls http://localhost:5290`, esquema con `sqlite3 .schema` | Columnas nuevas en `Detenciones`, tablas `ReglasAnalisis` y `TiemposProgramadosDia`, `Critico` y `Color`, con sus checks | Schema real |
-| Boot SQLite, API | `GET /api/detenciones`, `/api/dashboard`, `/api/catalogos/turnos` | 200, 200, 200. Log sin errores | API real |
-| Orden (pedido extra) | Dos filas con distinta `FechaHoraCreacion` | Orden descendente correcto. Antes: 500 con "SQLite does not support expressions of type 'DateTimeOffset' in ORDER BY" | API real |
-| Filtro de eliminadas | Fila con `Eliminada=1` | Fuera de la lista (total 1). `GET /api/detenciones/2` 404. `PUT` sobre ella 404 y no cambia la fila | API real |
-| Check de horas en SQLite | `INSERT` con 7.5 y con 24.5 | 7.5 aceptado. 24.5 rechazado por `CK_TiemposProgramadosDia_Horas` | Schema real |
-| Script 17 contra EF | DDL de SQL Server generado desde `MantenimientoDbContext` (`GenerateCreateScript`, proyecto temporal fuera del repo) y comparador | `DIFERENCIAS: 0` en 12+11 columnas nuevas, 14 columnas agregadas, 4 checks, 5 FKs, 5 índices. Prueba de control: el comparador detectó 4 de 5 mutaciones (la quinta era un reemplazo sin efecto) | Comparación de DDL |
-| Script 17 en motor | No hay `sqlcmd` ni imagen de SQL Server local | No ejecutado | **NO VERIFICADO** a nivel motor |
-| Regla en la API | `PUT /api/detenciones/1` con `tipoFallaId` 1, 45 min, regla activa (min 30) | 200, pero `RequiereAnalisis` queda en 0. La regla no corre (ISSUE 1) | **NO VERIFICADO** en la API |
+| Build | `dotnet build PSAG.Mantenimiento.sln` | `0 Error(s)`, `0 Warning(s)` | Compila |
+| Tests | `dotnet test PSAG.Mantenimiento.sln` | Domain 73 passed, Application 1, Integration 1. Total 75, 0 failed (base: 50) | Tests |
+| Regla en la API | E2E arriba: POST 145 min, PUT 30 min | `requiereAnalisis` true → false, `responsableRol` MANTENIMIENTO | API real (SQLite) |
+| RowVersion | POST, GET, PUT con token vigente, PUT con token viejo | 201, 200, 200 con token nuevo, 409 | API real (SQLite) |
+| Filtro de eliminadas | Fila con `Eliminada=1` (verificado antes del follow-up, sin cambios desde) | Fuera de la lista. GET y PUT por id: 404 | API real (SQLite) |
+| Script 17 vs EF | DDL de SQL Server generado desde `MantenimientoDbContext` y comparador (proyecto temporal fuera del repo) | `DIFERENCIAS: 0`. Cubre columnas nuevas, `ALTER COLUMN` de estados, FKs, índices y checks | Comparación de DDL |
+| Vistas | `diff` de cada vista contra 06 | Solo se agregan líneas de filtro y `CREATE OR ALTER` | Revisión de texto |
+| Script 17 en motor | SQL Server 2022 en Docker (imagen amd64 bajo emulación) | El proceso aborta al arrancar, en dos intentos ("Invalid mapping of address"). No ejecutado | **NO VERIFICADO** a nivel motor |
+| Parseo T-SQL | `sqlglot` (dialecto tsql) | Sin errores, pero el parser cae a comando genérico en cada IF y PRINT. Casi no prueba nada | Débil |
 
-Veredicto de la regla: lógica cubierta por tests unitarios; cableado en la API no verificado y roto por ISSUE 1.
+Nota de costos: para el intento de SQL Server bajé una imagen de 2,3 GB sin pedirlo antes. Ya eliminé el contenedor y la imagen.
 
 ## ISSUES
 
-1. **Bloqueante para U3 y U4.** `DetencionesController` no llama a `IDetencionService` (está registrado pero sin uso) y no mapea los campos nuevos (cero referencias a `RequiereAnalisis`, `EquipoCritico` ni `CausaFalla`). Efecto: la regla nunca se dispara por la API y el GET devuelve valores por defecto. Propuesta: que el controller llame la evaluación en POST y PUT y mapee los campos en sus cuatro mapeos. Toca un archivo de U3, por eso no lo toqué (fuera de alcance). Hace falta decisión.
-2. **Pre-existente, SQLite.** `POST /api/detenciones` responde 500: `NOT NULL constraint failed: Detenciones.RowVersion`. `IsRowVersion()` no genera el valor en SQLite (la línea ya estaba en `d0f03c4`). Impide crear detenciones en modo desarrollo. No corregido.
-3. **Pre-existente.** `CK_Detenciones_EstadoActual` (script 05) no incluye `PENDIENTE_JUSTIFICACION`, que el enum sí permite.
-4. **Pre-existente.** Los nombres de FK del script 05 (`FK_Detenciones_Lineas`) no coinciden con los de EF (`..._LineaId`).
-5. **Para U1 y U3.** Las vistas de `06_create_views.sql` leen `Detenciones` sin filtrar `Eliminada`. Si se usan para reportes, mostrarán eliminadas.
-6. **Para U3 y U4.** `Detenciones.razor` línea 64 muestra "En Seguimiento" como texto fijo. No lo cambié (Razor fuera de alcance).
+1. **Pre-existente, auditoría en el alta.** `FechaHoraCreacion` queda en `0001-01-01` en toda detención creada por POST: el controller no la asigna y EF envía el default del CLR. `DetencionEstadoHistorial.FechaHora` también queda en `0001-01-01`, y el detalle devuelve vacíos `creadoPorUsuarioNombre` y `estadoNuevoDescripcion`. Ocurre en ambos motores (no es solo SQLite). No lo corregí porque no estaba en el follow-up. Propuesta: asignar las fechas de auditoría al crear, o hacerlo en `SaveChanges` para entidades nuevas. Hace falta decisión.
+2. **Pre-existente.** `DEFAULT 'REGISTRADA'` en `EstadoActual` (script 04) no lo modela EF. No tocado.
+3. **Pre-existente, DB-only.** Los checks de estado no existen en el modelo EF, así que el comparador los trata aparte. Se mantienen solo en la base.
+4. **Para decidir.** `tools/MigrarDatos` copia `Detenciones` con la tabla cruda, así que también migra las eliminadas. Probablemente es lo correcto para el histórico, pero conviene confirmarlo.
+5. **Para U3 y U4.** `Detenciones.razor` línea 64 muestra "En Seguimiento" como texto fijo.
+6. **Ya resuelto.** Las vistas, que antes figuraban como pendientes, están cubiertas en script 17.
 
 ## Pendientes
 
-- Decidir ISSUE 1 (quién cablea el controller).
+- Decidir el ISSUE 1 (auditoría en el alta).
 - Ejecutar `17_t76_ajustes.sql` en un SQL Server de desarrollo y comprobar que corre dos veces sin error.
 - U2: exponer `Critico` en `EquipoDto` y `Color` en `TipoFallaDto`.
-- Cierre con análisis completo (Solución y Causa obligatorias para reglas) queda para U4.
+- U3: reemplazar el texto "En Seguimiento" en `Detenciones.razor`.
+- U4: cierre con análisis completo (Solución y Causa obligatorias para reglas).
 
 ## Archivos cambiados (desde 30a9450)
 
-32 archivos, 1216 inserciones, 1 eliminación. Principales: `Domain/Entities/{Detencion,Equipo,TipoFalla,ReglaAnalisis,TiempoProgramadoDia}.cs`, `Domain/Services/{ReglaAnalisisEvaluador,TiempoProgramadoCalculador}.cs`, `Infrastructure/Data/MantenimientoDbContext.cs`, `Infrastructure/Data/Configurations/*` (cuatro tocados y dos nuevos), `Infrastructure/Data/Conversions/DateTimeOffsetUtcConverter.cs`, `Infrastructure/Repositories/{UnitOfWork,DetencionRepository,ReglaAnalisisRepository,TiempoProgramadoDiaRepository}.cs`, `Application/Services/Implementations/DetencionService.cs`, `Application/DTOs/Detenciones/{DetencionDto,DetencionDetalleDto}.cs`, `Web/Models/DetencionModels.cs`, `Web/Layout/NavMenu.razor`, `database/17_t76_ajustes.sql`, `database/README.md`, tests de Domain.
+Plan y U0 completos: 32 archivos del primer alcance, más el follow-up: `Api/Controllers/DetencionesController.cs`, `Application/Services/Interfaces/IDetencionService.cs`, `Application/Services/Implementations/DetencionService.cs`, `Infrastructure/Data/MantenimientoDbContext.cs`, `database/17_t76_ajustes.sql`, `database/README.md`.
