@@ -1033,7 +1033,7 @@ public class CatalogosController : ApiControllerBase
             return NotFound();
 
         var turnos = await _unitOfWork.Turnos.GetActivosAsync();
-        var excepciones = (await _unitOfWork.TiemposProgramadosDia.GetPorLineaYRangoAsync(lineaId, desde, hasta)).ToList();
+        var excepciones = (await _unitOfWork.TiemposProgramadosDia.GetPorRangoAsync(desde, hasta, lineaId)).ToList();
 
         var dias = TiempoProgramadoReporte.DiasDeLinea(lineaId, linea.Nombre, desde, hasta, turnos, excepciones)
             .Select(d => new DiaProgramadoDto
