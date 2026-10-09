@@ -89,3 +89,14 @@ Cada unidad escribe `registro-U<n>.md` en esta carpeta (qué hizo, decisiones, c
 - Horario real de turnos (el seed dice 06-14/14-22/22-06; la minuta, 05-13/13-21/21-05). Se cambia desde Configuración → Turnos.
 - Si se borra `NuevaDetencion.razor` (sin enlaces) y los endpoints viejos sin uso (CSV, abiertas, iniciar-seguimiento).
 - Quién completa el Plan de acción (hoy: el mismo responsable, opcional).
+
+## Revisión antes de merge (09/10/2026)
+
+Revisión de código exigente del diff completo: 10 hallazgos. Corregidos en `t76-fix-sql` (F1) y `t76-fix-logica` (F2), más uno del coordinador:
+- Script 17: el ALTER de las columnas de estado fallaba por DEFAULT e índices. Ahora los recrea en una transacción. VERIFICADO en Azure SQL Edge (motor SQL Server) sobre una base armada con los scripts 01..16: 17 y 18 corren sin errores y son idempotentes.
+- Operario responsable sin ver sus pendientes; edición que pisaba horas y turno; reevaluación que borraba análisis en curso; zona horaria de la planta configurable (`Planta:ZonaHoraria`); conteo de pendientes; vista previa; mapeo duplicado.
+- Editar una detención borraba la Solución de un análisis en curso (regresión): el PUT ya no toca `AccionesRealizadas` si no viene.
+
+Verificación final sobre `t76-ajustes`: build 0/0, 140 tests, regresion.py 36/36, e2e.py 28/28, fixes_f2.py 31/31, web_f2.py 12/12, pantallas sin errores de consola.
+
+Pendiente fuera de alcance: `09_seed_demo_data.sql` tiene una sección vieja (`mnt.TiposEvento`) que falla; no es de T-76. El script 17 usa STRING_AGG (SQL Server 2017+): confirmar la versión de producción antes de correrlo.

@@ -11,7 +11,7 @@ out = pathlib.Path(out); out.mkdir(parents=True, exist_ok=True)
 async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch()
-        pg = await b.new_page(viewport={"width": 1440, "height": 900})
+        pg = await b.new_page(viewport={"width": 1920, "height": 1080})
         errors = []
         pg.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
         await pg.goto(web + "/login")
@@ -31,11 +31,16 @@ async def main():
                 kind, _, arg = a.partition(":")
                 if kind == "click": await pg.click(arg)
                 elif kind == "wait": await pg.wait_for_timeout(int(arg))
+                elif kind == "select":
+                    sel, _, val = arg.rpartition("=")
+                    await pg.locator(sel).first.select_option(val)
+                elif kind == "press":
+                    await pg.keyboard.press(arg)
                 elif kind == "fill":
-                    sel, _, val = arg.partition("=")
+                    sel, _, val = arg.rpartition("=")
                     await pg.fill(sel, val)
                 await pg.wait_for_timeout(800)
-            await pg.screenshot(path=str(out / f"{name}.png"), full_page=True)
+            await pg.screenshot(path=str(out / f"{name}.png"))
             print("ok", name, pg.url)
         if errors:
             print("console errors:", *errors[:10], sep="\n  ")
