@@ -1,8 +1,8 @@
 # Registro U0 · Fundación T-76
 
 **Estado: ISSUES (menores).** Los cuatro puntos del follow-up del coordinador están hechos y verificados en SQLite.
-La regla de análisis ya dispara desde la API real. Quedan dos cosas: el script 17 no se pudo ejecutar en un SQL Server real,
-y hay brechas previas de auditoría en el alta (ISSUE 1).
+La regla de análisis dispara desde la API real. Las fechas de auditoría se completan al guardar (ver "Auditoría").
+Queda una cosa: el script 17 no se pudo ejecutar en un SQL Server real.
 Nada está mergeado, desplegado ni publicado. Solo commits locales en `t76-u0`.
 
 ## Commits
@@ -23,6 +23,8 @@ Nada está mergeado, desplegado ni publicado. Solo commits locales en `t76-u0`.
 | f0bdc35 | feat(api): devolver campos de análisis en lista, detalle y respuesta de edición |
 | 9d28e2f | fix(db): PENDIENTE_JUSTIFICACION en estados de detención |
 | 30931d0 | feat(db): vistas de detenciones sin eliminadas en script 17 |
+| 6df6417 | docs(t76): registro U0 tras el follow-up |
+| 07959a3 | fix(auditoria): fechas de creación y modificación automáticas |
 
 ## Qué se hizo
 
@@ -43,6 +45,20 @@ Nada está mergeado, desplegado ni publicado. Solo commits locales en `t76-u0`.
    - DROP y ADD de `CK_Detenciones_EstadoActual`.
    - DROP y ADD de `CK_DetencionesEstadoHistorial_EstadoNuevo`. Es la misma regla en el historial, decidida por mí.
    - `EstadoActual`, `EstadoAnterior` y `EstadoNuevo` pasan a `NVARCHAR(30)`, igual que EF.
+
+## Auditoría (fechas automáticas)
+
+`MantenimientoDbContext` completa las fechas en cada `SaveChanges` / `SaveChangesAsync`, con una sola fecha de corte por guardado:
+
+- Alta (`Added`): `FechaHoraCreacion` y `FechaHoraModificacion` de toda `EntityBase` que lleguen por defecto.
+- Edición (`Modified`): `FechaHoraModificacion` = ahora.
+- `DetencionEstadoHistorial.FechaHora`, `DetencionNota.FechaHora` y `Auditoria.FechaHora`: solo si llegan por defecto.
+- No se tocan las fechas de negocio (`FechaHoraParada`, `FechaHoraHallazgo`, etc.) ni `UsuarioLinea.FechaAsignacion`.
+- `ApplicationUser.FechaCreacion` no se incluyó: `UsuariosController` y el inicializador ya la asignan.
+
+Verificación:
+- Pruebas de integración (SQLite en memoria, `AuditoriaFechasTests`): 4 nuevas, todas verdes. Prueba de control: con la llamada desactivada, 4 de 5 fallan (las 4 nuevas). Se restauró el código y se volvió a verde.
+- API real (SQLite, base nueva): `POST /api/detenciones` → 201. `GET /api/detenciones/1` devuelve `fechaHoraCreacion` `2026-10-09T12:29:26.731888+00:00` y `historialEstados[0].fechaHora` con la misma fecha. La base guarda lo mismo. Log sin errores.
 
 ## E2E en SQLite (build final)
 
@@ -90,10 +106,11 @@ Además: PUT con el `rowVersion` vigente da 200 y devuelve un `rowVersion` nuevo
 | Qué | Cómo | Resultado | Nivel |
 |---|---|---|---|
 | Build | `dotnet build PSAG.Mantenimiento.sln` | `0 Error(s)`, `0 Warning(s)` | Compila |
-| Tests | `dotnet test PSAG.Mantenimiento.sln` | Domain 73 passed, Application 1, Integration 1. Total 75, 0 failed (base: 50) | Tests |
+| Tests | `dotnet test PSAG.Mantenimiento.sln` | Domain 73 passed, Application 1, Integration 5 (4 nuevas de auditoría). Total 79, 0 failed (base: 50) | Tests |
 | Regla en la API | E2E arriba: POST 145 min, PUT 30 min | `requiereAnalisis` true → false, `responsableRol` MANTENIMIENTO | API real (SQLite) |
 | RowVersion | POST, GET, PUT con token vigente, PUT con token viejo | 201, 200, 200 con token nuevo, 409 | API real (SQLite) |
 | Filtro de eliminadas | Fila con `Eliminada=1` (verificado antes del follow-up, sin cambios desde) | Fuera de la lista. GET y PUT por id: 404 | API real (SQLite) |
+| Fechas de auditoría | Pruebas de integración + POST real (ver sección Auditoría) | 4 nuevas verdes. Con la llamada desactivada fallan. POST: fechas de hoy | Tests y API real (SQLite) |
 | Script 17 vs EF | DDL de SQL Server generado desde `MantenimientoDbContext` y comparador (proyecto temporal fuera del repo) | `DIFERENCIAS: 0`. Cubre columnas nuevas, `ALTER COLUMN` de estados, FKs, índices y checks | Comparación de DDL |
 | Vistas | `diff` de cada vista contra 06 | Solo se agregan líneas de filtro y `CREATE OR ALTER` | Revisión de texto |
 | Script 17 en motor | SQL Server 2022 en Docker (imagen amd64 bajo emulación) | El proceso aborta al arrancar, en dos intentos ("Invalid mapping of address"). No ejecutado | **NO VERIFICADO** a nivel motor |
@@ -103,7 +120,7 @@ Nota de costos: para el intento de SQL Server bajé una imagen de 2,3 GB sin ped
 
 ## ISSUES
 
-1. **Pre-existente, auditoría en el alta.** `FechaHoraCreacion` queda en `0001-01-01` en toda detención creada por POST: el controller no la asigna y EF envía el default del CLR. `DetencionEstadoHistorial.FechaHora` también queda en `0001-01-01`, y el detalle devuelve vacíos `creadoPorUsuarioNombre` y `estadoNuevoDescripcion`. Ocurre en ambos motores (no es solo SQLite). No lo corregí porque no estaba en el follow-up. Propuesta: asignar las fechas de auditoría al crear, o hacerlo en `SaveChanges` para entidades nuevas. Hace falta decisión.
+1. **Resuelto (commit 07959a3).** Fechas de auditoría en `0001-01-01` en las altas: se completan en `SaveChanges` (ver sección Auditoría). Quedan vacíos `creadoPorUsuarioNombre` y `estadoNuevoDescripcion` en el detalle. Son mapeos del controller, no fechas; no se tocaron porque el coordinador pidió no tocar controllers.
 2. **Pre-existente.** `DEFAULT 'REGISTRADA'` en `EstadoActual` (script 04) no lo modela EF. No tocado.
 3. **Pre-existente, DB-only.** Los checks de estado no existen en el modelo EF, así que el comparador los trata aparte. Se mantienen solo en la base.
 4. **Para decidir.** `tools/MigrarDatos` copia `Detenciones` con la tabla cruda, así que también migra las eliminadas. Probablemente es lo correcto para el histórico, pero conviene confirmarlo.
@@ -112,7 +129,6 @@ Nota de costos: para el intento de SQL Server bajé una imagen de 2,3 GB sin ped
 
 ## Pendientes
 
-- Decidir el ISSUE 1 (auditoría en el alta).
 - Ejecutar `17_t76_ajustes.sql` en un SQL Server de desarrollo y comprobar que corre dos veces sin error.
 - U2: exponer `Critico` en `EquipoDto` y `Color` en `TipoFallaDto`.
 - U3: reemplazar el texto "En Seguimiento" en `Detenciones.razor`.
@@ -120,4 +136,4 @@ Nota de costos: para el intento de SQL Server bajé una imagen de 2,3 GB sin ped
 
 ## Archivos cambiados (desde 30a9450)
 
-Plan y U0 completos: 32 archivos del primer alcance, más el follow-up: `Api/Controllers/DetencionesController.cs`, `Application/Services/Interfaces/IDetencionService.cs`, `Application/Services/Implementations/DetencionService.cs`, `Infrastructure/Data/MantenimientoDbContext.cs`, `database/17_t76_ajustes.sql`, `database/README.md`.
+Plan y U0 completos: 32 archivos del primer alcance, más el follow-up: `Api/Controllers/DetencionesController.cs`, `Application/Services/Interfaces/IDetencionService.cs`, `Application/Services/Implementations/DetencionService.cs`, `Infrastructure/Data/MantenimientoDbContext.cs`, `database/17_t76_ajustes.sql`, `database/README.md`, `tests/PSAG.Mantenimiento.Api.IntegrationTests/AuditoriaFechasTests.cs` (auditoría).
