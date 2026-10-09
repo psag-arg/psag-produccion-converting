@@ -8,6 +8,11 @@ public class TiempoDetencionCalculadorTests
     private static readonly DateOnly Fecha = new(2026, 8, 20);
     private static readonly TimeZoneInfo Argentina = TimeZoneInfo.FindSystemTimeZoneById("America/Argentina/Buenos_Aires");
 
+    private static readonly DateTimeOffset Parada = new(2026, 8, 20, 5, 40, 0, TimeSpan.FromHours(-3));
+    private static readonly DateTimeOffset Arranque = new(2026, 8, 20, 8, 5, 0, TimeSpan.FromHours(-3));
+
+    private static readonly TiempoDetencion Calculada = new(OrigenTiempo.CALCULADO, 145, null, Parada, Arranque);
+
     private static TiempoCargado Solicitud(
         TimeOnly? horaInicio = null,
         TimeOnly? horaFin = null,
@@ -82,5 +87,100 @@ public class TiempoDetencionCalculadorTests
             Solicitud(origen: OrigenTiempo.PLC, minutosDeclarados: 40), Argentina);
 
         Assert.Equal(0, tiempo.MinutosEfectivos);
+    }
+
+    [Fact]
+    public void EditarSoloLaDescripcion_ConservaUnaCalculada()
+    {
+        // Lo que manda el front al editar sin tocar las horas: sin horas, origen CALCULADO, minutos declarados viejos.
+        var edicion = TiempoDetencionCalculador.Editar(
+            Calculada,
+            Solicitud(origen: OrigenTiempo.CALCULADO, minutosDeclarados: 999),
+            Argentina);
+
+        Assert.Equal(Calculada, edicion.Tiempo);
+        Assert.False(edicion.RederivarTurno);
+    }
+
+    [Fact]
+    public void EditarSoloLaDescripcion_ConservaUnaPlc()
+    {
+        var plc = new TiempoDetencion(OrigenTiempo.PLC, 60, null, Parada, Parada.AddMinutes(60));
+
+        var edicion = TiempoDetencionCalculador.Editar(plc, Solicitud(origen: OrigenTiempo.PLC), Argentina);
+
+        Assert.Equal(plc, edicion.Tiempo);
+        Assert.False(edicion.RederivarTurno);
+    }
+
+    [Fact]
+    public void EditarUnaDeclarada_ActualizaLosMinutos()
+    {
+        var declarada = new TiempoDetencion(OrigenTiempo.DECLARADO, 25, 25, null, null);
+
+        var edicion = TiempoDetencionCalculador.Editar(declarada, Solicitud(minutosDeclarados: 40), Argentina);
+
+        Assert.Equal(OrigenTiempo.DECLARADO, edicion.Tiempo.Origen);
+        Assert.Equal(40, edicion.Tiempo.MinutosEfectivos);
+        Assert.Equal(40, edicion.Tiempo.MinutosDeclarados);
+        Assert.False(edicion.RederivarTurno);
+    }
+
+    [Fact]
+    public void EditarConHorasNuevas_RecalculaYRederivaElTurno()
+    {
+        var edicion = TiempoDetencionCalculador.Editar(
+            Calculada,
+            Solicitud(horaInicio: new TimeOnly(6, 0), horaFin: new TimeOnly(6, 30)),
+            Argentina);
+
+        Assert.Equal(OrigenTiempo.CALCULADO, edicion.Tiempo.Origen);
+        Assert.Equal(30, edicion.Tiempo.MinutosEfectivos);
+        Assert.True(edicion.RederivarTurno);
+    }
+
+    [Fact]
+    public void EditarConLasMismasHoras_NoRederivaElTurno()
+    {
+        // Mismo horario que ya tiene: el turno materializado no se toca aunque el turno vigente haya cambiado.
+        var edicion = TiempoDetencionCalculador.Editar(
+            Calculada,
+            Solicitud(horaInicio: new TimeOnly(5, 40), horaFin: new TimeOnly(8, 5)),
+            Argentina);
+
+        Assert.Equal(145, edicion.Tiempo.MinutosEfectivos);
+        Assert.False(edicion.RederivarTurno);
+    }
+
+    [Fact]
+    public void EditarDeclaradaConHoras_PasaACalculadaYRederivaElTurno()
+    {
+        var declarada = new TiempoDetencion(OrigenTiempo.DECLARADO, 25, 25, null, null);
+
+        var edicion = TiempoDetencionCalculador.Editar(
+            declarada,
+            Solicitud(horaInicio: new TimeOnly(5, 40), horaFin: new TimeOnly(8, 5)),
+            Argentina);
+
+        Assert.Equal(OrigenTiempo.CALCULADO, edicion.Tiempo.Origen);
+        Assert.Equal(145, edicion.Tiempo.MinutosEfectivos);
+        Assert.Null(edicion.Tiempo.MinutosDeclarados);
+        Assert.True(edicion.RederivarTurno);
+    }
+
+    [Fact]
+    public void EditarConFechasExplicitas_LasTomaTalCualSinRederivarElTurno()
+    {
+        var nuevaParada = Parada.AddHours(1);
+        var nuevaArranque = nuevaParada.AddMinutes(20);
+
+        var edicion = TiempoDetencionCalculador.Editar(
+            Calculada,
+            Solicitud(origen: OrigenTiempo.CALCULADO, parada: nuevaParada, arranque: nuevaArranque),
+            Argentina);
+
+        Assert.Equal(20, edicion.Tiempo.MinutosEfectivos);
+        Assert.Equal(nuevaParada, edicion.Tiempo.FechaHoraParada);
+        Assert.False(edicion.RederivarTurno);
     }
 }
