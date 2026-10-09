@@ -69,17 +69,44 @@ public class AnalisisFallaReglasTests
         Assert.False(AnalisisFallaReglas.EsResponsable(detencion, "usuario-1", ["SUPERVISOR"]));
     }
 
-    [Fact]
-    public void EstaAbierto_SoloSiRequiereAnalisisYNoEstaCerrada()
+    [Theory]
+    [InlineData(EstadoDetencion.REGISTRADA, true)]
+    [InlineData(EstadoDetencion.EN_SEGUIMIENTO, true)]
+    [InlineData(EstadoDetencion.CERRADA, false)]
+    [InlineData(EstadoDetencion.PENDIENTE_JUSTIFICACION, false)]
+    public void EstaAbierto_SoloRegistradaOEnSeguimientoConAnalisis(EstadoDetencion estado, bool esperado)
     {
-        var abierta = Detencion(requiereAnalisis: true);
-        var cerrada = Detencion(requiereAnalisis: true);
-        cerrada.EstadoActual = EstadoDetencion.CERRADA;
+        var detencion = Detencion(requiereAnalisis: true);
+        detencion.EstadoActual = estado;
+
+        Assert.Equal(esperado, AnalisisFallaReglas.EstaAbierto(detencion));
+    }
+
+    [Fact]
+    public void EstaAbierto_SinRequiereAnalisis_NoEstaAbierto()
+    {
         var sinAnalisis = Detencion(requiereAnalisis: false);
 
-        Assert.True(AnalisisFallaReglas.EstaAbierto(abierta));
-        Assert.False(AnalisisFallaReglas.EstaAbierto(cerrada));
         Assert.False(AnalisisFallaReglas.EstaAbierto(sinAnalisis));
+    }
+
+    [Fact]
+    public void EstaAbiertoExpr_DaLoMismoQueEstaAbierto_enTodosLosEstados()
+    {
+        var expresion = AnalisisFallaReglas.EstaAbiertoExpr.Compile();
+
+        foreach (EstadoDetencion estado in Enum.GetValues<EstadoDetencion>())
+        {
+            foreach (var requiere in new[] { true, false })
+            {
+                var detencion = Detencion(requiereAnalisis: requiere);
+                detencion.EstadoActual = estado;
+
+                Assert.True(
+                    expresion(detencion) == AnalisisFallaReglas.EstaAbierto(detencion),
+                    $"Diferencia en {estado} con RequiereAnalisis={requiere}");
+            }
+        }
     }
 
     [Fact]

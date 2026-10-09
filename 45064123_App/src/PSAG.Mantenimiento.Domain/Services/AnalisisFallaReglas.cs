@@ -25,11 +25,13 @@ public static class AnalisisFallaReglas
     }
 
     /// <summary>
-    /// Pendiente de análisis: la regla lo marcó y todavía no se cerró. Es la única definición de la condición;
-    /// sirve para consultas (EF la traduce a SQL) y, compilada, para objetos en memoria.
+    /// Análisis abierto: la regla lo marcó y está REGISTRADA (sin empezar) o EN_SEGUIMIENTO (en curso).
+    /// PENDIENTE_JUSTIFICACION no es un análisis. Es la única definición de la condición; sirve para consultas
+    /// (EF la traduce a SQL) y, compilada, para objetos en memoria. Si cambia, cambia EstaAbierto a la par.
     /// </summary>
     public static Expression<Func<Detencion, bool>> EstaAbiertoExpr { get; } =
-        d => d.RequiereAnalisis && d.EstadoActual != EstadoDetencion.CERRADA;
+        d => d.RequiereAnalisis
+            && (d.EstadoActual == EstadoDetencion.REGISTRADA || d.EstadoActual == EstadoDetencion.EN_SEGUIMIENTO);
 
     private static readonly Func<Detencion, bool> EstaAbiertoCompilado = EstaAbiertoExpr.Compile();
 
