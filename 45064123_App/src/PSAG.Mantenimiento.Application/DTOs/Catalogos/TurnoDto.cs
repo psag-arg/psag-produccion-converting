@@ -9,6 +9,7 @@ public class TurnoDto
     public TimeOnly HoraFin { get; set; }
     public int Orden { get; set; }
     public bool Activo { get; set; }
+    public int DuracionMinutos { get; set; }
 }
 
 public class CrearTurnoRequest

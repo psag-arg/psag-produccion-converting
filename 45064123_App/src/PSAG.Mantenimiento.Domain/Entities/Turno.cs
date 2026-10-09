@@ -29,6 +29,22 @@ public class Turno : CatalogoBase
     public virtual ICollection<Detencion> Detenciones { get; set; } = new List<Detencion>();
 
     /// <summary>
+    /// Duración del turno en minutos. Si HoraFin no es posterior a HoraInicio, cruza medianoche
+    /// (ej.: 21:00 a 05:00 = 480 minutos), igual que ContieneHora.
+    /// </summary>
+    public int DuracionMinutos()
+    {
+        var inicio = HoraInicio.ToTimeSpan();
+        var fin = HoraFin.ToTimeSpan();
+
+        var duracion = fin > inicio
+            ? fin - inicio
+            : TimeSpan.FromDays(1) - inicio + fin;
+
+        return (int)duracion.TotalMinutes;
+    }
+
+    /// <summary>
     /// Verifica si una hora dada pertenece a este turno.
     /// Contempla turnos que cruzan medianoche.
     /// </summary>

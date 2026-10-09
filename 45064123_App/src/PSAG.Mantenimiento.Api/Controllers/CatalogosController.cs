@@ -646,7 +646,8 @@ public class CatalogosController : ApiControllerBase
             HoraInicio = t.HoraInicio,
             HoraFin = t.HoraFin,
             Orden = t.Orden,
-            Activo = t.Activo
+            Activo = t.Activo,
+            DuracionMinutos = t.DuracionMinutos()
         }).OrderBy(t => t.Orden);
 
         return Ok(items);
@@ -669,7 +670,8 @@ public class CatalogosController : ApiControllerBase
             HoraInicio = turno.HoraInicio,
             HoraFin = turno.HoraFin,
             Orden = turno.Orden,
-            Activo = turno.Activo
+            Activo = turno.Activo,
+            DuracionMinutos = turno.DuracionMinutos()
         });
     }
 
@@ -695,7 +697,8 @@ public class CatalogosController : ApiControllerBase
             HoraInicio = turno.HoraInicio,
             HoraFin = turno.HoraFin,
             Orden = turno.Orden,
-            Activo = turno.Activo
+            Activo = turno.Activo,
+            DuracionMinutos = turno.DuracionMinutos()
         });
     }
 
@@ -732,7 +735,8 @@ public class CatalogosController : ApiControllerBase
             HoraInicio = turno.HoraInicio,
             HoraFin = turno.HoraFin,
             Orden = turno.Orden,
-            Activo = turno.Activo
+            Activo = turno.Activo,
+            DuracionMinutos = turno.DuracionMinutos()
         });
     }
 
@@ -771,7 +775,8 @@ public class CatalogosController : ApiControllerBase
             HoraInicio = turno.HoraInicio,
             HoraFin = turno.HoraFin,
             Orden = turno.Orden,
-            Activo = turno.Activo
+            Activo = turno.Activo,
+            DuracionMinutos = turno.DuracionMinutos()
         });
     }
 

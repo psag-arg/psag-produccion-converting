@@ -72,7 +72,7 @@ public class TiempoProgramadoCalculadorTests
     {
         var nocturno = Turno("Noche", 21, 5);
 
-        Assert.Equal(8 * 60, TiempoProgramadoCalculador.DuracionMinutos(nocturno));
+        Assert.Equal(8 * 60, nocturno.DuracionMinutos());
 
         var dias = TiempoProgramadoCalculador.MinutosProgramadosPorDia(Lunes, Lunes, [nocturno], []);
         Assert.Equal(8 * 60, MinutosDe(dias, Lunes));
@@ -82,7 +82,7 @@ public class TiempoProgramadoCalculadorTests
     public void TurnoDeDiaCompleto_DeMismaHoraInicioYFin_CuentaVeinticuatro_Horas()
     {
         // Mismo criterio que Turno.ContieneHora: si HoraFin no es posterior a HoraInicio, cruza medianoche.
-        Assert.Equal(24 * 60, TiempoProgramadoCalculador.DuracionMinutos(Turno("Continuo", 6, 6)));
+        Assert.Equal(24 * 60, Turno("Continuo", 6, 6).DuracionMinutos());
     }
 
     [Fact]

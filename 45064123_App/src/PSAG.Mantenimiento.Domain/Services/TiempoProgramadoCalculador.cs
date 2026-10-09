@@ -7,8 +7,6 @@ namespace PSAG.Mantenimiento.Domain.Services;
 /// </summary>
 public static class TiempoProgramadoCalculador
 {
-    private const int MinutosPorDia = 24 * 60;
-
     /// <summary>
     /// Para cada día del rango (ambos extremos incluidos) devuelve los minutos programados:
     /// si hay una excepción activa para ese día, sus horas * 60; si no, la suma de la duración
@@ -20,7 +18,7 @@ public static class TiempoProgramadoCalculador
         IEnumerable<Turno> turnos,
         IEnumerable<TiempoProgramadoDia> excepciones)
     {
-        var estandar = turnos.Where(t => t.Activo).Sum(DuracionMinutos);
+        var estandar = turnos.Where(t => t.Activo).Sum(t => t.DuracionMinutos());
 
         // Una fila por fecha (índice único en base de datos).
         var excepcionPorFecha = excepciones
@@ -38,22 +36,6 @@ public static class TiempoProgramadoCalculador
         }
 
         return resultado;
-    }
-
-    /// <summary>
-    /// Duración de un turno en minutos. Si HoraFin no es posterior a HoraInicio,
-    /// el turno cruza medianoche (ej.: 21:00 a 05:00 = 480 minutos), igual que Turno.ContieneHora.
-    /// </summary>
-    public static int DuracionMinutos(Turno turno)
-    {
-        var inicio = turno.HoraInicio.ToTimeSpan();
-        var fin = turno.HoraFin.ToTimeSpan();
-
-        var duracion = fin > inicio
-            ? fin - inicio
-            : TimeSpan.FromMinutes(MinutosPorDia) - inicio + fin;
-
-        return (int)duracion.TotalMinutes;
     }
 }
 
