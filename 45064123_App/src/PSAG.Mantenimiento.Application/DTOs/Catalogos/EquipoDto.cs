@@ -9,6 +9,7 @@ public class EquipoDto
     public string Nombre { get; set; } = string.Empty;
     public string? Descripcion { get; set; }
     public int Orden { get; set; }
+    public bool Critico { get; set; }
     public bool Activo { get; set; }
 }
 
@@ -19,6 +20,7 @@ public class CrearEquipoRequest
     public string Nombre { get; set; } = string.Empty;
     public string? Descripcion { get; set; }
     public int Orden { get; set; }
+    public bool Critico { get; set; }
 }
 
 public class ActualizarEquipoRequest
@@ -28,5 +30,6 @@ public class ActualizarEquipoRequest
     public string Nombre { get; set; } = string.Empty;
     public string? Descripcion { get; set; }
     public int Orden { get; set; }
+    public bool Critico { get; set; }
     public bool Activo { get; set; }
 }
