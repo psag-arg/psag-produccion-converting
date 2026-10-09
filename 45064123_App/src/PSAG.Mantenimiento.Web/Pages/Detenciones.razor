@@ -1,23 +1,37 @@
 @page "/detenciones"
+@using System.Globalization
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.JSInterop
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
+@implements IAsyncDisposable
 @attribute [Authorize]
 @inject IDetencionesService DetencionesService
 @inject ICatalogosService CatalogosService
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
 
 <PageTitle>Detenciones - PSAG Produccion</PageTitle>
 
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2>Detenciones</h2>
-        <button class="btn btn-primary" @onclick="AbrirModalNueva">
-            <i class="bi bi-plus-lg me-2"></i>Nueva Detencion
-        </button>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-success" @onclick="ExportarExcel">
+                <i class="bi bi-file-earmark-excel me-2"></i>Exportar Excel
+            </button>
+            <button class="btn btn-primary" @onclick="AbrirModalNueva">
+                <i class="bi bi-plus-lg me-2"></i>Nueva Detencion
+            </button>
+        </div>
     </div>
+
+    @if (!string.IsNullOrEmpty(mensajeError))
+    {
+        <div class="alert alert-danger">@mensajeError</div>
+    }
 
     <!-- Filtros -->
     <div class="card mb-4">
@@ -61,13 +75,29 @@
                     <select class="form-select" @bind="filtroEstado" @bind:after="@(async () => await CargarDetenciones())">
                         <option value="">Todos</option>
                         <option value="REGISTRADA">Registrada</option>
-                        <option value="EN_SEGUIMIENTO">En Seguimiento</option>
+                        <option value="EN_SEGUIMIENTO">En análisis</option>
                         <option value="CERRADA">Cerrada</option>
                     </select>
                 </div>
             </div>
-            <div class="row mt-2">
-                <div class="col-12 d-flex justify-content-end">
+            <div class="row g-3 mt-0 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">Análisis</label>
+                    <select class="form-select" @bind="filtroAnalisis" @bind:after="@(async () => await AplicarFiltros())">
+                        <option value="">Todos</option>
+                        <option value="PENDIENTE">Requiere análisis</option>
+                        <option value="SIN">Sin análisis</option>
+                    </select>
+                </div>
+                <div class="col-md-10 d-flex justify-content-end align-items-center gap-3">
+                    @if (esAdministrador)
+                    {
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" role="switch" id="verEliminadas"
+                                   @bind="verEliminadas" @bind:after="@(async () => await AplicarFiltros())" />
+                            <label class="form-check-label" for="verEliminadas">Ver eliminadas</label>
+                        </div>
+                    }
                     <button class="btn btn-outline-secondary btn-sm" @onclick="LimpiarFiltros">
                         <i class="bi bi-x-circle me-1"></i>Limpiar filtros
                     </button>
@@ -93,7 +123,7 @@
                     <thead class="table-light">
                         <tr>
                             <th>Codigo</th>
-                            <th>Fecha</th>
+                            <th>Fecha y hora</th>
                             <th>Linea</th>
                             <th>Equipo</th>
                             <th>Tipo Falla</th>
@@ -106,9 +136,17 @@
                     <tbody>
                         @foreach (var det in detenciones.Items)
                         {
-                            <tr @onclick="() => VerDetalle(det.DetencionId)" style="cursor: pointer;">
-                                <td><strong>@det.Codigo</strong></td>
-                                <td>@det.Fecha.ToString("dd/MM/yyyy")</td>
+                            <tr class="@(det.Eliminada ? "opacity-50" : "")"
+                                style="@(det.Eliminada ? "" : "cursor: pointer;")"
+                                @onclick="() => AbrirFila(det)">
+                                <td class="text-nowrap"><strong>@det.Codigo</strong></td>
+                                <td>
+                                    @det.Fecha.ToString("dd/MM/yyyy")
+                                    @if (HoraReal(det) is { } horaParada)
+                                    {
+                                        <span class="text-muted ms-1">@horaParada.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture)</span>
+                                    }
+                                </td>
                                 <td>@det.LineaNombre</td>
                                 <td>@(det.EquipoNombre ?? "-")</td>
                                 <td>@(det.TipoFallaNombre ?? "-")</td>
@@ -116,20 +154,54 @@
                                     <span class="badge bg-secondary">@det.MinutosEfectivos min</span>
                                 </td>
                                 <td>
-                                    <span class="badge @GetEstadoBadgeClass(det.EstadoActual)">
-                                        @det.EstadoActualDescripcion
-                                    </span>
+                                    @if (RequiereAnalisisPendiente(det))
+                                    {
+                                        <span class="badge text-white" style="background-color: var(--bs-orange);">Requiere análisis</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge @GetEstadoBadgeClass(det.EstadoActual)">@det.EstadoActualDescripcion</span>
+                                    }
+                                    @if (det.Eliminada)
+                                    {
+                                        <span class="badge bg-dark ms-1">Eliminada</span>
+                                    }
                                 </td>
                                 <td>@det.TurnoNombre</td>
-                                <td class="text-end" @onclick:stopPropagation="true">
-                                    <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => VerDetalle(det.DetencionId)">
-                                        <i class="bi bi-eye"></i>
-                                    </button>
-                                    @if (det.EstadoActual != "CERRADA")
+                                <td class="text-end text-nowrap" @onclick:stopPropagation="true">
+                                    @if (det.Eliminada)
                                     {
-                                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => EditarDetencion(det)">
-                                            <i class="bi bi-pencil"></i>
+                                        @if (esAdministrador)
+                                        {
+                                            <button class="btn btn-sm btn-outline-success" title="Restaurar" @onclick="() => RestaurarDetencion(det.DetencionId)">
+                                                <i class="bi bi-arrow-counterclockwise me-1"></i>Restaurar
+                                            </button>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-sm btn-outline-primary me-1" title="Ver detalle" @onclick="() => VerDetalle(det.DetencionId)">
+                                            <i class="bi bi-eye"></i>
                                         </button>
+                                        @if (RequiereAnalisisPendiente(det))
+                                        {
+                                            <button class="btn btn-sm me-1" title="Completar análisis" style="color: var(--bs-orange); border: 1px solid var(--bs-orange);"
+                                                    @onclick="() => VerDetalle(det.DetencionId)">
+                                                <i class="bi bi-tools"></i>
+                                            </button>
+                                        }
+                                        @if (det.EstadoActual != "CERRADA")
+                                        {
+                                            <button class="btn btn-sm btn-outline-secondary me-1" title="Editar" @onclick="() => EditarDetencion(det)">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                        }
+                                        @if (esAdministrador)
+                                        {
+                                            <button class="btn btn-sm btn-outline-danger" title="Eliminar" @onclick="() => AbrirEliminar(det)">
+                                                <i class="bi bi-trash3"></i>
+                                            </button>
+                                        }
                                     }
                                 </td>
                             </tr>
@@ -194,22 +266,50 @@
                             <div class="row mb-3">
                                 <div class="col-md-6">
                                     <label class="form-label">Linea *</label>
-                                    <AutocompleteSelect TItem="LineaDto"
-                                                        TValue="int"
-                                                        Items="lineasDisponibles"
-                                                        @bind-SelectedValue="selectedLineaId"
-                                                        OnValueChanged="OnLineaChanged"
-                                                        ValueSelector="@(l => l.LineaId)"
-                                                        TextSelector="@(l => l.Nombre)"
-                                                        Placeholder="Buscar linea...">
-                                        <ItemTemplate Context="linea">
-                                            @linea.Nombre
-                                        </ItemTemplate>
-                                    </AutocompleteSelect>
+                                    <fieldset disabled="@editando">
+                                        <AutocompleteSelect TItem="LineaDto"
+                                                            TValue="int"
+                                                            Items="lineasDisponibles"
+                                                            @bind-SelectedValue="selectedLineaId"
+                                                            OnValueChanged="OnLineaChanged"
+                                                            ValueSelector="@(l => l.LineaId)"
+                                                            TextSelector="@(l => l.Nombre)"
+                                                            Placeholder="Buscar linea...">
+                                            <ItemTemplate Context="linea">
+                                                @linea.Nombre
+                                            </ItemTemplate>
+                                        </AutocompleteSelect>
+                                    </fieldset>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Fecha *</label>
                                     <input type="date" class="form-control" @bind="model.Fecha" />
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Hora inicio</label>
+                                    <input type="time" class="form-control" value="@horaInicioTexto" @onchange="CambiarHoraInicio" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Hora fin</label>
+                                    <input type="time" class="form-control" value="@horaFinTexto" @onchange="CambiarHoraFin" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Minutos de Parada</label>
+                                    @if (MinutosManuales is int minutosCalculados)
+                                    {
+                                        <div class="form-control bg-light">
+                                            <strong>@minutosCalculados</strong> min
+                                            <small class="text-muted ms-1">calculados por horas</small>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <input type="number" class="form-control" @bind="model.MinutosDeclarados" min="1"
+                                               @bind:after="@(async () => await ActualizarAvisoAnalisisAsync())" />
+                                    }
                                 </div>
                             </div>
 
@@ -218,8 +318,8 @@
                             {
                                 <div class="row mb-3">
                                     <div class="col-md-6">
-                                        <label class="form-label">Maquinista @(puedeSeleccionarMaquinista ? "*" : "")</label>
-                                        @if (puedeSeleccionarMaquinista)
+                                        <label class="form-label">Maquinista @(puedeSeleccionarMaquinista && !editando ? "*" : "")</label>
+                                        @if (puedeSeleccionarMaquinista && !editando)
                                         {
                                             @* Admin/Gerencia/Supervisor pueden seleccionar cualquier maquinista de la linea *@
                                             <select class="form-select" @bind="selectedMaquinistaId" @bind:after="OnMaquinistaChanged">
@@ -245,7 +345,13 @@
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Turno</label>
-                                        @if (!string.IsNullOrEmpty(turnoAsignado))
+                                        @if (HorasCargadas)
+                                        {
+                                            <div class="form-control bg-light">
+                                                <i class="bi bi-clock-fill me-2 text-success"></i>Según hora de inicio
+                                            </div>
+                                        }
+                                        else if (!string.IsNullOrEmpty(turnoAsignado))
                                         {
                                             <div class="form-control bg-light">
                                                 <i class="bi bi-clock-fill me-2 text-success"></i>@turnoAsignado
@@ -309,10 +415,6 @@
                                         </ItemTemplate>
                                     </AutocompleteSelect>
                                 </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Minutos de Parada *</label>
-                                    <input type="number" class="form-control" @bind="model.MinutosDeclarados" min="1" />
-                                </div>
                             </div>
 
                             <div class="mb-3">
@@ -320,6 +422,17 @@
                                 <textarea class="form-control" @bind="model.Descripcion" rows="4"
                                     placeholder="Describa la causa de la detencion..."></textarea>
                             </div>
+
+                            @if (requiereAnalisisPrevio)
+                            {
+                                <div class="alert alert-warning d-flex align-items-start gap-2 mb-0">
+                                    <i class="bi bi-tools mt-1"></i>
+                                    <div>
+                                        <strong>Esta detención va a requerir análisis.</strong>
+                                        Al registrarla le aparece al responsable en <em>Mis pendientes</em>.
+                                    </div>
+                                </div>
+                            }
                         </div>
 
                         <div class="col-lg-4">
@@ -397,6 +510,47 @@
     </div>
 }
 
+@* Modal Eliminar Detencion (sólo administrador) *@
+@if (detencionAEliminar != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-trash3 text-danger me-2"></i>Eliminar detención
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CerrarEliminar"></button>
+                </div>
+                <div class="modal-body">
+                    <p>
+                        Vas a eliminar <strong>@detencionAEliminar.Codigo</strong>
+                        (@(detencionAEliminar.EquipoNombre ?? "-") · @detencionAEliminar.MinutosEfectivos min · @detencionAEliminar.Fecha.ToString("dd/MM/yyyy")).
+                    </p>
+                    <div class="alert alert-secondary small">
+                        No se borra de la base. Queda marcada como eliminada, con usuario, fecha y motivo, y deja de contar en indicadores y reportes.
+                        Se puede ver con el filtro <em>Ver eliminadas</em> y restaurar.
+                    </div>
+                    <label class="form-label">Motivo <span class="text-danger">*</span></label>
+                    <textarea class="form-control" rows="3" maxlength="500" @bind="motivoEliminacion" @bind:event="oninput"
+                              placeholder="Por qué se elimina la detención..."></textarea>
+                    @if (errorEliminar)
+                    {
+                        <div class="text-danger small mt-2">No se pudo eliminar la detención. Intentá de nuevo.</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CerrarEliminar">Cancelar</button>
+                    <button type="button" class="btn btn-danger" @onclick="ConfirmarEliminar"
+                            disabled="@(string.IsNullOrWhiteSpace(motivoEliminacion) || isSubmitting)">
+                        <i class="bi bi-trash3 me-1"></i>Eliminar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private PagedResult<DetencionDto> detenciones = new();
     private List<LineaDto> lineas = new();
@@ -407,6 +561,7 @@
     private string? turnoAsignado;
     private int selectedMaquinistaId;
     private bool puedeSeleccionarMaquinista;  // True si es Admin/Gerencia/Supervisor
+    private bool esAdministrador;
     private List<EquipoDto> equipos = new();
     private List<TipoFallaDto> tiposFalla = new();
     private List<DetalleFallaDto> detallesFalla = new();
@@ -417,12 +572,16 @@
     private bool editando = false;
     private bool isSubmitting = false;
     private bool isLoadingResumen = false;
+    private bool requiereAnalisisPrevio = false;
     private string? errorMessage;
+    private string? mensajeError;
 
     private int currentPage = 1;
     private int pageSize = 10;
     private int? filtroLineaId;
     private string? filtroEstado;
+    private string? filtroAnalisis;   // "PENDIENTE" | "SIN" | null (todos)
+    private bool verEliminadas;
     private DateTime? filtroFechaDesde;
     private DateTime? filtroFechaHasta;
     private string? filtroBusqueda;
@@ -430,6 +589,34 @@
 
     private CrearDetencionRequest model = new();
     private int selectedLineaId;
+    private DetencionDto? editandoDetencion;
+    private string? horaInicioTexto;
+    private string? horaFinTexto;
+
+    private DetencionDto? detencionAEliminar;
+    private string? motivoEliminacion;
+    private bool errorEliminar;
+
+    private IJSObjectReference? moduloDescargas;
+
+    private bool HorasCargadas => ParsearHora(horaInicioTexto).HasValue && ParsearHora(horaFinTexto).HasValue;
+
+    /// <summary>
+    /// Minutos entre inicio y fin. Si el fin es anterior, cruza medianoche. Sólo para mostrar; el backend recalcula.
+    /// </summary>
+    private int? MinutosManuales
+    {
+        get
+        {
+            var inicio = ParsearHora(horaInicioTexto);
+            var fin = ParsearHora(horaFinTexto);
+            if (!inicio.HasValue || !fin.HasValue) return null;
+
+            var diferencia = fin.Value.ToTimeSpan() - inicio.Value.ToTimeSpan();
+            if (diferencia < TimeSpan.Zero) diferencia += TimeSpan.FromDays(1);
+            return (int)diferencia.TotalMinutes;
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -439,9 +626,26 @@
         puedeSeleccionarMaquinista = user.IsInRole("ADMINISTRADOR") ||
                                       user.IsInRole("GERENCIA") ||
                                       user.IsInRole("SUPERVISOR");
+        esAdministrador = user.IsInRole("ADMINISTRADOR");
 
         await CargarLineas();
         await CargarDetenciones();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            moduloDescargas = await JS.InvokeAsync<IJSObjectReference>("import", "./js/descargas.js");
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (moduloDescargas != null)
+        {
+            await moduloDescargas.DisposeAsync();
+        }
     }
 
     private async Task CargarLineas()
@@ -473,22 +677,30 @@
         catch { }
     }
 
+    private DetencionFiltroRequest ConstruirFiltro() => new()
+    {
+        Page = currentPage,
+        PageSize = pageSize,
+        LineaId = filtroLineaId,
+        Estado = filtroEstado,
+        FechaDesde = filtroFechaDesde.HasValue ? DateOnly.FromDateTime(filtroFechaDesde.Value) : null,
+        FechaHasta = filtroFechaHasta.HasValue ? DateOnly.FromDateTime(filtroFechaHasta.Value) : null,
+        Busqueda = filtroBusqueda,
+        AnalisisPendiente = filtroAnalisis switch
+        {
+            "PENDIENTE" => true,
+            "SIN" => false,
+            _ => null
+        },
+        VerEliminadas = esAdministrador && verEliminadas
+    };
+
     private async Task CargarDetenciones()
     {
         isLoading = true;
         try
         {
-            var filtro = new DetencionFiltroRequest
-            {
-                Page = currentPage,
-                PageSize = pageSize,
-                LineaId = filtroLineaId,
-                Estado = filtroEstado,
-                FechaDesde = filtroFechaDesde.HasValue ? DateOnly.FromDateTime(filtroFechaDesde.Value) : null,
-                FechaHasta = filtroFechaHasta.HasValue ? DateOnly.FromDateTime(filtroFechaHasta.Value) : null,
-                Busqueda = filtroBusqueda
-            };
-            detenciones = await DetencionesService.GetDetencionesConFiltrosAsync(filtro);
+            detenciones = await DetencionesService.GetDetencionesConFiltrosAsync(ConstruirFiltro());
         }
         catch (Exception ex)
         {
@@ -498,6 +710,12 @@
         {
             isLoading = false;
         }
+    }
+
+    private async Task AplicarFiltros()
+    {
+        currentPage = 1;
+        await CargarDetenciones();
     }
 
     private async Task CambiarPagina(int page)
@@ -510,6 +728,8 @@
     {
         filtroLineaId = null;
         filtroEstado = null;
+        filtroAnalisis = null;
+        verEliminadas = false;
         filtroFechaDesde = null;
         filtroFechaHasta = null;
         filtroBusqueda = null;
@@ -543,6 +763,23 @@
         await CargarDetenciones();
     }
 
+    private async Task ExportarExcel()
+    {
+        mensajeError = null;
+        var contenido = await DetencionesService.ExportarExcelAsync(ConstruirFiltro());
+        if (contenido == null || moduloDescargas == null)
+        {
+            mensajeError = "No se pudo exportar el Excel. Intentá de nuevo.";
+            return;
+        }
+
+        await moduloDescargas.InvokeVoidAsync(
+            "descargarArchivo",
+            $"detenciones_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            Convert.ToBase64String(contenido));
+    }
+
     private async Task AbrirModalNueva()
     {
         model = new CrearDetencionRequest();
@@ -554,7 +791,11 @@
         equipos.Clear();
         detallesFalla.Clear();
         editando = false;
+        editandoDetencion = null;
         errorMessage = null;
+        requiereAnalisisPrevio = false;
+        horaInicioTexto = null;
+        horaFinTexto = null;
         showModal = true;
         await CargarResumenTurno();
     }
@@ -573,6 +814,11 @@
         };
         selectedLineaId = det.LineaId;
 
+        // Si la detención se cargó con horas, las mostramos para que se conserven al guardar.
+        var conHoras = det.OrigenTiempo == "CALCULADO" && det.FechaHoraParada.HasValue && det.FechaHoraArranque.HasValue;
+        horaInicioTexto = conHoras ? det.FechaHoraParada!.Value.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture) : null;
+        horaFinTexto = conHoras ? det.FechaHoraArranque!.Value.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture) : null;
+
         if (model.LineaId > 0)
         {
             equipos = await CatalogosService.GetEquiposAsync(model.LineaId);
@@ -582,15 +828,19 @@
             detallesFalla = await CatalogosService.GetDetallesFallaAsync(model.TipoFallaId, model.EquipoId);
         }
 
+        editandoDetencion = det;
         editando = true;
         errorMessage = null;
         showModal = true;
         await CargarResumenTurno();
+        await ActualizarAvisoAnalisisAsync();
     }
 
     private void CerrarModal()
     {
         showModal = false;
+        editandoDetencion = null;
+        requiereAnalisisPrevio = false;
         model = new();
     }
 
@@ -631,6 +881,7 @@
             equipos.Clear();
         }
         model.EquipoId = null;
+        await ActualizarAvisoAnalisisAsync();
     }
 
     private async Task OnMaquinistaChanged()
@@ -655,6 +906,7 @@
         {
             detallesFalla = await CatalogosService.GetDetallesFallaAsync(model.TipoFallaId, model.EquipoId);
         }
+        await ActualizarAvisoAnalisisAsync();
     }
 
     private async Task OnTipoFallaChanged()
@@ -668,6 +920,20 @@
             detallesFalla.Clear();
         }
         model.DetalleFallaId = null;
+        await ActualizarAvisoAnalisisAsync();
+    }
+
+    /// <summary>
+    /// Pregunta al backend si la detención, tal como está cargada, va a requerir análisis.
+    /// No guarda nada.
+    /// </summary>
+    private async Task ActualizarAvisoAnalisisAsync()
+    {
+        AplicarHorasAlModelo();
+        model.LineaId = selectedLineaId;
+        requiereAnalisisPrevio = selectedLineaId > 0
+            && model.TipoFallaId.HasValue
+            && await DetencionesService.PrevisualizarAnalisisAsync(model);
     }
 
     private async Task CargarResumenTurno()
@@ -695,8 +961,8 @@
         }
         model.LineaId = selectedLineaId;
 
-        // Si puede seleccionar maquinista, validar que haya seleccionado uno
-        if (puedeSeleccionarMaquinista)
+        // Al crear, si puede seleccionar maquinista, validar que haya seleccionado uno
+        if (!editando && puedeSeleccionarMaquinista)
         {
             if (selectedMaquinistaId <= 0)
             {
@@ -706,9 +972,21 @@
             model.UsuarioLineaId = selectedMaquinistaId;
         }
 
-        if (model.MinutosDeclarados == null || model.MinutosDeclarados <= 0)
+        var inicio = ParsearHora(horaInicioTexto);
+        var fin = ParsearHora(horaFinTexto);
+        if (inicio.HasValue != fin.HasValue)
+        {
+            errorMessage = "Ingresá la hora de inicio y la de fin, o ninguna de las dos";
+            return;
+        }
+        if (!inicio.HasValue && (model.MinutosDeclarados == null || model.MinutosDeclarados <= 0))
         {
             errorMessage = "Debe ingresar los minutos de parada";
+            return;
+        }
+        if (inicio.HasValue && MinutosManuales == 0)
+        {
+            errorMessage = "La hora de inicio y la de fin no pueden ser iguales";
             return;
         }
         if (string.IsNullOrWhiteSpace(model.Descripcion))
@@ -717,19 +995,37 @@
             return;
         }
 
+        AplicarHorasAlModelo();
         isSubmitting = true;
 
         try
         {
-            var result = await DetencionesService.CrearDetencionAsync(model);
-            if (result != null)
+            if (editando && editandoDetencion != null)
             {
-                showModal = false;
-                await CargarDetenciones();
+                var actualizada = await DetencionesService.ActualizarDetencionAsync(
+                    editandoDetencion.DetencionId, ConstruirActualizacion(editandoDetencion));
+                if (actualizada)
+                {
+                    showModal = false;
+                    await CargarDetenciones();
+                }
+                else
+                {
+                    errorMessage = "No se pudo guardar. Si otra persona cambió la detención, recargá la página.";
+                }
             }
             else
             {
-                errorMessage = "Error al guardar la detencion";
+                var result = await DetencionesService.CrearDetencionAsync(model);
+                if (result != null)
+                {
+                    showModal = false;
+                    await CargarDetenciones();
+                }
+                else
+                {
+                    errorMessage = "Error al guardar la detencion";
+                }
             }
         }
         catch (Exception ex)
@@ -739,6 +1035,113 @@
         finally
         {
             isSubmitting = false;
+        }
+    }
+
+    private void AplicarHorasAlModelo()
+    {
+        model.HoraInicio = ParsearHora(horaInicioTexto);
+        model.HoraFin = ParsearHora(horaFinTexto);
+        model.OrigenTiempo = HorasCargadas ? "CALCULADO" : "DECLARADO";
+    }
+
+    private ActualizarDetencionRequest ConstruirActualizacion(DetencionDto det) => new()
+    {
+        Fecha = model.Fecha,
+        EquipoId = model.EquipoId,
+        TipoFallaId = model.TipoFallaId,
+        DetalleFallaId = model.DetalleFallaId,
+        MinutosDeclarados = model.MinutosDeclarados,
+        HoraInicio = model.HoraInicio,
+        HoraFin = model.HoraFin,
+        OrigenTiempo = model.OrigenTiempo,
+        Descripcion = model.Descripcion,
+        AccionesRealizadas = det.AccionesRealizadas,
+        ResolucionDescripcion = det.ResolucionDescripcion,
+        RowVersion = det.RowVersion
+    };
+
+    private void AbrirEliminar(DetencionDto det)
+    {
+        detencionAEliminar = det;
+        motivoEliminacion = null;
+        errorEliminar = false;
+    }
+
+    private void CerrarEliminar()
+    {
+        detencionAEliminar = null;
+    }
+
+    private async Task ConfirmarEliminar()
+    {
+        if (detencionAEliminar == null || string.IsNullOrWhiteSpace(motivoEliminacion)) return;
+
+        isSubmitting = true;
+        errorEliminar = false;
+        try
+        {
+            if (await DetencionesService.EliminarDetencionAsync(detencionAEliminar.DetencionId, motivoEliminacion.Trim()))
+            {
+                detencionAEliminar = null;
+                await CargarDetenciones();
+            }
+            else
+            {
+                errorEliminar = true;
+            }
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task RestaurarDetencion(long id)
+    {
+        mensajeError = null;
+        if (await DetencionesService.RestaurarDetencionAsync(id))
+        {
+            await CargarDetenciones();
+        }
+        else
+        {
+            mensajeError = "No se pudo restaurar la detención.";
+        }
+    }
+
+    private async Task CambiarHoraInicio(ChangeEventArgs e)
+    {
+        horaInicioTexto = e.Value?.ToString();
+        await ActualizarAvisoAnalisisAsync();
+    }
+
+    private async Task CambiarHoraFin(ChangeEventArgs e)
+    {
+        horaFinTexto = e.Value?.ToString();
+        await ActualizarAvisoAnalisisAsync();
+    }
+
+    private static TimeOnly? ParsearHora(string? texto) =>
+        TimeOnly.TryParseExact(texto, new[] { "HH:mm", "HH:mm:ss" }, CultureInfo.InvariantCulture, DateTimeStyles.None, out var hora)
+            ? hora
+            : null;
+
+    /// <summary>
+    /// La hora de parada sólo existe si se cargó con horas (CALCULADO o PLC). Las DECLARADO no tienen hora real.
+    /// </summary>
+    private static DateTimeOffset? HoraReal(DetencionDto det) =>
+        det.OrigenTiempo != "DECLARADO" ? det.FechaHoraParada : null;
+
+    private static bool RequiereAnalisisPendiente(DetencionDto det) =>
+        det.RequiereAnalisis && det.EstadoActual != "CERRADA";
+
+    private void AbrirFila(DetencionDto det)
+    {
+        // Las eliminadas no tienen detalle para el usuario común; sólo se restauran.
+        if (!det.Eliminada)
+        {
+            VerDetalle(det.DetencionId);
         }
     }
 

@@ -82,8 +82,36 @@ public class CrearDetencionRequest
     public int? UsuarioLineaId { get; set; }  // Maquinista asignado (opcional, para admin/supervisor)
     public DateOnly Fecha { get; set; } = DateOnly.FromDateTime(DateTime.Today);
     public int? MinutosDeclarados { get; set; }
+    public TimeOnly? HoraInicio { get; set; }
+    public TimeOnly? HoraFin { get; set; }
     public string OrigenTiempo { get; set; } = "DECLARADO";
     public string Descripcion { get; set; } = string.Empty;
+}
+
+public class ActualizarDetencionRequest
+{
+    public DateOnly Fecha { get; set; }
+    public int? EquipoId { get; set; }
+    public int? TipoFallaId { get; set; }
+    public int? DetalleFallaId { get; set; }
+    public int? MinutosDeclarados { get; set; }
+    public TimeOnly? HoraInicio { get; set; }
+    public TimeOnly? HoraFin { get; set; }
+    public string OrigenTiempo { get; set; } = "DECLARADO";
+    public string Descripcion { get; set; } = string.Empty;
+    public string? AccionesRealizadas { get; set; }
+    public string? ResolucionDescripcion { get; set; }
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+}
+
+public class EliminarDetencionRequest
+{
+    public string Motivo { get; set; } = string.Empty;
+}
+
+public class PrevisualizacionAnalisisResponse
+{
+    public bool RequiereAnalisis { get; set; }
 }
 
 public class CrearDetencionResponse
