@@ -18,6 +18,16 @@ public class DetencionFiltroRequest : PaginationParams
     public string? CreadoPorUsuarioId { get; set; }
     public string? CerradoPorUsuarioId { get; set; }
     public string? Busqueda { get; set; }
+
+    /// <summary>
+    /// true: requiere análisis y no está cerrada. false: el resto. null: sin filtrar.
+    /// </summary>
+    public bool? AnalisisPendiente { get; set; }
+
+    /// <summary>
+    /// Sólo se aplica si el usuario es ADMINISTRADOR: incluye las detenciones eliminadas.
+    /// </summary>
+    public bool VerEliminadas { get; set; }
     public bool? SoloAbiertos { get; set; }
     public bool? SoloCerrados { get; set; }
     public int? DuracionMinimaMinutos { get; set; }

@@ -1,3 +1,4 @@
+using ClosedXML.Excel;
 using Microsoft.Extensions.Logging;
 using PSAG.Mantenimiento.Application.Common;
 using PSAG.Mantenimiento.Application.DTOs.Detenciones;
@@ -115,6 +116,59 @@ public class ExportacionService : IExportacionService
             return Result<byte[]>.Failure($"Error al exportar detenciones: {ex.Message}");
         }
     }
+
+    public byte[] GenerarDetencionesXlsx(IEnumerable<Detencion> detenciones)
+    {
+        string[] encabezados =
+        [
+            "Código", "Fecha", "Hora", "Línea", "Equipo", "Tipo de falla", "Detalle de falla", "Minutos",
+            "Estado", "Análisis", "Turno", "Descripción", "Solución", "Causa", "Eliminada"
+        ];
+
+        using var libro = new XLWorkbook();
+        var hoja = libro.Worksheets.Add("Detenciones");
+
+        for (var c = 0; c < encabezados.Length; c++)
+            hoja.Cell(1, c + 1).Value = encabezados[c];
+        hoja.Row(1).Style.Font.Bold = true;
+        hoja.SheetView.FreezeRows(1);
+
+        var fila = 1;
+        foreach (var d in detenciones)
+        {
+            fila++;
+            hoja.Cell(fila, 1).Value = d.Codigo;
+            hoja.Cell(fila, 2).Value = d.Fecha.ToDateTime(TimeOnly.MinValue);
+            hoja.Cell(fila, 2).Style.DateFormat.Format = "dd/MM/yyyy";
+            hoja.Cell(fila, 3).Value = d.OrigenTiempo != OrigenTiempo.DECLARADO
+                ? d.FechaHoraParada?.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture) ?? string.Empty
+                : string.Empty;
+            hoja.Cell(fila, 4).Value = d.Linea?.Nombre ?? string.Empty;
+            hoja.Cell(fila, 5).Value = d.Equipo?.Nombre ?? string.Empty;
+            hoja.Cell(fila, 6).Value = d.TipoFalla?.Nombre ?? string.Empty;
+            hoja.Cell(fila, 7).Value = d.DetalleFalla?.Nombre ?? string.Empty;
+            hoja.Cell(fila, 8).Value = d.MinutosEfectivos;
+            hoja.Cell(fila, 9).Value = d.EstadoActual.ObtenerDescripcion();
+            hoja.Cell(fila, 10).Value = EstadoAnalisisTexto(d);
+            hoja.Cell(fila, 11).Value = d.Turno?.Nombre ?? string.Empty;
+            hoja.Cell(fila, 12).Value = d.Descripcion;
+            hoja.Cell(fila, 13).Value = d.AccionesRealizadas ?? string.Empty;
+            hoja.Cell(fila, 14).Value = d.CausaFalla ?? string.Empty;
+            hoja.Cell(fila, 15).Value = d.Eliminada ? "Sí" : "No";
+        }
+
+        hoja.RangeUsed()?.SetAutoFilter();
+        hoja.Columns().AdjustToContents();
+
+        using var memoria = new MemoryStream();
+        libro.SaveAs(memoria);
+        return memoria.ToArray();
+    }
+
+    private static string EstadoAnalisisTexto(Detencion d) =>
+        !d.RequiereAnalisis ? "Sin análisis"
+        : d.EstadoActual == EstadoDetencion.CERRADA ? "Analizada"
+        : "Requiere análisis";
 
     private static byte[] GenerarCsv(IEnumerable<Detencion> detenciones)
     {

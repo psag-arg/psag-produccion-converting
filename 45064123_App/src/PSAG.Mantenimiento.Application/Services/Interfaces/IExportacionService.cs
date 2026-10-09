@@ -10,4 +10,9 @@ public interface IExportacionService
         string usuarioId,
         IEnumerable<int>? lineasPermitidas,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Genera un libro .xlsx con las detenciones recibidas, una fila por detención.
+    /// </summary>
+    byte[] GenerarDetencionesXlsx(IEnumerable<Domain.Entities.Detencion> detenciones);
 }
