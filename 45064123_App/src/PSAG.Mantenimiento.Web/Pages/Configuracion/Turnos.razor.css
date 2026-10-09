@@ -1,0 +1,9 @@
+.calendario-dias {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: .25rem;
+}
+
+.dia-calendario {
+    min-height: 4.5rem;
+}
