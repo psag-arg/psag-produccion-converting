@@ -30,12 +30,14 @@ public class DetencionDto
     public string? ResolucionDescripcion { get; set; }
     public DateTimeOffset? FechaHoraCierre { get; set; }
     public string? CreadoPorUsuarioId { get; set; }
+    public string CreadoPorUsuarioNombre { get; set; } = string.Empty;
     public DateTimeOffset FechaHoraCreacion { get; set; }
     public DateTimeOffset? FechaHoraModificacion { get; set; }
 
-    // Eliminación y análisis
     public bool Eliminada { get; set; }
     public bool RequiereAnalisis { get; set; }
+    public bool AnalisisPendiente { get; set; }
+    public string? EstadoAnalisisDescripcion { get; set; }
     public string? ResponsableRol { get; set; }
     public string? ResponsableUsuarioId { get; set; }
     public string? CausaFalla { get; set; }
@@ -68,6 +70,7 @@ public class DetencionHistorialDto
     public long DetencionEstadoHistorialId { get; set; }
     public string? EstadoAnterior { get; set; }
     public string EstadoNuevo { get; set; } = string.Empty;
+    public string EstadoNuevoDescripcion { get; set; } = string.Empty;
     public DateTimeOffset FechaHora { get; set; }
     public string UsuarioId { get; set; } = string.Empty;
     public string? Observacion { get; set; }

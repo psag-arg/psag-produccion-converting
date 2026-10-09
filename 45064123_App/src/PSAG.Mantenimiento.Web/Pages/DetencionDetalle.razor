@@ -30,8 +30,9 @@
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
                 <h2>@detencion.Codigo</h2>
-                <span class="badge @GetEstadoBadgeClass(detencion.EstadoActual) fs-6">
-                    @detencion.EstadoActualDescripcion
+                <span class="@EstadoUi.BadgeClass(detencion.EstadoActual, detencion.AnalisisPendiente) fs-6"
+                      style="@EstadoUi.BadgeStyle(detencion.EstadoActual, detencion.AnalisisPendiente)">
+                    @EstadoUi.Texto(detencion.EstadoActualDescripcion, detencion.EstadoAnalisisDescripcion)
                 </span>
             </div>
             <div>
@@ -47,7 +48,6 @@
             </div>
         </div>
 
-        <!-- Estados de la detención -->
         <div class="card mb-4">
             <div class="card-body">
                 <div class="row g-3">
@@ -80,7 +80,6 @@
         </div>
 
         <div class="row">
-            <!-- Información principal -->
             <div class="col-md-8">
                 <div class="card mb-4">
                     <div class="card-header">
@@ -92,6 +91,13 @@
                                 <label class="text-muted small">Fecha</label>
                                 <div><strong>@detencion.Fecha.ToString("dd/MM/yyyy")</strong></div>
                             </div>
+                            @if (detencion.OrigenTiempo != "DECLARADO" && detencion.FechaHoraParada is { } horaParada)
+                            {
+                                <div class="col-md-6 mb-3">
+                                    <label class="text-muted small">Hora de parada</label>
+                                    <div><strong>@horaParada.ToLocalTime().ToString("HH:mm")</strong></div>
+                                </div>
+                            }
                             <div class="col-md-6 mb-3">
                                 <label class="text-muted small">Turno</label>
                                 <div><strong>@detencion.TurnoNombre</strong></div>
@@ -102,7 +108,13 @@
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label class="text-muted small">Equipo</label>
-                                <div><strong>@(detencion.EquipoNombre ?? "No especificado")</strong></div>
+                                <div>
+                                    <strong>@(detencion.EquipoNombre ?? "No especificado")</strong>
+                                    @if (detencion.EquipoCritico)
+                                    {
+                                        <span class="badge bg-danger ms-2">Crítico</span>
+                                    }
+                                </div>
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label class="text-muted small">Tipo de Falla</label>
@@ -122,8 +134,8 @@
                                 <div><span class="badge bg-primary fs-5">@detencion.MinutosEfectivos min</span></div>
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label class="text-muted small">Minutos Declarados</label>
-                                <div><strong>@(detencion.MinutosDeclarados?.ToString() ?? "-") min</strong></div>
+                                <label class="text-muted small">Maquinista</label>
+                                <div><strong>@(string.IsNullOrWhiteSpace(detencion.CreadoPorUsuarioNombre) ? "No especificado" : detencion.CreadoPorUsuarioNombre)</strong></div>
                             </div>
                             <div class="col-md-4 mb-3">
                                 <label class="text-muted small">Registrado</label>
@@ -157,7 +169,6 @@
                     </div>
                 </div>
 
-                <!-- Identificación de fallas -->
                 @if (detencion.RequiereAnalisis)
                 {
                     <div class="card mb-4">
@@ -176,59 +187,6 @@
                                     <div class="alert alert-@tipoMensaje py-2">@mensajeAnalisis</div>
                                 }
 
-                                <!-- Falla: la declara el operario -->
-                                <div class="mb-4">
-                                    <h6 class="mb-1">Falla</h6>
-                                    <div class="small text-muted mb-3">Completa el operario al declarar la detención</div>
-                                    <div class="row">
-                                        <div class="col-md-6 mb-2">
-                                            <label class="text-muted small">Máquina / Línea</label>
-                                            <div><strong>@analisis.LineaNombre</strong></div>
-                                        </div>
-                                        <div class="col-md-6 mb-2">
-                                            <label class="text-muted small">Fecha y hora</label>
-                                            <div><strong>@FechaHoraFalla(analisis)</strong></div>
-                                        </div>
-                                        <div class="col-md-6 mb-2">
-                                            <label class="text-muted small">Turno</label>
-                                            <div><strong>@analisis.TurnoNombre</strong></div>
-                                        </div>
-                                        <div class="col-md-6 mb-2">
-                                            <label class="text-muted small">Tiempo detención</label>
-                                            <div><strong>@analisis.MinutosEfectivos min</strong></div>
-                                        </div>
-                                        <div class="col-md-6 mb-2">
-                                            <label class="text-muted small">Equipo</label>
-                                            <div>
-                                                <strong>@(analisis.EquipoNombre ?? "No especificado")</strong>
-                                                @if (analisis.EquipoCritico)
-                                                {
-                                                    <span class="badge bg-danger ms-2">Crítico</span>
-                                                }
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6 mb-2">
-                                            <label class="text-muted small">Tipo de falla</label>
-                                            <div><strong>@(analisis.TipoFallaNombre ?? "No especificado")</strong></div>
-                                        </div>
-                                        <div class="col-md-6 mb-2">
-                                            <label class="text-muted small">Detalle</label>
-                                            <div><strong>@(analisis.DetalleFallaNombre ?? "No especificado")</strong></div>
-                                        </div>
-                                        <div class="col-md-6 mb-2">
-                                            <label class="text-muted small">Maquinista</label>
-                                            <div><strong>@(analisis.CreadoPorUsuarioNombre ?? "No especificado")</strong></div>
-                                        </div>
-                                        <div class="col-12 mb-2">
-                                            <label class="text-muted small">Descripción del fallo</label>
-                                            <div class="p-3 bg-light rounded">@analisis.Descripcion</div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <hr />
-
-                                <!-- Solución -->
                                 <div class="mb-4">
                                     <h6 class="mb-1">Solución (para resolver la falla) @if (analisis.PuedeEditar) { <span class="text-danger">*</span> }</h6>
                                     <div class="small text-muted mb-2">@ResponsableTexto(analisis)</div>
@@ -243,7 +201,6 @@
                                     }
                                 </div>
 
-                                <!-- Causa -->
                                 <div class="mb-4">
                                     <h6 class="mb-1">Causa de falla @if (analisis.PuedeEditar) { <span class="text-danger">*</span> }</h6>
                                     <div class="small text-muted mb-2">@ResponsableTexto(analisis)</div>
@@ -258,7 +215,6 @@
                                     }
                                 </div>
 
-                                <!-- Plan de acción -->
                                 <div class="mb-4">
                                     <h6 class="mb-1">Plan de acción <span class="text-muted small fw-normal">(opcional)</span></h6>
                                     <div class="small text-muted mb-2">@ResponsableTexto(analisis)</div>
@@ -308,11 +264,9 @@
                 }
             </div>
 
-            <!-- Panel lateral -->
             <div class="col-md-4">
                 @if (detencion.RequiereAnalisis && analisis != null)
                 {
-                    <!-- Por qué está acá -->
                     <div class="card mb-4">
                         <div class="card-header">
                             <h6 class="mb-0">Por qué está acá</h6>
@@ -326,11 +280,10 @@
                                     <span> ≥ @analisis.MinutosMinimosRegla min</span>
                                 }
                             </div>
-                            <div class="small text-muted">Asignada a: @ResponsableAsignado(analisis)</div>
+                            <div class="small text-muted">Asignada a: @(analisis.ResponsableNombre ?? "sin asignar")</div>
                         </div>
                     </div>
 
-                    <!-- Fallas parecidas -->
                     <div class="card mb-4">
                         <div class="card-header">
                             <h6 class="mb-0">Fallas parecidas</h6>
@@ -376,7 +329,7 @@
                                 {
                                     <li class="list-group-item">
                                         <div class="d-flex justify-content-between">
-                                            <span class="badge @GetEstadoBadgeClass(hist.EstadoNuevo)">@hist.EstadoNuevo</span>
+                                            <span class="@EstadoUi.BadgeClass(hist.EstadoNuevo, false)">@hist.EstadoNuevoDescripcion</span>
                                             <small class="text-muted">@hist.FechaHora.ToString("dd/MM HH:mm")</small>
                                         </div>
                                         @if (!string.IsNullOrEmpty(hist.Observacion))
@@ -421,7 +374,6 @@
             </div>
         </div>
 
-        <!-- Modal Cerrar Detención (sin análisis) -->
         @if (showCerrarModal)
         {
             <div class="modal show d-block" style="background-color: rgba(0,0,0,0.5);">
@@ -488,11 +440,15 @@
         isLoading = true;
         try
         {
-            detencion = await DetencionesService.GetDetencionAsync(Id);
+            var tareaDetencion = DetencionesService.GetDetencionAsync(Id);
+            var tareaAnalisis = CargarAnalisisAsync();
+            await Task.WhenAll(tareaDetencion, tareaAnalisis);
+
+            detencion = await tareaDetencion;
             if (detencion != null)
             {
                 cerrarRequest.RowVersion = detencion.RowVersion;
-                analisis = detencion.RequiereAnalisis ? await CargarAnalisisAsync() : null;
+                analisis = detencion.RequiereAnalisis ? await tareaAnalisis : null;
                 CargarFormulario();
             }
         }
@@ -632,7 +588,7 @@
         }
 
         pasos.Add(new("En análisis",
-            analisis != null && estado != "CERRADA" ? $"Responsable: {NombreResponsable(analisis)}" : null,
+            analisis != null && estado != "CERRADA" ? $"Responsable: {analisis.ResponsableNombre ?? "sin asignar"}" : null,
             Hecho: estado == "EN_SEGUIMIENTO" || estado == "CERRADA",
             Actual: estado == "EN_SEGUIMIENTO"));
 
@@ -646,34 +602,9 @@
         return pasos;
     }
 
-    private string FechaHoraFalla(AnalisisDetencionDto dato) =>
-        dato.FechaHoraParada.HasValue
-            ? dato.FechaHoraParada.Value.ToString("dd/MM/yyyy HH:mm")
-            : $"{dato.Fecha:dd/MM/yyyy} (sin hora)";
-
-    private string NombreResponsable(AnalisisDetencionDto dato)
+    private static string ResponsableTexto(AnalisisDetencionDto dato)
     {
-        if (!string.IsNullOrEmpty(dato.ResponsableUsuarioId))
-        {
-            return dato.ResponsableUsuarioNombre ?? "usuario asignado";
-        }
-
-        return string.IsNullOrEmpty(dato.ResponsableRol) ? "sin asignar" : Capitalizar(dato.ResponsableRol);
-    }
-
-    private string ResponsableAsignado(AnalisisDetencionDto dato)
-    {
-        if (!string.IsNullOrEmpty(dato.ResponsableUsuarioId))
-        {
-            return NombreResponsable(dato);
-        }
-
-        return string.IsNullOrEmpty(dato.ResponsableRol) ? "sin asignar" : $"rol {NombreResponsable(dato)}";
-    }
-
-    private string ResponsableTexto(AnalisisDetencionDto dato)
-    {
-        var responsable = NombreResponsable(dato);
+        var responsable = dato.ResponsableNombre ?? "sin asignar";
         return dato.PuedeEditar ? $"Completa {responsable}" : $"Lo completa {responsable}";
     }
 
@@ -688,15 +619,4 @@
             ? $"detenciones/soluciones?tipoFallaId={detencion.TipoFallaId}"
             : "detenciones/soluciones";
     }
-
-    private static string Capitalizar(string texto) =>
-        texto.Length == 0 ? texto : char.ToUpperInvariant(texto[0]) + texto[1..].ToLowerInvariant();
-
-    private string GetEstadoBadgeClass(string estado) => estado switch
-    {
-        "REGISTRADA" => "bg-primary",
-        "EN_SEGUIMIENTO" => "bg-warning text-dark",
-        "CERRADA" => "bg-success",
-        _ => "bg-secondary"
-    };
 }

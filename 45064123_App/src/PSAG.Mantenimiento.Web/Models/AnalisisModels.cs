@@ -3,39 +3,18 @@ namespace PSAG.Mantenimiento.Web.Models;
 public class AnalisisDetencionDto
 {
     public long DetencionId { get; set; }
-    public string Codigo { get; set; } = string.Empty;
-    public string EstadoActual { get; set; } = string.Empty;
-    public string EstadoActualDescripcion { get; set; } = string.Empty;
-    public bool RequiereAnalisis { get; set; }
-
-    // Falla
-    public string LineaNombre { get; set; } = string.Empty;
-    public DateOnly Fecha { get; set; }
-    public DateTimeOffset? FechaHoraParada { get; set; }
-    public string TurnoNombre { get; set; } = string.Empty;
-    public int MinutosEfectivos { get; set; }
-    public string? EquipoNombre { get; set; }
-    public bool EquipoCritico { get; set; }
     public string? TipoFallaNombre { get; set; }
-    public string? DetalleFallaNombre { get; set; }
-    public string Descripcion { get; set; } = string.Empty;
-    public string? CreadoPorUsuarioId { get; set; }
-    public string? CreadoPorUsuarioNombre { get; set; }
-
-    // Regla y responsable
     public int? MinutosMinimosRegla { get; set; }
     public string? ResponsableRol { get; set; }
     public string? ResponsableUsuarioId { get; set; }
     public string? ResponsableUsuarioNombre { get; set; }
-
-    // Análisis
+    public string? ResponsableNombre { get; set; }
     public string? AccionesRealizadas { get; set; }
     public string? CausaFalla { get; set; }
     public string? PlanAccion { get; set; }
     public string? AnalisisPorUsuarioId { get; set; }
     public string? AnalisisPorUsuarioNombre { get; set; }
     public DateTimeOffset? FechaHoraAnalisis { get; set; }
-
     public bool PuedeEditar { get; set; }
     public List<SolucionDto> FallasParecidas { get; set; } = new();
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
@@ -92,10 +71,12 @@ public class PendienteAnalisisDto
     public int MinutosEfectivos { get; set; }
     public string EstadoActual { get; set; } = string.Empty;
     public string EstadoActualDescripcion { get; set; } = string.Empty;
+    public string? EstadoAnalisisDescripcion { get; set; }
     public int? DiasEsperando { get; set; }
     public string? ResponsableRol { get; set; }
     public string? ResponsableUsuarioId { get; set; }
     public string? ResponsableUsuarioNombre { get; set; }
+    public string? ResponsableNombre { get; set; }
     public string? AnalisisPorUsuarioId { get; set; }
     public string? AnalisisPorUsuarioNombre { get; set; }
     public DateTimeOffset? FechaHoraAnalisis { get; set; }
