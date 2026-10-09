@@ -136,4 +136,4 @@ Nota de costos: para el intento de SQL Server bajé una imagen de 2,3 GB sin ped
 
 ## Archivos cambiados (desde 30a9450)
 
-Plan y U0 completos: 32 archivos del primer alcance, más el follow-up: `Api/Controllers/DetencionesController.cs`, `Application/Services/Interfaces/IDetencionService.cs`, `Application/Services/Implementations/DetencionService.cs`, `Infrastructure/Data/MantenimientoDbContext.cs`, `database/17_t76_ajustes.sql`, `database/README.md`.
+Plan y U0 completos: 32 archivos del primer alcance, más el follow-up: `Api/Controllers/DetencionesController.cs`, `Application/Services/Interfaces/IDetencionService.cs`, `Application/Services/Implementations/DetencionService.cs`, `Infrastructure/Data/MantenimientoDbContext.cs`, `database/17_t76_ajustes.sql`, `database/README.md`, `tests/PSAG.Mantenimiento.Api.IntegrationTests/AuditoriaFechasTests.cs` (auditoría).
