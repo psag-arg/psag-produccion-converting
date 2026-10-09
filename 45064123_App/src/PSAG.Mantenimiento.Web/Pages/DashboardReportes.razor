@@ -1,4 +1,5 @@
 @page "/dashboard/reportes"
+@using System.Globalization
 @using Microsoft.AspNetCore.Authorization
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
@@ -28,6 +29,17 @@
                     <option value="@i">@i</option>
                 }
             </select>
+            @if (activeTab == 2)
+            {
+                <label class="form-label mb-0 ms-3 me-2">Mes:</label>
+                <select class="form-select form-select-sm" style="width: auto;" @bind="filtroMes" @bind:after="@(async () => await CargarPareto())">
+                    <option value="0">Todos</option>
+                    @for (int m = 1; m <= 12; m++)
+                    {
+                        <option value="@m">@NombresMeses[m]</option>
+                    }
+                </select>
+            }
             <button class="btn btn-outline-primary btn-sm ms-2" @onclick="CargarReportes">
                 <i class="bi bi-arrow-clockwise"></i> Actualizar
             </button>
@@ -69,27 +81,35 @@
             {
                 @* REPORTE INDISPONIBILIDAD *@
                 <div class="card">
-                    <div class="card-header">
+                    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                         <h5 class="mb-0">
                             INDISPONIBILIDAD @(indisponibilidad?.LineaNombre ?? "Todas las lineas")
                         </h5>
+                        @if (indisponibilidad != null && indisponibilidad.Meses.Any())
+                        {
+                            <span class="text-muted small">
+                                Total minutos: @FormatoMinutos(indisponibilidad.Meses.Sum(m => m.MinutosTotalesParada)) ·
+                                Total horas programadas: @FormatoHoras(indisponibilidad.Meses.Sum(m => m.HorasProgramadas)) h
+                            </span>
+                        }
                     </div>
                     <div class="card-body">
                         @if (indisponibilidad != null && indisponibilidad.Meses.Any())
                         {
+                            <div class="alert alert-info py-2 small">
+                                <strong>Indisponibilidad = minutos de detención ÷ tiempo programado.</strong>
+                                El tiempo programado sale de los turnos de la línea más las excepciones del calendario.
+                            </div>
+
                             <!-- Leyenda -->
                             <div class="d-flex flex-wrap gap-3 mb-4">
                                 @foreach (var tipo in GetTiposFallaUnicos(indisponibilidad))
                                 {
                                     <div class="d-flex align-items-center">
                                         <div style="width: 16px; height: 16px; background-color: @GetColorTipoFalla(tipo); margin-right: 6px;"></div>
-                                        <small>@tipo</small>
+                                        <small>@tipo.TipoFallaNombre</small>
                                     </div>
                                 }
-                                <div class="d-flex align-items-center">
-                                    <div style="width: 16px; height: 2px; background-color: #333; margin-right: 6px;"></div>
-                                    <small>Indisponibilidad (%)</small>
-                                </div>
                             </div>
 
                             <!-- Grafico de barras apiladas -->
@@ -112,7 +132,7 @@
                                             @foreach (var tipo in mes.PorTipoFalla.OrderBy(t => t.TipoFallaNombre))
                                             {
                                                 <div class="clickable"
-                                                     style="width: 100%; height: @(tipo.Porcentaje * 12)px; background-color: @GetColorTipoFalla(tipo.TipoFallaNombre);"
+                                                     style="width: 100%; height: @(tipo.Porcentaje * 12)px; background-color: @GetColorTipoFalla(tipo);"
                                                      title="@tipo.TipoFallaNombre: @tipo.Porcentaje% - Click para ver detalle"
                                                      @onclick="@(async () => await MostrarDetallePorMesYTipo(mes.Mes, tipo.TipoFallaId, tipo.TipoFallaNombre, mes.MesNombre))"></div>
                                             }
@@ -130,7 +150,7 @@
                                         <div class="stacked-bar d-flex flex-column-reverse" style="width: 100%; max-width: 50px; height: @(indisponibilidad.Promedio.IndisponibilidadTotal * 12)px; max-height: 300px;">
                                             @foreach (var tipo in indisponibilidad.Promedio.PorTipoFalla.OrderBy(t => t.TipoFallaNombre))
                                             {
-                                                <div style="width: 100%; height: @(tipo.Porcentaje * 12)px; background-color: @GetColorTipoFalla(tipo.TipoFallaNombre);"
+                                                <div style="width: 100%; height: @(tipo.Porcentaje * 12)px; background-color: @GetColorTipoFalla(tipo);"
                                                      title="@tipo.TipoFallaNombre: @tipo.Porcentaje%"></div>
                                             }
                                         </div>
@@ -157,24 +177,44 @@
                                         @foreach (var tipo in GetTiposFallaUnicos(indisponibilidad))
                                         {
                                             <tr>
-                                                <td>@tipo</td>
+                                                <td>@tipo.TipoFallaNombre</td>
                                                 @foreach (var mes in indisponibilidad.Meses)
                                                 {
-                                                    var item = mes.PorTipoFalla.FirstOrDefault(t => t.TipoFallaNombre == tipo);
+                                                    var item = mes.PorTipoFalla.FirstOrDefault(t => t.TipoFallaId == tipo.TipoFallaId);
                                                     <td class="text-center clickable"
                                                         title="Click para ver detalle"
-                                                        @onclick="@(async () => await MostrarDetallePorMesYTipo(mes.Mes, item?.TipoFallaId, tipo, mes.MesNombre))">
+                                                        @onclick="@(async () => await MostrarDetallePorMesYTipo(mes.Mes, tipo.TipoFallaId, tipo.TipoFallaNombre, mes.MesNombre))">
                                                         @((item?.Porcentaje ?? 0).ToString("0.0"))%
                                                     </td>
                                                 }
                                                 @{
-                                                    var promItem = indisponibilidad.Promedio?.PorTipoFalla.FirstOrDefault(t => t.TipoFallaNombre == tipo);
+                                                    var promItem = indisponibilidad.Promedio?.PorTipoFalla.FirstOrDefault(t => t.TipoFallaId == tipo.TipoFallaId);
                                                 }
                                                 <td class="text-center fw-bold">@((promItem?.Porcentaje ?? 0).ToString("0.0"))%</td>
                                             </tr>
                                         }
+                                        <tr>
+                                            <td>Minutos de detención</td>
+                                            @foreach (var mes in indisponibilidad.Meses)
+                                            {
+                                                <td class="text-center">@FormatoMinutos(mes.MinutosTotalesParada)</td>
+                                            }
+                                            <td class="text-center fw-bold">@FormatoMinutos(indisponibilidad.Promedio?.MinutosTotalesParada ?? 0)</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Tiempo programado (h)</td>
+                                            @foreach (var mes in indisponibilidad.Meses)
+                                            {
+                                                <td class="text-center">
+                                                    <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
+                                                            title="Ver el tiempo programado día por día"
+                                                            @onclick="@(async () => await MostrarTiempoProgramado(mes))">@FormatoHoras(mes.HorasProgramadas) h</button>
+                                                </td>
+                                            }
+                                            <td class="text-center fw-bold">@FormatoHoras(indisponibilidad.Promedio?.HorasProgramadas ?? 0) h</td>
+                                        </tr>
                                         <tr class="table-secondary fw-bold">
-                                            <td>TOTAL</td>
+                                            <td>Indisponibilidad</td>
                                             @foreach (var mes in indisponibilidad.Meses)
                                             {
                                                 <td class="text-center">@mes.IndisponibilidadTotal.ToString("0.0")%</td>
@@ -211,13 +251,9 @@
                                 {
                                     <div class="d-flex align-items-center">
                                         <div style="width: 16px; height: 16px; background-color: @GetColorFalloMayor(tipo); margin-right: 6px;"></div>
-                                        <small>Eventos @tipo</small>
+                                        <small>Eventos @tipo.TipoFallaNombre</small>
                                     </div>
                                 }
-                                <div class="d-flex align-items-center">
-                                    <div style="width: 16px; height: 2px; background-color: #333; margin-right: 6px;"></div>
-                                    <small>Ind. Fallos Mayores (%)</small>
-                                </div>
                             </div>
 
                             <!-- Grafico combinado -->
@@ -231,15 +267,6 @@
                                     <span class="small text-muted">20</span>
                                 </div>
 
-                                <!-- Eje Y derecho (%) -->
-                                <div style="position: absolute; right: -50px; height: 100%; display: flex; flex-direction: column-reverse; justify-content: space-between; padding: 5px 0;">
-                                    <span class="small text-muted">0%</span>
-                                    <span class="small text-muted">1%</span>
-                                    <span class="small text-muted">2%</span>
-                                    <span class="small text-muted">3%</span>
-                                    <span class="small text-muted">4%</span>
-                                </div>
-
                                 @foreach (var mes in fallosMayores.Meses)
                                 {
                                     <div class="d-flex flex-column align-items-center" style="flex: 1; max-width: 80px; position: relative;">
@@ -248,7 +275,7 @@
                                             @foreach (var tipo in mes.PorTipoFalla.OrderBy(t => t.TipoFallaNombre))
                                             {
                                                 <div class="clickable"
-                                                     style="width: 100%; height: @(tipo.CantidadEventos * 15)px; background-color: @GetColorFalloMayor(tipo.TipoFallaNombre); display: flex; align-items: center; justify-content: center;"
+                                                     style="width: 100%; height: @(tipo.CantidadEventos * 15)px; background-color: @GetColorFalloMayor(tipo); display: flex; align-items: center; justify-content: center;"
                                                      title="@tipo.TipoFallaNombre: @tipo.CantidadEventos eventos - Click para ver detalle"
                                                      @onclick="@(async () => await MostrarDetalleFallosMayores(mes.Mes, tipo.TipoFallaId, tipo.TipoFallaNombre, mes.MesNombre))">
                                                     @if (tipo.CantidadEventos > 0)
@@ -258,9 +285,6 @@
                                                 </div>
                                             }
                                         </div>
-                                        <!-- Marcador de % -->
-                                        <div style="position: absolute; top: @(280 - (mes.IndicadorPorcentaje * 70))px; width: 8px; height: 8px; background-color: #333; border-radius: 50%;"
-                                             title="Indicador: @mes.IndicadorPorcentaje%"></div>
                                         <!-- Label indicador -->
                                         <small class="fw-bold mt-1">@mes.IndicadorPorcentaje.ToString("0.0")%</small>
                                         <!-- Label mes -->
@@ -274,7 +298,7 @@
                                         <div class="stacked-bar d-flex flex-column-reverse" style="width: 100%; max-width: 50px; height: @(fallosMayores.Promedio.TotalEventos * 15)px; max-height: 280px;">
                                             @foreach (var tipo in fallosMayores.Promedio.PorTipoFalla.OrderBy(t => t.TipoFallaNombre))
                                             {
-                                                <div style="width: 100%; height: @(tipo.CantidadEventos * 15)px; background-color: @GetColorFalloMayor(tipo.TipoFallaNombre); display: flex; align-items: center; justify-content: center;">
+                                                <div style="width: 100%; height: @(tipo.CantidadEventos * 15)px; background-color: @GetColorFalloMayor(tipo); display: flex; align-items: center; justify-content: center;">
                                                     @if (tipo.CantidadEventos > 0)
                                                     {
                                                         <small class="text-white fw-bold">@tipo.CantidadEventos</small>
@@ -282,7 +306,6 @@
                                                 </div>
                                             }
                                         </div>
-                                        <div style="position: absolute; top: @(280 - (fallosMayores.Promedio.IndicadorPorcentaje * 70))px; width: 8px; height: 8px; background-color: #333; border-radius: 50%;"></div>
                                         <small class="fw-bold mt-1">@fallosMayores.Promedio.IndicadorPorcentaje.ToString("0.0")%</small>
                                         <small class="text-muted">@fallosMayores.Promedio.MesNombre</small>
                                     </div>
@@ -306,14 +329,14 @@
                                         @foreach (var tipo in GetTiposFallosMayoresUnicos(fallosMayores))
                                         {
                                             <tr>
-                                                <td>@tipo</td>
+                                                <td>@tipo.TipoFallaNombre</td>
                                                 @foreach (var mes in fallosMayores.Meses)
                                                 {
-                                                    var item = mes.PorTipoFalla.FirstOrDefault(t => t.TipoFallaNombre == tipo);
+                                                    var item = mes.PorTipoFalla.FirstOrDefault(t => t.TipoFallaId == tipo.TipoFallaId);
                                                     <td class="text-center">@(item?.CantidadEventos ?? 0)</td>
                                                 }
                                                 @{
-                                                    var promItem = fallosMayores.Promedio?.PorTipoFalla.FirstOrDefault(t => t.TipoFallaNombre == tipo);
+                                                    var promItem = fallosMayores.Promedio?.PorTipoFalla.FirstOrDefault(t => t.TipoFallaId == tipo.TipoFallaId);
                                                 }
                                                 <td class="text-center fw-bold">@(promItem?.CantidadEventos ?? 0)</td>
                                             </tr>
@@ -352,7 +375,7 @@
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">
-                            DETENCIONES - @(pareto?.LineaNombre ?? "Todas las lineas")
+                            Pareto de detenciones · @TextoPeriodoPareto() · @(pareto?.LineaNombre ?? "Todas las lineas")
                         </h5>
                         <div class="d-flex gap-2 align-items-center">
                             <label class="form-label mb-0 me-1 small">Turno:</label>
@@ -537,6 +560,88 @@
     </div>
 }
 
+@* Modal de tiempo programado por día *@
+@if (mostrarModalProgramado && mesProgramado != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@programadoTitulo</h5>
+                    <button type="button" class="btn-close" @onclick="CerrarModalProgramado"></button>
+                </div>
+                <div class="modal-body">
+                    @if (cargandoProgramado)
+                    {
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Cargando...</span>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        var minutosTotales = diasProgramados.Sum(d => d.Minutos);
+                        <div class="row text-center mb-3">
+                            <div class="col">
+                                <div class="text-muted small">Minutos de detención</div>
+                                <strong>@FormatoMinutos(mesProgramado.MinutosTotalesParada)</strong>
+                            </div>
+                            <div class="col">
+                                <div class="text-muted small">Tiempo programado</div>
+                                <strong>@FormatoHoras(mesProgramado.HorasProgramadas) h (@FormatoMinutos(mesProgramado.MinutosProgramados) min)</strong>
+                            </div>
+                            <div class="col">
+                                <div class="text-muted small">Indisponibilidad</div>
+                                <strong>@mesProgramado.IndisponibilidadTotal.ToString("0.0", Castellano)%</strong>
+                            </div>
+                        </div>
+                        <div class="table-responsive" style="max-height: 500px;">
+                            <table class="table table-sm table-striped">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th>Día</th>
+                                        @if (filtroLineaId == 0)
+                                        {
+                                            <th>Línea</th>
+                                        }
+                                        <th class="text-end">Horas</th>
+                                        <th>Origen</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var dia in diasProgramados)
+                                    {
+                                        <tr>
+                                            <td class="text-nowrap">@dia.Fecha.ToString("ddd dd/MM", Castellano)</td>
+                                            @if (filtroLineaId == 0)
+                                            {
+                                                <td>@dia.LineaNombre</td>
+                                            }
+                                            <td class="text-end">@FormatoHoras(dia.Horas)</td>
+                                            <td>@TextoOrigen(dia)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot class="table-secondary fw-bold">
+                                    <tr>
+                                        <td colspan="@(filtroLineaId == 0 ? 2 : 1)">Total</td>
+                                        <td class="text-end">@FormatoHoras(minutosTotales / 60.0) h</td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CerrarModalProgramado">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 <style>
     .stacked-bar {
         border: 1px solid #ddd;
@@ -579,6 +684,7 @@
     private int filtroLineaId = 0;
     private int filtroAnio = DateTime.Today.Year;
     private int filtroTurnoId = 0;
+    private int filtroMes = 0;
     private int activeTab = 0;
     private bool isLoading = true;
 
@@ -591,6 +697,28 @@
     private bool cargandoDetalle = false;
     private string modalTitulo = "";
     private PagedResult<DetencionDto>? detencionesDetalle;
+
+    // Modal de tiempo programado por dia
+    private bool mostrarModalProgramado = false;
+    private bool cargandoProgramado = false;
+    private string programadoTitulo = "";
+    private IndisponibilidadMensualDto? mesProgramado;
+    private List<TiempoProgramadoDiaDto> diasProgramados = new();
+
+    // Números y días de los elementos nuevos en castellano, sin cambiar la cultura de la app
+    private static readonly CultureInfo Castellano = new("es-AR");
+
+    private static readonly string[] NombresMeses =
+    {
+        "", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+    };
+
+    // Colores de respaldo para tipos de falla sin color en el maestro (fijo por TipoFallaId)
+    private static readonly string[] PaletaTipoFalla =
+    {
+        "#ED7D31", "#70AD47", "#7030A0", "#C00000", "#4BACC6", "#FF66CC", "#8FAADC", "#BF9000"
+    };
 
     // Colores para tipos de falla (basados en las imagenes del cliente)
     private static readonly Dictionary<string, string> ColoresTipoFalla = new()
@@ -645,11 +773,12 @@
             // Cargar los 3 reportes en paralelo
             var tareaIndisponibilidad = DashboardService.GetIndisponibilidadAsync(lineaId, filtroAnio);
             var tareaFallosMayores = DashboardService.GetFallosMayoresAsync(lineaId, filtroAnio);
+            var (desde, hasta) = PeriodoPareto();
             var tareaPareto = DashboardService.GetParetoAsync(
                 lineaId,
                 filtroTurnoId > 0 ? filtroTurnoId : (int?)null,
-                new DateTime(filtroAnio, 1, 1),
-                new DateTime(filtroAnio, 12, 31));
+                desde.ToDateTime(TimeOnly.MinValue),
+                hasta.ToDateTime(TimeOnly.MinValue));
 
             await Task.WhenAll(tareaIndisponibilidad, tareaFallosMayores, tareaPareto);
 
@@ -672,11 +801,12 @@
         try
         {
             var lineaId = filtroLineaId > 0 ? filtroLineaId : (int?)null;
+            var (desde, hasta) = PeriodoPareto();
             pareto = await DashboardService.GetParetoAsync(
                 lineaId,
                 filtroTurnoId > 0 ? filtroTurnoId : (int?)null,
-                new DateTime(filtroAnio, 1, 1),
-                new DateTime(filtroAnio, 12, 31));
+                desde.ToDateTime(TimeOnly.MinValue),
+                hasta.ToDateTime(TimeOnly.MinValue));
         }
         catch (Exception ex)
         {
@@ -684,51 +814,105 @@
         }
     }
 
-    private List<string> GetTiposFallaUnicos(IndisponibilidadReporteDto reporte)
+    private (DateOnly Desde, DateOnly Hasta) PeriodoPareto()
+    {
+        if (filtroMes > 0)
+        {
+            var desde = new DateOnly(filtroAnio, filtroMes, 1);
+            return (desde, desde.AddMonths(1).AddDays(-1));
+        }
+
+        return (new DateOnly(filtroAnio, 1, 1), new DateOnly(filtroAnio, 12, 31));
+    }
+
+    private string TextoPeriodoPareto() =>
+        filtroMes > 0 ? $"{NombresMeses[filtroMes]} {filtroAnio}" : $"{filtroAnio}";
+
+    private static string FormatoHoras(double horas) => horas.ToString("#,##0.#", Castellano);
+
+    private static string FormatoMinutos(int minutos) => minutos.ToString("N0", Castellano);
+
+    private List<IndisponibilidadTipoFallaItem> GetTiposFallaUnicos(IndisponibilidadReporteDto reporte)
     {
         return reporte.Meses
             .SelectMany(m => m.PorTipoFalla)
-            .Select(t => t.TipoFallaNombre)
-            .Distinct()
-            .OrderBy(t => t)
+            .GroupBy(t => t.TipoFallaId)
+            .Select(g => g.First())
+            .OrderBy(t => t.TipoFallaNombre)
             .ToList();
     }
 
-    private List<string> GetTiposFallosMayoresUnicos(FallosMayoresReporteDto reporte)
+    private List<FalloMayorTipoItem> GetTiposFallosMayoresUnicos(FallosMayoresReporteDto reporte)
     {
         return reporte.Meses
             .SelectMany(m => m.PorTipoFalla)
-            .Select(t => t.TipoFallaNombre)
-            .Distinct()
-            .OrderBy(t => t)
+            .GroupBy(t => t.TipoFallaId)
+            .Select(g => g.First())
+            .OrderBy(t => t.TipoFallaNombre)
             .ToList();
     }
 
-    private string GetColorTipoFalla(string tipoFalla)
+    private string GetColorTipoFalla(IndisponibilidadTipoFallaItem tipo) =>
+        ResolverColor(tipo.Color, tipo.TipoFallaId, tipo.TipoFallaNombre, ColoresTipoFalla);
+
+    private string GetColorFalloMayor(FalloMayorTipoItem tipo) =>
+        ResolverColor(tipo.Color, tipo.TipoFallaId, tipo.TipoFallaNombre, ColoresFalloMayor);
+
+    // Color del maestro Tipos de Falla; si no tiene, el mapa por nombre; si tampoco, un color fijo por TipoFallaId.
+    private static string ResolverColor(string? colorMaestro, int tipoFallaId, string nombre, IReadOnlyDictionary<string, string> respaldo)
     {
-        var upper = tipoFalla.ToUpper();
-        foreach (var kvp in ColoresTipoFalla)
+        if (!string.IsNullOrWhiteSpace(colorMaestro))
+            return colorMaestro;
+
+        var upper = nombre.ToUpper();
+        foreach (var kvp in respaldo)
         {
             if (upper.Contains(kvp.Key.ToUpper()))
                 return kvp.Value;
         }
-        // Color por defecto basado en hash
-        var hash = tipoFalla.GetHashCode();
-        var colors = new[] { "#F4B183", "#A5A5A5", "#FFE699", "#9DC3E6", "#A9D18E", "#5B9BD5" };
-        return colors[Math.Abs(hash) % colors.Length];
+
+        return PaletaTipoFalla[Math.Abs(tipoFallaId) % PaletaTipoFalla.Length];
     }
 
-    private string GetColorFalloMayor(string tipoFalla)
+    private async Task MostrarTiempoProgramado(IndisponibilidadMensualDto mes)
     {
-        var upper = tipoFalla.ToUpper();
-        foreach (var kvp in ColoresFalloMayor)
+        var lineaId = filtroLineaId > 0 ? filtroLineaId : (int?)null;
+        var linea = lineas.FirstOrDefault(l => l.LineaId == lineaId);
+
+        mesProgramado = mes;
+        programadoTitulo = $"Tiempo programado · {NombresMeses[mes.Mes]} {filtroAnio} · {linea?.Nombre ?? "Todas las lineas"}";
+        mostrarModalProgramado = true;
+        cargandoProgramado = true;
+        StateHasChanged();
+
+        try
         {
-            if (upper.Contains(kvp.Key.ToUpper()))
-                return kvp.Value;
+            diasProgramados = await DashboardService.GetTiempoProgramadoAsync(lineaId, filtroAnio, mes.Mes) ?? new();
         }
-        // Color por defecto
-        return upper.Contains("PROCESO") ? "#5B9BD5" : "#FFD966";
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error cargando tiempo programado: {ex.Message}");
+            diasProgramados = new();
+        }
+        finally
+        {
+            cargandoProgramado = false;
+        }
     }
+
+    private void CerrarModalProgramado()
+    {
+        mostrarModalProgramado = false;
+        mesProgramado = null;
+        diasProgramados = new();
+    }
+
+    private static string TextoOrigen(TiempoProgramadoDiaDto dia) => dia.Origen switch
+    {
+        "EXCEPCION" => string.IsNullOrWhiteSpace(dia.Motivo) ? "Excepción" : $"Excepción · {dia.Motivo}",
+        "HISTORICO" => "Histórico (HS PROG)",
+        _ => "Estándar"
+    };
 
     // Metodos del modal de detalle
     private void CerrarModal()
@@ -802,8 +986,8 @@
             LineaId = lineaId,
             TipoFallaId = tipoFallaId,
             TurnoId = turnoId,
-            FechaDesde = new DateOnly(filtroAnio, 1, 1),
-            FechaHasta = new DateOnly(filtroAnio, 12, 31),
+            FechaDesde = PeriodoPareto().Desde,
+            FechaHasta = PeriodoPareto().Hasta,
             PageSize = 100
         });
     }
@@ -825,8 +1009,8 @@
             LineaId = lineaId,
             EquipoId = equipoId,
             TurnoId = turnoId,
-            FechaDesde = new DateOnly(filtroAnio, 1, 1),
-            FechaHasta = new DateOnly(filtroAnio, 12, 31),
+            FechaDesde = PeriodoPareto().Desde,
+            FechaHasta = PeriodoPareto().Hasta,
             PageSize = 100
         });
     }
@@ -849,8 +1033,8 @@
             EquipoId = equipoId,
             DetalleFallaId = detalleFallaId,
             TurnoId = turnoId,
-            FechaDesde = new DateOnly(filtroAnio, 1, 1),
-            FechaHasta = new DateOnly(filtroAnio, 12, 31),
+            FechaDesde = PeriodoPareto().Desde,
+            FechaHasta = PeriodoPareto().Hasta,
             PageSize = 100
         });
     }

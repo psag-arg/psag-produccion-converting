@@ -547,7 +547,48 @@ public class DashboardService : IDashboardService
         "", "ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sept", "oct", "nov", "dic"
     };
 
-    private static readonly int MINUTOS_POR_TURNO = 480; // 8 horas
+    // Tiempo programado real (turnos + excepciones + histórico) de las líneas en alcance, día por día del año.
+    private async Task<IReadOnlyList<TiempoProgramadoDiaDto>> CargarTiempoProgramadoAsync(
+        int? lineaId,
+        int anio,
+        CancellationToken cancellationToken)
+    {
+        var desde = new DateOnly(anio, 1, 1);
+        var hasta = new DateOnly(anio, 12, 31);
+        var turnos = await _unitOfWork.Turnos.GetAllAsync(cancellationToken);
+        var lineas = await _unitOfWork.Lineas.GetAllAsync(cancellationToken);
+
+        var dias = new List<TiempoProgramadoDiaDto>();
+        foreach (var linea in lineas.Where(l => l.Activo && (!lineaId.HasValue || l.LineaId == lineaId.Value)))
+        {
+            var excepciones = await _unitOfWork.TiemposProgramadosDia.GetPorLineaYRangoAsync(
+                linea.LineaId, desde, hasta, cancellationToken);
+            dias.AddRange(TiempoProgramadoReporte.DiasDeLinea(
+                linea.LineaId, linea.Nombre, desde, hasta, turnos, excepciones));
+        }
+
+        return dias;
+    }
+
+    public async Task<Result<IReadOnlyList<TiempoProgramadoDiaDto>>> ObtenerTiempoProgramadoDiasAsync(
+        int? lineaId,
+        int anio,
+        int mes,
+        CancellationToken cancellationToken = default)
+    {
+        if (anio is < 1 or > 9999 || mes is < 1 or > 12)
+            return Result<IReadOnlyList<TiempoProgramadoDiaDto>>.Failure("El año o el mes no son válidos.");
+
+        var dias = await CargarTiempoProgramadoAsync(lineaId, anio, cancellationToken);
+
+        IReadOnlyList<TiempoProgramadoDiaDto> delMes = dias
+            .Where(d => d.Fecha.Month == mes)
+            .OrderBy(d => d.Fecha)
+            .ThenBy(d => d.LineaNombre)
+            .ToList();
+
+        return Result<IReadOnlyList<TiempoProgramadoDiaDto>>.Success(delMes);
+    }
 
     public async Task<Result<IndisponibilidadReporteDto>> ObtenerIndisponibilidadAsync(
         ReporteFiltroRequest filtro,
@@ -559,7 +600,6 @@ public class DashboardService : IDashboardService
 
         var detenciones = await _unitOfWork.Detenciones.GetAllAsync(cancellationToken);
         var tiposFalla = await _unitOfWork.TiposFalla.GetAllAsync(cancellationToken);
-        var turnos = await _unitOfWork.Turnos.GetAllAsync(cancellationToken);
         var lineas = await _unitOfWork.Lineas.GetAllAsync(cancellationToken);
 
         // Filtrar por linea si se especifica
@@ -572,13 +612,8 @@ public class DashboardService : IDashboardService
 
         var detencionesLista = query.ToList();
 
-        // Calcular turnos trabajados por mes (aproximacion: dias del mes * 3 turnos)
-        // En la realidad deberia venir de un registro de turnos trabajados
-        int CalcularTurnosTrabajados(int mes)
-        {
-            var diasEnMes = DateTime.DaysInMonth(anio, mes);
-            return diasEnMes * 3; // 3 turnos por dia aproximadamente
-        }
+        var minutosProgramadosPorMes = TiempoProgramadoReporte.MinutosPorMes(
+            await CargarTiempoProgramadoAsync(filtro.LineaId, anio, cancellationToken));
 
         var reporte = new IndisponibilidadReporteDto
         {
@@ -593,22 +628,21 @@ public class DashboardService : IDashboardService
         for (int mes = mesDesde; mes <= mesHasta; mes++)
         {
             var detencionesDelMes = detencionesLista.Where(d => d.Fecha.Month == mes).ToList();
-            var turnosTrabajados = CalcularTurnosTrabajados(mes);
-            var minutosTotalesTurnos = turnosTrabajados * MINUTOS_POR_TURNO;
+            var minutosProgramados = minutosProgramadosPorMes.GetValueOrDefault(mes);
 
             var mensual = new IndisponibilidadMensualDto
             {
                 Anio = anio,
                 Mes = mes,
                 MesNombre = $"{NombresMeses[mes]}-{anio % 100}",
-                TurnosTrabajados = turnosTrabajados,
-                MinutosTotalesTurnos = minutosTotalesTurnos,
+                MinutosProgramados = minutosProgramados,
+                HorasProgramadas = TiempoProgramadoReporte.Horas(minutosProgramados),
                 MinutosTotalesParada = detencionesDelMes.Sum(d => d.MinutosEfectivos)
             };
 
             // Calcular indisponibilidad total
-            mensual.IndisponibilidadTotal = minutosTotalesTurnos > 0
-                ? Math.Round((double)mensual.MinutosTotalesParada / minutosTotalesTurnos * 100, 1)
+            mensual.IndisponibilidadTotal = minutosProgramados > 0
+                ? Math.Round((double)mensual.MinutosTotalesParada / minutosProgramados * 100, 1)
                 : 0;
 
             // Agrupar por tipo de falla
@@ -618,13 +652,15 @@ public class DashboardService : IDashboardService
                 .Select(g =>
                 {
                     var minutos = g.Sum(d => d.MinutosEfectivos);
+                    var tipo = tiposFalla.FirstOrDefault(t => t.TipoFallaId == g.Key);
                     return new IndisponibilidadTipoFallaItem
                     {
                         TipoFallaId = g.Key,
-                        TipoFallaNombre = tiposFalla.FirstOrDefault(t => t.TipoFallaId == g.Key)?.Nombre ?? "Sin clasificar",
+                        TipoFallaNombre = tipo?.Nombre ?? "Sin clasificar",
+                        Color = tipo?.Color,
                         MinutosTotales = minutos,
-                        Porcentaje = minutosTotalesTurnos > 0
-                            ? Math.Round((double)minutos / minutosTotalesTurnos * 100, 1)
+                        Porcentaje = minutosProgramados > 0
+                            ? Math.Round((double)minutos / minutosProgramados * 100, 1)
                             : 0
                     };
                 })
@@ -640,8 +676,8 @@ public class DashboardService : IDashboardService
                     TipoFallaId = 0,
                     TipoFallaNombre = "Sin clasificar",
                     MinutosTotales = sinClasificar,
-                    Porcentaje = minutosTotalesTurnos > 0
-                        ? Math.Round((double)sinClasificar / minutosTotalesTurnos * 100, 1)
+                    Porcentaje = minutosProgramados > 0
+                        ? Math.Round((double)sinClasificar / minutosProgramados * 100, 1)
                         : 0
                 });
             }
@@ -655,18 +691,17 @@ public class DashboardService : IDashboardService
         // Calcular promedio
         if (reporte.Meses.Any())
         {
-            var totalTurnosTrabajados = reporte.Meses.Sum(m => m.TurnosTrabajados);
-            var totalMinutosTurnos = reporte.Meses.Sum(m => m.MinutosTotalesTurnos);
+            var totalMinutosProgramados = reporte.Meses.Sum(m => m.MinutosProgramados);
             var totalMinutosParada = reporte.Meses.Sum(m => m.MinutosTotalesParada);
 
             reporte.Promedio = new IndisponibilidadMensualDto
             {
                 MesNombre = $"PROM {anio % 100}",
-                TurnosTrabajados = totalTurnosTrabajados / reporte.Meses.Count,
-                MinutosTotalesTurnos = totalMinutosTurnos / reporte.Meses.Count,
+                MinutosProgramados = totalMinutosProgramados / reporte.Meses.Count,
+                HorasProgramadas = TiempoProgramadoReporte.Horas(totalMinutosProgramados / reporte.Meses.Count),
                 MinutosTotalesParada = totalMinutosParada / reporte.Meses.Count,
-                IndisponibilidadTotal = totalMinutosTurnos > 0
-                    ? Math.Round((double)totalMinutosParada / totalMinutosTurnos * 100, 1)
+                IndisponibilidadTotal = totalMinutosProgramados > 0
+                    ? Math.Round((double)totalMinutosParada / totalMinutosProgramados * 100, 1)
                     : 0
             };
 
@@ -678,6 +713,7 @@ public class DashboardService : IDashboardService
                 {
                     TipoFallaId = g.Key,
                     TipoFallaNombre = g.First().TipoFallaNombre,
+                    Color = g.First().Color,
                     MinutosTotales = g.Sum(x => x.MinutosTotales) / reporte.Meses.Count,
                     Porcentaje = Math.Round(g.Sum(x => x.Porcentaje) / reporte.Meses.Count, 1)
                 })
@@ -713,12 +749,8 @@ public class DashboardService : IDashboardService
 
         var fallosMayores = query.ToList();
 
-        // Calcular turnos trabajados por mes
-        int CalcularTurnosTrabajados(int mes)
-        {
-            var diasEnMes = DateTime.DaysInMonth(anio, mes);
-            return diasEnMes * 3;
-        }
+        var minutosProgramadosPorMes = TiempoProgramadoReporte.MinutosPorMes(
+            await CargarTiempoProgramadoAsync(filtro.LineaId, anio, cancellationToken));
 
         var reporte = new FallosMayoresReporteDto
         {
@@ -734,8 +766,7 @@ public class DashboardService : IDashboardService
         for (int mes = mesDesde; mes <= mesHasta; mes++)
         {
             var fallosDelMes = fallosMayores.Where(d => d.Fecha.Month == mes).ToList();
-            var turnosTrabajados = CalcularTurnosTrabajados(mes);
-            var minutosTotalesTurnos = turnosTrabajados * MINUTOS_POR_TURNO;
+            var minutosProgramados = minutosProgramadosPorMes.GetValueOrDefault(mes);
 
             var mensual = new FallosMayoresMensualDto
             {
@@ -744,12 +775,13 @@ public class DashboardService : IDashboardService
                 MesNombre = $"{NombresMeses[mes]}-{anio % 100}",
                 TotalEventos = fallosDelMes.Count,
                 MinutosTotalesParada = fallosDelMes.Sum(d => d.MinutosEfectivos),
-                MinutosTotalesTurnos = minutosTotalesTurnos
+                MinutosProgramados = minutosProgramados,
+                HorasProgramadas = TiempoProgramadoReporte.Horas(minutosProgramados)
             };
 
             // Calcular indicador %
-            mensual.IndicadorPorcentaje = minutosTotalesTurnos > 0
-                ? Math.Round((double)mensual.MinutosTotalesParada / minutosTotalesTurnos * 100, 1)
+            mensual.IndicadorPorcentaje = minutosProgramados > 0
+                ? Math.Round((double)mensual.MinutosTotalesParada / minutosProgramados * 100, 1)
                 : 0;
 
             // Agrupar por tipo de falla (solo PROCESO y EQUIPO para este reporte)
@@ -760,6 +792,7 @@ public class DashboardService : IDashboardService
                 {
                     TipoFallaId = g.Key,
                     TipoFallaNombre = tiposFalla.FirstOrDefault(t => t.TipoFallaId == g.Key)?.Nombre ?? "Otro",
+                    Color = tiposFalla.FirstOrDefault(t => t.TipoFallaId == g.Key)?.Color,
                     CantidadEventos = g.Count(),
                     MinutosTotales = g.Sum(d => d.MinutosEfectivos)
                 })
@@ -777,16 +810,17 @@ public class DashboardService : IDashboardService
         {
             var totalEventos = reporte.Meses.Sum(m => m.TotalEventos);
             var totalMinutosParada = reporte.Meses.Sum(m => m.MinutosTotalesParada);
-            var totalMinutosTurnos = reporte.Meses.Sum(m => m.MinutosTotalesTurnos);
+            var totalMinutosProgramados = reporte.Meses.Sum(m => m.MinutosProgramados);
 
             reporte.Promedio = new FallosMayoresMensualDto
             {
                 MesNombre = $"PROM {anio % 100}",
                 TotalEventos = totalEventos / reporte.Meses.Count,
                 MinutosTotalesParada = totalMinutosParada / reporte.Meses.Count,
-                MinutosTotalesTurnos = totalMinutosTurnos / reporte.Meses.Count,
-                IndicadorPorcentaje = totalMinutosTurnos > 0
-                    ? Math.Round((double)totalMinutosParada / totalMinutosTurnos * 100, 1)
+                MinutosProgramados = totalMinutosProgramados / reporte.Meses.Count,
+                HorasProgramadas = TiempoProgramadoReporte.Horas(totalMinutosProgramados / reporte.Meses.Count),
+                IndicadorPorcentaje = totalMinutosProgramados > 0
+                    ? Math.Round((double)totalMinutosParada / totalMinutosProgramados * 100, 1)
                     : 0
             };
 
@@ -798,6 +832,7 @@ public class DashboardService : IDashboardService
                 {
                     TipoFallaId = g.Key,
                     TipoFallaNombre = g.First().TipoFallaNombre,
+                    Color = g.First().Color,
                     CantidadEventos = g.Sum(x => x.CantidadEventos) / reporte.Meses.Count,
                     MinutosTotales = g.Sum(x => x.MinutosTotales) / reporte.Meses.Count
                 })

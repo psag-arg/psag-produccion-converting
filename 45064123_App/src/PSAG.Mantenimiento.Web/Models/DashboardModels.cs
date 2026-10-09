@@ -148,6 +148,7 @@ public class IndisponibilidadTipoFallaItem
 {
     public int TipoFallaId { get; set; }
     public string TipoFallaNombre { get; set; } = string.Empty;
+    public string? Color { get; set; }
     public int MinutosTotales { get; set; }
     public double Porcentaje { get; set; }
 }
@@ -157,8 +158,8 @@ public class IndisponibilidadMensualDto
     public int Anio { get; set; }
     public int Mes { get; set; }
     public string MesNombre { get; set; } = string.Empty;
-    public int TurnosTrabajados { get; set; }
-    public int MinutosTotalesTurnos { get; set; }
+    public int MinutosProgramados { get; set; }
+    public double HorasProgramadas { get; set; }
     public int MinutosTotalesParada { get; set; }
     public double IndisponibilidadTotal { get; set; }
     public List<IndisponibilidadTipoFallaItem> PorTipoFalla { get; set; } = new();
@@ -177,6 +178,7 @@ public class FalloMayorTipoItem
 {
     public int TipoFallaId { get; set; }
     public string TipoFallaNombre { get; set; } = string.Empty;
+    public string? Color { get; set; }
     public int CantidadEventos { get; set; }
     public int MinutosTotales { get; set; }
 }
@@ -188,7 +190,8 @@ public class FallosMayoresMensualDto
     public string MesNombre { get; set; } = string.Empty;
     public int TotalEventos { get; set; }
     public int MinutosTotalesParada { get; set; }
-    public int MinutosTotalesTurnos { get; set; }
+    public int MinutosProgramados { get; set; }
+    public double HorasProgramadas { get; set; }
     public double IndicadorPorcentaje { get; set; }
     public List<FalloMayorTipoItem> PorTipoFalla { get; set; } = new();
 }
@@ -243,4 +246,15 @@ public class ParetoDetencionesReporteDto
     public int TotalDetenciones { get; set; }
     public List<ParetoTipoFallaItem> ResumenPorTipoFalla { get; set; } = new();
     public List<ParetoEquipoGrupo> DetallePorEquipo { get; set; } = new();
+}
+
+public class TiempoProgramadoDiaDto
+{
+    public DateOnly Fecha { get; set; }
+    public int LineaId { get; set; }
+    public string LineaNombre { get; set; } = string.Empty;
+    public int Minutos { get; set; }
+    public double Horas { get; set; }
+    public string Origen { get; set; } = string.Empty;
+    public string? Motivo { get; set; }
 }
