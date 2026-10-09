@@ -18,6 +18,7 @@ Ejecutar los scripts en orden numérico:
 | 08 | `08_seed_roles.sql` | Roles del sistema y usuario admin |
 | 09 | `09_seed_demo_data.sql` | **SOLO DESARROLLO** - Datos de prueba |
 | 10 | `10_permissions_example.sql` | Ejemplo de configuración de permisos |
+| 17 | `17_t76_ajustes.sql` | Ajustes T-76 (idempotente): eliminación lógica y análisis de detenciones, reglas de análisis, criticidad de equipos, color de tipos de falla, tiempo programado por día |
 | 99 | `99_drop_objects_development_only.sql` | **SOLO DESARROLLO** - Limpieza total |
 
 ## Requisitos
