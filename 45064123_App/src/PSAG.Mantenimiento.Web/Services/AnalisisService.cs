@@ -11,11 +11,18 @@ public interface IAnalisisService
     Task<MisPendientesDto> GetMisPendientesAsync(string? responsableRol = null, string? responsableUsuarioId = null);
     Task<int> GetConteoPendientesAsync();
     Task<List<SolucionDto>> BuscarSolucionesAsync(BuscarSolucionesFiltro filtro);
+
+    /// <summary>
+    /// Se dispara después de guardar o cerrar un análisis, cuando cambia la bandeja de pendientes.
+    /// </summary>
+    event Action? PendientesCambiaron;
 }
 
 public class AnalisisService : IAnalisisService
 {
     private readonly HttpClient _httpClient;
+
+    public event Action? PendientesCambiaron;
 
     public AnalisisService(HttpClient httpClient)
     {
@@ -30,13 +37,13 @@ public class AnalisisService : IAnalisisService
     public async Task<(bool Success, string? Error)> GuardarBorradorAsync(long detencionId, GuardarAnalisisRequest request)
     {
         var response = await _httpClient.PutAsJsonAsync($"api/analisis/{detencionId}", request);
-        return await ResultadoAsync(response, "No se pudo guardar el análisis");
+        return await ResultadoYAvisarAsync(response, "No se pudo guardar el análisis");
     }
 
     public async Task<(bool Success, string? Error)> CerrarAnalisisAsync(long detencionId, GuardarAnalisisRequest request)
     {
         var response = await _httpClient.PostAsJsonAsync($"api/analisis/{detencionId}/cerrar", request);
-        return await ResultadoAsync(response, "No se pudo cerrar el análisis");
+        return await ResultadoYAvisarAsync(response, "No se pudo cerrar el análisis");
     }
 
     public async Task<MisPendientesDto> GetMisPendientesAsync(string? responsableRol = null, string? responsableUsuarioId = null)
@@ -55,6 +62,17 @@ public class AnalisisService : IAnalisisService
         return conteo?.Total ?? 0;
     }
 
+    private async Task<(bool Success, string? Error)> ResultadoYAvisarAsync(HttpResponseMessage response, string mensajeGenerico)
+    {
+        var resultado = await ApiErrores.ResultadoAsync(response, mensajeGenerico);
+        if (resultado.Success)
+        {
+            PendientesCambiaron?.Invoke();
+        }
+
+        return resultado;
+    }
+
     public async Task<List<SolucionDto>> BuscarSolucionesAsync(BuscarSolucionesFiltro filtro)
     {
         var query = new List<string>();
@@ -65,23 +83,5 @@ public class AnalisisService : IAnalisisService
 
         var url = "api/analisis/soluciones" + (query.Count > 0 ? "?" + string.Join("&", query) : string.Empty);
         return await _httpClient.GetFromJsonAsync<List<SolucionDto>>(url) ?? new List<SolucionDto>();
-    }
-
-    private static async Task<(bool Success, string? Error)> ResultadoAsync(HttpResponseMessage response, string mensajeGenerico)
-    {
-        if (response.IsSuccessStatusCode)
-        {
-            return (true, null);
-        }
-
-        try
-        {
-            var problem = await response.Content.ReadFromJsonAsync<ProblemDetailsDto>();
-            return (false, problem?.Detail ?? mensajeGenerico);
-        }
-        catch
-        {
-            return (false, $"{mensajeGenerico} (error {(int)response.StatusCode})");
-        }
     }
 }

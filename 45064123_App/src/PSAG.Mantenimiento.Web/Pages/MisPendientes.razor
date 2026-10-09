@@ -1,5 +1,4 @@
 @page "/detenciones/pendientes"
-@using System.Globalization
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
@@ -32,79 +31,34 @@
     }
     else
     {
-        <!-- Indicadores -->
         <div class="row g-3 mb-4">
-            @if (pendientes.VeAnalisis)
+            @foreach (var indicador in Indicadores())
             {
                 <div class="col-6 col-lg-3">
                     <div class="card h-100"><div class="card-body">
-                        <div class="text-muted small">Para analizar</div>
-                        <div class="fs-3 fw-semibold">@pendientes.ParaAnalizar.Count</div>
-                    </div></div>
-                </div>
-                <div class="col-6 col-lg-3">
-                    <div class="card h-100"><div class="card-body">
-                        <div class="text-muted small">En análisis</div>
-                        <div class="fs-3 fw-semibold">@pendientes.EnAnalisis.Count</div>
-                    </div></div>
-                </div>
-                <div class="col-6 col-lg-3">
-                    <div class="card h-100"><div class="card-body">
-                        <div class="text-muted small">Demora promedio</div>
-                        <div class="fs-3 fw-semibold">
-                            @TextoDemora()
-                        </div>
-                    </div></div>
-                </div>
-                <div class="col-6 col-lg-3">
-                    <div class="card h-100"><div class="card-body">
-                        <div class="text-muted small">Cerradas este mes</div>
-                        <div class="fs-3 fw-semibold">@pendientes.CerradasEsteMes</div>
-                    </div></div>
-                </div>
-            }
-            @if (pendientes.VeDeclaracion)
-            {
-                <div class="col-6 col-lg-3">
-                    <div class="card h-100"><div class="card-body">
-                        <div class="text-muted small">Para declarar</div>
-                        <div class="fs-3 fw-semibold">@pendientes.ParaDeclarar.Count</div>
+                        <div class="text-muted small">@indicador.Titulo</div>
+                        <div class="fs-3 fw-semibold">@indicador.Valor</div>
                     </div></div>
                 </div>
             }
         </div>
 
-        <!-- Pestañas -->
         <ul class="nav nav-tabs mb-3">
-            @if (pendientes.VeAnalisis)
+            @foreach (var tab in Pestanias())
             {
                 <li class="nav-item">
-                    <button class="nav-link @(pestania == "analizar" ? "active" : "")" @onclick='() => CambiarPestania("analizar")'>
-                        Para analizar <span class="badge bg-secondary ms-1">@pendientes.ParaAnalizar.Count</span>
-                    </button>
-                </li>
-                <li class="nav-item">
-                    <button class="nav-link @(pestania == "en-analisis" ? "active" : "")" @onclick='() => CambiarPestania("en-analisis")'>
-                        En análisis <span class="badge bg-secondary ms-1">@pendientes.EnAnalisis.Count</span>
-                    </button>
-                </li>
-                <li class="nav-item">
-                    <button class="nav-link @(pestania == "cerradas" ? "active" : "")" @onclick='() => CambiarPestania("cerradas")'>
-                        Cerradas por mí
-                    </button>
-                </li>
-            }
-            @if (pendientes.VeDeclaracion)
-            {
-                <li class="nav-item">
-                    <button class="nav-link @(pestania == "declarar" ? "active" : "")" @onclick='() => CambiarPestania("declarar")'>
-                        Para declarar <span class="badge bg-secondary ms-1">@pendientes.ParaDeclarar.Count</span>
+                    <button class="nav-link @(pestania == tab.Valor ? "active" : "")" @onclick="() => CambiarPestania(tab.Valor)">
+                        @tab.Titulo
+                        @if (tab.Cantidad is { } cantidad)
+                        {
+                            <span class="badge bg-secondary ms-1">@cantidad</span>
+                        }
                     </button>
                 </li>
             }
         </ul>
 
-        @if (pestania == "declarar")
+        @if (pestania == Pestania.Declarar)
         {
             <div class="card">
                 <div class="table-responsive">
@@ -147,7 +101,7 @@
         }
         else
         {
-            @if (pestania != "cerradas" && pendientes.EsAdministrador)
+            @if (pestania != Pestania.Cerradas && pendientes.EsAdministrador)
             {
                 <div class="row mb-3">
                     <div class="col-md-4">
@@ -175,15 +129,15 @@
                                 <th>Tipo falla</th>
                                 <th>Minutos</th>
                                 <th>Estado</th>
-                                @if (pestania != "cerradas")
+                                @if (pestania != Pestania.Cerradas)
                                 {
                                     <th>Esperando</th>
                                 }
-                                @if (pestania != "cerradas" && pendientes.EsAdministrador)
+                                @if (pestania != Pestania.Cerradas && pendientes.EsAdministrador)
                                 {
                                     <th>Responsable</th>
                                 }
-                                @if (pestania == "cerradas")
+                                @if (pestania == Pestania.Cerradas)
                                 {
                                     <th>Cerrada el</th>
                                 }
@@ -205,8 +159,13 @@
                                     </td>
                                     <td>@(item.TipoFallaNombre ?? "-")</td>
                                     <td><span class="badge bg-secondary">@item.MinutosEfectivos min</span></td>
-                                    <td><span class="badge @ClaseEstado(item)">@EstadoAnalisis(item)</span></td>
-                                    @if (pestania != "cerradas")
+                                    <td>
+                                        <span class="@EstadoUi.BadgeClass(item.EstadoActual, Abierto)"
+                                              style="@EstadoUi.BadgeStyle(item.EstadoActual, Abierto)">
+                                            @EstadoUi.Texto(item.EstadoActualDescripcion, item.EstadoAnalisisDescripcion)
+                                        </span>
+                                    </td>
+                                    @if (pestania != Pestania.Cerradas)
                                     {
                                         <td>
                                             @if (item.DiasEsperando.HasValue)
@@ -215,18 +174,18 @@
                                             }
                                         </td>
                                     }
-                                    @if (pestania != "cerradas" && pendientes.EsAdministrador)
+                                    @if (pestania != Pestania.Cerradas && pendientes.EsAdministrador)
                                     {
-                                        <td>@ResponsableDe(item)</td>
+                                        <td>@(item.ResponsableNombre ?? "-")</td>
                                     }
-                                    @if (pestania == "cerradas")
+                                    @if (pestania == Pestania.Cerradas)
                                     {
                                         <td>@(item.FechaHoraAnalisis?.ToString("dd/MM/yyyy HH:mm") ?? "-")</td>
                                     }
                                     <td class="text-end">
-                                        <button class="btn btn-sm @(pestania == "cerradas" ? "btn-outline-primary" : "btn-primary")"
+                                        <button class="btn btn-sm @(pestania == Pestania.Cerradas ? "btn-outline-primary" : "btn-primary")"
                                                 @onclick="() => AbrirDetencion(item.DetencionId)">
-                                            @(pestania == "cerradas" ? "Ver" : "Analizar")
+                                            @(pestania == Pestania.Cerradas ? "Ver" : "Analizar")
                                         </button>
                                     </td>
                                 </tr>
@@ -246,11 +205,19 @@
 </div>
 
 @code {
+    private enum Pestania { Analizar, EnAnalisis, Cerradas, Declarar }
+
+    private record Indicador(string Titulo, string Valor);
+
+    private record PestaniaItem(Pestania Valor, string Titulo, int? Cantidad);
+
     private MisPendientesDto? pendientes;
     private bool cargando = true;
-    private string pestania = "analizar";
+    private Pestania pestania = Pestania.Analizar;
     private string filtroResponsable = string.Empty;
     private string subtitulo = string.Empty;
+
+    private bool Abierto => pestania != Pestania.Cerradas;
 
     protected override async Task OnInitializedAsync()
     {
@@ -264,7 +231,7 @@
         subtitulo = $"Rol: {string.Join(", ", roles)} · ves solo lo que te toca a vos";
 
         await CargarPendientes();
-        pestania = pendientes?.VeAnalisis == true ? "analizar" : "declarar";
+        pestania = pendientes?.VeAnalisis == true ? Pestania.Analizar : Pestania.Declarar;
     }
 
     private async Task CargarPendientes()
@@ -287,7 +254,7 @@
         }
     }
 
-    private void CambiarPestania(string nueva)
+    private void CambiarPestania(Pestania nueva)
     {
         pestania = nueva;
     }
@@ -298,22 +265,69 @@
         await CargarPendientes();
     }
 
+    private List<Indicador> Indicadores()
+    {
+        var indicadores = new List<Indicador>();
+        if (pendientes is null)
+        {
+            return indicadores;
+        }
+
+        if (pendientes.VeAnalisis)
+        {
+            indicadores.Add(new("Para analizar", pendientes.ParaAnalizar.Count.ToString()));
+            indicadores.Add(new("En análisis", pendientes.EnAnalisis.Count.ToString()));
+            indicadores.Add(new("Demora promedio", TextoDemora()));
+            indicadores.Add(new("Cerradas este mes", pendientes.CerradasEsteMes.ToString()));
+        }
+
+        if (pendientes.VeDeclaracion)
+        {
+            indicadores.Add(new("Para declarar", pendientes.ParaDeclarar.Count.ToString()));
+        }
+
+        return indicadores;
+    }
+
+    private List<PestaniaItem> Pestanias()
+    {
+        var pestanias = new List<PestaniaItem>();
+        if (pendientes is null)
+        {
+            return pestanias;
+        }
+
+        if (pendientes.VeAnalisis)
+        {
+            pestanias.Add(new(Pestania.Analizar, "Para analizar", pendientes.ParaAnalizar.Count));
+            pestanias.Add(new(Pestania.EnAnalisis, "En análisis", pendientes.EnAnalisis.Count));
+            pestanias.Add(new(Pestania.Cerradas, "Cerradas por mí", null));
+        }
+
+        if (pendientes.VeDeclaracion)
+        {
+            pestanias.Add(new(Pestania.Declarar, "Para declarar", pendientes.ParaDeclarar.Count));
+        }
+
+        return pestanias;
+    }
+
     private string TextoDemora() =>
         pendientes?.DemoraPromedioDias is double dias
-            ? $"{dias.ToString("0.0", CultureInfo.GetCultureInfo("es-AR"))} días"
+            ? $"{dias.ToString("0.0")} días"
             : "—";
 
     private List<PendienteAnalisisDto> ListaActual() => pestania switch
     {
-        "en-analisis" => pendientes?.EnAnalisis ?? new List<PendienteAnalisisDto>(),
-        "cerradas" => pendientes?.CerradasPorMi ?? new List<PendienteAnalisisDto>(),
+        Pestania.EnAnalisis => pendientes?.EnAnalisis ?? new List<PendienteAnalisisDto>(),
+        Pestania.Cerradas => pendientes?.CerradasPorMi ?? new List<PendienteAnalisisDto>(),
         _ => pendientes?.ParaAnalizar ?? new List<PendienteAnalisisDto>()
     };
 
     private string TextoVacio() => pestania switch
     {
-        "cerradas" => "Todavía no cerraste ningún análisis.",
-        "en-analisis" => "No hay análisis en curso para vos.",
+        Pestania.Cerradas => "Todavía no cerraste ningún análisis.",
+        Pestania.EnAnalisis => "No hay análisis en curso para vos.",
         _ => "No hay fallas esperando análisis para vos."
     };
 
@@ -324,30 +338,6 @@
 
     private static string ValorOpcion(ResponsableOpcionDto opcion) =>
         opcion.Rol != null ? $"R:{opcion.Rol}" : $"U:{opcion.UsuarioId}";
-
-    private static string ResponsableDe(PendienteAnalisisDto item)
-    {
-        if (!string.IsNullOrEmpty(item.ResponsableUsuarioId))
-        {
-            return item.ResponsableUsuarioNombre ?? "Usuario asignado";
-        }
-
-        return item.ResponsableRol == null ? "-" : $"Rol {Capitalizar(item.ResponsableRol)}";
-    }
-
-    private static string EstadoAnalisis(PendienteAnalisisDto item) => item.EstadoActual switch
-    {
-        "REGISTRADA" => "Requiere análisis",
-        "EN_SEGUIMIENTO" => "En análisis",
-        _ => item.EstadoActualDescripcion
-    };
-
-    private static string ClaseEstado(PendienteAnalisisDto item) => item.EstadoActual switch
-    {
-        "REGISTRADA" => "bg-primary",
-        "EN_SEGUIMIENTO" => "bg-warning text-dark",
-        _ => "bg-success"
-    };
 
     private static string TextoEspera(int dias) => dias switch
     {

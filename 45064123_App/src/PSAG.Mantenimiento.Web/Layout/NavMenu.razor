@@ -190,10 +190,12 @@
     private bool sidebarCollapsed = false;
     private HashSet<int> expandedSections = new() { 0 }; // Dashboard expanded by default
     private int pendientesCount;
+    private DateTime ultimoConteo = DateTime.MinValue;
 
     protected override async Task OnInitializedAsync()
     {
         Navigation.LocationChanged += OnLocationChanged;
+        AnalisisService.PendientesCambiaron += OnPendientesCambiaron;
         await CargarPendientes();
     }
 
@@ -203,8 +205,20 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    private async Task CargarPendientes()
+    private async void OnPendientesCambiaron()
     {
+        await CargarPendientes(forzar: true);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CargarPendientes(bool forzar = false)
+    {
+        if (!forzar && DateTime.UtcNow - ultimoConteo < TimeSpan.FromSeconds(30))
+        {
+            return;
+        }
+
+        ultimoConteo = DateTime.UtcNow;
         try
         {
             pendientesCount = await AnalisisService.GetConteoPendientesAsync();
@@ -218,6 +232,7 @@
     public void Dispose()
     {
         Navigation.LocationChanged -= OnLocationChanged;
+        AnalisisService.PendientesCambiaron -= OnPendientesCambiaron;
     }
 
     private void ToggleSidebar()

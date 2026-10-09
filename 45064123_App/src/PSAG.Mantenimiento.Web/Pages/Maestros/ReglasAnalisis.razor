@@ -131,7 +131,6 @@
     }
 </div>
 
-@* Modal para crear/editar *@
 @if (showModal)
 {
     <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
@@ -263,19 +262,26 @@
 
     protected override async Task OnInitializedAsync()
     {
+        var tareaLineas = CatalogosService.GetLineasAsync();
+        var tareaTiposFalla = CatalogosService.GetTiposFallaAsync();
+        var tareaEquipos = CatalogosService.GetEquiposAsync();
+        var tareaUsuarios = UsuariosService.GetUsuariosAsync();
+        var tareaReglas = CargarReglas();
+
         try
         {
-            lineas = await CatalogosService.GetLineasAsync();
-            tiposFalla = await CatalogosService.GetTiposFallaAsync();
-            equipos = await CatalogosService.GetEquiposAsync();
-            usuarios = (await UsuariosService.GetUsuariosAsync()).Where(u => u.Activo).OrderBy(NombreUsuario).ToList();
+            await Task.WhenAll(tareaLineas, tareaTiposFalla, tareaEquipos, tareaUsuarios);
+            lineas = await tareaLineas;
+            tiposFalla = await tareaTiposFalla;
+            equipos = await tareaEquipos;
+            usuarios = (await tareaUsuarios).Where(u => u.Activo).OrderBy(NombreUsuario).ToList();
         }
         catch (Exception ex)
         {
             errorPagina = ex.Message;
         }
 
-        await CargarReglas();
+        await tareaReglas;
     }
 
     private async Task CargarReglas()

@@ -1,3 +1,5 @@
+using System.Linq.Expressions;
+using PSAG.Mantenimiento.Domain.Common;
 using PSAG.Mantenimiento.Domain.Entities;
 using PSAG.Mantenimiento.Domain.Enums;
 
@@ -8,11 +10,6 @@ namespace PSAG.Mantenimiento.Domain.Services;
 /// </summary>
 public static class AnalisisFallaReglas
 {
-    public const string RolAdministrador = "ADMINISTRADOR";
-
-    /// <summary>
-    /// Es responsable si la regla le asignó el usuario, o si tiene el rol responsable de la regla.
-    /// </summary>
     public static bool EsResponsable(Detencion detencion, string usuarioId, IEnumerable<string> roles)
     {
         return detencion.ResponsableUsuarioId == usuarioId
@@ -24,16 +21,19 @@ public static class AnalisisFallaReglas
     /// </summary>
     public static bool PuedeEditar(Detencion detencion, string usuarioId, IEnumerable<string> roles)
     {
-        return roles.Contains(RolAdministrador) || EsResponsable(detencion, usuarioId, roles);
+        return roles.Contains(RolesSistema.Administrador) || EsResponsable(detencion, usuarioId, roles);
     }
 
     /// <summary>
-    /// Pendiente de análisis: la regla lo marcó y todavía no se cerró.
+    /// Pendiente de análisis: la regla lo marcó y todavía no se cerró. Es la única definición de la condición;
+    /// sirve para consultas (EF la traduce a SQL) y, compilada, para objetos en memoria.
     /// </summary>
-    public static bool EstaAbierto(Detencion detencion)
-    {
-        return detencion.RequiereAnalisis && detencion.EstadoActual != EstadoDetencion.CERRADA;
-    }
+    public static Expression<Func<Detencion, bool>> EstaAbiertoExpr { get; } =
+        d => d.RequiereAnalisis && d.EstadoActual != EstadoDetencion.CERRADA;
+
+    private static readonly Func<Detencion, bool> EstaAbiertoCompilado = EstaAbiertoExpr.Compile();
+
+    public static bool EstaAbierto(Detencion detencion) => EstaAbiertoCompilado(detencion);
 
     /// <summary>
     /// Devuelve el motivo por el que el análisis no se puede cerrar, o null si está completo.

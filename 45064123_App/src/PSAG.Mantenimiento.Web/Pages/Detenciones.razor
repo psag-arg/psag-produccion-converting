@@ -154,14 +154,10 @@
                                     <span class="badge bg-secondary">@det.MinutosEfectivos min</span>
                                 </td>
                                 <td>
-                                    @if (RequiereAnalisisPendiente(det))
-                                    {
-                                        <span class="badge text-white" style="background-color: var(--bs-orange);">Requiere análisis</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge @GetEstadoBadgeClass(det.EstadoActual)">@det.EstadoActualDescripcion</span>
-                                    }
+                                    <span class="@EstadoUi.BadgeClass(det.EstadoActual, det.AnalisisPendiente)"
+                                          style="@EstadoUi.BadgeStyle(det.EstadoActual, det.AnalisisPendiente)">
+                                        @EstadoUi.Texto(det.EstadoActualDescripcion, det.EstadoAnalisisDescripcion)
+                                    </span>
                                     @if (det.Eliminada)
                                     {
                                         <span class="badge bg-dark ms-1">Eliminada</span>
@@ -183,7 +179,7 @@
                                         <button class="btn btn-sm btn-outline-primary me-1" title="Ver detalle" @onclick="() => VerDetalle(det.DetencionId)">
                                             <i class="bi bi-eye"></i>
                                         </button>
-                                        @if (RequiereAnalisisPendiente(det))
+                                        @if (det.AnalisisPendiente)
                                         {
                                             <button class="btn btn-sm me-1" title="Completar análisis" style="color: var(--bs-orange); border: 1px solid var(--bs-orange);"
                                                     @onclick="() => VerDetalle(det.DetencionId)">
@@ -510,7 +506,6 @@
     </div>
 }
 
-@* Modal Eliminar Detencion (sólo administrador) *@
 @if (detencionAEliminar != null)
 {
     <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
@@ -961,7 +956,6 @@
         }
         model.LineaId = selectedLineaId;
 
-        // Al crear, si puede seleccionar maquinista, validar que haya seleccionado uno
         if (!editando && puedeSeleccionarMaquinista)
         {
             if (selectedMaquinistaId <= 0)
@@ -1133,9 +1127,6 @@
     private static DateTimeOffset? HoraReal(DetencionDto det) =>
         det.OrigenTiempo != "DECLARADO" ? det.FechaHoraParada : null;
 
-    private static bool RequiereAnalisisPendiente(DetencionDto det) =>
-        det.RequiereAnalisis && det.EstadoActual != "CERRADA";
-
     private void AbrirFila(DetencionDto det)
     {
         // Las eliminadas no tienen detalle para el usuario común; sólo se restauran.
@@ -1149,12 +1140,4 @@
     {
         Navigation.NavigateTo($"/detenciones/{id}");
     }
-
-    private string GetEstadoBadgeClass(string estado) => estado switch
-    {
-        "REGISTRADA" => "bg-primary",
-        "EN_SEGUIMIENTO" => "bg-warning text-dark",
-        "CERRADA" => "bg-success",
-        _ => "bg-secondary"
-    };
 }

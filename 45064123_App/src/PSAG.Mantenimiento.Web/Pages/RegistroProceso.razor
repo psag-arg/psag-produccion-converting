@@ -1,4 +1,5 @@
 @page "/registros-proceso/{Id:long}"
+@using System.Globalization
 @using Microsoft.AspNetCore.Authorization
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
@@ -184,7 +185,7 @@
                                                         <input type="number"
                                                                step="0.01"
                                                                class="form-control form-control-sm @(detalle.FueraDeEstandar ? "border-warning" : "")"
-                                                               value="@detalle.ValorReal"
+                                                               value="@detalle.ValorReal?.ToString(CultureInfo.InvariantCulture)"
                                                                @onchange="e => OnValorChanged(localDetalle, e)"
                                                                disabled="@isReadOnly" />
                                                     }
@@ -329,7 +330,8 @@
 
     private void OnValorChanged(RegistroProcesoDetalleDto detalle, ChangeEventArgs e)
     {
-        if (decimal.TryParse(e.Value?.ToString(), out var valor))
+        // El input number entrega punto decimal siempre; no depende de la cultura de la app.
+        if (decimal.TryParse(e.Value?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var valor))
         {
             detalle.ValorReal = valor;
             RegistrarCambio(detalle);

@@ -1,6 +1,5 @@
 using PSAG.Mantenimiento.Web.Models;
 using System.Net.Http.Json;
-using System.Text.Json;
 
 namespace PSAG.Mantenimiento.Web.Services;
 
@@ -61,33 +60,6 @@ public class CatalogosService : ICatalogosService
         _httpClient = httpClient;
     }
 
-    private static async Task EnsureSuccessWithDetailAsync(HttpResponseMessage response)
-    {
-        if (!response.IsSuccessStatusCode)
-        {
-            var content = await response.Content.ReadAsStringAsync();
-            string errorMessage;
-
-            try
-            {
-                using var doc = JsonDocument.Parse(content);
-                errorMessage = doc.RootElement.TryGetProperty("detail", out var detail)
-                    ? detail.GetString() ?? response.ReasonPhrase ?? "Error desconocido"
-                    : doc.RootElement.TryGetProperty("title", out var title)
-                        ? title.GetString() ?? response.ReasonPhrase ?? "Error desconocido"
-                        : response.ReasonPhrase ?? "Error desconocido";
-            }
-            catch
-            {
-                errorMessage = string.IsNullOrEmpty(content)
-                    ? response.ReasonPhrase ?? "Error desconocido"
-                    : content;
-            }
-
-            throw new HttpRequestException(errorMessage, null, response.StatusCode);
-        }
-    }
-
     public async Task<List<LineaDto>> GetLineasAsync()
     {
         var result = await _httpClient.GetFromJsonAsync<List<LineaDto>>("api/catalogos/lineas");
@@ -97,13 +69,13 @@ public class CatalogosService : ICatalogosService
     public async Task CreateLineaAsync(LineaDto linea)
     {
         var response = await _httpClient.PostAsJsonAsync("api/catalogos/lineas", linea);
-        await EnsureSuccessWithDetailAsync(response);
+        await ApiErrores.AsegurarExitoAsync(response);
     }
 
     public async Task UpdateLineaAsync(LineaDto linea)
     {
         var response = await _httpClient.PutAsJsonAsync($"api/catalogos/lineas/{linea.LineaId}", linea);
-        await EnsureSuccessWithDetailAsync(response);
+        await ApiErrores.AsegurarExitoAsync(response);
     }
 
     public async Task<List<EquipoDto>> GetEquiposAsync(int? lineaId = null)
@@ -118,13 +90,13 @@ public class CatalogosService : ICatalogosService
     public async Task CreateEquipoAsync(EquipoDto equipo)
     {
         var response = await _httpClient.PostAsJsonAsync("api/catalogos/equipos", equipo);
-        await EnsureSuccessWithDetailAsync(response);
+        await ApiErrores.AsegurarExitoAsync(response);
     }
 
     public async Task UpdateEquipoAsync(EquipoDto equipo)
     {
         var response = await _httpClient.PutAsJsonAsync($"api/catalogos/equipos/{equipo.EquipoId}", equipo);
-        await EnsureSuccessWithDetailAsync(response);
+        await ApiErrores.AsegurarExitoAsync(response);
     }
 
     public async Task<List<TipoFallaDto>> GetTiposFallaAsync()
@@ -136,13 +108,13 @@ public class CatalogosService : ICatalogosService
     public async Task CreateTipoFallaAsync(TipoFallaDto tipoFalla)
     {
         var response = await _httpClient.PostAsJsonAsync("api/catalogos/tipos-falla", tipoFalla);
-        await EnsureSuccessWithDetailAsync(response);
+        await ApiErrores.AsegurarExitoAsync(response);
     }
 
     public async Task UpdateTipoFallaAsync(TipoFallaDto tipoFalla)
     {
         var response = await _httpClient.PutAsJsonAsync($"api/catalogos/tipos-falla/{tipoFalla.TipoFallaId}", tipoFalla);
-        await EnsureSuccessWithDetailAsync(response);
+        await ApiErrores.AsegurarExitoAsync(response);
     }
 
     public async Task<List<DetalleFallaDto>> GetDetallesFallaAsync(int? tipoFallaId = null, int? equipoId = null)
@@ -160,13 +132,13 @@ public class CatalogosService : ICatalogosService
     public async Task CreateDetalleFallaAsync(DetalleFallaDto detalleFalla)
     {
         var response = await _httpClient.PostAsJsonAsync("api/catalogos/detalles-falla", detalleFalla);
-        await EnsureSuccessWithDetailAsync(response);
+        await ApiErrores.AsegurarExitoAsync(response);
     }
 
     public async Task UpdateDetalleFallaAsync(DetalleFallaDto detalleFalla)
     {
         var response = await _httpClient.PutAsJsonAsync($"api/catalogos/detalles-falla/{detalleFalla.DetalleFallaId}", detalleFalla);
-        await EnsureSuccessWithDetailAsync(response);
+        await ApiErrores.AsegurarExitoAsync(response);
     }
 
     public async Task<List<TurnoDto>> GetTurnosAsync()
@@ -178,13 +150,13 @@ public class CatalogosService : ICatalogosService
     public async Task CreateTurnoAsync(TurnoDto turno)
     {
         var response = await _httpClient.PostAsJsonAsync("api/catalogos/turnos", turno);
-        await EnsureSuccessWithDetailAsync(response);
+        await ApiErrores.AsegurarExitoAsync(response);
     }
 
     public async Task UpdateTurnoAsync(TurnoDto turno)
     {
         var response = await _httpClient.PutAsJsonAsync($"api/catalogos/turnos/{turno.TurnoId}", turno);
-        await EnsureSuccessWithDetailAsync(response);
+        await ApiErrores.AsegurarExitoAsync(response);
     }
 
     public async Task<List<DiaProgramadoDto>> GetTiemposProgramadosAsync(int lineaId, DateOnly desde, DateOnly hasta)
@@ -198,13 +170,13 @@ public class CatalogosService : ICatalogosService
     {
         var request = new { lineaId, fecha, horas, motivo };
         var response = await _httpClient.PostAsJsonAsync("api/catalogos/tiempos-programados", request);
-        await EnsureSuccessWithDetailAsync(response);
+        await ApiErrores.AsegurarExitoAsync(response);
     }
 
     public async Task DesactivarTiempoProgramadoAsync(int tiempoProgramadoDiaId)
     {
         var response = await _httpClient.PostAsync($"api/catalogos/tiempos-programados/{tiempoProgramadoDiaId}/desactivar", null);
-        await EnsureSuccessWithDetailAsync(response);
+        await ApiErrores.AsegurarExitoAsync(response);
     }
 
     public async Task<List<ReglaAnalisisDto>> GetReglasAnalisisAsync()
@@ -216,13 +188,13 @@ public class CatalogosService : ICatalogosService
     public async Task CreateReglaAnalisisAsync(ReglaAnalisisDto regla)
     {
         var response = await _httpClient.PostAsJsonAsync("api/catalogos/reglas-analisis", regla);
-        await EnsureSuccessWithDetailAsync(response);
+        await ApiErrores.AsegurarExitoAsync(response);
     }
 
     public async Task UpdateReglaAnalisisAsync(ReglaAnalisisDto regla)
     {
         var response = await _httpClient.PutAsJsonAsync($"api/catalogos/reglas-analisis/{regla.ReglaAnalisisId}", regla);
-        await EnsureSuccessWithDetailAsync(response);
+        await ApiErrores.AsegurarExitoAsync(response);
     }
 
     public async Task<List<MaquinistaDto>> GetMaquinistasAsync(int? lineaId = null)
@@ -249,7 +221,7 @@ public class CatalogosService : ICatalogosService
             maquinista.TurnoId
         };
         var response = await _httpClient.PostAsJsonAsync("api/catalogos/maquinistas", request);
-        await EnsureSuccessWithDetailAsync(response);
+        await ApiErrores.AsegurarExitoAsync(response);
     }
 
     public async Task UpdateMaquinistaAsync(MaquinistaDto maquinista)
@@ -260,13 +232,13 @@ public class CatalogosService : ICatalogosService
             maquinista.TurnoId
         };
         var response = await _httpClient.PutAsJsonAsync($"api/catalogos/maquinistas/{maquinista.UsuarioLineaId}", request);
-        await EnsureSuccessWithDetailAsync(response);
+        await ApiErrores.AsegurarExitoAsync(response);
     }
 
     public async Task DeleteMaquinistaAsync(int id)
     {
         var response = await _httpClient.DeleteAsync($"api/catalogos/maquinistas/{id}");
-        await EnsureSuccessWithDetailAsync(response);
+        await ApiErrores.AsegurarExitoAsync(response);
     }
 
     public async Task<List<ProductoDto>> GetProductosAsync(int? lineaId = null)

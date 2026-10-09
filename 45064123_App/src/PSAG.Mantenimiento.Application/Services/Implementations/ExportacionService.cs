@@ -165,10 +165,7 @@ public class ExportacionService : IExportacionService
         return memoria.ToArray();
     }
 
-    private static string EstadoAnalisisTexto(Detencion d) =>
-        !d.RequiereAnalisis ? "Sin análisis"
-        : d.EstadoActual == EstadoDetencion.CERRADA ? "Analizada"
-        : "Requiere análisis";
+    private static string EstadoAnalisisTexto(Detencion d) => d.ObtenerDescripcionAnalisis() ?? "Sin análisis";
 
     private static byte[] GenerarCsv(IEnumerable<Detencion> detenciones)
     {

@@ -1,5 +1,6 @@
 using PSAG.Mantenimiento.Domain.Common;
 using PSAG.Mantenimiento.Domain.Enums;
+using PSAG.Mantenimiento.Domain.Exceptions;
 
 namespace PSAG.Mantenimiento.Domain.Entities;
 
@@ -164,6 +165,27 @@ public class Detencion : EntityBase
     public bool PuedeTransicionarA(EstadoDetencion nuevoEstado)
     {
         return EstadoActual.PuedeTransicionarA(nuevoEstado);
+    }
+
+    /// <summary>
+    /// Cambia el estado si la transición está permitida y deja la entrada en el historial.
+    /// </summary>
+    public void CambiarEstado(EstadoDetencion nuevoEstado, string usuarioId, string? observacion)
+    {
+        if (!PuedeTransicionarA(nuevoEstado))
+            throw new TransicionEstadoInvalidaException(EstadoActual.ToString(), nuevoEstado.ToString());
+
+        HistorialEstados.Add(new DetencionEstadoHistorial
+        {
+            EstadoAnterior = EstadoActual,
+            EstadoNuevo = nuevoEstado,
+            FechaHora = DateTimeOffset.UtcNow,
+            UsuarioId = usuarioId,
+            Observacion = observacion,
+            OrigenAccion = "API"
+        });
+
+        EstadoActual = nuevoEstado;
     }
 
     /// <summary>

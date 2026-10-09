@@ -5,11 +5,11 @@ namespace PSAG.Mantenimiento.Domain.Interfaces;
 public interface ITiempoProgramadoDiaRepository : IRepository<TiempoProgramadoDia>
 {
     /// <summary>
-    /// Excepciones de una línea dentro del rango (ambos extremos incluidos).
+    /// Excepciones dentro del rango (ambos extremos incluidos), de una línea o de todas si lineaId es null.
     /// </summary>
-    Task<IEnumerable<TiempoProgramadoDia>> GetPorLineaYRangoAsync(
-        int lineaId,
+    Task<IEnumerable<TiempoProgramadoDia>> GetPorRangoAsync(
         DateOnly desde,
         DateOnly hasta,
+        int? lineaId = null,
         CancellationToken cancellationToken = default);
 }

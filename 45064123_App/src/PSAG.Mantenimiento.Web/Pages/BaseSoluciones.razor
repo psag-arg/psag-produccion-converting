@@ -164,9 +164,11 @@
         equipoId = EquipoId;
         tipoFallaId = TipoFallaId;
 
-        lineas = await CatalogosService.GetLineasAsync();
-        tiposFalla = await CatalogosService.GetTiposFallaAsync();
-        await CargarEquipos();
+        var tareaLineas = CatalogosService.GetLineasAsync();
+        var tareaTiposFalla = CatalogosService.GetTiposFallaAsync();
+        await Task.WhenAll(tareaLineas, tareaTiposFalla, CargarEquipos());
+        lineas = await tareaLineas;
+        tiposFalla = await tareaTiposFalla;
         await Buscar();
     }
 

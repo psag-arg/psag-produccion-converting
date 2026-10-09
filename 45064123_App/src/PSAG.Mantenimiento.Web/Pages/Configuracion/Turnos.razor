@@ -1,5 +1,4 @@
 @page "/configuracion/turnos"
-@using System.Globalization
 @using Microsoft.AspNetCore.Authorization
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
@@ -276,7 +275,7 @@
     private string? errorCalendario;
     private bool isSavingDia = false;
 
-    private string NombreMes => mesCalendario.ToString("MMMM yyyy", CultureInfo.GetCultureInfo("es-AR"));
+    private string NombreMes => mesCalendario.ToString("MMMM yyyy");
 
     private int OffsetPrimerDia => ((int)new DateTime(mesCalendario.Year, mesCalendario.Month, 1).DayOfWeek + 6) % 7;
 
@@ -284,20 +283,14 @@
     {
         var hoy = DateTime.Today;
         mesCalendario = new DateOnly(hoy.Year, hoy.Month, 1);
-        lineas = await CatalogosService.GetLineasAsync();
+        var tareaLineas = CatalogosService.GetLineasAsync();
+        var tareaTurnos = CargarTurnos();
+        lineas = await tareaLineas;
         lineaCalendarioId = lineas.FirstOrDefault()?.LineaId ?? 0;
-        await CargarTurnos();
-        await CargarCalendario();
+        await Task.WhenAll(tareaTurnos, CargarCalendario());
     }
 
-    private static string FormatearHoras(TurnoDto turno)
-    {
-        // Mismo criterio que el backend: si HoraFin no es posterior a HoraInicio, el turno cruza medianoche.
-        var duracion = turno.HoraFin > turno.HoraInicio
-            ? turno.HoraFin - turno.HoraInicio
-            : TimeSpan.FromHours(24) - turno.HoraInicio + turno.HoraFin;
-        return $"{duracion.TotalHours:0.##} h";
-    }
+    private static string FormatearHoras(TurnoDto turno) => $"{turno.DuracionMinutos / 60.0:0.##} h";
 
     private static string FormatearHorasDia(decimal horas) => $"{horas:0.##} h";
 

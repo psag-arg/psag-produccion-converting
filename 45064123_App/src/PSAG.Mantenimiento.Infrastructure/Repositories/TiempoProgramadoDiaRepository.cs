@@ -11,14 +11,14 @@ public class TiempoProgramadoDiaRepository : RepositoryBase<TiempoProgramadoDia>
     {
     }
 
-    public async Task<IEnumerable<TiempoProgramadoDia>> GetPorLineaYRangoAsync(
-        int lineaId,
+    public async Task<IEnumerable<TiempoProgramadoDia>> GetPorRangoAsync(
         DateOnly desde,
         DateOnly hasta,
+        int? lineaId = null,
         CancellationToken cancellationToken = default)
     {
         return await _dbSet
-            .Where(t => t.LineaId == lineaId && t.Fecha >= desde && t.Fecha <= hasta)
+            .Where(t => (!lineaId.HasValue || t.LineaId == lineaId.Value) && t.Fecha >= desde && t.Fecha <= hasta)
             .OrderBy(t => t.Fecha)
             .ToListAsync(cancellationToken);
     }

@@ -35,7 +35,8 @@ public static class TiempoProgramadoReporte
                 Minutos = dia.Minutos,
                 Horas = Horas(dia.Minutos),
                 Origen = hayExcepcion ? excepcion!.Origen : Estandar,
-                Motivo = hayExcepcion ? excepcion!.Motivo : null
+                Motivo = hayExcepcion ? excepcion!.Motivo : null,
+                TiempoProgramadoDiaId = hayExcepcion ? excepcion!.TiempoProgramadoDiaId : null
             });
         }
 

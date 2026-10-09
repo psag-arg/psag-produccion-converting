@@ -57,6 +57,7 @@ public class TurnoDto
     public TimeSpan HoraFin { get; set; }
     public int Orden { get; set; }
     public bool Activo { get; set; }
+    public int DuracionMinutos { get; set; }
 }
 
 public class MaquinistaDto

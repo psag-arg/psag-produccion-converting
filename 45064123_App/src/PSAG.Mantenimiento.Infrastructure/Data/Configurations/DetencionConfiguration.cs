@@ -63,7 +63,6 @@ public class DetencionConfiguration : IEntityTypeConfiguration<Detencion>
         builder.Property(x => x.RowVersion)
             .IsRowVersion();
 
-        // Eliminación lógica: las eliminadas quedan fuera de todas las consultas.
         // Sólo se ven con IgnoreQueryFilters (administración).
         builder.HasQueryFilter(d => !d.Eliminada);
 
