@@ -11,7 +11,15 @@ Nada está mergeado, desplegado ni publicado. Solo commits locales en `t76-u1`.
 | 2ceb344 | feat(app): tiempo programado real en indisponibilidad y fallos mayores |
 | 149b48f | feat(web): reportes con tiempo programado, colores del maestro y Pareto por mes |
 | 71cb208 | feat(db): script 18 con tiempo programado histórico de Tango 2 |
-| (este) | docs(t76): registro de la unidad U1 y capturas |
+| eb1f540 | docs(t76): registro de la unidad U1 y capturas |
+| (este) | fix(reportes): días y números en castellano |
+
+## Corrección tras la revisión del coordinador
+
+- **Días en castellano.** El modal muestra "mié 01/07" y no "Wed 01/07". Se usa `CultureInfo("es-AR")` explícito en el formato. La cultura de la app no cambió.
+- **Números en es-AR, solo en lo agregado por U1.** Encabezado ("22.594 · 3.839,5 h"), filas "Minutos de detención" y "Tiempo programado (h)" y resumen del modal. Los helpers `FormatoHoras` (`#,##0.#`) y `FormatoMinutos` (`N0`) ya usan la cultura explícita.
+- **Sin cambios en lo preexistente.** Porcentajes y totales de tablas y gráficos de indisponibilidad, fallos y Pareto siguen con la cultura de la app. En la app local esa cultura se ve en-US: la misma pantalla muestra "10,7%" en el modal y "10.7%" en la tabla. Unificar la cultura es una decisión aparte.
+- **Capturas.** Se re-tomaron las cuatro y se revisaron 01 y 02. El modal muestra "mié", "4.280" y "664 h (39.840 min)".
 
 ## Antes y después (Tango 2, 2026)
 
@@ -64,7 +72,7 @@ Marzo coincide con el criterio del brief: 5.005 min / (647,5 h × 60) = 12,9 %.
 | Indisponibilidad | `GET /api/dashboard/indisponibilidad?anio=2026&lineaId=7` con la base cargada | Marzo 12,9 % (5.005 / 38.850 min). Resto de meses en la tabla de arriba | API real (SQLite) |
 | Modal por día | `GET /api/dashboard/tiempo-programado?lineaId=7&anio=2026&mes=m` para m = 3 a 8 | Suma de horas igual a la fila del reporte en los seis meses (647,5 / 616 / 624 / 640 / 664 / 648) | API real (SQLite) |
 | Mes inválido | `mes=13` | 400 | API real |
-| Pantalla | Playwright headless: Tango 2, modal de julio, Fallos Mayores, Pareto con agosto | 4 capturas, sin errores de consola | Pantalla real |
+| Pantalla | Playwright headless: Tango 2, modal de julio, Fallos Mayores, Pareto con agosto (re-tomadas tras la corrección de formato) | 4 capturas, sin errores de consola | Pantalla real |
 | Errores de API | `grep "responded 500" api-5301.log` | 0 | API real |
 | Datos del script 18 | Valores del SQL contra el Excel y contra la base local | 173 días, 0 diferencias con la base local. Totales por mes iguales al Excel (mar 647,5) | Datos |
 | Script 18 en motor | No se ejecutó en SQL Server | **NO VERIFICADO** a nivel motor. U0 no pudo levantar SQL Server en Docker | Sin motor |
@@ -95,6 +103,6 @@ Comandos del script: `database/tools/generar_18_tiempo_programado.py "<Historial
 ## Capturas
 
 - `capturas/U1/01-indisponibilidad.png`: Tango 2, 2026, con la fila de tiempo programado y la fórmula.
-- `capturas/U1/02-modal-tiempo-programado.png`: modal de julio, 664 h.
+- `capturas/U1/02-modal-tiempo-programado.png`: modal de julio, 664 h, días en castellano.
 - `capturas/U1/03-fallos-mayores.png`: colores del maestro (en la prueba) y paleta de respaldo.
 - `capturas/U1/04-pareto-agosto.png`: Pareto con Mes = Agosto, total 2.620 min.

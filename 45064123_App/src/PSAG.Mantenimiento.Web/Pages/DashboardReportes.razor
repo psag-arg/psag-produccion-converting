@@ -1,4 +1,5 @@
 @page "/dashboard/reportes"
+@using System.Globalization
 @using Microsoft.AspNetCore.Authorization
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
@@ -87,7 +88,7 @@
                         @if (indisponibilidad != null && indisponibilidad.Meses.Any())
                         {
                             <span class="text-muted small">
-                                Total minutos: @indisponibilidad.Meses.Sum(m => m.MinutosTotalesParada).ToString("N0") ·
+                                Total minutos: @FormatoMinutos(indisponibilidad.Meses.Sum(m => m.MinutosTotalesParada)) ·
                                 Total horas programadas: @FormatoHoras(indisponibilidad.Meses.Sum(m => m.HorasProgramadas)) h
                             </span>
                         }
@@ -196,9 +197,9 @@
                                             <td>Minutos de detención</td>
                                             @foreach (var mes in indisponibilidad.Meses)
                                             {
-                                                <td class="text-center">@mes.MinutosTotalesParada.ToString("N0")</td>
+                                                <td class="text-center">@FormatoMinutos(mes.MinutosTotalesParada)</td>
                                             }
-                                            <td class="text-center fw-bold">@((indisponibilidad.Promedio?.MinutosTotalesParada ?? 0).ToString("N0"))</td>
+                                            <td class="text-center fw-bold">@FormatoMinutos(indisponibilidad.Promedio?.MinutosTotalesParada ?? 0)</td>
                                         </tr>
                                         <tr>
                                             <td>Tiempo programado (h)</td>
@@ -584,15 +585,15 @@
                         <div class="row text-center mb-3">
                             <div class="col">
                                 <div class="text-muted small">Minutos de detención</div>
-                                <strong>@mesProgramado.MinutosTotalesParada.ToString("N0")</strong>
+                                <strong>@FormatoMinutos(mesProgramado.MinutosTotalesParada)</strong>
                             </div>
                             <div class="col">
                                 <div class="text-muted small">Tiempo programado</div>
-                                <strong>@FormatoHoras(mesProgramado.HorasProgramadas) h (@mesProgramado.MinutosProgramados.ToString("N0") min)</strong>
+                                <strong>@FormatoHoras(mesProgramado.HorasProgramadas) h (@FormatoMinutos(mesProgramado.MinutosProgramados) min)</strong>
                             </div>
                             <div class="col">
                                 <div class="text-muted small">Indisponibilidad</div>
-                                <strong>@mesProgramado.IndisponibilidadTotal.ToString("0.0")%</strong>
+                                <strong>@mesProgramado.IndisponibilidadTotal.ToString("0.0", Castellano)%</strong>
                             </div>
                         </div>
                         <div class="table-responsive" style="max-height: 500px;">
@@ -612,7 +613,7 @@
                                     @foreach (var dia in diasProgramados)
                                     {
                                         <tr>
-                                            <td class="text-nowrap">@dia.Fecha.ToString("ddd dd/MM")</td>
+                                            <td class="text-nowrap">@dia.Fecha.ToString("ddd dd/MM", Castellano)</td>
                                             @if (filtroLineaId == 0)
                                             {
                                                 <td>@dia.LineaNombre</td>
@@ -703,6 +704,9 @@
     private string programadoTitulo = "";
     private IndisponibilidadMensualDto? mesProgramado;
     private List<TiempoProgramadoDiaDto> diasProgramados = new();
+
+    // Números y días de los elementos nuevos en castellano, sin cambiar la cultura de la app
+    private static readonly CultureInfo Castellano = new("es-AR");
 
     private static readonly string[] NombresMeses =
     {
@@ -824,7 +828,9 @@
     private string TextoPeriodoPareto() =>
         filtroMes > 0 ? $"{NombresMeses[filtroMes]} {filtroAnio}" : $"{filtroAnio}";
 
-    private static string FormatoHoras(double horas) => horas.ToString("0.#");
+    private static string FormatoHoras(double horas) => horas.ToString("#,##0.#", Castellano);
+
+    private static string FormatoMinutos(int minutos) => minutos.ToString("N0", Castellano);
 
     private List<IndisponibilidadTipoFallaItem> GetTiposFallaUnicos(IndisponibilidadReporteDto reporte)
     {
