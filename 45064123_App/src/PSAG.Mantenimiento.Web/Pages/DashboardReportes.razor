@@ -1,5 +1,4 @@
 @page "/dashboard/reportes"
-@using System.Globalization
 @using Microsoft.AspNetCore.Authorization
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
@@ -103,7 +102,7 @@
 
                             <!-- Leyenda -->
                             <div class="d-flex flex-wrap gap-3 mb-4">
-                                @foreach (var tipo in GetTiposFallaUnicos(indisponibilidad))
+                                @foreach (var tipo in UnicosPorTipo(indisponibilidad.Meses.Select(m => m.PorTipoFalla), t => t.TipoFallaId, t => t.TipoFallaNombre))
                                 {
                                     <div class="d-flex align-items-center">
                                         <div style="width: 16px; height: 16px; background-color: @GetColorTipoFalla(tipo); margin-right: 6px;"></div>
@@ -174,7 +173,7 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @foreach (var tipo in GetTiposFallaUnicos(indisponibilidad))
+                                        @foreach (var tipo in UnicosPorTipo(indisponibilidad.Meses.Select(m => m.PorTipoFalla), t => t.TipoFallaId, t => t.TipoFallaNombre))
                                         {
                                             <tr>
                                                 <td>@tipo.TipoFallaNombre</td>
@@ -247,7 +246,7 @@
                         {
                             <!-- Leyenda -->
                             <div class="d-flex flex-wrap gap-3 mb-4">
-                                @foreach (var tipo in GetTiposFallosMayoresUnicos(fallosMayores))
+                                @foreach (var tipo in UnicosPorTipo(fallosMayores.Meses.Select(m => m.PorTipoFalla), t => t.TipoFallaId, t => t.TipoFallaNombre))
                                 {
                                     <div class="d-flex align-items-center">
                                         <div style="width: 16px; height: 16px; background-color: @GetColorFalloMayor(tipo); margin-right: 6px;"></div>
@@ -326,7 +325,7 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @foreach (var tipo in GetTiposFallosMayoresUnicos(fallosMayores))
+                                        @foreach (var tipo in UnicosPorTipo(fallosMayores.Meses.Select(m => m.PorTipoFalla), t => t.TipoFallaId, t => t.TipoFallaNombre))
                                         {
                                             <tr>
                                                 <td>@tipo.TipoFallaNombre</td>
@@ -560,7 +559,6 @@
     </div>
 }
 
-@* Modal de tiempo programado por día *@
 @if (mostrarModalProgramado && mesProgramado != null)
 {
     <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
@@ -593,7 +591,7 @@
                             </div>
                             <div class="col">
                                 <div class="text-muted small">Indisponibilidad</div>
-                                <strong>@mesProgramado.IndisponibilidadTotal.ToString("0.0", Castellano)%</strong>
+                                <strong>@mesProgramado.IndisponibilidadTotal.ToString("0.0")%</strong>
                             </div>
                         </div>
                         <div class="table-responsive" style="max-height: 500px;">
@@ -613,7 +611,7 @@
                                     @foreach (var dia in diasProgramados)
                                     {
                                         <tr>
-                                            <td class="text-nowrap">@dia.Fecha.ToString("ddd dd/MM", Castellano)</td>
+                                            <td class="text-nowrap">@dia.Fecha.ToString("ddd dd/MM")</td>
                                             @if (filtroLineaId == 0)
                                             {
                                                 <td>@dia.LineaNombre</td>
@@ -698,15 +696,11 @@
     private string modalTitulo = "";
     private PagedResult<DetencionDto>? detencionesDetalle;
 
-    // Modal de tiempo programado por dia
     private bool mostrarModalProgramado = false;
     private bool cargandoProgramado = false;
     private string programadoTitulo = "";
     private IndisponibilidadMensualDto? mesProgramado;
     private List<TiempoProgramadoDiaDto> diasProgramados = new();
-
-    // Números y días de los elementos nuevos en castellano, sin cambiar la cultura de la app
-    private static readonly CultureInfo Castellano = new("es-AR");
 
     private static readonly string[] NombresMeses =
     {
@@ -814,43 +808,29 @@
         }
     }
 
-    private (DateOnly Desde, DateOnly Hasta) PeriodoPareto()
-    {
-        if (filtroMes > 0)
-        {
-            var desde = new DateOnly(filtroAnio, filtroMes, 1);
-            return (desde, desde.AddMonths(1).AddDays(-1));
-        }
+    private (DateOnly Desde, DateOnly Hasta) PeriodoPareto() =>
+        filtroMes > 0 ? RangoMes(filtroMes) : (new DateOnly(filtroAnio, 1, 1), new DateOnly(filtroAnio, 12, 31));
 
-        return (new DateOnly(filtroAnio, 1, 1), new DateOnly(filtroAnio, 12, 31));
+    private (DateOnly Desde, DateOnly Hasta) RangoMes(int mes)
+    {
+        var desde = new DateOnly(filtroAnio, mes, 1);
+        return (desde, desde.AddMonths(1).AddDays(-1));
     }
 
     private string TextoPeriodoPareto() =>
         filtroMes > 0 ? $"{NombresMeses[filtroMes]} {filtroAnio}" : $"{filtroAnio}";
 
-    private static string FormatoHoras(double horas) => horas.ToString("#,##0.#", Castellano);
+    private static string FormatoHoras(double horas) => horas.ToString("#,##0.#");
 
-    private static string FormatoMinutos(int minutos) => minutos.ToString("N0", Castellano);
+    private static string FormatoMinutos(int minutos) => minutos.ToString("N0");
 
-    private List<IndisponibilidadTipoFallaItem> GetTiposFallaUnicos(IndisponibilidadReporteDto reporte)
-    {
-        return reporte.Meses
-            .SelectMany(m => m.PorTipoFalla)
-            .GroupBy(t => t.TipoFallaId)
+    // Un tipo de falla por renglón, aunque aparezca en varios meses
+    private static List<T> UnicosPorTipo<T>(IEnumerable<IEnumerable<T>> porMes, Func<T, int> tipoFallaId, Func<T, string> tipoFallaNombre) =>
+        porMes.SelectMany(tipos => tipos)
+            .GroupBy(tipoFallaId)
             .Select(g => g.First())
-            .OrderBy(t => t.TipoFallaNombre)
+            .OrderBy(tipoFallaNombre)
             .ToList();
-    }
-
-    private List<FalloMayorTipoItem> GetTiposFallosMayoresUnicos(FallosMayoresReporteDto reporte)
-    {
-        return reporte.Meses
-            .SelectMany(m => m.PorTipoFalla)
-            .GroupBy(t => t.TipoFallaId)
-            .Select(g => g.First())
-            .OrderBy(t => t.TipoFallaNombre)
-            .ToList();
-    }
 
     private string GetColorTipoFalla(IndisponibilidadTipoFallaItem tipo) =>
         ResolverColor(tipo.Color, tipo.TipoFallaId, tipo.TipoFallaNombre, ColoresTipoFalla);
@@ -925,8 +905,7 @@
     private async Task MostrarDetallePorMesYTipo(int mes, int? tipoFallaId, string tipoFallaNombre, string mesNombre)
     {
         var lineaId = filtroLineaId > 0 ? filtroLineaId : (int?)null;
-        var fechaDesde = new DateOnly(filtroAnio, mes, 1);
-        var fechaHasta = fechaDesde.AddMonths(1).AddDays(-1);
+        var (fechaDesde, fechaHasta) = RangoMes(mes);
 
         modalTitulo = $"{mesNombre} {filtroAnio} - {tipoFallaNombre}";
         if (lineaId.HasValue)
@@ -948,8 +927,7 @@
     private async Task MostrarDetalleFallosMayores(int mes, int? tipoFallaId, string tipoFallaNombre, string mesNombre)
     {
         var lineaId = filtroLineaId > 0 ? filtroLineaId : (int?)null;
-        var fechaDesde = new DateOnly(filtroAnio, mes, 1);
-        var fechaHasta = fechaDesde.AddMonths(1).AddDays(-1);
+        var (fechaDesde, fechaHasta) = RangoMes(mes);
 
         modalTitulo = $"Fallos Mayores (>=60 min) - {mesNombre} {filtroAnio} - {tipoFallaNombre}";
         if (lineaId.HasValue)
