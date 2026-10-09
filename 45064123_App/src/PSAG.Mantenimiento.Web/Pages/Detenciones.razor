@@ -286,15 +286,22 @@
                             <div class="row mb-3">
                                 <div class="col-md-4">
                                     <label class="form-label">Hora inicio</label>
-                                    <input type="time" class="form-control" value="@horaInicioTexto" @onchange="CambiarHoraInicio" />
+                                    <input type="time" class="form-control" value="@horaInicioTexto" disabled="@editandoPlc" @onchange="CambiarHoraInicio" />
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Hora fin</label>
-                                    <input type="time" class="form-control" value="@horaFinTexto" @onchange="CambiarHoraFin" />
+                                    <input type="time" class="form-control" value="@horaFinTexto" disabled="@editandoPlc" @onchange="CambiarHoraFin" />
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Minutos de Parada</label>
-                                    @if (MinutosManuales is int minutosCalculados)
+                                    @if (editandoPlc)
+                                    {
+                                        <div class="form-control bg-light">
+                                            <strong>@editandoDetencion!.MinutosEfectivos</strong> min
+                                            <small class="text-muted ms-1">del PLC</small>
+                                        </div>
+                                    }
+                                    else if (MinutosManuales is int minutosCalculados)
                                     {
                                         <div class="form-control bg-light">
                                             <strong>@minutosCalculados</strong> min
@@ -587,6 +594,7 @@
     private DetencionDto? editandoDetencion;
     private string? horaInicioTexto;
     private string? horaFinTexto;
+    private bool horasEditadas;
 
     private DetencionDto? detencionAEliminar;
     private string? motivoEliminacion;
@@ -595,6 +603,11 @@
     private IJSObjectReference? moduloDescargas;
 
     private bool HorasCargadas => ParsearHora(horaInicioTexto).HasValue && ParsearHora(horaFinTexto).HasValue;
+
+    /// <summary>
+    /// Las horas de una detención del PLC se ven pero no se editan.
+    /// </summary>
+    private bool editandoPlc => editandoDetencion?.OrigenTiempo == "PLC";
 
     /// <summary>
     /// Minutos entre inicio y fin. Si el fin es anterior, cruza medianoche. Sólo para mostrar; el backend recalcula.
@@ -791,6 +804,7 @@
         requiereAnalisisPrevio = false;
         horaInicioTexto = null;
         horaFinTexto = null;
+        horasEditadas = false;
         showModal = true;
         await CargarResumenTurno();
     }
@@ -809,10 +823,11 @@
         };
         selectedLineaId = det.LineaId;
 
-        // Si la detención se cargó con horas, las mostramos para que se conserven al guardar.
-        var conHoras = det.OrigenTiempo == "CALCULADO" && det.FechaHoraParada.HasValue && det.FechaHoraArranque.HasValue;
+        // Si la detención tiene horas reales (cargadas o del PLC), las mostramos. Sólo se reenvían si el usuario las cambia.
+        var conHoras = det.OrigenTiempo is "CALCULADO" or "PLC" && det.FechaHoraParada.HasValue && det.FechaHoraArranque.HasValue;
         horaInicioTexto = conHoras ? det.FechaHoraParada!.Value.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture) : null;
         horaFinTexto = conHoras ? det.FechaHoraArranque!.Value.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture) : null;
+        horasEditadas = false;
 
         if (model.LineaId > 0)
         {
@@ -973,6 +988,11 @@
             errorMessage = "Ingresá la hora de inicio y la de fin, o ninguna de las dos";
             return;
         }
+        if (editando && editandoDetencion is { OrigenTiempo: "CALCULADO", FechaHoraParada: not null } && !inicio.HasValue)
+        {
+            errorMessage = "Una detención cargada con horas no puede quedarse sin ellas";
+            return;
+        }
         if (!inicio.HasValue && (model.MinutosDeclarados == null || model.MinutosDeclarados <= 0))
         {
             errorMessage = "Debe ingresar los minutos de parada";
@@ -1034,26 +1054,33 @@
 
     private void AplicarHorasAlModelo()
     {
-        model.HoraInicio = ParsearHora(horaInicioTexto);
-        model.HoraFin = ParsearHora(horaFinTexto);
-        model.OrigenTiempo = HorasCargadas ? "CALCULADO" : "DECLARADO";
+        // Un PLC no tiene horas editables: la previsualización usa sus minutos.
+        model.HoraInicio = editandoPlc ? null : ParsearHora(horaInicioTexto);
+        model.HoraFin = editandoPlc ? null : ParsearHora(horaFinTexto);
+        model.OrigenTiempo = HorasCargadas && !editandoPlc ? "CALCULADO" : "DECLARADO";
     }
 
-    private ActualizarDetencionRequest ConstruirActualizacion(DetencionDto det) => new()
+    private ActualizarDetencionRequest ConstruirActualizacion(DetencionDto det)
     {
-        Fecha = model.Fecha,
-        EquipoId = model.EquipoId,
-        TipoFallaId = model.TipoFallaId,
-        DetalleFallaId = model.DetalleFallaId,
-        MinutosDeclarados = model.MinutosDeclarados,
-        HoraInicio = model.HoraInicio,
-        HoraFin = model.HoraFin,
-        OrigenTiempo = model.OrigenTiempo,
-        Descripcion = model.Descripcion,
-        AccionesRealizadas = det.AccionesRealizadas,
-        ResolucionDescripcion = det.ResolucionDescripcion,
-        RowVersion = det.RowVersion
-    };
+        // Sólo se mandan horas si el usuario las cambió. Así no se recalculan por redondeo a minuto
+        // ni cambian de turno al editar la descripción. Sin horas, el backend conserva el tiempo.
+        var mandarHoras = horasEditadas && !editandoPlc;
+        return new()
+        {
+            Fecha = model.Fecha,
+            EquipoId = model.EquipoId,
+            TipoFallaId = model.TipoFallaId,
+            DetalleFallaId = model.DetalleFallaId,
+            MinutosDeclarados = model.MinutosDeclarados,
+            HoraInicio = mandarHoras ? model.HoraInicio : null,
+            HoraFin = mandarHoras ? model.HoraFin : null,
+            OrigenTiempo = mandarHoras ? model.OrigenTiempo : det.OrigenTiempo,
+            Descripcion = model.Descripcion,
+            AccionesRealizadas = det.AccionesRealizadas,
+            ResolucionDescripcion = det.ResolucionDescripcion,
+            RowVersion = det.RowVersion
+        };
+    }
 
     private void AbrirEliminar(DetencionDto det)
     {
@@ -1107,12 +1134,14 @@
     private async Task CambiarHoraInicio(ChangeEventArgs e)
     {
         horaInicioTexto = e.Value?.ToString();
+        horasEditadas = true;
         await ActualizarAvisoAnalisisAsync();
     }
 
     private async Task CambiarHoraFin(ChangeEventArgs e)
     {
         horaFinTexto = e.Value?.ToString();
+        horasEditadas = true;
         await ActualizarAvisoAnalisisAsync();
     }
 

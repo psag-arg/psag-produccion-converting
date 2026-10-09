@@ -25,6 +25,7 @@ public class DetencionesController : ApiControllerBase
     private readonly IAuditoriaService _auditoriaService;
     private readonly ILogger<DetencionesController> _logger;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly TimeZoneInfo _zonaPlanta;
 
     public DetencionesController(
         IUnitOfWork unitOfWork,
@@ -32,7 +33,8 @@ public class DetencionesController : ApiControllerBase
         IExportacionService exportacionService,
         IAuditoriaService auditoriaService,
         ILogger<DetencionesController> logger,
-        UserManager<ApplicationUser> userManager)
+        UserManager<ApplicationUser> userManager,
+        TimeZoneInfo zonaPlanta)
     {
         _userManager = userManager;
         _unitOfWork = unitOfWork;
@@ -40,6 +42,7 @@ public class DetencionesController : ApiControllerBase
         _exportacionService = exportacionService;
         _auditoriaService = auditoriaService;
         _logger = logger;
+        _zonaPlanta = zonaPlanta;
     }
 
     /// <summary>
@@ -51,7 +54,7 @@ public class DetencionesController : ApiControllerBase
     {
         var (detenciones, total) = await BuscarDetencionesAsync(filtro, filtro.Page, filtro.PageSize);
 
-        var items = detenciones.Select(d => ConDatosAnalisis(new DetencionDto
+        var items = detenciones.Select(d => DatosAnalisisMapper.ConDatosAnalisis(new DetencionDto
         {
             DetencionId = d.DetencionId,
             Codigo = d.Codigo,
@@ -112,7 +115,7 @@ public class DetencionesController : ApiControllerBase
             });
         }
 
-        var dto = ConDatosAnalisis(new DetencionDetalleDto
+        var dto = DatosAnalisisMapper.ConDatosAnalisis(new DetencionDetalleDto
         {
             DetencionId = detencion.DetencionId,
             Codigo = detencion.Codigo,
@@ -268,37 +271,8 @@ public class DetencionesController : ApiControllerBase
             turnoNombre = turnoPorHora.Nombre;
         }
 
-        // Calcular MinutosEfectivos
-        int minutosEfectivos;
-        OrigenTiempo origenTiempo;
-
-        if (Enum.TryParse<OrigenTiempo>(request.OrigenTiempo, true, out var parsedOrigen))
-        {
-            origenTiempo = parsedOrigen;
-        }
-        else
-        {
-            origenTiempo = OrigenTiempo.DECLARADO;
-        }
-
-        if (origenTiempo == OrigenTiempo.DECLARADO)
-        {
-            minutosEfectivos = request.MinutosDeclarados ?? 0;
-        }
-        else if (origenTiempo == OrigenTiempo.CALCULADO && request.FechaHoraParada.HasValue && request.FechaHoraArranque.HasValue)
-        {
-            minutosEfectivos = (int)(request.FechaHoraArranque.Value - request.FechaHoraParada.Value).TotalMinutes;
-        }
-        else
-        {
-            minutosEfectivos = 0;
-        }
-
-        if (tiempoManual.HasValue)
-        {
-            origenTiempo = OrigenTiempo.CALCULADO;
-            minutosEfectivos = tiempoManual.Value.Minutos;
-        }
+        // Mismo cálculo que la previsualización de análisis.
+        var tiempo = TiempoDetencionCalculador.Calcular(TiempoDeSolicitud(request), _zonaPlanta);
 
         // Generar código único
         var codigo = await _unitOfWork.Detenciones.GenerarCodigoDetencionAsync();
@@ -313,11 +287,11 @@ public class DetencionesController : ApiControllerBase
             TurnoId = turnoId,
             UsuarioLineaId = usuarioLineaId,
             Fecha = request.Fecha,
-            MinutosDeclarados = tiempoManual.HasValue ? null : request.MinutosDeclarados,
-            FechaHoraParada = tiempoManual?.Parada ?? request.FechaHoraParada,
-            FechaHoraArranque = tiempoManual?.Arranque ?? request.FechaHoraArranque,
-            OrigenTiempo = origenTiempo,
-            MinutosEfectivos = minutosEfectivos,
+            MinutosDeclarados = tiempo.MinutosDeclarados,
+            FechaHoraParada = tiempo.FechaHoraParada,
+            FechaHoraArranque = tiempo.FechaHoraArranque,
+            OrigenTiempo = tiempo.Origen,
+            MinutosEfectivos = tiempo.MinutosEfectivos,
             Descripcion = request.Descripcion,
             EstadoActual = EstadoDetencion.REGISTRADA,
             CreadoPorUsuarioId = CurrentUserId,
@@ -496,7 +470,7 @@ public class DetencionesController : ApiControllerBase
             detenciones = detenciones.Where(d => d.LineaId == lineaId.Value);
         }
 
-        var items = detenciones.Select(d => ConDatosAnalisis(new DetencionListaDto
+        var items = detenciones.Select(d => DatosAnalisisMapper.ConDatosAnalisis(new DetencionListaDto
         {
             DetencionId = d.DetencionId,
             Codigo = d.Codigo,
@@ -562,15 +536,22 @@ public class DetencionesController : ApiControllerBase
             });
         }
 
-        var tiempoManual = CalcularTiempoManual(request.Fecha ?? detencion.Fecha, request.HoraInicio, request.HoraFin);
+        var fecha = request.Fecha ?? detencion.Fecha;
+        var tiempoManual = CalcularTiempoManual(fecha, request.HoraInicio, request.HoraFin);
         var errorHoras = ValidarHorasManuales(request.HoraInicio, request.HoraFin, tiempoManual);
         if (errorHoras != null)
         {
             return BadRequest(errorHoras);
         }
 
+        // Lo que no cargó el usuario no se toca: tiempo, origen y turno siguen igual.
+        var guardado = new TiempoDetencion(
+            detencion.OrigenTiempo, detencion.MinutosEfectivos, detencion.MinutosDeclarados,
+            detencion.FechaHoraParada, detencion.FechaHoraArranque);
+        var edicion = TiempoDetencionCalculador.Editar(guardado, TiempoDeSolicitud(request, fecha), _zonaPlanta);
+
         int? turnoIdPorHora = null;
-        if (tiempoManual.HasValue)
+        if (edicion.RederivarTurno)
         {
             var turnoPorHora = await _unitOfWork.Turnos.GetTurnoPorHoraAsync(request.HoraInicio!.Value);
             if (turnoPorHora == null)
@@ -593,35 +574,23 @@ public class DetencionesController : ApiControllerBase
         detencion.EquipoId = request.EquipoId;
         detencion.TipoFallaId = request.TipoFallaId;
         detencion.DetalleFallaId = request.DetalleFallaId;
-        detencion.MinutosDeclarados = tiempoManual.HasValue ? null : request.MinutosDeclarados;
-        detencion.FechaHoraParada = tiempoManual?.Parada ?? request.FechaHoraParada;
-        detencion.FechaHoraArranque = tiempoManual?.Arranque ?? request.FechaHoraArranque;
         detencion.Descripcion = request.Descripcion;
-        detencion.AccionesRealizadas = request.AccionesRealizadas;
+        // La solución es parte del análisis (/api/analisis): editar la detención no la borra.
+        if (request.AccionesRealizadas != null)
+            detencion.AccionesRealizadas = request.AccionesRealizadas;
         detencion.ResolucionDescripcion = request.ResolucionDescripcion;
         detencion.ModificadoPorUsuarioId = CurrentUserId;
         detencion.FechaHoraModificacion = DateTimeOffset.UtcNow;
 
-        // Recalcular MinutosEfectivos
-        if (Enum.TryParse<OrigenTiempo>(request.OrigenTiempo, true, out var origenTiempo))
-        {
-            detencion.OrigenTiempo = origenTiempo;
-        }
-
-        if (detencion.OrigenTiempo == OrigenTiempo.DECLARADO)
-        {
-            detencion.MinutosEfectivos = request.MinutosDeclarados ?? 0;
-        }
-        else if (detencion.OrigenTiempo == OrigenTiempo.CALCULADO && request.FechaHoraParada.HasValue && request.FechaHoraArranque.HasValue)
-        {
-            detencion.MinutosEfectivos = (int)(request.FechaHoraArranque.Value - request.FechaHoraParada.Value).TotalMinutes;
-        }
-
-        if (tiempoManual.HasValue && turnoIdPorHora.HasValue)
+        var tiempo = edicion.Tiempo;
+        detencion.OrigenTiempo = tiempo.Origen;
+        detencion.MinutosEfectivos = tiempo.MinutosEfectivos;
+        detencion.MinutosDeclarados = tiempo.MinutosDeclarados;
+        detencion.FechaHoraParada = tiempo.FechaHoraParada;
+        detencion.FechaHoraArranque = tiempo.FechaHoraArranque;
+        if (turnoIdPorHora.HasValue)
         {
             detencion.TurnoId = turnoIdPorHora.Value;
-            detencion.OrigenTiempo = OrigenTiempo.CALCULADO;
-            detencion.MinutosEfectivos = tiempoManual.Value.Minutos;
         }
 
         await _detencionService.AplicarReglaAnalisisAsync(detencion);
@@ -632,7 +601,7 @@ public class DetencionesController : ApiControllerBase
         // Recargar con relaciones
         detencion = await _unitOfWork.Detenciones.GetByIdWithDetailsAsync(id);
 
-        return Ok(ConDatosAnalisis(new DetencionDto
+        return Ok(DatosAnalisisMapper.ConDatosAnalisis(new DetencionDto
         {
             DetencionId = detencion!.DetencionId,
             Codigo = detencion.Codigo,
@@ -818,14 +787,14 @@ public class DetencionesController : ApiControllerBase
     [ProducesResponseType(typeof(PrevisualizacionAnalisisResponse), StatusCodes.Status200OK)]
     public async Task<IActionResult> PrevisualizarAnalisis([FromBody] CrearDetencionRequest request)
     {
-        var tiempoManual = CalcularTiempoManual(request.Fecha, request.HoraInicio, request.HoraFin);
+        var tiempo = TiempoDetencionCalculador.Calcular(TiempoDeSolicitud(request), _zonaPlanta);
 
         var detencion = new Detencion
         {
             LineaId = request.LineaId,
             EquipoId = request.EquipoId,
             TipoFallaId = request.TipoFallaId,
-            MinutosEfectivos = tiempoManual?.Minutos ?? request.MinutosDeclarados ?? 0
+            MinutosEfectivos = tiempo.MinutosEfectivos
         };
         await _detencionService.AplicarReglaAnalisisAsync(detencion);
 
@@ -1041,29 +1010,31 @@ public class DetencionesController : ApiControllerBase
         return null;
     }
 
-    private static TiempoManual? CalcularTiempoManual(DateOnly fecha, TimeOnly? horaInicio, TimeOnly? horaFin) =>
+    private TiempoManual? CalcularTiempoManual(DateOnly fecha, TimeOnly? horaInicio, TimeOnly? horaFin) =>
         horaInicio is { } inicio && horaFin is { } fin
-            ? TiempoManualCalculador.Calcular(fecha, inicio, fin)
+            ? TiempoManualCalculador.Calcular(fecha, inicio, fin, _zonaPlanta)
             : null;
 
-    /// <summary>
-    /// Copia los campos de eliminación y análisis. Todas las vistas de detención pasan por acá.
-    /// </summary>
-    private static T ConDatosAnalisis<T>(T dto, Detencion detencion) where T : DatosAnalisisDetencion
-    {
-        dto.Eliminada = detencion.Eliminada;
-        dto.RequiereAnalisis = detencion.RequiereAnalisis;
-        dto.ResponsableRol = detencion.ResponsableRol;
-        dto.ResponsableUsuarioId = detencion.ResponsableUsuarioId;
-        dto.CausaFalla = detencion.CausaFalla;
-        dto.PlanAccion = detencion.PlanAccion;
-        dto.AnalisisPorUsuarioId = detencion.AnalisisPorUsuarioId;
-        dto.FechaHoraAnalisis = detencion.FechaHoraAnalisis;
-        dto.EquipoCritico = detencion.Equipo?.Critico ?? false;
-        dto.AnalisisPendiente = AnalisisFallaReglas.EstaAbierto(detencion);
-        dto.EstadoAnalisisDescripcion = detencion.ObtenerDescripcionAnalisis();
-        return dto;
-    }
+    private static TiempoCargado TiempoDeSolicitud(CrearDetencionRequest request) => new(
+        request.Fecha,
+        request.HoraInicio,
+        request.HoraFin,
+        ParsearOrigen(request.OrigenTiempo),
+        request.MinutosDeclarados,
+        request.FechaHoraParada,
+        request.FechaHoraArranque);
+
+    private static TiempoCargado TiempoDeSolicitud(ActualizarDetencionRequest request, DateOnly fecha) => new(
+        fecha,
+        request.HoraInicio,
+        request.HoraFin,
+        ParsearOrigen(request.OrigenTiempo),
+        request.MinutosDeclarados,
+        request.FechaHoraParada,
+        request.FechaHoraArranque);
+
+    private static OrigenTiempo? ParsearOrigen(string? texto) =>
+        Enum.TryParse<OrigenTiempo>(texto, true, out var origen) ? origen : null;
 
     private static byte[] GenerarCsv(IEnumerable<Domain.Entities.Detencion> detenciones)
     {

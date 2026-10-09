@@ -142,7 +142,7 @@ public class DetencionService : IDetencionService
         if (detencion == null)
             return Result<DetencionDetalleDto>.Failure("NOT_FOUND", "Detención no encontrada.");
 
-        var dto = new DetencionDetalleDto
+        var dto = DatosAnalisisMapper.ConDatosAnalisis(new DetencionDetalleDto
         {
             DetencionId = detencion.DetencionId,
             Codigo = detencion.Codigo,
@@ -169,15 +169,6 @@ public class DetencionService : IDetencionService
             ResolucionDescripcion = detencion.ResolucionDescripcion,
             FechaHoraCierre = detencion.FechaHoraCierre,
             CerradoPorUsuarioId = detencion.CerradoPorUsuarioId,
-            Eliminada = detencion.Eliminada,
-            RequiereAnalisis = detencion.RequiereAnalisis,
-            ResponsableRol = detencion.ResponsableRol,
-            ResponsableUsuarioId = detencion.ResponsableUsuarioId,
-            CausaFalla = detencion.CausaFalla,
-            PlanAccion = detencion.PlanAccion,
-            AnalisisPorUsuarioId = detencion.AnalisisPorUsuarioId,
-            FechaHoraAnalisis = detencion.FechaHoraAnalisis,
-            EquipoCritico = detencion.Equipo?.Critico ?? false,
             FechaHoraCreacion = detencion.FechaHoraCreacion,
             CreadoPorUsuarioId = detencion.CreadoPorUsuarioId,
             RowVersion = detencion.RowVersion,
@@ -203,7 +194,7 @@ public class DetencionService : IDetencionService
                 TipoNota = n.TipoNota.ToString(),
                 EsNotaDeCierre = n.EsNotaDeCierre
             }).ToList()
-        };
+        }, detencion);
 
         return Result<DetencionDetalleDto>.Success(dto);
     }
@@ -235,7 +226,7 @@ public class DetencionService : IDetencionService
             ordenDescendente: filtro.OrdenDescendente,
             cancellationToken: cancellationToken);
 
-        var dtos = items.Select(d => new DetencionListaDto
+        var dtos = items.Select(d => DatosAnalisisMapper.ConDatosAnalisis(new DetencionListaDto
         {
             DetencionId = d.DetencionId,
             Codigo = d.Codigo,
@@ -247,17 +238,8 @@ public class DetencionService : IDetencionService
             MinutosEfectivos = d.MinutosEfectivos,
             EstadoActual = d.EstadoActual.ToString(),
             EstadoActualDescripcion = d.EstadoActual.ObtenerDescripcion(),
-            Eliminada = d.Eliminada,
-            RequiereAnalisis = d.RequiereAnalisis,
-            ResponsableRol = d.ResponsableRol,
-            ResponsableUsuarioId = d.ResponsableUsuarioId,
-            CausaFalla = d.CausaFalla,
-            PlanAccion = d.PlanAccion,
-            AnalisisPorUsuarioId = d.AnalisisPorUsuarioId,
-            FechaHoraAnalisis = d.FechaHoraAnalisis,
-            EquipoCritico = d.Equipo?.Critico ?? false,
             CreadoPorUsuarioNombre = d.CreadoPorUsuarioId
-        }).ToList();
+        }, d)).ToList();
 
         return Result<PagedResult<DetencionListaDto>>.Success(new PagedResult<DetencionListaDto>
         {
@@ -495,7 +477,7 @@ public class DetencionService : IDetencionService
             detenciones = detenciones.Where(d => lineasSet.Contains(d.LineaId));
         }
 
-        var dtos = detenciones.Select(d => new DetencionListaDto
+        var dtos = detenciones.Select(d => DatosAnalisisMapper.ConDatosAnalisis(new DetencionListaDto
         {
             DetencionId = d.DetencionId,
             Codigo = d.Codigo,
@@ -507,24 +489,16 @@ public class DetencionService : IDetencionService
             MinutosEfectivos = d.MinutosEfectivos,
             EstadoActual = d.EstadoActual.ToString(),
             EstadoActualDescripcion = d.EstadoActual.ObtenerDescripcion(),
-            Eliminada = d.Eliminada,
-            RequiereAnalisis = d.RequiereAnalisis,
-            ResponsableRol = d.ResponsableRol,
-            ResponsableUsuarioId = d.ResponsableUsuarioId,
-            CausaFalla = d.CausaFalla,
-            PlanAccion = d.PlanAccion,
-            AnalisisPorUsuarioId = d.AnalisisPorUsuarioId,
-            FechaHoraAnalisis = d.FechaHoraAnalisis,
-            EquipoCritico = d.Equipo?.Critico ?? false,
             CreadoPorUsuarioNombre = d.CreadoPorUsuarioId
-        }).ToList();
+        }, d)).ToList();
 
         return Result<IReadOnlyList<DetencionListaDto>>.Success(dtos);
     }
 
     /// <summary>
     /// Evalúa las reglas activas contra la detención. Si aplica una, marca el análisis y su responsable.
-    /// Si no aplica ninguna y todavía no hay análisis, limpia la marca y el responsable.
+    /// Si no aplica ninguna y el análisis no empezó, limpia la marca y el responsable; si ya hay trabajo
+    /// cargado, lo conserva aunque la regla ya no aplique.
     /// No reevalúa detenciones ya cargadas: sólo se llama al crear o editar.
     /// </summary>
     public async Task AplicarReglaAnalisisAsync(Detencion detencion, CancellationToken cancellationToken = default)
@@ -544,7 +518,7 @@ public class DetencionService : IDetencionService
             detencion.ResponsableRol = regla.ResponsableRol;
             detencion.ResponsableUsuarioId = regla.ResponsableUsuarioId;
         }
-        else if (!detencion.FechaHoraAnalisis.HasValue)
+        else if (AnalisisFallaReglas.PuedeQuitarMarcaAnalisis(detencion))
         {
             detencion.RequiereAnalisis = false;
             detencion.ReglaAnalisisId = null;
@@ -555,7 +529,7 @@ public class DetencionService : IDetencionService
 
     private static DetencionDto MapToDto(Detencion d)
     {
-        return new DetencionDto
+        return DatosAnalisisMapper.ConDatosAnalisis(new DetencionDto
         {
             DetencionId = d.DetencionId,
             Codigo = d.Codigo,
@@ -585,16 +559,7 @@ public class DetencionService : IDetencionService
             CreadoPorUsuarioId = d.CreadoPorUsuarioId,
             FechaHoraCreacion = d.FechaHoraCreacion,
             FechaHoraModificacion = d.FechaHoraModificacion,
-            Eliminada = d.Eliminada,
-            RequiereAnalisis = d.RequiereAnalisis,
-            ResponsableRol = d.ResponsableRol,
-            ResponsableUsuarioId = d.ResponsableUsuarioId,
-            CausaFalla = d.CausaFalla,
-            PlanAccion = d.PlanAccion,
-            AnalisisPorUsuarioId = d.AnalisisPorUsuarioId,
-            FechaHoraAnalisis = d.FechaHoraAnalisis,
-            EquipoCritico = d.Equipo?.Critico ?? false,
             RowVersion = d.RowVersion
-        };
+        }, d);
     }
 }

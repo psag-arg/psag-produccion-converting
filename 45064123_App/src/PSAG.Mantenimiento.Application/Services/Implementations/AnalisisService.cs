@@ -111,8 +111,21 @@ public class AnalisisService : IAnalisisService
     {
         var esAdministrador = roles.Contains(RolesSistema.Administrador);
         var hoy = DateOnly.FromDateTime(DateTime.Today);
-        var abiertos = (await _unitOfWork.Detenciones.GetAnalisisAbiertosAsync(cancellationToken)).ToList();
-        var visibles = FiltrarVisibles(abiertos, usuarioId, roles, responsableRol, responsableUsuarioId);
+
+        // Sólo el administrador carga todas las abiertas (filtro por responsable y lista de responsables).
+        // El resto recibe las suyas filtradas en SQL con la misma condición que el conteo.
+        List<Detencion> visibles;
+        var responsables = new List<ResponsableOpcionDto>();
+        if (esAdministrador)
+        {
+            var abiertos = (await _unitOfWork.Detenciones.GetAnalisisAbiertosAsync(cancellationToken)).ToList();
+            visibles = abiertos.Where(d => CoincideResponsable(d, responsableRol, responsableUsuarioId)).ToList();
+            responsables = ObtenerResponsables(abiertos);
+        }
+        else
+        {
+            visibles = (await _unitOfWork.Detenciones.GetAnalisisAbiertosAsignadosAAsync(usuarioId, roles, cancellationToken)).ToList();
+        }
 
         var cerradas = await _unitOfWork.Detenciones.GetAnalisisCerradosPorUsuarioAsync(
             usuarioId, LimiteCerradasPorUsuario, cancellationToken);
@@ -130,7 +143,7 @@ public class AnalisisService : IAnalisisService
         {
             EsAdministrador = esAdministrador,
             VeDeclaracion = veDeclaracion,
-            VeAnalisis = !veDeclaracion || roles.Any(r => r is RolesSistema.Administrador or RolesSistema.Mantenimiento or RolesSistema.Supervisor),
+            VeAnalisis = AnalisisFallaReglas.MuestraAnalisis(usuarioId, roles, visibles),
             ParaAnalizar = visibles
                 .Where(d => d.EstadoActual == EstadoDetencion.REGISTRADA)
                 .Select(d => MapearPendiente(d, hoy))
@@ -144,7 +157,7 @@ public class AnalisisService : IAnalisisService
             DemoraPromedioDias = visibles.Count == 0
                 ? null
                 : visibles.Average(d => (double)(hoy.DayNumber - d.Fecha.DayNumber)),
-            Responsables = esAdministrador ? ObtenerResponsables(abiertos) : new List<ResponsableOpcionDto>()
+            Responsables = responsables
         };
 
         if (veDeclaracion)
@@ -207,25 +220,6 @@ public class AnalisisService : IAnalisisService
             return Result<Detencion>.Failure("CONCURRENCY", "El análisis fue modificado por otro usuario. Recargue los datos e intente nuevamente.");
 
         return Result<Detencion>.Success(detencion);
-    }
-
-    private static List<Detencion> FiltrarVisibles(
-        IEnumerable<Detencion> abiertos,
-        string usuarioId,
-        IReadOnlyCollection<string> roles,
-        string? responsableRol,
-        string? responsableUsuarioId)
-    {
-        if (roles.Contains(RolesSistema.Administrador))
-        {
-            return abiertos
-                .Where(d => CoincideResponsable(d, responsableRol, responsableUsuarioId))
-                .ToList();
-        }
-
-        return abiertos
-            .Where(d => AnalisisFallaReglas.EsResponsable(d, usuarioId, roles))
-            .ToList();
     }
 
     private async Task<int> ContarParaDeclararAsync(string usuarioId, CancellationToken cancellationToken)
