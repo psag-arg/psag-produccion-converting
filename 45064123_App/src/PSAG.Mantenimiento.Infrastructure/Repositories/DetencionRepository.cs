@@ -154,6 +154,18 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
             .ToListAsync(cancellationToken);
     }
 
+    public Task<int> CountAnalisisAbiertosParaAsync(
+        string usuarioId,
+        IReadOnlyCollection<string> roles,
+        CancellationToken cancellationToken = default)
+    {
+        var rolesArray = roles.ToArray();
+        return _dbSet
+            .Where(AnalisisFallaReglas.EstaAbiertoExpr)
+            .CountAsync(d => d.ResponsableUsuarioId == usuarioId
+                || (d.ResponsableRol != null && rolesArray.Contains(d.ResponsableRol)), cancellationToken);
+    }
+
     public async Task<IEnumerable<Detencion>> GetAnalisisCerradosPorUsuarioAsync(
         string usuarioId,
         int limite,

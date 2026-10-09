@@ -28,6 +28,11 @@ public interface IDetencionRepository : IRepository<Detencion>
     Task<IEnumerable<Detencion>> GetAnalisisAbiertosAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Cuenta los análisis abiertos asignados al usuario o a alguno de sus roles.
+    /// </summary>
+    Task<int> CountAnalisisAbiertosParaAsync(string usuarioId, IReadOnlyCollection<string> roles, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Análisis cerrados por el usuario, más recientes primero.
     /// </summary>
     Task<IEnumerable<Detencion>> GetAnalisisCerradosPorUsuarioAsync(string usuarioId, int limite, CancellationToken cancellationToken = default);

@@ -158,13 +158,14 @@ public class AnalisisService : IAnalisisService
         IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken = default)
     {
-        var abiertos = await _unitOfWork.Detenciones.GetAnalisisAbiertosAsync(cancellationToken);
-        var visibles = FiltrarVisibles(abiertos, usuarioId, roles, null, null);
-        var paraDeclarar = roles.Contains(RolesSistema.Operario)
-            ? (await ObtenerParaDeclararAsync(usuarioId, cancellationToken)).Count
-            : 0;
+        var total = roles.Contains(RolesSistema.Administrador)
+            ? await _unitOfWork.Detenciones.CountAsync(AnalisisFallaReglas.EstaAbiertoExpr, cancellationToken)
+            : await _unitOfWork.Detenciones.CountAnalisisAbiertosParaAsync(usuarioId, roles, cancellationToken);
 
-        return visibles.Count + paraDeclarar;
+        if (roles.Contains(RolesSistema.Operario))
+            total += await ContarParaDeclararAsync(usuarioId, cancellationToken);
+
+        return total;
     }
 
     public async Task<Result<IReadOnlyList<SolucionDto>>> BuscarSolucionesAsync(
@@ -234,15 +235,23 @@ public class AnalisisService : IAnalisisService
             .ToList();
     }
 
+    private async Task<int> ContarParaDeclararAsync(string usuarioId, CancellationToken cancellationToken)
+    {
+        var lineasIds = await LineasDelUsuarioAsync(usuarioId, cancellationToken);
+        if (lineasIds.Length == 0)
+            return 0;
+
+        return await _unitOfWork.Detenciones.CountAsync(
+            d => d.EstadoActual == EstadoDetencion.PENDIENTE_JUSTIFICACION && lineasIds.Contains(d.LineaId),
+            cancellationToken);
+    }
+
     private async Task<List<PendienteDeclaracionDto>> ObtenerParaDeclararAsync(
         string usuarioId,
         CancellationToken cancellationToken)
     {
-        var lineasIds = (await _unitOfWork.UsuariosLineas.FindAsync(ul => ul.UsuarioId == usuarioId, cancellationToken))
-            .Select(ul => ul.LineaId)
-            .ToHashSet();
-
-        if (lineasIds.Count == 0)
+        var lineasIds = await LineasDelUsuarioAsync(usuarioId, cancellationToken);
+        if (lineasIds.Length == 0)
             return new List<PendienteDeclaracionDto>();
 
         var nombresLineas = (await _unitOfWork.Lineas.GetAllAsync(cancellationToken))
@@ -268,6 +277,12 @@ public class AnalisisService : IAnalisisService
             })
             .ToList();
     }
+
+    private async Task<int[]> LineasDelUsuarioAsync(string usuarioId, CancellationToken cancellationToken) =>
+        (await _unitOfWork.UsuariosLineas.FindAsync(ul => ul.UsuarioId == usuarioId, cancellationToken))
+            .Select(ul => ul.LineaId)
+            .Distinct()
+            .ToArray();
 
     private async Task<AnalisisDetencionDto> ArmarDtoAsync(
         Detencion detencion,
