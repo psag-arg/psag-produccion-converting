@@ -68,8 +68,8 @@ Cada unidad escribe `registro-U<n>.md` en esta carpeta (qué hizo, decisiones, c
 
 | Unidad | Estado | Commit | Veredicto |
 |---|---|---|---|
-| U0 | pendiente | | |
-| U1 | pendiente | | |
-| U2 | pendiente | | |
-| U3 | pendiente | | |
-| U4 | pendiente | | |
+| U0 | integrada (fechas de auditoría en curso) | 6df6417 | VERIFICADO con tests y API local SQLite; script 17 NO VERIFICADO en SQL Server |
+| U1 | en curso | | |
+| U2 | en curso | | |
+| U3 | en cola | | |
+| U4 | en curso | | |
