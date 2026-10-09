@@ -82,6 +82,15 @@ public class DetencionesController : ApiControllerBase
             CreadoPorUsuarioId = d.CreadoPorUsuarioId,
             FechaHoraCreacion = d.FechaHoraCreacion,
             FechaHoraModificacion = d.FechaHoraModificacion,
+            Eliminada = d.Eliminada,
+            RequiereAnalisis = d.RequiereAnalisis,
+            ResponsableRol = d.ResponsableRol,
+            ResponsableUsuarioId = d.ResponsableUsuarioId,
+            CausaFalla = d.CausaFalla,
+            PlanAccion = d.PlanAccion,
+            AnalisisPorUsuarioId = d.AnalisisPorUsuarioId,
+            FechaHoraAnalisis = d.FechaHoraAnalisis,
+            EquipoCritico = d.Equipo?.Critico ?? false,
             RowVersion = d.RowVersion
         }).ToList();
 
@@ -143,6 +152,15 @@ public class DetencionesController : ApiControllerBase
             CerradoPorUsuarioId = detencion.CerradoPorUsuarioId,
             FechaHoraCreacion = detencion.FechaHoraCreacion,
             CreadoPorUsuarioId = detencion.CreadoPorUsuarioId,
+            Eliminada = detencion.Eliminada,
+            RequiereAnalisis = detencion.RequiereAnalisis,
+            ResponsableRol = detencion.ResponsableRol,
+            ResponsableUsuarioId = detencion.ResponsableUsuarioId,
+            CausaFalla = detencion.CausaFalla,
+            PlanAccion = detencion.PlanAccion,
+            AnalisisPorUsuarioId = detencion.AnalisisPorUsuarioId,
+            FechaHoraAnalisis = detencion.FechaHoraAnalisis,
+            EquipoCritico = detencion.Equipo?.Critico ?? false,
             RowVersion = detencion.RowVersion,
             Notas = detencion.Notas.Select(n => new DetencionNotaDto
             {
@@ -465,7 +483,16 @@ public class DetencionesController : ApiControllerBase
             Fecha = d.Fecha,
             MinutosEfectivos = d.MinutosEfectivos,
             EstadoActual = d.EstadoActual.ToString(),
-            EstadoActualDescripcion = d.EstadoActual.ObtenerDescripcion()
+            EstadoActualDescripcion = d.EstadoActual.ObtenerDescripcion(),
+            Eliminada = d.Eliminada,
+            RequiereAnalisis = d.RequiereAnalisis,
+            ResponsableRol = d.ResponsableRol,
+            ResponsableUsuarioId = d.ResponsableUsuarioId,
+            CausaFalla = d.CausaFalla,
+            PlanAccion = d.PlanAccion,
+            AnalisisPorUsuarioId = d.AnalisisPorUsuarioId,
+            FechaHoraAnalisis = d.FechaHoraAnalisis,
+            EquipoCritico = d.Equipo?.Critico ?? false
         });
 
         return Ok(items);
@@ -585,6 +612,15 @@ public class DetencionesController : ApiControllerBase
             CreadoPorUsuarioId = detencion.CreadoPorUsuarioId,
             FechaHoraCreacion = detencion.FechaHoraCreacion,
             FechaHoraModificacion = detencion.FechaHoraModificacion,
+            Eliminada = detencion.Eliminada,
+            RequiereAnalisis = detencion.RequiereAnalisis,
+            ResponsableRol = detencion.ResponsableRol,
+            ResponsableUsuarioId = detencion.ResponsableUsuarioId,
+            CausaFalla = detencion.CausaFalla,
+            PlanAccion = detencion.PlanAccion,
+            AnalisisPorUsuarioId = detencion.AnalisisPorUsuarioId,
+            FechaHoraAnalisis = detencion.FechaHoraAnalisis,
+            EquipoCritico = detencion.Equipo?.Critico ?? false,
             RowVersion = detencion.RowVersion
         });
     }
