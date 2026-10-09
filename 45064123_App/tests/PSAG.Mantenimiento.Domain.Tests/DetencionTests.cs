@@ -85,4 +85,10 @@ public class DetencionTests
         // Assert
         Assert.False(resultado);
     }
+
+    [Fact]
+    public void EstadoEnSeguimiento_SeDescribeComoEnAnalisis()
+    {
+        Assert.Equal("En análisis", EstadoDetencion.EN_SEGUIMIENTO.ObtenerDescripcion());
+    }
 }
