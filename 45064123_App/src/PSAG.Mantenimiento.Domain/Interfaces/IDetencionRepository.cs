@@ -10,6 +10,11 @@ public interface IDetencionRepository : IRepository<Detencion>
 {
     Task<Detencion?> GetByCodigoAsync(string codigo, CancellationToken cancellationToken = default);
     Task<Detencion?> GetByIdWithDetailsAsync(long detencionId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Incluye las eliminadas. Sólo para acciones de administración (restaurar).
+    /// </summary>
+    Task<Detencion?> GetByIdIncluyendoEliminadasAsync(long detencionId, CancellationToken cancellationToken = default);
     Task<IEnumerable<Detencion>> GetByLineaAsync(int lineaId, CancellationToken cancellationToken = default);
     Task<IEnumerable<Detencion>> GetByEstadoAsync(EstadoDetencion estado, CancellationToken cancellationToken = default);
     Task<IEnumerable<Detencion>> GetDetencionesAbiertasAsync(CancellationToken cancellationToken = default);
@@ -28,6 +33,8 @@ public interface IDetencionRepository : IRepository<Detencion>
         DateOnly? fechaDesde = null,
         DateOnly? fechaHasta = null,
         string? busqueda = null,
+        bool? analisisPendiente = null,
+        bool incluirEliminadas = false,
         string? ordenarPor = null,
         bool ordenDescendente = true,
         CancellationToken cancellationToken = default);

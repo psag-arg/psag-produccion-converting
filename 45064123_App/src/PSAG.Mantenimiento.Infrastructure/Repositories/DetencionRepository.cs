@@ -23,6 +23,13 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
             .FirstOrDefaultAsync(d => d.Codigo == codigo, cancellationToken);
     }
 
+    public async Task<Detencion?> GetByIdIncluyendoEliminadasAsync(long detencionId, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(d => d.DetencionId == detencionId, cancellationToken);
+    }
+
     public async Task<Detencion?> GetByIdWithDetailsAsync(long detencionId, CancellationToken cancellationToken = default)
     {
         return await _dbSet
@@ -145,17 +152,19 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
         DateOnly? fechaDesde = null,
         DateOnly? fechaHasta = null,
         string? busqueda = null,
+        bool? analisisPendiente = null,
+        bool incluirEliminadas = false,
         string? ordenarPor = null,
         bool ordenDescendente = true,
         CancellationToken cancellationToken = default)
     {
-        var query = _dbSet
+        IQueryable<Detencion> query = incluirEliminadas ? _dbSet.IgnoreQueryFilters() : _dbSet;
+        query = query
             .Include(d => d.Linea)
             .Include(d => d.Equipo)
             .Include(d => d.TipoFalla)
             .Include(d => d.DetalleFalla)
-            .Include(d => d.Turno)
-            .AsQueryable();
+            .Include(d => d.Turno);
 
         // Aplicar filtros
         if (lineaId.HasValue)
@@ -181,6 +190,14 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
 
         if (fechaHasta.HasValue)
             query = query.Where(d => d.Fecha <= fechaHasta.Value);
+
+        // Pendiente = requiere análisis y todavía no está cerrada (ver badge "Requiere análisis").
+        if (analisisPendiente.HasValue)
+        {
+            query = analisisPendiente.Value
+                ? query.Where(d => d.RequiereAnalisis && d.EstadoActual != EstadoDetencion.CERRADA)
+                : query.Where(d => !d.RequiereAnalisis || d.EstadoActual == EstadoDetencion.CERRADA);
+        }
 
         if (!string.IsNullOrWhiteSpace(busqueda))
         {
