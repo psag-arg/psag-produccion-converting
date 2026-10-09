@@ -395,6 +395,17 @@ public class DetencionesController : ApiControllerBase
             });
         }
 
+        // El cierre de una detención con análisis se hace desde el formulario de análisis (Solución y Causa).
+        if (detencion.RequiereAnalisis)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Requiere análisis",
+                Detail = "Esta detención requiere análisis: cerrala desde el formulario de Identificación de fallas",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
         var estadoAnterior = detencion.EstadoActual;
         detencion.EstadoActual = EstadoDetencion.CERRADA;
         detencion.AccionesRealizadas = request.AccionesRealizadas;
