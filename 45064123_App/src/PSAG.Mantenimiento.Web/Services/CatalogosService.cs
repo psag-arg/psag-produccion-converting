@@ -31,6 +31,16 @@ public interface ICatalogosService
     Task CreateTurnoAsync(TurnoDto turno);
     Task UpdateTurnoAsync(TurnoDto turno);
 
+    // Tiempo programado por dia (calendario de excepciones)
+    Task<List<DiaProgramadoDto>> GetTiemposProgramadosAsync(int lineaId, DateOnly desde, DateOnly hasta);
+    Task GuardarTiempoProgramadoAsync(int lineaId, DateOnly fecha, decimal horas, string? motivo);
+    Task DesactivarTiempoProgramadoAsync(int tiempoProgramadoDiaId);
+
+    // Reglas de analisis
+    Task<List<ReglaAnalisisDto>> GetReglasAnalisisAsync();
+    Task CreateReglaAnalisisAsync(ReglaAnalisisDto regla);
+    Task UpdateReglaAnalisisAsync(ReglaAnalisisDto regla);
+
     // Maquinistas
     Task<List<MaquinistaDto>> GetMaquinistasAsync(int? lineaId = null);
     Task<List<MaquinistaDto>> GetMisAsignacionesAsync();
@@ -174,6 +184,44 @@ public class CatalogosService : ICatalogosService
     public async Task UpdateTurnoAsync(TurnoDto turno)
     {
         var response = await _httpClient.PutAsJsonAsync($"api/catalogos/turnos/{turno.TurnoId}", turno);
+        await EnsureSuccessWithDetailAsync(response);
+    }
+
+    public async Task<List<DiaProgramadoDto>> GetTiemposProgramadosAsync(int lineaId, DateOnly desde, DateOnly hasta)
+    {
+        var url = $"api/catalogos/tiempos-programados?lineaId={lineaId}&desde={desde:yyyy-MM-dd}&hasta={hasta:yyyy-MM-dd}";
+        var result = await _httpClient.GetFromJsonAsync<List<DiaProgramadoDto>>(url);
+        return result ?? new List<DiaProgramadoDto>();
+    }
+
+    public async Task GuardarTiempoProgramadoAsync(int lineaId, DateOnly fecha, decimal horas, string? motivo)
+    {
+        var request = new { lineaId, fecha, horas, motivo };
+        var response = await _httpClient.PostAsJsonAsync("api/catalogos/tiempos-programados", request);
+        await EnsureSuccessWithDetailAsync(response);
+    }
+
+    public async Task DesactivarTiempoProgramadoAsync(int tiempoProgramadoDiaId)
+    {
+        var response = await _httpClient.PostAsync($"api/catalogos/tiempos-programados/{tiempoProgramadoDiaId}/desactivar", null);
+        await EnsureSuccessWithDetailAsync(response);
+    }
+
+    public async Task<List<ReglaAnalisisDto>> GetReglasAnalisisAsync()
+    {
+        var result = await _httpClient.GetFromJsonAsync<List<ReglaAnalisisDto>>("api/catalogos/reglas-analisis");
+        return result ?? new List<ReglaAnalisisDto>();
+    }
+
+    public async Task CreateReglaAnalisisAsync(ReglaAnalisisDto regla)
+    {
+        var response = await _httpClient.PostAsJsonAsync("api/catalogos/reglas-analisis", regla);
+        await EnsureSuccessWithDetailAsync(response);
+    }
+
+    public async Task UpdateReglaAnalisisAsync(ReglaAnalisisDto regla)
+    {
+        var response = await _httpClient.PutAsJsonAsync($"api/catalogos/reglas-analisis/{regla.ReglaAnalisisId}", regla);
         await EnsureSuccessWithDetailAsync(response);
     }
 
