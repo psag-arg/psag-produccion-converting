@@ -2,7 +2,8 @@
 -- Script: 17_t76_ajustes.sql
 -- Descripción: Ajustes T-76 Converting. Eliminación lógica de detenciones,
 --              análisis de falla (reglas y responsables), criticidad de equipos,
---              color de tipos de falla y tiempo programado por día.
+--              color de tipos de falla y tiempo programado por día,
+--              estados con PENDIENTE_JUSTIFICACION.
 -- Versión: 1.0 - T-76 (fundación U0)
 -- Idempotente: se puede ejecutar más de una vez.
 -- ==============================================================================
@@ -301,6 +302,66 @@ IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = N'UX_TiemposProgramadosDia
 BEGIN
     CREATE UNIQUE NONCLUSTERED INDEX [UX_TiemposProgramadosDia_LineaId_Fecha] ON [mnt].[TiemposProgramadosDia] ([LineaId], [Fecha])
     PRINT 'Índice UX_TiemposProgramadosDia_LineaId_Fecha creado.'
+END
+GO
+
+-- ============================================================================
+-- ESTADOS: PENDIENTE_JUSTIFICACION (PLC, Fase 2) es un estado válido del enum.
+-- Los checks de script 05 no lo incluían y las columnas eran VARCHAR(20),
+-- que no alcanza para sus 23 caracteres. Se amplían a NVARCHAR(30), igual que EF.
+-- ============================================================================
+
+IF EXISTS (SELECT * FROM sys.check_constraints WHERE name = N'CK_Detenciones_EstadoActual'
+           AND definition NOT LIKE N'%PENDIENTE_JUSTIFICACION%')
+BEGIN
+    ALTER TABLE [mnt].[Detenciones] DROP CONSTRAINT [CK_Detenciones_EstadoActual]
+    PRINT 'Check Constraint CK_Detenciones_EstadoActual eliminado (versión sin PENDIENTE_JUSTIFICACION).'
+END
+GO
+
+IF EXISTS (SELECT * FROM sys.check_constraints WHERE name = N'CK_DetencionesEstadoHistorial_EstadoNuevo'
+           AND definition NOT LIKE N'%PENDIENTE_JUSTIFICACION%')
+BEGIN
+    ALTER TABLE [mnt].[DetencionesEstadoHistorial] DROP CONSTRAINT [CK_DetencionesEstadoHistorial_EstadoNuevo]
+    PRINT 'Check Constraint CK_DetencionesEstadoHistorial_EstadoNuevo eliminado (versión sin PENDIENTE_JUSTIFICACION).'
+END
+GO
+
+-- max_length en bytes: VARCHAR(20) = 20, NVARCHAR(30) = 60
+IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[mnt].[Detenciones]') AND name = N'EstadoActual' AND max_length < 60)
+BEGIN
+    ALTER TABLE [mnt].[Detenciones] ALTER COLUMN [EstadoActual] NVARCHAR(30) NOT NULL
+    PRINT 'Columna mnt.Detenciones.EstadoActual ampliada a NVARCHAR(30).'
+END
+GO
+
+IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[mnt].[DetencionesEstadoHistorial]') AND name = N'EstadoNuevo' AND max_length < 60)
+BEGIN
+    ALTER TABLE [mnt].[DetencionesEstadoHistorial] ALTER COLUMN [EstadoNuevo] NVARCHAR(30) NOT NULL
+    PRINT 'Columna mnt.DetencionesEstadoHistorial.EstadoNuevo ampliada a NVARCHAR(30).'
+END
+GO
+
+IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[mnt].[DetencionesEstadoHistorial]') AND name = N'EstadoAnterior' AND max_length < 60)
+BEGIN
+    ALTER TABLE [mnt].[DetencionesEstadoHistorial] ALTER COLUMN [EstadoAnterior] NVARCHAR(30) NULL
+    PRINT 'Columna mnt.DetencionesEstadoHistorial.EstadoAnterior ampliada a NVARCHAR(30).'
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.check_constraints WHERE name = N'CK_Detenciones_EstadoActual')
+BEGIN
+    ALTER TABLE [mnt].[Detenciones]
+    ADD CONSTRAINT [CK_Detenciones_EstadoActual] CHECK ([EstadoActual] IN ('REGISTRADA', 'EN_SEGUIMIENTO', 'CERRADA', 'PENDIENTE_JUSTIFICACION'))
+    PRINT 'Check Constraint CK_Detenciones_EstadoActual creado (con PENDIENTE_JUSTIFICACION).'
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.check_constraints WHERE name = N'CK_DetencionesEstadoHistorial_EstadoNuevo')
+BEGIN
+    ALTER TABLE [mnt].[DetencionesEstadoHistorial]
+    ADD CONSTRAINT [CK_DetencionesEstadoHistorial_EstadoNuevo] CHECK ([EstadoNuevo] IN ('REGISTRADA', 'EN_SEGUIMIENTO', 'CERRADA', 'PENDIENTE_JUSTIFICACION'))
+    PRINT 'Check Constraint CK_DetencionesEstadoHistorial_EstadoNuevo creado (con PENDIENTE_JUSTIFICACION).'
 END
 GO
 
