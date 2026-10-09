@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using PSAG.Mantenimiento.Domain.Entities;
+using PSAG.Mantenimiento.Infrastructure.Data.Conversions;
 using PSAG.Mantenimiento.Infrastructure.Identity;
 
 namespace PSAG.Mantenimiento.Infrastructure.Data;
@@ -40,6 +41,17 @@ public class MantenimientoDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<EjecucionInspeccion> EjecucionesInspeccion => Set<EjecucionInspeccion>();
     public DbSet<EjecucionInspeccionDetalle> EjecucionesInspeccionDetalle => Set<EjecucionInspeccionDetalle>();
     public DbSet<HallazgoNoOk> HallazgosNoOk => Set<HallazgoNoOk>();
+
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        base.ConfigureConventions(configurationBuilder);
+
+        if (Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            configurationBuilder.Properties<DateTimeOffset>().HaveConversion<DateTimeOffsetUtcConverter>();
+            configurationBuilder.Properties<DateTimeOffset?>().HaveConversion<DateTimeOffsetUtcConverter>();
+        }
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
