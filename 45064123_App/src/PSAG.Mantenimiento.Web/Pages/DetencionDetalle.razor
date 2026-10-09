@@ -4,6 +4,7 @@
 @using PSAG.Mantenimiento.Web.Services
 @attribute [Authorize]
 @inject IDetencionesService DetencionesService
+@inject IAnalisisService AnalisisService
 @inject NavigationManager Navigation
 
 <PageTitle>Detención @(detencion?.Codigo ?? "") - PSAG Produccion</PageTitle>
@@ -34,7 +35,7 @@
                 </span>
             </div>
             <div>
-                @if (detencion.EstadoActual != "CERRADA")
+                @if (detencion.EstadoActual != "CERRADA" && !detencion.RequiereAnalisis)
                 {
                     <button class="btn btn-success" @onclick="() => showCerrarModal = true">
                         Cerrar Detención
@@ -43,6 +44,38 @@
                 <button class="btn btn-outline-secondary ms-2" @onclick="VolverAlListado">
                     Volver
                 </button>
+            </div>
+        </div>
+
+        <!-- Estados de la detención -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row g-3">
+                    @foreach (var (paso, indice) in ObtenerPasos().Select((p, i) => (p, i)))
+                    {
+                        <div class="col">
+                            <div class="d-flex align-items-start">
+                                <span class="badge rounded-pill me-2 @(paso.Actual ? "bg-primary" : paso.Hecho ? "bg-success" : "bg-secondary")">
+                                    @if (paso.Hecho)
+                                    {
+                                        <i class="bi bi-check-lg"></i>
+                                    }
+                                    else
+                                    {
+                                        @(indice + 1)
+                                    }
+                                </span>
+                                <div>
+                                    <strong class="@(paso.Actual ? "text-primary" : "")">@paso.Titulo</strong>
+                                    @if (!string.IsNullOrEmpty(paso.Detalle))
+                                    {
+                                        <div class="small text-muted">@paso.Detalle</div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
             </div>
         </div>
 
@@ -105,7 +138,8 @@
                             <div class="p-3 bg-light rounded">@detencion.Descripcion</div>
                         </div>
 
-                        @if (!string.IsNullOrEmpty(detencion.AccionesRealizadas))
+                        @* Con análisis, la solución se muestra en el bloque de Identificación de fallas *@
+                        @if (!string.IsNullOrEmpty(detencion.AccionesRealizadas) && !detencion.RequiereAnalisis)
                         {
                             <div class="mb-3">
                                 <label class="text-muted small">Acciones Realizadas</label>
@@ -122,10 +156,213 @@
                         }
                     </div>
                 </div>
+
+                <!-- Identificación de fallas -->
+                @if (detencion.RequiereAnalisis)
+                {
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="bi bi-clipboard2-pulse me-2"></i>Identificación de fallas</h5>
+                        </div>
+                        <div class="card-body">
+                            @if (analisis == null)
+                            {
+                                <div class="text-muted">No se pudo cargar el análisis de la falla.</div>
+                            }
+                            else
+                            {
+                                @if (mensajeAnalisis != null)
+                                {
+                                    <div class="alert alert-@tipoMensaje py-2">@mensajeAnalisis</div>
+                                }
+
+                                <!-- Falla: la declara el operario -->
+                                <div class="mb-4">
+                                    <h6 class="mb-1">Falla</h6>
+                                    <div class="small text-muted mb-3">Completa el operario al declarar la detención</div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-2">
+                                            <label class="text-muted small">Máquina / Línea</label>
+                                            <div><strong>@analisis.LineaNombre</strong></div>
+                                        </div>
+                                        <div class="col-md-6 mb-2">
+                                            <label class="text-muted small">Fecha y hora</label>
+                                            <div><strong>@FechaHoraFalla(analisis)</strong></div>
+                                        </div>
+                                        <div class="col-md-6 mb-2">
+                                            <label class="text-muted small">Turno</label>
+                                            <div><strong>@analisis.TurnoNombre</strong></div>
+                                        </div>
+                                        <div class="col-md-6 mb-2">
+                                            <label class="text-muted small">Tiempo detención</label>
+                                            <div><strong>@analisis.MinutosEfectivos min</strong></div>
+                                        </div>
+                                        <div class="col-md-6 mb-2">
+                                            <label class="text-muted small">Equipo</label>
+                                            <div>
+                                                <strong>@(analisis.EquipoNombre ?? "No especificado")</strong>
+                                                @if (analisis.EquipoCritico)
+                                                {
+                                                    <span class="badge bg-danger ms-2">Crítico</span>
+                                                }
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 mb-2">
+                                            <label class="text-muted small">Tipo de falla</label>
+                                            <div><strong>@(analisis.TipoFallaNombre ?? "No especificado")</strong></div>
+                                        </div>
+                                        <div class="col-md-6 mb-2">
+                                            <label class="text-muted small">Detalle</label>
+                                            <div><strong>@(analisis.DetalleFallaNombre ?? "No especificado")</strong></div>
+                                        </div>
+                                        <div class="col-md-6 mb-2">
+                                            <label class="text-muted small">Maquinista</label>
+                                            <div><strong>@(analisis.CreadoPorUsuarioNombre ?? "No especificado")</strong></div>
+                                        </div>
+                                        <div class="col-12 mb-2">
+                                            <label class="text-muted small">Descripción del fallo</label>
+                                            <div class="p-3 bg-light rounded">@analisis.Descripcion</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <hr />
+
+                                <!-- Solución -->
+                                <div class="mb-4">
+                                    <h6 class="mb-1">Solución (para resolver la falla) @if (analisis.PuedeEditar) { <span class="text-danger">*</span> }</h6>
+                                    <div class="small text-muted mb-2">@ResponsableTexto(analisis)</div>
+                                    @if (analisis.PuedeEditar)
+                                    {
+                                        <textarea class="form-control" rows="3" @bind="solucionTexto" @bind:event="oninput"
+                                                  placeholder="Qué se hizo para resolver la falla"></textarea>
+                                    }
+                                    else
+                                    {
+                                        <div class="p-3 bg-light rounded">@(string.IsNullOrEmpty(analisis.AccionesRealizadas) ? "Sin completar" : analisis.AccionesRealizadas)</div>
+                                    }
+                                </div>
+
+                                <!-- Causa -->
+                                <div class="mb-4">
+                                    <h6 class="mb-1">Causa de falla @if (analisis.PuedeEditar) { <span class="text-danger">*</span> }</h6>
+                                    <div class="small text-muted mb-2">@ResponsableTexto(analisis)</div>
+                                    @if (analisis.PuedeEditar)
+                                    {
+                                        <textarea class="form-control" rows="3" @bind="causaTexto" @bind:event="oninput"
+                                                  placeholder="Causa raíz identificada"></textarea>
+                                    }
+                                    else
+                                    {
+                                        <div class="p-3 bg-light rounded">@(string.IsNullOrEmpty(analisis.CausaFalla) ? "Sin completar" : analisis.CausaFalla)</div>
+                                    }
+                                </div>
+
+                                <!-- Plan de acción -->
+                                <div class="mb-4">
+                                    <h6 class="mb-1">Plan de acción <span class="text-muted small fw-normal">(opcional)</span></h6>
+                                    <div class="small text-muted mb-2">@ResponsableTexto(analisis)</div>
+                                    @if (analisis.PuedeEditar)
+                                    {
+                                        <textarea class="form-control" rows="3" @bind="planTexto" @bind:event="oninput"
+                                                  placeholder="Qué se hace para que no vuelva a pasar"></textarea>
+                                    }
+                                    else
+                                    {
+                                        <div class="p-3 bg-light rounded">@(string.IsNullOrEmpty(analisis.PlanAccion) ? "Sin completar" : analisis.PlanAccion)</div>
+                                    }
+                                </div>
+
+                                <hr />
+
+                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                    <small class="text-muted">
+                                        @if (analisis.FechaHoraAnalisis.HasValue)
+                                        {
+                                            <span>Firma: <strong>@(analisis.AnalisisPorUsuarioNombre ?? "usuario")</strong> · @analisis.FechaHoraAnalisis.Value.ToString("dd/MM/yyyy HH:mm")</span>
+                                        }
+                                        else
+                                        {
+                                            <span>Firma: queda con usuario y fecha al cerrar el análisis</span>
+                                        }
+                                    </small>
+                                    @if (analisis.PuedeEditar)
+                                    {
+                                        <div>
+                                            <button class="btn btn-outline-primary me-2" @onclick="GuardarBorrador" disabled="@guardandoAnalisis">
+                                                Guardar borrador
+                                            </button>
+                                            <button class="btn btn-success" @onclick="CerrarAnalisis" disabled="@guardandoAnalisis">
+                                                @if (guardandoAnalisis)
+                                                {
+                                                    <span class="spinner-border spinner-border-sm me-2"></span>
+                                                }
+                                                Cerrar análisis
+                                            </button>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
             </div>
 
             <!-- Panel lateral -->
             <div class="col-md-4">
+                @if (detencion.RequiereAnalisis && analisis != null)
+                {
+                    <!-- Por qué está acá -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">Por qué está acá</h6>
+                        </div>
+                        <div class="card-body">
+                            <strong>Requiere análisis</strong>
+                            <div class="small text-muted mt-1">
+                                Regla: @(analisis.TipoFallaNombre ?? "tipo de falla")
+                                @if (analisis.MinutosMinimosRegla.HasValue)
+                                {
+                                    <span> ≥ @analisis.MinutosMinimosRegla min</span>
+                                }
+                            </div>
+                            <div class="small text-muted">Asignada a: @ResponsableAsignado(analisis)</div>
+                        </div>
+                    </div>
+
+                    <!-- Fallas parecidas -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">Fallas parecidas</h6>
+                        </div>
+                        <div class="card-body p-0">
+                            @if (analisis.FallasParecidas.Any())
+                            {
+                                <ul class="list-group list-group-flush">
+                                    @foreach (var parecida in analisis.FallasParecidas)
+                                    {
+                                        <li class="list-group-item">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <a href="detenciones/@parecida.DetencionId"><strong>@parecida.Codigo</strong></a>
+                                                <span class="badge bg-secondary">@parecida.MinutosEfectivos min</span>
+                                            </div>
+                                            <div class="small text-muted">@(parecida.EquipoNombre ?? parecida.TipoFallaNombre)</div>
+                                            <div class="small">@(parecida.AccionesRealizadas ?? parecida.CausaFalla)</div>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                            else
+                            {
+                                <div class="p-3 text-muted">No hay fallas parecidas cerradas.</div>
+                            }
+                            <div class="p-3 border-top">
+                                <a href="@UrlBaseSoluciones()">Buscar en base de soluciones</a>
+                            </div>
+                        </div>
+                    </div>
+                }
+
                 <!-- Historial de estados -->
                 <div class="card mb-4">
                     <div class="card-header">
@@ -184,7 +421,7 @@
             </div>
         </div>
 
-        <!-- Modal Cerrar Detención -->
+        <!-- Modal Cerrar Detención (sin análisis) -->
         @if (showCerrarModal)
         {
             <div class="modal show d-block" style="background-color: rgba(0,0,0,0.5);">
@@ -226,10 +463,20 @@
     public long Id { get; set; }
 
     private DetencionDetalleDto? detencion;
+    private AnalisisDetencionDto? analisis;
     private bool isLoading = true;
     private bool showCerrarModal = false;
     private bool isCerrando = false;
     private CerrarDetencionRequest cerrarRequest = new();
+
+    private string solucionTexto = string.Empty;
+    private string causaTexto = string.Empty;
+    private string planTexto = string.Empty;
+    private bool guardandoAnalisis = false;
+    private string? mensajeAnalisis;
+    private string tipoMensaje = "success";
+
+    private record PasoEstado(string Titulo, string? Detalle, bool Hecho, bool Actual);
 
     protected override async Task OnInitializedAsync()
     {
@@ -245,6 +492,8 @@
             if (detencion != null)
             {
                 cerrarRequest.RowVersion = detencion.RowVersion;
+                analisis = detencion.RequiereAnalisis ? await CargarAnalisisAsync() : null;
+                CargarFormulario();
             }
         }
         catch (Exception ex)
@@ -254,6 +503,83 @@
         finally
         {
             isLoading = false;
+        }
+    }
+
+    private async Task<AnalisisDetencionDto?> CargarAnalisisAsync()
+    {
+        try
+        {
+            return await AnalisisService.GetAnalisisAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al cargar el análisis: {ex.Message}");
+            return null;
+        }
+    }
+
+    private void CargarFormulario()
+    {
+        solucionTexto = analisis?.AccionesRealizadas ?? string.Empty;
+        causaTexto = analisis?.CausaFalla ?? string.Empty;
+        planTexto = analisis?.PlanAccion ?? string.Empty;
+    }
+
+    private async Task GuardarBorrador()
+    {
+        await GuardarAnalisis(cerrar: false);
+    }
+
+    private async Task CerrarAnalisis()
+    {
+        if (string.IsNullOrWhiteSpace(solucionTexto) || string.IsNullOrWhiteSpace(causaTexto))
+        {
+            mensajeAnalisis = "Para cerrar el análisis completá la solución y la causa de la falla.";
+            tipoMensaje = "warning";
+            return;
+        }
+
+        await GuardarAnalisis(cerrar: true);
+    }
+
+    private async Task GuardarAnalisis(bool cerrar)
+    {
+        if (analisis == null)
+        {
+            return;
+        }
+
+        guardandoAnalisis = true;
+        try
+        {
+            var request = new GuardarAnalisisRequest
+            {
+                AccionesRealizadas = solucionTexto,
+                CausaFalla = causaTexto,
+                PlanAccion = planTexto,
+                RowVersion = analisis.RowVersion
+            };
+
+            var (success, error) = cerrar
+                ? await AnalisisService.CerrarAnalisisAsync(Id, request)
+                : await AnalisisService.GuardarBorradorAsync(Id, request);
+
+            if (success)
+            {
+                await CargarDetencion();
+                mensajeAnalisis = cerrar ? "Análisis cerrado." : "Borrador guardado.";
+                tipoMensaje = "success";
+            }
+            else
+            {
+                mensajeAnalisis = error;
+                tipoMensaje = "danger";
+            }
+        }
+        finally
+        {
+            guardandoAnalisis = false;
         }
     }
 
@@ -284,6 +610,87 @@
     {
         Navigation.NavigateTo("/detenciones");
     }
+
+    /// <summary>
+    /// Pasos del flujo: Registrada → Requiere análisis (solo si aplica) → En análisis → Cerrada.
+    /// </summary>
+    private List<PasoEstado> ObtenerPasos()
+    {
+        var estado = detencion!.EstadoActual;
+        var pasos = new List<PasoEstado>
+        {
+            new("Registrada", detencion.Fecha.ToString("dd/MM/yyyy"), Hecho: true,
+                Actual: estado == "REGISTRADA" && !detencion.RequiereAnalisis)
+        };
+
+        if (detencion.RequiereAnalisis)
+        {
+            var regla = analisis?.MinutosMinimosRegla.HasValue == true
+                ? $"Regla {analisis.TipoFallaNombre ?? ""} ≥ {analisis.MinutosMinimosRegla} min"
+                : "Regla de análisis";
+            pasos.Add(new("Requiere análisis", regla, Hecho: true, Actual: estado == "REGISTRADA"));
+        }
+
+        pasos.Add(new("En análisis",
+            analisis != null && estado != "CERRADA" ? $"Responsable: {NombreResponsable(analisis)}" : null,
+            Hecho: estado == "EN_SEGUIMIENTO" || estado == "CERRADA",
+            Actual: estado == "EN_SEGUIMIENTO"));
+
+        pasos.Add(new("Cerrada",
+            estado == "CERRADA" && analisis?.FechaHoraAnalisis != null
+                ? $"{analisis.FechaHoraAnalisis.Value:dd/MM/yyyy} · {analisis.AnalisisPorUsuarioNombre}"
+                : null,
+            Hecho: estado == "CERRADA",
+            Actual: estado == "CERRADA"));
+
+        return pasos;
+    }
+
+    private string FechaHoraFalla(AnalisisDetencionDto dato) =>
+        dato.FechaHoraParada.HasValue
+            ? dato.FechaHoraParada.Value.ToString("dd/MM/yyyy HH:mm")
+            : $"{dato.Fecha:dd/MM/yyyy} (sin hora)";
+
+    private string NombreResponsable(AnalisisDetencionDto dato)
+    {
+        if (!string.IsNullOrEmpty(dato.ResponsableUsuarioId))
+        {
+            return dato.ResponsableUsuarioNombre ?? "usuario asignado";
+        }
+
+        return string.IsNullOrEmpty(dato.ResponsableRol) ? "sin asignar" : Capitalizar(dato.ResponsableRol);
+    }
+
+    private string ResponsableAsignado(AnalisisDetencionDto dato)
+    {
+        if (!string.IsNullOrEmpty(dato.ResponsableUsuarioId))
+        {
+            return NombreResponsable(dato);
+        }
+
+        return string.IsNullOrEmpty(dato.ResponsableRol) ? "sin asignar" : $"rol {NombreResponsable(dato)}";
+    }
+
+    private string ResponsableTexto(AnalisisDetencionDto dato)
+    {
+        var responsable = NombreResponsable(dato);
+        return dato.PuedeEditar ? $"Completa {responsable}" : $"Lo completa {responsable}";
+    }
+
+    private string UrlBaseSoluciones()
+    {
+        if (detencion?.EquipoId.HasValue == true)
+        {
+            return $"detenciones/soluciones?equipoId={detencion.EquipoId}";
+        }
+
+        return detencion?.TipoFallaId.HasValue == true
+            ? $"detenciones/soluciones?tipoFallaId={detencion.TipoFallaId}"
+            : "detenciones/soluciones";
+    }
+
+    private static string Capitalizar(string texto) =>
+        texto.Length == 0 ? texto : char.ToUpperInvariant(texto[0]) + texto[1..].ToLowerInvariant();
 
     private string GetEstadoBadgeClass(string estado) => estado switch
     {
