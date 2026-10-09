@@ -46,7 +46,7 @@ public class DetencionesController : ApiControllerBase
     {
         var (detenciones, total) = await BuscarDetencionesAsync(filtro, filtro.Page, filtro.PageSize);
 
-        var items = detenciones.Select(d => new DetencionDto
+        var items = detenciones.Select(d => ConDatosAnalisis(new DetencionDto
         {
             DetencionId = d.DetencionId,
             Codigo = d.Codigo,
@@ -75,17 +75,8 @@ public class DetencionesController : ApiControllerBase
             CreadoPorUsuarioId = d.CreadoPorUsuarioId,
             FechaHoraCreacion = d.FechaHoraCreacion,
             FechaHoraModificacion = d.FechaHoraModificacion,
-            Eliminada = d.Eliminada,
-            RequiereAnalisis = d.RequiereAnalisis,
-            ResponsableRol = d.ResponsableRol,
-            ResponsableUsuarioId = d.ResponsableUsuarioId,
-            CausaFalla = d.CausaFalla,
-            PlanAccion = d.PlanAccion,
-            AnalisisPorUsuarioId = d.AnalisisPorUsuarioId,
-            FechaHoraAnalisis = d.FechaHoraAnalisis,
-            EquipoCritico = d.Equipo?.Critico ?? false,
             RowVersion = d.RowVersion
-        }).ToList();
+        }, d)).ToList();
 
         return Ok(new PagedResult<DetencionDto>
         {
@@ -116,7 +107,7 @@ public class DetencionesController : ApiControllerBase
             });
         }
 
-        var dto = new DetencionDetalleDto
+        var dto = ConDatosAnalisis(new DetencionDetalleDto
         {
             DetencionId = detencion.DetencionId,
             Codigo = detencion.Codigo,
@@ -145,15 +136,6 @@ public class DetencionesController : ApiControllerBase
             CerradoPorUsuarioId = detencion.CerradoPorUsuarioId,
             FechaHoraCreacion = detencion.FechaHoraCreacion,
             CreadoPorUsuarioId = detencion.CreadoPorUsuarioId,
-            Eliminada = detencion.Eliminada,
-            RequiereAnalisis = detencion.RequiereAnalisis,
-            ResponsableRol = detencion.ResponsableRol,
-            ResponsableUsuarioId = detencion.ResponsableUsuarioId,
-            CausaFalla = detencion.CausaFalla,
-            PlanAccion = detencion.PlanAccion,
-            AnalisisPorUsuarioId = detencion.AnalisisPorUsuarioId,
-            FechaHoraAnalisis = detencion.FechaHoraAnalisis,
-            EquipoCritico = detencion.Equipo?.Critico ?? false,
             RowVersion = detencion.RowVersion,
             Notas = detencion.Notas.Select(n => new DetencionNotaDto
             {
@@ -169,11 +151,12 @@ public class DetencionesController : ApiControllerBase
                 DetencionEstadoHistorialId = h.DetencionEstadoHistorialId,
                 EstadoAnterior = h.EstadoAnterior?.ToString(),
                 EstadoNuevo = h.EstadoNuevo.ToString(),
+                EstadoNuevoDescripcion = h.EstadoNuevo.ObtenerDescripcion(),
                 FechaHora = h.FechaHora,
                 UsuarioId = h.UsuarioId,
                 Observacion = h.Observacion
             }).OrderByDescending(h => h.FechaHora).ToList()
-        };
+        }, detencion);
 
         return Ok(dto);
     }
@@ -506,7 +489,7 @@ public class DetencionesController : ApiControllerBase
             detenciones = detenciones.Where(d => d.LineaId == lineaId.Value);
         }
 
-        var items = detenciones.Select(d => new DetencionListaDto
+        var items = detenciones.Select(d => ConDatosAnalisis(new DetencionListaDto
         {
             DetencionId = d.DetencionId,
             Codigo = d.Codigo,
@@ -518,16 +501,7 @@ public class DetencionesController : ApiControllerBase
             MinutosEfectivos = d.MinutosEfectivos,
             EstadoActual = d.EstadoActual.ToString(),
             EstadoActualDescripcion = d.EstadoActual.ObtenerDescripcion(),
-            Eliminada = d.Eliminada,
-            RequiereAnalisis = d.RequiereAnalisis,
-            ResponsableRol = d.ResponsableRol,
-            ResponsableUsuarioId = d.ResponsableUsuarioId,
-            CausaFalla = d.CausaFalla,
-            PlanAccion = d.PlanAccion,
-            AnalisisPorUsuarioId = d.AnalisisPorUsuarioId,
-            FechaHoraAnalisis = d.FechaHoraAnalisis,
-            EquipoCritico = d.Equipo?.Critico ?? false
-        });
+        }, d));
 
         return Ok(items);
     }
@@ -651,7 +625,7 @@ public class DetencionesController : ApiControllerBase
         // Recargar con relaciones
         detencion = await _unitOfWork.Detenciones.GetByIdWithDetailsAsync(id);
 
-        return Ok(new DetencionDto
+        return Ok(ConDatosAnalisis(new DetencionDto
         {
             DetencionId = detencion!.DetencionId,
             Codigo = detencion.Codigo,
@@ -680,17 +654,8 @@ public class DetencionesController : ApiControllerBase
             CreadoPorUsuarioId = detencion.CreadoPorUsuarioId,
             FechaHoraCreacion = detencion.FechaHoraCreacion,
             FechaHoraModificacion = detencion.FechaHoraModificacion,
-            Eliminada = detencion.Eliminada,
-            RequiereAnalisis = detencion.RequiereAnalisis,
-            ResponsableRol = detencion.ResponsableRol,
-            ResponsableUsuarioId = detencion.ResponsableUsuarioId,
-            CausaFalla = detencion.CausaFalla,
-            PlanAccion = detencion.PlanAccion,
-            AnalisisPorUsuarioId = detencion.AnalisisPorUsuarioId,
-            FechaHoraAnalisis = detencion.FechaHoraAnalisis,
-            EquipoCritico = detencion.Equipo?.Critico ?? false,
             RowVersion = detencion.RowVersion
-        });
+        }, detencion!));
     }
 
     /// <summary>
@@ -1073,6 +1038,23 @@ public class DetencionesController : ApiControllerBase
         horaInicio is { } inicio && horaFin is { } fin
             ? TiempoManualCalculador.Calcular(fecha, inicio, fin)
             : null;
+
+    /// <summary>
+    /// Copia los campos de eliminación y análisis. Todas las vistas de detención pasan por acá.
+    /// </summary>
+    private static T ConDatosAnalisis<T>(T dto, Detencion detencion) where T : DatosAnalisisDetencion
+    {
+        dto.Eliminada = detencion.Eliminada;
+        dto.RequiereAnalisis = detencion.RequiereAnalisis;
+        dto.ResponsableRol = detencion.ResponsableRol;
+        dto.ResponsableUsuarioId = detencion.ResponsableUsuarioId;
+        dto.CausaFalla = detencion.CausaFalla;
+        dto.PlanAccion = detencion.PlanAccion;
+        dto.AnalisisPorUsuarioId = detencion.AnalisisPorUsuarioId;
+        dto.FechaHoraAnalisis = detencion.FechaHoraAnalisis;
+        dto.EquipoCritico = detencion.Equipo?.Critico ?? false;
+        return dto;
+    }
 
     private static byte[] GenerarCsv(IEnumerable<Domain.Entities.Detencion> detenciones)
     {
