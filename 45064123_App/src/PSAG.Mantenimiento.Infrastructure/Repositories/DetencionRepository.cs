@@ -133,6 +133,79 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
         return $"DET-{fecha}-{siguienteNumero:D6}";
     }
 
+    public async Task<IEnumerable<Detencion>> GetAnalisisAbiertosAsync(CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .Include(d => d.Linea)
+            .Include(d => d.Equipo)
+            .Include(d => d.TipoFalla)
+            .Where(d => d.RequiereAnalisis && d.EstadoActual != EstadoDetencion.CERRADA)
+            .OrderBy(d => d.Fecha)
+            .ThenBy(d => d.DetencionId)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IEnumerable<Detencion>> GetAnalisisCerradosPorUsuarioAsync(
+        string usuarioId,
+        int limite,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .Include(d => d.Linea)
+            .Include(d => d.Equipo)
+            .Include(d => d.TipoFalla)
+            .Where(d => d.RequiereAnalisis
+                && d.EstadoActual == EstadoDetencion.CERRADA
+                && d.AnalisisPorUsuarioId == usuarioId)
+            .OrderByDescending(d => d.FechaHoraAnalisis)
+            .Take(limite)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IEnumerable<Detencion>> GetSolucionesAsync(
+        string? busqueda = null,
+        int? lineaId = null,
+        int? equipoId = null,
+        int? tipoFallaId = null,
+        long? excluirDetencionId = null,
+        int limite = 50,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _dbSet
+            .Include(d => d.Linea)
+            .Include(d => d.Equipo)
+            .Include(d => d.TipoFalla)
+            .Where(d => d.EstadoActual == EstadoDetencion.CERRADA
+                && ((d.AccionesRealizadas != null && d.AccionesRealizadas != "")
+                    || (d.CausaFalla != null && d.CausaFalla != "")));
+
+        if (lineaId.HasValue)
+            query = query.Where(d => d.LineaId == lineaId.Value);
+
+        if (equipoId.HasValue)
+            query = query.Where(d => d.EquipoId == equipoId.Value);
+
+        if (tipoFallaId.HasValue)
+            query = query.Where(d => d.TipoFallaId == tipoFallaId.Value);
+
+        if (excluirDetencionId.HasValue)
+            query = query.Where(d => d.DetencionId != excluirDetencionId.Value);
+
+        foreach (var palabra in (busqueda ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var buscada = palabra.ToLower();
+            query = query.Where(d => d.Descripcion.ToLower().Contains(buscada)
+                || (d.AccionesRealizadas != null && d.AccionesRealizadas.ToLower().Contains(buscada))
+                || (d.CausaFalla != null && d.CausaFalla.ToLower().Contains(buscada)));
+        }
+
+        return await query
+            .OrderByDescending(d => d.Fecha)
+            .ThenByDescending(d => d.DetencionId)
+            .Take(limite)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<(IEnumerable<Detencion> Items, int TotalCount)> GetPaginadoAsync(
         int page,
         int pageSize,

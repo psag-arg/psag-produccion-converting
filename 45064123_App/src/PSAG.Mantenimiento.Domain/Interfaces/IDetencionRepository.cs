@@ -16,6 +16,29 @@ public interface IDetencionRepository : IRepository<Detencion>
     Task<IEnumerable<Detencion>> GetDetencionesPorFechaAsync(DateOnly desde, DateOnly hasta, CancellationToken cancellationToken = default);
     Task<IEnumerable<Detencion>> GetDetencionesTurnoActualAsync(int lineaId, int turnoId, DateOnly fecha, CancellationToken cancellationToken = default);
     Task<string> GenerarCodigoDetencionAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Detenciones que requieren análisis y todavía no están cerradas, más antiguas primero.
+    /// </summary>
+    Task<IEnumerable<Detencion>> GetAnalisisAbiertosAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Análisis cerrados por el usuario, más recientes primero.
+    /// </summary>
+    Task<IEnumerable<Detencion>> GetAnalisisCerradosPorUsuarioAsync(string usuarioId, int limite, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Detenciones cerradas con solución o causa cargada, para la base de soluciones.
+    /// La búsqueda libre requiere que cada palabra aparezca en descripción, solución o causa.
+    /// </summary>
+    Task<IEnumerable<Detencion>> GetSolucionesAsync(
+        string? busqueda = null,
+        int? lineaId = null,
+        int? equipoId = null,
+        int? tipoFallaId = null,
+        long? excluirDetencionId = null,
+        int limite = 50,
+        CancellationToken cancellationToken = default);
     Task<(IEnumerable<Detencion> Items, int TotalCount)> GetPaginadoAsync(
         int page,
         int pageSize,
