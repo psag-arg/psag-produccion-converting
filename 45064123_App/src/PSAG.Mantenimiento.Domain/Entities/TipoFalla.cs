@@ -19,6 +19,11 @@ public class TipoFalla : CatalogoBase
     /// </summary>
     public bool RequiereDescripcion { get; set; }
 
+    /// <summary>
+    /// Color de presentación en formato #RRGGBB. Si es nulo, se usa el mapa de colores por defecto.
+    /// </summary>
+    public string? Color { get; set; }
+
     // Navegación
     public virtual ICollection<Detencion> Detenciones { get; set; } = new List<Detencion>();
     public virtual ICollection<DetalleFalla> DetallesFalla { get; set; } = new List<DetalleFalla>();

@@ -49,4 +49,11 @@ public interface IDashboardService
     Task<Result<ParetoDetencionesReporteDto>> ObtenerParetoDetencionesAsync(
         DashboardFiltroRequest filtro,
         CancellationToken cancellationToken = default);
+
+    // Tiempo programado de un mes, día por día (línea null = todas las activas)
+    Task<Result<IReadOnlyList<TiempoProgramadoDiaDto>>> ObtenerTiempoProgramadoDiasAsync(
+        int? lineaId,
+        int anio,
+        int mes,
+        CancellationToken cancellationToken = default);
 }

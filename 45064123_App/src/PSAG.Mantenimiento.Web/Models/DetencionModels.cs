@@ -30,8 +30,22 @@ public class DetencionDto
     public string? ResolucionDescripcion { get; set; }
     public DateTimeOffset? FechaHoraCierre { get; set; }
     public string? CreadoPorUsuarioId { get; set; }
+    public string CreadoPorUsuarioNombre { get; set; } = string.Empty;
     public DateTimeOffset FechaHoraCreacion { get; set; }
     public DateTimeOffset? FechaHoraModificacion { get; set; }
+
+    public bool Eliminada { get; set; }
+    public bool RequiereAnalisis { get; set; }
+    public bool AnalisisPendiente { get; set; }
+    public string? EstadoAnalisisDescripcion { get; set; }
+    public string? ResponsableRol { get; set; }
+    public string? ResponsableUsuarioId { get; set; }
+    public string? CausaFalla { get; set; }
+    public string? PlanAccion { get; set; }
+    public string? AnalisisPorUsuarioId { get; set; }
+    public DateTimeOffset? FechaHoraAnalisis { get; set; }
+    public bool EquipoCritico { get; set; }
+
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }
 
@@ -56,6 +70,7 @@ public class DetencionHistorialDto
     public long DetencionEstadoHistorialId { get; set; }
     public string? EstadoAnterior { get; set; }
     public string EstadoNuevo { get; set; } = string.Empty;
+    public string EstadoNuevoDescripcion { get; set; } = string.Empty;
     public DateTimeOffset FechaHora { get; set; }
     public string UsuarioId { get; set; } = string.Empty;
     public string? Observacion { get; set; }
@@ -70,8 +85,36 @@ public class CrearDetencionRequest
     public int? UsuarioLineaId { get; set; }  // Maquinista asignado (opcional, para admin/supervisor)
     public DateOnly Fecha { get; set; } = DateOnly.FromDateTime(DateTime.Today);
     public int? MinutosDeclarados { get; set; }
+    public TimeOnly? HoraInicio { get; set; }
+    public TimeOnly? HoraFin { get; set; }
     public string OrigenTiempo { get; set; } = "DECLARADO";
     public string Descripcion { get; set; } = string.Empty;
+}
+
+public class ActualizarDetencionRequest
+{
+    public DateOnly Fecha { get; set; }
+    public int? EquipoId { get; set; }
+    public int? TipoFallaId { get; set; }
+    public int? DetalleFallaId { get; set; }
+    public int? MinutosDeclarados { get; set; }
+    public TimeOnly? HoraInicio { get; set; }
+    public TimeOnly? HoraFin { get; set; }
+    public string OrigenTiempo { get; set; } = "DECLARADO";
+    public string Descripcion { get; set; } = string.Empty;
+    public string? AccionesRealizadas { get; set; }
+    public string? ResolucionDescripcion { get; set; }
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+}
+
+public class EliminarDetencionRequest
+{
+    public string Motivo { get; set; } = string.Empty;
+}
+
+public class PrevisualizacionAnalisisResponse
+{
+    public bool RequiereAnalisis { get; set; }
 }
 
 public class CrearDetencionResponse

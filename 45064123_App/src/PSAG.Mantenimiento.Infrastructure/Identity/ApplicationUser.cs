@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using PSAG.Mantenimiento.Domain.Common;
 
 namespace PSAG.Mantenimiento.Infrastructure.Identity;
 
@@ -21,11 +22,11 @@ public class ApplicationUser : IdentityUser
 /// </summary>
 public static class Roles
 {
-    public const string Operario = "OPERARIO";
-    public const string Supervisor = "SUPERVISOR";
-    public const string Gerencia = "GERENCIA";
-    public const string Administrador = "ADMINISTRADOR";
-    public const string Mantenimiento = "MANTENIMIENTO";
+    public const string Operario = RolesSistema.Operario;
+    public const string Supervisor = RolesSistema.Supervisor;
+    public const string Gerencia = RolesSistema.Gerencia;
+    public const string Administrador = RolesSistema.Administrador;
+    public const string Mantenimiento = RolesSistema.Mantenimiento;
 
     public static readonly string[] TodosLosRoles = { Operario, Supervisor, Gerencia, Administrador, Mantenimiento };
 

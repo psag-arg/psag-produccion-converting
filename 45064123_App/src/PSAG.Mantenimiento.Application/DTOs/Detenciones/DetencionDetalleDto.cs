@@ -3,7 +3,7 @@ namespace PSAG.Mantenimiento.Application.DTOs.Detenciones;
 /// <summary>
 /// DTO con detalle completo de detención incluyendo notas e historial.
 /// </summary>
-public class DetencionDetalleDto
+public class DetencionDetalleDto : DatosAnalisisDetencion
 {
     public long DetencionId { get; set; }
     public string Codigo { get; set; } = string.Empty;
@@ -32,6 +32,7 @@ public class DetencionDetalleDto
 
     public string? AccionesRealizadas { get; set; }
     public string? ResolucionDescripcion { get; set; }
+
     public DateTimeOffset? FechaHoraCierre { get; set; }
     public string? CerradoPorUsuarioId { get; set; }
     public string? CerradoPorUsuarioNombre { get; set; }

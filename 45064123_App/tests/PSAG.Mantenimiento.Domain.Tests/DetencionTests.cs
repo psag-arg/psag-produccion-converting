@@ -1,5 +1,6 @@
 using PSAG.Mantenimiento.Domain.Entities;
 using PSAG.Mantenimiento.Domain.Enums;
+using PSAG.Mantenimiento.Domain.Exceptions;
 
 namespace PSAG.Mantenimiento.Domain.Tests;
 
@@ -84,5 +85,38 @@ public class DetencionTests
 
         // Assert
         Assert.False(resultado);
+    }
+
+    [Fact]
+    public void EstadoEnSeguimiento_SeDescribeComoEnAnalisis()
+    {
+        Assert.Equal("En análisis", EstadoDetencion.EN_SEGUIMIENTO.ObtenerDescripcion());
+    }
+
+    [Fact]
+    public void CambiarEstado_PermitidoAgregaHistorialConEstadoAnterior()
+    {
+        var detencion = new Detencion { EstadoActual = EstadoDetencion.REGISTRADA };
+
+        detencion.CambiarEstado(EstadoDetencion.CERRADA, "usuario-1", "Análisis cerrado");
+
+        Assert.Equal(EstadoDetencion.CERRADA, detencion.EstadoActual);
+        var entrada = Assert.Single(detencion.HistorialEstados);
+        Assert.Equal(EstadoDetencion.REGISTRADA, entrada.EstadoAnterior);
+        Assert.Equal(EstadoDetencion.CERRADA, entrada.EstadoNuevo);
+        Assert.Equal("usuario-1", entrada.UsuarioId);
+        Assert.Equal("Análisis cerrado", entrada.Observacion);
+    }
+
+    [Fact]
+    public void CambiarEstado_TransicionNoPermitida_LanzaYNoCambiaNada()
+    {
+        var detencion = new Detencion { EstadoActual = EstadoDetencion.PENDIENTE_JUSTIFICACION };
+
+        Assert.Throws<TransicionEstadoInvalidaException>(() =>
+            detencion.CambiarEstado(EstadoDetencion.CERRADA, "usuario-1", null));
+
+        Assert.Equal(EstadoDetencion.PENDIENTE_JUSTIFICACION, detencion.EstadoActual);
+        Assert.Empty(detencion.HistorialEstados);
     }
 }

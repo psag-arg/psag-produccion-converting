@@ -1,0 +1,364 @@
+@page "/detenciones/pendientes"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize]
+@inject IAnalisisService AnalisisService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Mis pendientes - PSAG Produccion</PageTitle>
+
+<div class="container-fluid">
+    <div class="mb-4">
+        <h2>Mis pendientes</h2>
+        <div class="text-muted">@subtitulo</div>
+    </div>
+
+    @if (cargando)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+        </div>
+    }
+    else if (pendientes == null)
+    {
+        <div class="alert alert-warning">No se pudieron cargar los pendientes.</div>
+    }
+    else
+    {
+        <div class="row g-3 mb-4">
+            @foreach (var indicador in Indicadores())
+            {
+                <div class="col-6 col-lg-3">
+                    <div class="card h-100"><div class="card-body">
+                        <div class="text-muted small">@indicador.Titulo</div>
+                        <div class="fs-3 fw-semibold">@indicador.Valor</div>
+                    </div></div>
+                </div>
+            }
+        </div>
+
+        <ul class="nav nav-tabs mb-3">
+            @foreach (var tab in Pestanias())
+            {
+                <li class="nav-item">
+                    <button class="nav-link @(pestania == tab.Valor ? "active" : "")" @onclick="() => CambiarPestania(tab.Valor)">
+                        @tab.Titulo
+                        @if (tab.Cantidad is { } cantidad)
+                        {
+                            <span class="badge bg-secondary ms-1">@cantidad</span>
+                        }
+                    </button>
+                </li>
+            }
+        </ul>
+
+        @if (pestania == Pestania.Declarar)
+        {
+            <div class="card">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Código</th>
+                                <th>Línea</th>
+                                <th>Intervalo</th>
+                                <th>Minutos</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in pendientes.ParaDeclarar)
+                            {
+                                <tr>
+                                    <td><strong>@item.Codigo</strong></td>
+                                    <td>@item.LineaNombre</td>
+                                    <td>@TextoIntervalo(item)</td>
+                                    <td><span class="badge bg-secondary">@item.MinutosEfectivos min</span></td>
+                                    <td><span class="badge bg-warning text-dark">@item.EstadoActualDescripcion</span></td>
+                                </tr>
+                            }
+                            @if (!pendientes.ParaDeclarar.Any())
+                            {
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">No hay detenciones para declarar.</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="alert alert-light border mt-3 mb-0">
+                Hasta que esté la lectura del PLC esta lista queda vacía: el operario carga la detención a mano como hoy.
+                Cuando llegue la señal, la detención se crea sola con hora y minutos, y el operario completa equipo,
+                tipo de falla y descripción.
+            </div>
+        }
+        else
+        {
+            @if (pestania != Pestania.Cerradas && pendientes.EsAdministrador)
+            {
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Responsable</label>
+                        <select class="form-select" @onchange="CambiarResponsable">
+                            <option value="" selected="@string.IsNullOrEmpty(filtroResponsable)">Todos los responsables</option>
+                            @foreach (var opcion in pendientes.Responsables)
+                            {
+                                var valor = ValorOpcion(opcion);
+                                <option value="@valor" selected="@(filtroResponsable == valor)">@opcion.Nombre</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+            }
+
+            <div class="card">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Código</th>
+                                <th>Fecha</th>
+                                <th>Equipo</th>
+                                <th>Tipo falla</th>
+                                <th>Minutos</th>
+                                <th>Estado</th>
+                                @if (pestania != Pestania.Cerradas)
+                                {
+                                    <th>Esperando</th>
+                                }
+                                @if (pestania != Pestania.Cerradas && pendientes.EsAdministrador)
+                                {
+                                    <th>Responsable</th>
+                                }
+                                @if (pestania == Pestania.Cerradas)
+                                {
+                                    <th>Cerrada el</th>
+                                }
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in ListaActual())
+                            {
+                                <tr>
+                                    <td><strong>@item.Codigo</strong></td>
+                                    <td>@item.Fecha.ToString("dd/MM/yyyy")</td>
+                                    <td>
+                                        @(item.EquipoNombre ?? "-")
+                                        @if (item.EquipoCritico)
+                                        {
+                                            <span class="badge bg-danger ms-1">Crítico</span>
+                                        }
+                                    </td>
+                                    <td>@(item.TipoFallaNombre ?? "-")</td>
+                                    <td><span class="badge bg-secondary">@item.MinutosEfectivos min</span></td>
+                                    <td>
+                                        <span class="@EstadoUi.BadgeClass(item.EstadoActual, Abierto)"
+                                              style="@EstadoUi.BadgeStyle(item.EstadoActual, Abierto)">
+                                            @EstadoUi.Texto(item.EstadoActualDescripcion, item.EstadoAnalisisDescripcion)
+                                        </span>
+                                    </td>
+                                    @if (pestania != Pestania.Cerradas)
+                                    {
+                                        <td>
+                                            @if (item.DiasEsperando.HasValue)
+                                            {
+                                                <span class="@(item.DiasEsperando > 3 ? "text-danger fw-semibold" : "")">@TextoEspera(item.DiasEsperando.Value)</span>
+                                            }
+                                        </td>
+                                    }
+                                    @if (pestania != Pestania.Cerradas && pendientes.EsAdministrador)
+                                    {
+                                        <td>@(item.ResponsableNombre ?? "-")</td>
+                                    }
+                                    @if (pestania == Pestania.Cerradas)
+                                    {
+                                        <td>@(item.FechaHoraAnalisis?.ToString("dd/MM/yyyy HH:mm") ?? "-")</td>
+                                    }
+                                    <td class="text-end">
+                                        <button class="btn btn-sm @(pestania == Pestania.Cerradas ? "btn-outline-primary" : "btn-primary")"
+                                                @onclick="() => AbrirDetencion(item.DetencionId)">
+                                            @(pestania == Pestania.Cerradas ? "Ver" : "Analizar")
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                            @if (!ListaActual().Any())
+                            {
+                                <tr>
+                                    <td colspan="10" class="text-center text-muted py-4">@TextoVacio()</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private enum Pestania { Analizar, EnAnalisis, Cerradas, Declarar }
+
+    private record Indicador(string Titulo, string Valor);
+
+    private record PestaniaItem(Pestania Valor, string Titulo, int? Cantidad);
+
+    private MisPendientesDto? pendientes;
+    private bool cargando = true;
+    private Pestania pestania = Pestania.Analizar;
+    private string filtroResponsable = string.Empty;
+    private string subtitulo = string.Empty;
+
+    private bool Abierto => pestania != Pestania.Cerradas;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var roles = authState.User.Claims
+            .Where(c => c.Type == "role" || c.Type == ClaimTypes.Role)
+            .Select(c => c.Value)
+            .Distinct()
+            .OrderBy(r => r)
+            .Select(Capitalizar);
+        subtitulo = $"Rol: {string.Join(", ", roles)} · ves solo lo que te toca a vos";
+
+        await CargarPendientes();
+        pestania = pendientes?.VeAnalisis == true ? Pestania.Analizar : Pestania.Declarar;
+    }
+
+    private async Task CargarPendientes()
+    {
+        cargando = true;
+        try
+        {
+            var responsableRol = filtroResponsable.StartsWith("R:") ? filtroResponsable[2..] : null;
+            var responsableUsuarioId = filtroResponsable.StartsWith("U:") ? filtroResponsable[2..] : null;
+            pendientes = await AnalisisService.GetMisPendientesAsync(responsableRol, responsableUsuarioId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al cargar pendientes: {ex.Message}");
+            pendientes = null;
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private void CambiarPestania(Pestania nueva)
+    {
+        pestania = nueva;
+    }
+
+    private async Task CambiarResponsable(ChangeEventArgs e)
+    {
+        filtroResponsable = e.Value?.ToString() ?? string.Empty;
+        await CargarPendientes();
+    }
+
+    private List<Indicador> Indicadores()
+    {
+        var indicadores = new List<Indicador>();
+        if (pendientes is null)
+        {
+            return indicadores;
+        }
+
+        if (pendientes.VeAnalisis)
+        {
+            indicadores.Add(new("Para analizar", pendientes.ParaAnalizar.Count.ToString()));
+            indicadores.Add(new("En análisis", pendientes.EnAnalisis.Count.ToString()));
+            indicadores.Add(new("Demora promedio", TextoDemora()));
+            indicadores.Add(new("Cerradas este mes", pendientes.CerradasEsteMes.ToString()));
+        }
+
+        if (pendientes.VeDeclaracion)
+        {
+            indicadores.Add(new("Para declarar", pendientes.ParaDeclarar.Count.ToString()));
+        }
+
+        return indicadores;
+    }
+
+    private List<PestaniaItem> Pestanias()
+    {
+        var pestanias = new List<PestaniaItem>();
+        if (pendientes is null)
+        {
+            return pestanias;
+        }
+
+        if (pendientes.VeAnalisis)
+        {
+            pestanias.Add(new(Pestania.Analizar, "Para analizar", pendientes.ParaAnalizar.Count));
+            pestanias.Add(new(Pestania.EnAnalisis, "En análisis", pendientes.EnAnalisis.Count));
+            pestanias.Add(new(Pestania.Cerradas, "Cerradas por mí", null));
+        }
+
+        if (pendientes.VeDeclaracion)
+        {
+            pestanias.Add(new(Pestania.Declarar, "Para declarar", pendientes.ParaDeclarar.Count));
+        }
+
+        return pestanias;
+    }
+
+    private string TextoDemora() =>
+        pendientes?.DemoraPromedioDias is double dias
+            ? $"{dias.ToString("0.0")} días"
+            : "—";
+
+    private List<PendienteAnalisisDto> ListaActual() => pestania switch
+    {
+        Pestania.EnAnalisis => pendientes?.EnAnalisis ?? new List<PendienteAnalisisDto>(),
+        Pestania.Cerradas => pendientes?.CerradasPorMi ?? new List<PendienteAnalisisDto>(),
+        _ => pendientes?.ParaAnalizar ?? new List<PendienteAnalisisDto>()
+    };
+
+    private string TextoVacio() => pestania switch
+    {
+        Pestania.Cerradas => "Todavía no cerraste ningún análisis.",
+        Pestania.EnAnalisis => "No hay análisis en curso para vos.",
+        _ => "No hay fallas esperando análisis para vos."
+    };
+
+    private void AbrirDetencion(long detencionId)
+    {
+        Navigation.NavigateTo($"detenciones/{detencionId}");
+    }
+
+    private static string ValorOpcion(ResponsableOpcionDto opcion) =>
+        opcion.Rol != null ? $"R:{opcion.Rol}" : $"U:{opcion.UsuarioId}";
+
+    private static string TextoEspera(int dias) => dias switch
+    {
+        <= 0 => "hoy",
+        1 => "hace 1 día",
+        _ => $"hace {dias} días"
+    };
+
+    private static string TextoIntervalo(PendienteDeclaracionDto item)
+    {
+        if (!item.FechaHoraParada.HasValue)
+        {
+            return "Sin hora";
+        }
+
+        var inicio = item.FechaHoraParada.Value.ToString("dd/MM HH:mm");
+        return item.FechaHoraArranque.HasValue
+            ? $"{inicio} → {item.FechaHoraArranque.Value:HH:mm}"
+            : inicio;
+    }
+
+    private static string Capitalizar(string texto) =>
+        texto.Length == 0 ? texto : char.ToUpperInvariant(texto[0]) + texto[1..].ToLowerInvariant();
+}

@@ -1,0 +1,504 @@
+[00:00:01 --> 00:00:18] Bueno, dos ejes y un poco de lo que es el proyecto, primer punto, la toma automática
+[00:00:18 --> 00:00:24] de información para detectar las paradas, ¿te acordás que el otro día habíamos
+[00:00:24 --> 00:00:29] hablado inicialmente del proyecto, lo que hemos pensado de instalar cámaras de video,
+[00:00:29 --> 00:00:34] base eso, en base a enseñar la inteligencia artificial y vamos a
+[00:00:34 --> 00:00:39] identificar máquina parada, máquina en marcha. Bueno ahí un poco lo que hablé
+[00:00:39 --> 00:00:43] con Sebastián, sabiendo que todo es un poquito el cursito que estamos haciendo
+[00:00:43 --> 00:00:48] y demás, todo eso va a implicar un costo, es decir, de vuelta el
+[00:00:48 --> 00:00:52] procesamiento de información y demás. Le pregunté a Sebastián, le digo
+[00:00:52 --> 00:00:57] ¿tenemos alguna alternativa rápida de alguna manera de tomar la
+[00:00:57 --> 00:01:03] información del PLC y poder llevarlo a nuestro servidor y de ahí poder
+[00:01:03 --> 00:01:08] trabajar la información. Bueno, se ve a quien se llevo el tema, lo habló con
+[00:01:08 --> 00:01:15] Nicolás y un poco lo que vamos a armar es lo siguiente, a mí me
+[00:01:15 --> 00:01:21] queda, hoy hablé con Nico un poco como que me explique más o menos
+[00:01:21 --> 00:01:25] conceptualmente cuál era la idea, Nico lo que se va a hacer se va a conectar
+[00:01:25 --> 00:01:34] a la máquina necesita un switch necesita un microprocesador como si fuera una PC y lo único
+[00:01:34 --> 00:01:42] que va a generar en ese procesador es un programita que levante el estado del PLC básicamente es
+[00:01:42 --> 00:01:49] máquina marcha máquina detenida y a su vez yo le pedí que identifique la cantidad de mangas
+[00:01:49 --> 00:01:54] para detectar la producción que se va generando, como son los datos de entrada
+[00:01:54 --> 00:01:59] que eso pensando en un indicador de eficiencia para adelante, pero vamos en
+[00:01:59 --> 00:02:04] caso nuestro que el proyecto es detención, lo que le pedió Sebastián es
+[00:02:04 --> 00:02:09] que integre los cuerpos de la máquina, es decir la empaquetadora y la
+[00:02:09 --> 00:02:16] envolvedora y después nosotros con una lógica podemos ya inferir el
+[00:02:16 --> 00:02:21] motivo de la detención, solo que le dije a Nico en esta primera etapa es, a mí lo
+[00:02:21 --> 00:02:27] que me interesa es básicamente tomar como maestro es el cuerpo rebobinadora
+[00:02:27 --> 00:02:32] es decir que la máquina está rebobinando o no está rebobinando, si no
+[00:02:32 --> 00:02:35] está rebobinando ya para mí ya eso es un avance que lo genera
+[00:02:35 --> 00:02:41] automáticamente la detención y ahí apelamos al localador que ponga de
+[00:02:41 --> 00:02:44] alguna manera el árbol de detenciones que nosotros lo definimos, el tipo de
+[00:02:44 --> 00:02:51] falla, los minutos ya se van a salir automáticos de la falla y ellos tienen
+[00:02:51 --> 00:02:58] que poner el cuerpo asociado y el detalle de la falla, se entiende?
+[00:02:59 --> 00:03:10] lo que haríamos es levantar un evento del PLC que me va a alertar sobre la
+[00:03:10 --> 00:03:16] existencia de una detención y yo le tengo que pedir al operador que me
+[00:03:16 --> 00:03:22] complete los datos de esa detención que faltarían completar correcto así sería
+[00:03:22 --> 00:03:27] el modelo, segunda instancia que se puede hacer es si yo puedo vincular
+[00:03:27 --> 00:03:34] todas las partes del equipo con información yo puedo predecir que si
+[00:03:34 --> 00:03:41] la rebobinadora se para y yo sé que el equipo siguiente aguas arriba
+[00:03:41 --> 00:03:46] se paró hace 15 minutos puedo decir che la rebobinadora se paró porque el
+[00:03:46 --> 00:03:52] equipo la empaquetadora por ejemplo está parada hace 15 minutos pero eso sería
+[00:03:52 --> 00:04:01] una segunda etapa que sería un poco lo que sería el auto sería el automatismo
+[00:04:01 --> 00:04:05] de completar los motivos de la falla, pero como nosotros lo habíamos armado está
+[00:04:05 --> 00:04:17] igual ahí te hago una pregunta, Nicolás va a leer el PLC y me va a poder decir que se detuvo
+[00:04:17 --> 00:04:33] la rebobinadora por un lado y la colectora por el otro, para mí hoy una detención de la rebobinadora
+[00:04:33 --> 00:04:38] se registra como una detención, una detención de la empaquetadora como
+[00:04:38 --> 00:04:42] otra, independientemente de que yo después pueda inferir que una causa
+[00:04:42 --> 00:04:46] consecuencia a la otra, las registro por separado.
+[00:04:46 --> 00:04:50] Pero ahí, por eso, es de acuerdo el criterio que tenemos que hacer, a mí lo que me
+[00:04:50 --> 00:04:54] interesa como maestro, ya me molé maestro de decir de dónde se va a
+[00:04:54 --> 00:04:59] nutrir la eficiencia y las detenciones, a mí lo que me interesa es si la
+[00:04:59 --> 00:05:03] máquina rebobina papel o no rebobina papel, lo que quería
+[00:05:03 --> 00:05:13] Sebastián es un paso más, él quiere dividir lo que es máquina de lo que son auxiliares
+[00:05:13 --> 00:05:19] de la máquina, también justificar los motivos, se me paró la empaquetadora, poner el motivo
+[00:05:19 --> 00:05:24] de la empaquetadora, es como que sería dos proyectos en paralelo, se entiende, pero
+[00:05:24 --> 00:05:28] yo iría con la primera etapa, la primera etapa como lo diseñamos nosotros es.
+[00:05:28 --> 00:05:34] porque ahí volvemos a una charla que hemos tenido antes, yo pensaba la
+[00:05:34 --> 00:05:39] cabeza con la que yo miro el proyecto, cuando vos me hablás de máquina, para mí la
+[00:05:39 --> 00:05:51] máquina empieza ya y termina ya, pero yo entiendo que vos me estás diciendo que para vos las máquinas son los dos que están allá, todos los demás son accesorios
+[00:05:51 --> 00:05:56] el punto es, al fin y al cabo estamos hablando de la relevancia de un cuerpo
+[00:05:56 --> 00:06:04] por eso, y el PLC que me va a devolver, solo los relevantes o todo?
+[00:06:04 --> 00:06:08] claro, el PLC lo que te puede dar datos de
+[00:06:08 --> 00:06:19] información es, y después tendría que armar la estructura, por ejemplo se me
+[00:06:19 --> 00:06:25] para un devobinador que devobina el papel y no me para la máquina
+[00:06:25 --> 00:06:30] porque está funcionando el otro, lo que tendríamos que dar en el programita que tenemos que armar es decir
+[00:06:30 --> 00:06:39] qué dato te genera una detención de la máquina, es decir, que el maestro principal de la línea
+[00:06:39 --> 00:06:46] de alguna manera es si rebobina o no rebobina papel. Para mí eso lo que significa es que vos a un
+[00:06:46 --> 00:06:52] cuerpo lo clasifiques con un campo que diga si es un cuerpo crítico o no, me parece que es eso,
+[00:06:52 --> 00:06:58] porque lo que vos querés saber es, insisto, pensar que una máquina es la sumatoria de cuerpos
+[00:06:58 --> 00:07:04] entonces cuando vos me decís se detiene la máquina, insisto, entiendo el detrás de línea
+[00:07:04 --> 00:07:11] pero está mal expresado porque no se detiene la máquina, se detiene un cuerpo, ahora si un
+[00:07:11 --> 00:07:18] cuerpo tiene la fuerza de detener al 100% de todos los otros cuerpos es donde vos te estás
+[00:07:18 --> 00:07:26] focalizando, que es decir guarda que este cuerpo es central, a ver es como que yo te diga que me corté
+[00:07:26 --> 00:07:32] un brazo o tuve un infarto, o sea si me corté un brazo sigo, si tengo un infarto no sigo, creo que
+[00:07:32 --> 00:07:43] es ese punto, el corazón es check, es una parte de una máquina, la máquina soy yo, ese
+[00:07:43 --> 00:07:48] corazón es crítico sí chau listo me parece que va por ahí como primera
+[00:07:48 --> 00:07:54] estructura y ahora Nico lo que me dijo es verdad es decir como él va a tomar
+[00:07:54 --> 00:07:58] los datos del ppc básicamente la máquina la va a dividir en dos cuerpos
+[00:07:58 --> 00:08:04] ok, llamarle máquina que son todas las partes que
+[00:08:04 --> 00:08:08] devobinan el papel y lo gobinan de vuelta y después la empaquetadora
+[00:08:08 --> 00:08:12] es como que querían dos grandes cuerpos que pueden generar detenciones
+[00:08:12 --> 00:08:19] se entiende decir. Cuando el punto de división es el momento en el que sale el
+[00:08:19 --> 00:08:28] rollito cortado o antes? No. La cortadora es parte de la primer fase o no? Si. Bien, vos cortadora viene la manda. Correcto.
+[00:08:28 --> 00:08:33] Es como que la máquina la tenemos dividida en dos y vamos a tomar dos
+[00:08:33 --> 00:08:39] información. Bien. Aguas arriba llamémosle. Antes de cortar. Si. Antes de cortar y después de cortar.
+[00:08:39 --> 00:08:45] todo el proceso antes de cortar, que tiene el proceso desenrollado, gofrado, rebobinado, corte
+[00:08:45 --> 00:08:52] hasta ahí, todo uno, va a ser un megacuerpo de una manera donde va a tener señal, run o stop,
+[00:08:52 --> 00:09:01] y después la otra parte, que es la parte llamada de empaquetado, de formación de
+[00:09:01 --> 00:09:07] menos crítica, cuerpos packaging llamémosle decir, que también vas a tener run o stop
+[00:09:07 --> 00:09:11] también? si, entonces vamos a tener esas dos fuentes de información
+[00:09:11 --> 00:09:15] claro, esas dos fuentes de información, lo que pasa es que una está ligada a otra
+[00:09:15 --> 00:09:20] si yo tengo la parte de packaging detenido, después de un tiempo me va a detener esto
+[00:09:20 --> 00:09:25] estamos de acuerdo, y si yo tengo un problema en cualquier parte de la mega máquina
+[00:09:25 --> 00:09:30] es decir, te lo va a poner en stop, te va a dejar de sacar papel? correcto
+[00:09:30 --> 00:09:38] lo que quería Sebastián, pero eso para mí es una segunda etapa, es decir, que en esos dos megacuerpos haya justificaciones de por qué se para
+[00:09:38 --> 00:09:46] nosotros todo lo que armamos es para el megacuerpo máquina, ya me molé decir, se entiende?
+[00:09:46 --> 00:09:55] pero lo que quería agregarle es decir, bueno, la empaquetadora, se puede hacer lo mismo una descripción, un árbol de tensión, entonces, no sé
+[00:09:55 --> 00:10:06] No, no entiendo, no entiendo, no, no, sorry, ahí no comparto la mirada que Sebastián está teniendo de lo que me está diciendo, o no entendió lo que hicimos
+[00:10:06 --> 00:10:11] Sebastián lo toma como que la línea está compuesta por dos grandes, dos grandes cuerpos
+[00:10:11 --> 00:10:18] Pero esos dos grandes cuerpos tienen sus cuerpos adentro, yo estoy detectando la detención de cada uno de sus cuerpos
+[00:10:18 --> 00:10:26] de vuelta qué pasa si me falla el cuerpo principal me entendí que el corazón de esto es que la parte
+[00:10:26 --> 00:10:33] la máquina de una manera de decir que rebobina, gofre y todo eso, bueno que pasa si te falla
+[00:10:33 --> 00:10:40] este, uno de los motivos que puede ser es por packaging, es decir, tuve que parar la máquina
+[00:10:40 --> 00:10:45] porque me funciona mal packaging, entonces que pasa la información lo único que queda es me
+[00:10:45 --> 00:10:51] funciona mal la empaquetadora, me funciona mal la embolsadora, pero no tengo un detalle
+[00:10:51 --> 00:11:00] fino de qué pasa acá, se entiende? pero bueno capaz que es mucho quilombo, igual te entiendo el
+[00:11:00 --> 00:11:07] punto es como relacionar la frenada, ese es el punto, o sea, a ver, yo porque te quería explicar
+[00:11:07 --> 00:11:11] qué datos voy a tener, después vemos cómo nosotros armamos, después vemos si lo vinculamos
+[00:11:11 --> 00:11:16] la parte del sector packaging, la información esa la vinculamos o no la vinculamos, me entende?
+[00:11:16 --> 00:11:25] a nuestro sistema de tensiones, yo lo que necesito es que el cuerpo principal máquina sea cual fuera
+[00:11:25 --> 00:11:32] el motivo que después la idea es clasificarlo y por eso está el operador, se registre si la máquina
+[00:11:32 --> 00:11:41] está en marcha o está parada. Eso va a ir dado por un PSL, tiene fecha. Lo que me va a pasar Nico es
+[00:11:41 --> 00:11:49] que necesita de hardware, yo lo consigo y una vez que lo hace me lo programa. Lo vas a poner en una
+[00:11:49 --> 00:11:57] máquina principalmente, la que estamos trabajando. Todo vamos a hacer en modelo y después lo
+[00:11:57 --> 00:12:12] expandimos. Bien perfecto. Yo lo que me llevo en algún punto es nosotros, perdon, esto es una
+[00:12:12 --> 00:12:25] no puedo decir lo mío tuyo, nosotros hoy tenemos esto, o sea si yo agarro tango 2, vos la dividís en dos, 1, 2, esto va a ser el cuerpo
+[00:12:29 --> 00:12:38] como se llama? el principal, si le pusiste un nombre, principal, o el cuerpo madre, o cuerpo máquina, cuerpo máquina
+[00:12:38 --> 00:12:47] cuerpo máquina y cuerpo packaging
+[00:12:47 --> 00:13:00] bien qué pasa estos tienen 1 2 ponerle 3 4 1.1 1.2 1.3 1.4 y este es lo mismo
+[00:13:00 --> 00:13:16] entonces será 2.1 2.2 2.3 y 2.4 yo hoy el registro lo tomo por cada 1.1 o sea yo tomo el registro
+[00:13:16 --> 00:13:26] qué pasa lo que le voy a agregar técnicamente es a mí Nicolás me va a entregar un dato por
+[00:13:26 --> 00:13:38] true or false 1 o 0 que me dice si hubo o no detención en cuerpo principal o en cuerpo
+[00:13:38 --> 00:13:46] packaging, eso me dispara un evento, ese evento a mí me dispara la necesidad de registrar data
+[00:13:46 --> 00:13:54] más profunda que es cual de todos, todos, uno, algunos, etcétera, esto sería declaración manual
+[00:13:54 --> 00:14:00] declaración manual, esta señal automática, entonces lo que te va a registrar esta
+[00:14:00 --> 00:14:07] señal es un intervalo de fallo del equipo, de detención del equipo, bien
+[00:14:07 --> 00:14:16] entonces la que viene automática yo la tomo, registro el evento y luego
+[00:14:16 --> 00:14:23] manual voy a pedir mayores niveles de detalles, lo que hoy pediría, eso está
+[00:14:23 --> 00:14:31] diseñado, va a venir alguien y me va a decir si fue una o más de una, no sé, vemos, porque yo puedo
+[00:14:31 --> 00:14:38] decirle, no sé, tengo que pensarlo, pero además hay una cuestión que tiene que ver con yo no
+[00:14:38 --> 00:14:44] solamente inducirle cual, sino también asociar que fue como consecuencia de esta otra, correcto,
+[00:14:44 --> 00:14:51] para que a vos te quede la relación que el disparador que salió de acá finalmente fue
+[00:14:51 --> 00:14:57] por conjunto de estos dos, pero que sale como consecuencia de otra que pasó acá,
+[00:14:57 --> 00:15:03] que se supone que se tiene que relacionar con una que me salto por acá, esa es la
+[00:15:03 --> 00:15:11] relación. Yo me gusta lo que haría, dividirían dos proyectos, esto es proyecto uno como lo
+[00:15:11 --> 00:15:17] pensamos, es como si fueran dos máquinas, porque son dos sectores diferentes,
+[00:15:17 --> 00:15:26] este se llama sector principal sector packaging lo que hoy nosotros quisieramos hacer es lo mismo
+[00:15:26 --> 00:15:32] es como duplicar los proyectos entonces yo tomaría este proyecto principal si bien hay
+[00:15:32 --> 00:15:38] una relación es decir si a mí se me frena esto tarde o temprano me frena esto hay una
+[00:15:38 --> 00:15:45] consecuencia pero yo lo estoy aclarando acá porque yo imagino que me falló esto en texto
+[00:15:45 --> 00:15:59] yo ahora digo detalle del tema, se me paró tal parte de packaging, pero lo que quería Sebastián es
+[00:15:59 --> 00:16:07] bueno abrir un árbol de detenciones donde el operador de packaging me desclare los motivos
+[00:16:07 --> 00:16:15] de las paradas, entonces yo voy a tener una base, pero no están abiertos los motivos
+[00:16:15 --> 00:16:19] de acá, yo tengo los motivos que ya lo armamos de acá, ah bueno pero eso no está abierto,
+[00:16:19 --> 00:16:25] pero pará, yo tengo que separar la página del trigo, una cosa que vos o quien sea
+[00:16:25 --> 00:16:30] no haya entrado a los lugares donde hay que llenar datos, y otra cosa que el sistema
+[00:16:30 --> 00:16:34] no lo permita, son dos cosas distintas, yo entiendo lo que decís pero lo que está
+[00:16:34 --> 00:16:40] faltando llenar información no hacer un sistema por eso después por eso no nos
+[00:16:40 --> 00:16:46] mariemos con esto yo lo que le voy a pedir a Nico es primero que arme este
+[00:16:46 --> 00:16:51] automatismo donde esto que configurarlo por ejemplo yo le iba a decir a Nico
+[00:16:51 --> 00:16:55] que yo quiero que me releve un intervalo de detención a partir de
+[00:16:55 --> 00:17:00] x cantidad de minutos porque puede tener micro paradas pero al pedo porque si por
+[00:17:00 --> 00:17:07] cada microparada me va a abrir un campo, me van a aparecer 200 mil entonces, le tengo que poner ciertos
+[00:17:07 --> 00:17:12] condicionantes, por ejemplo menor a 30 metros por minuto, si la máquina está menor a 30 por minuto
+[00:17:12 --> 00:17:17] yo la considero como una parada, después de cinco minutos por ejemplo ahí empieza el contador
+[00:17:17 --> 00:17:23] y el contador me registra la hora de inicio y la hora de fin y por ende registra el intervalo
+[00:17:23 --> 00:17:30] automáticamente eso me dispara una línea de un pendiente donde el operador va a tener que entrar
+[00:17:30 --> 00:17:37] a cada línea pendiente a declarar lo que ya hicimos, perdón y ahí hay una cosa, vos tenés dos apartados
+[00:17:37 --> 00:17:52] el A y el B, que es, uno la declaración de la parada y el otro es el que declara la solución
+[00:17:52 --> 00:18:04] es lo que dice como resolver este problema, ahí si querés ya no metemos en las observaciones
+[00:18:04 --> 00:18:11] de lo que ya armamos, que yo te quiero contar las observaciones, pero a nivel macro, a nivel macro
+[00:18:11 --> 00:18:18] entonces definiciones, vamos a lo que es la parte conceptual del proyecto, conceptual del
+[00:18:18 --> 00:18:23] proyecto, en qué etapa estamos, dijimos, primera etapa arrancamos manual, donde
+[00:18:23 --> 00:18:31] yo preseteo y yo genero una detención manual, que queremos hacer ahora, darle
+[00:18:31 --> 00:18:35] un paso más, es decir, estamos en la etapa de yo quiero generar un automatismo
+[00:18:35 --> 00:18:40] donde la detención es automática, por medio de una lectura de PMC que yo
+[00:18:40 --> 00:18:44] ese tema me lo llevo yo con Nico para ver cómo lo ejecutamos, por otro lado
+[00:18:44 --> 00:18:50] de las 5 cámaras que habíamos hablado con el futuro de empezar a trabajar la
+[00:18:50 --> 00:18:56] calidad que era el segundo paso ya están instaladas 3, hoy me entran los dos pies
+[00:18:56 --> 00:19:01] que me faltan, ya la semana que viene ya están las 5 cámaras instaladas
+[00:19:01 --> 00:19:05] y contra que servidor las pusieron?
+[00:19:05 --> 00:19:11] el IP67, eso con quien lo viste? con IT Directo?
+[00:19:11 --> 00:19:13] sí, me lo programaron ellos
+[00:19:13 --> 00:19:15] pero vos se lo pediste a IT directo?
+[00:19:15 --> 00:19:18] si, gusta recordar que yo me llevé las 5 cámaras a instalar
+[00:19:18 --> 00:19:23] que teníamos que hacer y que me la instalen en presupuesto
+[00:19:23 --> 00:19:27] está bien, pero tenemos idea de la grabación de eso donde está guardándose?
+[00:19:27 --> 00:19:29] si, todo después te la paso
+[00:19:29 --> 00:19:33] entonces eso de ellos ya avanzó rápido, ya está
+[00:19:33 --> 00:19:37] y ahora lo único que me quedó es, en dos cuerpos puntuales
+[00:19:37 --> 00:19:40] tuve que hacer un soporte para que me enfoque bien la cámara
+[00:19:40 --> 00:19:42] tres cámaras ya las estoy viendo yo
+[00:19:42 --> 00:19:45] donde está? acá o acá?
+[00:19:45 --> 00:19:47] de que lado está la cámara?
+[00:19:47 --> 00:19:50] no, las cámaras te acordás que iban estratégicamente, una iba en la rebubinadora
+[00:19:50 --> 00:19:53] te acordás que para ver la detención de la máquina
+[00:19:53 --> 00:19:55] que la grabamos acá por este lado
+[00:19:55 --> 00:19:57] un momento no sirvo para la calidad
+[00:19:57 --> 00:19:59] otra la salida de la cortadora
+[00:19:59 --> 00:20:01] otra la salida de la empaquetadora
+[00:20:01 --> 00:20:03] otra la salida de la embolsadora
+[00:20:03 --> 00:20:07] también van a ser estrictamente calidad
+[00:20:07 --> 00:20:09] pensando a futuro
+[00:20:09 --> 00:20:13] la segunda parte de calidad, para empezar a enseñar lo que era calidad
+[00:20:13 --> 00:20:19] que también nos puede servir para otra cosa, para vincular esto
+[00:20:19 --> 00:20:23] te digo de la parte macro-conceptual
+[00:20:23 --> 00:20:28] bien, entonces
+[00:20:28 --> 00:20:34] yo ya puedo usar el sistema como habíamos hablado de forma manual
+[00:20:34 --> 00:20:37] ahora te muestro las observaciones que
+[00:20:37 --> 00:20:50] yo para seguir dándole una vueltita y mejorándola de a poquito, pudo entrar perfecto con usuario
+[00:20:50 --> 00:20:54] administrador, todo esto, me tendría que generar el usuario. Sí, ahora tenemos que casarlos.
+[00:20:54 --> 00:21:02] Ah, capaz que lo tengo abierto yo, porque entra igual. Bueno, primer punto que yo
+[00:21:02 --> 00:21:14] te quería hacer, que son todos detalles, la idea es que el usuario de administrador
+[00:21:14 --> 00:21:19] en el caso que genere detenciones o cambie detenciones de forma manual, que está bien
+[00:21:19 --> 00:21:26] que sea así, me la permita eliminar, es una boludez, tendríamos que tener para
+[00:21:26 --> 00:21:31] usar administrador acá el tachito de basura para eliminarlo, ¿entendés?
+[00:21:31 --> 00:21:35] ¿sabe por qué? porque yo estuve haciendo de prueba, esta es la generación de ahora por ejemplo,
+[00:21:35 --> 00:21:40] me entendí de prueba y en realidad me está ensuciando el sistema hoy, ¿entendés?
+[00:21:40 --> 00:21:46] Bien. Bueno, entonces, nuevas detenciones,
+[00:21:46 --> 00:21:48] yo era administrador, posibilidad de eliminar las detenciones creadas.
+[00:21:48 --> 00:21:53] perdón estamos hablando en este momento y a partir de acá principalmente de
+[00:21:53 --> 00:21:59] mejoras operativas a la plataforma como ajustes
+[00:21:59 --> 00:22:05] segundo punto en la parte equipo y detalle de falla
+[00:22:05 --> 00:22:10] en la parte equipo para donde estás acá estás en una detención
+[00:22:10 --> 00:22:14] claro una detención la parte de equipo en la parte de equipo
+[00:22:14 --> 00:22:19] donde elegiste el equipo, que es un cuerpo
+[00:22:19 --> 00:22:26] se ve que el sistema te tomó en base a la historia y te fue levantando y predijo
+[00:22:26 --> 00:22:30] de alguna manera cuáles son las partes del equipo, la pregunta es yo lo puedo
+[00:22:30 --> 00:22:35] para customizar yo, poner el árbol de tensiones que yo quiero me
+[00:22:35 --> 00:22:40] entendés de decir que me aparezcan funciones, simuláte una por ejemplo
+[00:22:40 --> 00:22:49] bueno acá tenés enrollado por ejemplo no es un equipo, eso lo tenés acá
+[00:22:49 --> 00:22:55] bien decime cómo parametrizarlo y yo después lo parametrizo bien, maestros
+[00:22:55 --> 00:23:02] todo eso todo se maneja desde acá, listo, entonces vos venís acá y acá tenés el maestro de
+[00:23:02 --> 00:23:07] equipo, listo, el maestro de equipos lo que tiene es que vos le vas a decir a qué línea
+[00:23:07 --> 00:23:15] pertenece y le das un código y le pones el nombre y una descripción y lo dejas activo
+[00:23:15 --> 00:23:21] o inactivo, listo, eso está totalmente editable y yo vengo y me armo el árbol que quiero,
+[00:23:21 --> 00:23:26] todo vos, listo, de hecho está todo este mundo que está acá es tu construcción
+[00:23:26 --> 00:23:30] de árbol, listo, vos fíjate que tenes línea, bien, que si vamos ahora hay
+[00:23:30 --> 00:23:34] una sola, listo, después tenes equipos que técnicamente le vas a decir de que
+[00:23:34 --> 00:23:39] o sea, esto está en orden, viene, primero te digo la línea, después te digo los equipos que pertenecen a la línea
+[00:23:39 --> 00:23:46] después te digo los tipos de falla, en los tipos de falla en realidad yo no los ato a nada, son tipos de falla
+[00:23:46 --> 00:23:51] y las fallas le preguntan al tipo de falla, entonces este te atado a este y este te atado a este
+[00:23:51 --> 00:23:56] y los cuatro se atan en una registración de detención, se entiende?
+[00:23:56 --> 00:24:03] la pregunta que te hago es, la historia que vos le cargaste de todos los datos
+[00:24:03 --> 00:24:08] si yo te cambio esto por ejemplo acá en vez de poner falla eléctrica te pongo falla eléctrica
+[00:24:08 --> 00:24:12] te va a cambiar en la historia del nombre, te lo vas a levantar
+[00:24:12 --> 00:24:19] claro técnicamente lo que vos no podrías cambiar por ejemplo este 7 que tiene sentido
+[00:24:19 --> 00:24:26] porque este es un registro pero vos podes venir a tango 2 y ponerle tango 24 y te lo vas a tomar
+[00:24:26 --> 00:24:32] porque vi en muchos casos por ejemplo que te puso 0 cuando andas en historial por ejemplo
+[00:24:33 --> 00:24:36] que no te puso motivo, acá por ejemplo
+[00:24:38 --> 00:24:40] no te pone el motivo
+[00:24:40 --> 00:24:43] no tiene equipo, bien, exactamente
+[00:24:43 --> 00:24:47] porque ahí yo tenía máquina en el Excel
+[00:24:47 --> 00:24:50] entonces hubo una inconsistencia o algo
+[00:24:50 --> 00:24:53] tengo que ponerle general, le tengo que cambiar algo
+[00:24:53 --> 00:24:56] lo que pasa es que ahí también hicimos un tema
+[00:24:56 --> 00:24:57] yo le permití al sistema
+[00:24:58 --> 00:25:00] que vos puedas
+[00:25:00 --> 00:25:03] no poner equipo como consecuencia de que se
+[00:25:03 --> 00:25:08] que es una falla global correcto entonces entonces lo dejaste como nada es
+[00:25:08 --> 00:25:15] que para mí un equipo vacío es igual a es igual a máquina completa
+[00:25:15 --> 00:25:20] si esa es la idea, si no de ultimo le pongo general, poner general también es
+[00:25:20 --> 00:25:25] una opción, generarte uno que diga general y listo
+[00:25:25 --> 00:25:29] de hecho si ahora vas y creas uno que se llama general y venís acá y lo
+[00:25:29 --> 00:25:35] a cambiar ya está, o sea me sacaba un y elegí uno nuevo, pero tengo que cambiar uno por
+[00:25:35 --> 00:25:41] uno no, ah vale eso dame lo y te lo actualizo masivamente, bien, o sea pasamelos, si, si
+[00:25:41 --> 00:25:47] pero tengo que actualizarte bien el excel, si, si, si, si porque la realidad es que
+[00:25:47 --> 00:25:49] si no te tengo que poner un sistema que te permita actualizar masivo y un montón
+[00:25:49 --> 00:25:53] de cosas, no, no, no, que tal eso de historia, que a una vez que empezamos
+[00:25:53 --> 00:25:56] a dar una delante ya está, por eso, no sé si tiene mucho sentido, prefiero
+[00:25:56 --> 00:26:01] que me la pasen 10 minutos de los 2. Yo creo que ya nos queda historia para hacer la misma
+[00:26:01 --> 00:26:06] codificación de todo. Si, no hay problema. Bueno, entonces eso listo, lo manejo yo.
+[00:26:06 --> 00:26:15] Y acá va a estar el tema. Toda falla mayor a 60 minutos o lo definido por el administrador,
+[00:26:15 --> 00:26:23] en la columna acciones, mandate si quieres el reporte. La idea es que en esta falla
+[00:26:23 --> 00:26:32] por ejemplo, que es 145 minutos, yo tenga un icono más que puede ser una herramienta o algo
+[00:26:32 --> 00:26:40] o un signo de pregunta que requiera análisis, entendés? porque esta detención lleva hasta
+[00:26:40 --> 00:26:46] un detalle, entonces cuál es el análisis? el análisis vamos a tomar este formato, yo quiero
+[00:26:46 --> 00:26:52] que me lleve a este template, donde esta primera parte sale de la declaración,
+[00:26:52 --> 00:27:01] el template que estamos hablando es un papel que dice identificación de fallas
+[00:27:01 --> 00:27:07] entonces estos datos de arriba que es la falla esto ya está acá en lo que es la
+[00:27:07 --> 00:27:11] estructura de datos de la falla donde yo llego a la descripción entrate si
+[00:27:11 --> 00:27:18] quieres a 145 minutos ahí y llego a esta descripción que sería esta
+[00:27:18 --> 00:27:22] descripción del fallo carro de limpieza rodilla inferior se rompe
+[00:27:22 --> 00:27:29] carro choca prensa, llego hasta acá, ahora, que necesito? que en el caso que si el tipo de falla
+[00:27:29 --> 00:27:38] sea de equipo, a quien le llamas equipo? que me fallo el equipo, esto, que dice fallo de equipo
+[00:27:38 --> 00:27:53] si el tipo de fallo es equipo, la idea es que los usuarios de mantenimiento puedan tener acá
+[00:27:54 --> 00:28:24] Acá hay un tema, cuando vos me decís que diga, porque acá está la descripción y el cuerpo, ah porque es la linea, fallo de equipo, tipo de falla, fallo de equipo
+[00:28:24 --> 00:28:32] bueno ves que pasa para que sea prolijo lo ideal sería que yo en este maestro te
+[00:28:32 --> 00:28:38] ponga algo que a vos te sirva para otra cosa porque yo no puedo basarme en un
+[00:28:38 --> 00:28:43] nombre, la pregunta es, si no despreocúpate, no te lo pongo, pero la pregunta es
+[00:28:43 --> 00:28:49] cómo se llamaría ese check, esto es un equipo true false, o sea
+[00:28:49 --> 00:28:54] cómo le quieres llamar al tilde que te sirve para otra cosa, requiere del
+[00:28:54 --> 00:29:01] análisis, requiere análisis, que en realidad vos ya lo armaste, fíjate acá, esto me gustó
+[00:29:01 --> 00:29:09] cuando vos venís acá vos tenés el estado, entonces por defecto va a ser registrada
+[00:29:09 --> 00:29:15] a decir que se registró, esto interesa si lo podemos cambiar ponemos en análisis y cerrado
+[00:29:15 --> 00:29:22] sabes para qué, para qué filtrarlo, porque todo lo que es mayor a un rango, ponerle 60
+[00:29:22 --> 00:29:31] minutos yo quiero que se analice, entonces esto 145 yo quisiera acá tener un icono que yo entro
+[00:29:31 --> 00:29:38] y tengo que explicar esto, porque te lo hacía más complejo que depende de, pero no te hagas
+[00:29:38 --> 00:29:42] problemas porque después lo puedes filtrar y cada uno lo toma quien tiene que analizarlo
+[00:29:42 --> 00:29:50] para darle un flujo está bueno que si vos le pones un tipo de falla y sabes que es
+[00:29:50 --> 00:29:57] mantenimiento después, mantenimiento filtra por fallo de equipo, ve lo que tiene el análisis y el área responsable
+[00:29:57 --> 00:30:03] también de un poco de esto, del tiempo, el tipo de falla y el tiempo
+[00:30:03 --> 00:30:12] disparan un evento, correcto, ahora yo lo que quiero es que esto sea
+[00:30:12 --> 00:30:17] obligatorio, porque si no tengo que analizar todos los
+[00:30:17 --> 00:30:22] fallos, que si yo le digo que mayor a 60 minutos requiera
+[00:30:22 --> 00:30:26] análisis, sea obligatorio, yo lo que voy a hacer es lo siguiente, te propongo
+[00:30:26 --> 00:30:34] esto, te voy a crear acá, te voy a crear acá en este probablemente maestros un
+[00:30:34 --> 00:30:45] nuevo segmento que sea parametrizador de alertas, entonces vos vas a venir acá y
+[00:30:45 --> 00:30:50] vas a decir cuando tiempo tal cosa y minutos mayor o igual entonces si de lo
+[00:30:50 --> 00:30:54] contrario no y si mañana querés otro también y también y yo me baso en
+[00:30:54 --> 00:31:00] eso, entonces sos vos el que parametrizas la lógica a tu gusto hoy y dentro de 20 años
+[00:31:00 --> 00:31:05] y eso salta una alerta, a ver más allá de eso yo lo que estoy viendo acá y me adelanto a lo
+[00:31:05 --> 00:31:11] que dice esto es que hoy tenemos todo concentrado en una sola pantalla, en realidad tendríamos
+[00:31:11 --> 00:31:19] que buscar una pantalla que habilite a vos como administrador, al responsable como pendiente de
+[00:31:19 --> 00:31:23] analizar y al responsable como pendiente es de marcar las soluciones
+[00:31:23 --> 00:31:28] establecidas, porque si nosotros ya partimos de este disparador, este
+[00:31:28 --> 00:31:37] disparador a priori no va a saber tu alerta, no lo va a conocer, va a saber
+[00:31:37 --> 00:31:41] como un quilombo, eso le tiene que saltar en la pantalla a alguien en un
+[00:31:41 --> 00:31:46] estado de requiere de revisión, porque todavía le falta data, entonces yo ya se
+[00:31:46 --> 00:31:50] ver salto, vos lo ves como administrador con cambio de estado pero hay otros que lo ven
+[00:31:50 --> 00:31:56] su pantalla que sería mis alertas, después ese mismo tiene que tener alerta que es
+[00:31:56 --> 00:32:01] bueno ya lo viste perfecto ahora marcaste que fueron 60 minutos, listo
+[00:32:01 --> 00:32:07] entonces requiere que me completes el análisis y a partir de ahí no sé vemos
+[00:32:07 --> 00:32:12] cómo seguimos con la solución que es más el otro paso entiendo, no? te
+[00:32:12 --> 00:32:17] que la solución en que terminamos lo que hablamos la vez pasada la solución
+[00:32:17 --> 00:32:22] va a ser un book de información que después pondrían un buscador me
+[00:32:22 --> 00:32:27] entendés porque para qué me sirve todo esto en el caso que yo tenga una
+[00:32:27 --> 00:32:33] nueva falla yo puedo saber qué solución tomé. O sea acá ya le estás explicando la solución entonces en
+[00:32:33 --> 00:32:38] este documento. Entonces esta parte va a salir del registro la falla esto
+[00:32:38 --> 00:32:43] Esto es texto libre, no? Sí, texto libre. Y yo también.
+[00:32:43 --> 00:32:49] Entonces, cada falla mayor a 60 minutos tendría una estructura de análisis de esta forma,
+[00:32:49 --> 00:32:54] donde yo podría filtrar también después, pensaba en un indicador y digo mantenimiento,
+[00:32:54 --> 00:32:57] por ejemplo, el área de mantenimiento o el usuario de mantenimiento,
+[00:32:57 --> 00:33:03] cuántos pendientes de análisis tengo, para poder seguirlo, pero eso lo vemos después.
+[00:33:03 --> 00:33:09] después. Esta bien, este documento que se llama identificación de fallas, tiene un solo cargador
+[00:33:09 --> 00:33:17] de datos o más de uno, diferentes usuarios? No, todo el mundo, esto es un excel. No, me refiero a si yo te
+[00:33:17 --> 00:33:22] levanto un control que dice requiere análisis, el mismo que anota las fallas, es el mismo que anota las
+[00:33:22 --> 00:33:31] soluciones? No, el que te anota las fallas va a ser el operador, y esto va a ser de acuerdo, por eso te decía
+[00:33:31 --> 00:33:36] por el tipo de falla, si es una falla de equipo el equipo mantenimiento el que va a responder
+[00:33:36 --> 00:33:53] a esto, los usuarios de mantenimiento deberían responder esto, mantenimiento si es fallo
+[00:33:53 --> 00:34:07] de equipo y si es fallo de proceso el supervisor, si es fallo de equipo mantenimiento perdón
+[00:34:07 --> 00:34:14] y si es que? fallo de proceso me entendí el motivo acá fallo de proceso este fallo
+[00:34:14 --> 00:34:17] de proceso en este caso tiene minutos si fuera a 60 minutos lo debería hacer
+[00:34:17 --> 00:34:21] el supervisor de la línea que después lo podría parametrizar por ejemplo yo
+[00:34:21 --> 00:34:25] digo tango 2 el supervisor de la línea es tanto no sé el filtre le podría
+[00:34:25 --> 00:34:36] saltar o sea que acá lo que tendremos que armar es alertas y acá tenemos
+[00:34:36 --> 00:35:00] fallo de equipo, tipo falla, mas x minutos entonces user de control, es como que vos le vas a decir si pasa
+[00:35:00 --> 00:35:12] esto y esto lo tiene que mirar tal, o tal rol, bien, está claro, entonces eso es la parte esta
+[00:35:12 --> 00:35:20] en la convención aparece un icono de análisis o template definido, el template sería este,
+[00:35:20 --> 00:35:25] si es el fallo de equipo analiza el usuario de mantenimiento, si es el fallo de proceso, analiza el usuario de supervisión
+[00:35:25 --> 00:35:35] después otro punto, la idea, empecé a comparar un poco la información con los gráficos, sería
+[00:35:35 --> 00:35:42] ideal que acá tenga un icono para poder exportar en excel la tabla, exportar las detenciones,
+[00:35:42 --> 00:35:52] exportar las detenciones, vamos a indicadores, acá arriba, bueno me puse a chequear un poco el tema
+[00:35:52 --> 00:36:02] de indicadores, primer punto que no me da, es la indisponibilidad, la indisponibilidad se define
+[00:36:02 --> 00:36:09] como la sumatoria de las detenciones dividido el tiempo programado de la máquina, pues hay que los
+[00:36:09 --> 00:36:15] números no me están dando porque no sé de dónde saca la cantidad de horas programadas de la
+[00:36:15 --> 00:36:22] máquina, no tiene cantidad de horas programadas y no hay ningún lado acá, si en el excel que yo te
+[00:36:22 --> 00:36:28] pasé yo te aclaré la columna donde decía las horas programadas que debería sumar, se entiende?
+[00:36:28 --> 00:36:35] fíjate, yo cuando hablo ahí, puedo sumar la cantidad de tiempo
+[00:36:35 --> 00:36:37] vos tenés la cantidad de tiempo que duró la detención
+[00:36:37 --> 00:36:42] pero el indicador es una relación, es un cociente
+[00:36:42 --> 00:36:46] ese dato que vos me decís, de la programación de la máquina
+[00:36:46 --> 00:36:51] es un dato que yo se lo puedo asociar a esto
+[00:36:51 --> 00:36:56] o es una programación que depende del día, entiendes la pregunta?
+[00:36:56 --> 00:37:03] eso, eso lo tenemos que desarrollar porque si hay un turno y hay detenciones
+[00:37:03 --> 00:37:08] automáticamente tiene que ser un condicional, si hay turno son 8 horas de
+[00:37:08 --> 00:37:16] máquina programada, y la indisponibilidad es así, imagínate turno
+[00:37:16 --> 00:37:20] mañana, de 5 de la mañana a 1 de la tarde. Esta es la cantidad de velas?
+[00:37:20 --> 00:37:30] correcto, o sea vos lo que me estás diciendo es que si en un turno la
+[00:37:30 --> 00:37:36] disponibilidad de máquina era de 6 a 13, que yo te saque un coeficiente entre la
+[00:37:36 --> 00:37:40] cantidad de paradas dividido en las montañas de todos. Es que así lo estás sacando cuando vos lo
+[00:37:40 --> 00:37:42] armaste, fijate que el gráfico es una
+[00:37:42 --> 00:37:48] disponibilidad, una disponibilidad se define entre un numerador y un cociente, vos el
+[00:37:48 --> 00:37:52] cociente, vos cuando lo armaste el gráfico con los datos históricos, vos me
+[00:37:52 --> 00:37:57] chupaste de la información que yo te pasé y había una columna que decía
+[00:37:57 --> 00:38:01] la cantidad de horas programadas por turno, entonces vos sumaste la cantidad de horas programadas
+[00:38:01 --> 00:38:10] por turno, imagínate que trabajaste 500 horas en el mes y tuviste 200 horas de detenciones,
+[00:38:10 --> 00:38:18] hace 200 he dado 500 y él es el porcentaje que te levantó acá, entonces de algún lado
+[00:38:18 --> 00:38:24] sacó un cociente la cantidad de horas programadas, no ve que ahí te dice son
+[00:38:24 --> 00:38:29] 1568 minutos pues no te dice la cantidad de horas programadas me entende, no me define
+[00:38:29 --> 00:38:32] cociente. Lo que tengo que validar es en este caso la
+[00:38:32 --> 00:38:37] indisponibilidad hacia un porcentaje, quiero saber cuál es la base que
+[00:38:37 --> 00:38:41] está tomando de cálculo y que técnicamente no importa lo que esté
+[00:38:41 --> 00:38:46] usando la tendría que tomar del turno previsto, del turno en el que se dio,
+[00:38:46 --> 00:38:52] o sea de la cantidad de horas que dice el turno que arranca y termina.
+[00:38:52 --> 00:38:56] Y la otra que tenemos que hacer, eso en base a la información
+[00:38:56 --> 00:39:04] histórica, pero ahora mirando para adelante, cada vez que un usuario se logue, automáticamente
+[00:39:04 --> 00:39:10] tenemos que poner un condicional que diga, yo me logue, entonces la máquina va a estar
+[00:39:10 --> 00:39:16] trabajando y por ende va a trabajar ocho horas de horas disponibles y me tiene que empezar
+[00:39:16 --> 00:39:24] a sumar, a hacer una suma, me entendés, ahí como te lo explico, es decir, la indisponibilidad
+[00:39:24 --> 00:39:33] se mide como un cociente, entre detenciones y tiempo programado, vamos un día normal,
+[00:39:33 --> 00:39:38] el turno arranca a las 5 de la mañana hasta la 1 de la tarde, vamos a hacer un caso
+[00:39:38 --> 00:39:45] como se mide este indicador, yo entro a las 5 de la mañana, me logueo, automáticamente
+[00:39:45 --> 00:39:51] el sistema tiene que saber que yo tengo un turno disponible, esos turnos son 8
+[00:39:51 --> 00:39:58] horas de 5 a 1 de la tarde ¿se entiende? bueno para qué necesito esa información porque
+[00:39:58 --> 00:40:03] si no no puedo sacar el porcentaje ¿te entiende? ahora durante el turno me fueron sucediendo
+[00:40:03 --> 00:40:07] un montón de detenciones, yo te entiendo donde vas pero me parece que te estás yendo
+[00:40:07 --> 00:40:20] a un lugar donde no tiene ningún sentido, si yo no me logreo, no es así, primero
+[00:40:20 --> 00:40:25] yo no necesito que vos te logues para saber en qué turno cayó un problema
+[00:40:25 --> 00:40:27] 5 a 13
+[00:40:27 --> 00:40:29] esto igual es editable
+[00:40:29 --> 00:40:37] yo no necesito que vos te logues para saber en qué turno cayó un problema
+[00:40:37 --> 00:40:44] porque acá yo estoy diciendo que el turno sucede en este rango horario
+[00:40:44 --> 00:40:52] si yo cuando una detención se sucedió, conozco el día y la hora en la que sucedió
+[00:40:52 --> 00:40:58] o sea acá no lo estás viendo pero yo el dato lo tengo, yo puedo saber sin ningún tipo de
+[00:40:58 --> 00:41:08] problema que la detención se sucedió en un determinado turno
+[00:41:08 --> 00:41:16] perfecto ahora eso es automático si yo tengo hecho lo de nicolás porque
+[00:41:16 --> 00:41:23] nicolás me da el dato de en qué hora y día sucedió un problema que no es lo
+[00:41:23 --> 00:41:28] mismo que si yo me baso en cuando alguien me carga una detención porque
+[00:41:28 --> 00:41:34] si alguien hoy así como está viene a mano y me carga una detención yo en
+[00:41:34 --> 00:41:41] momento le estoy preguntando el día, le estoy preguntando el día si, no le estoy preguntando la hora, entonces
+[00:41:41 --> 00:41:47] por qué no se la estoy preguntando, primero porque nunca la pusimos, le estoy preguntando en realidad
+[00:41:47 --> 00:41:55] que le estoy preguntando, nada, lo estoy induciendo, turno mañana, o sea el tipo solito identificó que como yo
+[00:41:55 --> 00:42:02] en las 11 y 45 de la mañana, ahora yo te puedo decir que esta persona está haciendo esto fuera
+[00:42:02 --> 00:42:09] horario y cagamos, porque no es esto de verdad, de cuál es el punto, no es que yo
+[00:42:09 --> 00:42:14] tengo que tomar nota de cuando se lo vio, yo lo que tomo, porque una cosa es
+[00:42:14 --> 00:42:18] lo guiarte al sistema y otra cosa es registrar una detención, yo lo que hoy
+[00:42:18 --> 00:42:23] estoy haciendo es, cuando vos registras una detención identifico en
+[00:42:23 --> 00:42:27] qué turno estás parado, automáticamente, y yo ya sé que este
+[00:42:27 --> 00:42:33] turno va de 5 a 13 por el del dato que vamos a decir del divisor ya lo conozco, ahora
+[00:42:33 --> 00:42:39] eso siempre y cuando el que esté haciendo esto lo va a hacer en el momento que lo tiene que hacer, ok, eso entonces está.
+[00:42:39 --> 00:42:41] Pero es importante que para ese indicador que se llama
+[00:42:41 --> 00:42:46] indisponibilidad podes visitar de dos fuentes de información, una es la sumatoria de las
+[00:42:46 --> 00:42:53] detenciones y otra es la sumatoria de las horas programadas, me entendes?
+[00:42:53 --> 00:42:57] lo que pasa es que lo que yo no termino de entender es una cosa, las horas
+[00:42:57 --> 00:43:06] programadas, acá dice de 1 de 13 a 5, son 8 horas, puede ser que las
+[00:43:06 --> 00:43:12] horas programadas en un día en particular no sean 8? puede ser algo
+[00:43:12 --> 00:43:19] puntual, que vienen a hacer horas extra un domingo y en vez de ser de 5 a 1 se van a las 12, bueno por eso, ahí tenemos un
+[00:43:19 --> 00:43:24] problema, porque entonces la cantidad de horas por la mano depende del tiempo, ¿sabes como se hace un RP?
+[00:43:24 --> 00:43:29] como se hacen en la práctica hay un usuario como el administrador y carga las
+[00:43:29 --> 00:43:36] horas calendarias se llama, entonces yo digo la máquina tango 2, el día lunes va a trabajar 24
+[00:43:36 --> 00:43:47] horas, el martes 24 horas, el miércoles 16 horas y así, por turno, o sea vendría por día o por turno, vendría a sacar, vendría a
+[00:43:47 --> 00:43:55] para que me calcules los indicadores, vos vendrías acá y vendrías a una sola pita
+[00:43:55 --> 00:44:00] acá adentro y me dirías específicamente algo, yo te propongo al revés, ir por la
+[00:44:00 --> 00:44:06] excepción que es, si vos no me ponés nada acá para un día en particular y un turno
+[00:44:06 --> 00:44:12] en particular, yo doy por inducido que el dato lo saco de acá, si vos me aclaras
+[00:44:12 --> 00:44:20] que tal día la disponibilidad es menor, mayor o lo que sea, tomo esa, de los contrales tomo esta
+[00:44:20 --> 00:44:30] para que no tengas que estar cargando todo, bien, está claro, por línea, por línea entera
+[00:44:30 --> 00:44:38] conceptualmente habéis ido claro, es decir, yo agarro, registro una detención
+[00:44:38 --> 00:44:42] automáticamente el sistema va a interpretar que hay un turno completo
+[00:44:42 --> 00:44:50] trabajando. Sí, yo identifico que si la detención sucede entre las 5 y las 13
+[00:44:50 --> 00:44:53] es porque el que la está cargando es de la mañana. Correcto. Y si la
+[00:44:53 --> 00:44:56] detención sucede de 1 a 21 es porque el que está cargando es de la tarde.
+[00:44:56 --> 00:45:00] Correcto. Y eso automáticamente lo detecta cuando vos entras acá y ya te
+[00:45:00 --> 00:45:04] lo pones. Bien. Eso sí. Bien. Pero vos entendés que para hacer este indicador el
+[00:45:04 --> 00:45:09] sistema va a tener que hacer el cociente entonces imagínate que sea en un mes
+[00:45:09 --> 00:45:16] trabajó un solo turno la máquina no? vamos al caso más simple entonces
+[00:45:16 --> 00:45:25] registra de tensiones una hora el indicador va a ser 1 dividido 8
+[00:45:25 --> 00:45:30] entonces de algún lado tiene que saber el sistema de decir que hay que dividir por...
+[00:45:30 --> 00:45:36] 1 dividido 8 depende del rango de tiempo que analizas, vos ahí estás analizando un día solo
+[00:45:36 --> 00:46:05] Un turno solo, durante un mes trabajó un turno solo, eso se puede interpretar como que trabajó un solo día un turno o un turno solo todo el día, a ver el punto es, yo lo entiendo perfectamente de lo que estaba diciendo, o sea, yo tengo que analizar esto, vos tenés viga 1, 2, 3, 4, 31, el día 1 tuviste
+[00:46:05 --> 00:46:35] 3 turnos, si, pues no importa, vamos si querés todo esto es un turno, turno 1, 10 minutos, 15 minutos, 0-0, 20 minutos, y acá sabemos que es 8, 8, 8, 8 y particularmente fuiste a este día y me dijiste que te iban a hacer 6, entonces yo tengo 32 más 6, 38 si lo analizo mes, y acá tengo
+[00:46:35 --> 00:46:43] 25.45 0,75 correcto son 75.38 es el porcentaje de
+[00:46:43 --> 00:46:47] disponibilidad y esto es porque vos me fuiste a buscar un punto particular
+[00:46:47 --> 00:46:52] ahora si vos analizas el mes completo te va a dar esto si analizas un día
+[00:46:52 --> 00:46:55] solo te va a dar esto correcto
+[00:46:55 --> 00:47:00] y sabe lo que estaría bueno también en mi lleno como te pone acá la cantidad de
+[00:47:00 --> 00:47:06] minutos la cantidad de horas acumuladas programadas, de cosas que la puedas
+[00:47:06 --> 00:47:11] validar, la cantidad de horas acumuladas programadas, esto por ejemplo viste que vos
+[00:47:11 --> 00:47:23] tenes acá, a donde entrábamos, que veía, no, reportes acá, vos entras acá por
+[00:47:23 --> 00:47:29] ejemplo y acá te dicen, total de minutos 1568 y acá estaría bueno que
+[00:47:29 --> 00:47:38] ponga total de horas programadas para saber cómo calculas, me entiendes, claro y de
+[00:47:38 --> 00:47:43] última si hago doble clic puedo decir mira el lunes se contemplaron tres
+[00:47:43 --> 00:47:48] turnos de ocho horas, en martes, cosas para ver si hay algo que hacía, si no
+[00:47:48 --> 00:47:55] no me queda modificable, vos lo que me estás previendo es dentro del reporte, claro es que
+[00:47:55 --> 00:47:58] fíjate que este indicador de porcentaje yo no sé hoy estoy a ciega
+[00:47:58 --> 00:48:10] no sé cómo hace la división, claro, solamente me está dando la detención, me dice que acá hay 85 minutos y después me dice que 0.2 está dividiendo por un coaciente que me da 0.2%
+[00:48:10 --> 00:48:15] si entiendo, entiendo, acá estoy tratando de entender igual 85 minutos
+[00:48:15 --> 00:48:23] es una mañana, dos cortes, esto no tiene equipo porque es máquina, me entende?
+[00:48:23 --> 00:48:28] está bien, estoy tratando de entender esto, si vos tenés 85 minutos
+[00:48:28 --> 00:48:32] divido que valor te da 0,12
+[00:48:32 --> 00:48:33] claro
+[00:48:33 --> 00:48:36] pero ahí lo sacaste porque yo te lo aclaré en el excel
+[00:48:36 --> 00:48:38] yo lo tenía con un campo
+[00:48:38 --> 00:48:41] es que no sé si salió ahí, no tengo idea
+[00:48:41 --> 00:48:43] te lo dividió por ahí
+[00:48:43 --> 00:48:46] lo que pasa es que a mi no me está dando ese valor, por eso
+[00:48:46 --> 00:49:02] esto es 0,2% entonces es más punto 2 dividido 100 más esto por 100 es bien 0,2
+[00:49:02 --> 00:49:11] si a 85 lo divido por esto son 42.500 minutos
+[00:49:11 --> 00:49:18] 42.500 son... no tiene ningún sentido
+[00:49:18 --> 00:49:24] No, por eso lo sacó de ahí. Fíjate que de algún lado sacó todo su...
+[00:49:24 --> 00:49:29] Sí, hay que ver de dónde lo sacó y más allá de dónde lo sacó tiene que casar.
+[00:49:29 --> 00:49:34] Yo te lo aclaré de eso, te lo aclaré en tal columna, en las horas programadas que le ha sumado.
+[00:49:34 --> 00:49:37] Lo sacó alguien del Excel, ¿entendés?
+[00:49:37 --> 00:49:41] Pero una cosa es traer datos históricos y otra cosa de ahora en adelante, ¿entendés?
+[00:49:41 --> 00:49:45] Cuando declaré una nueva detención.
+[00:49:45 --> 00:49:51] yo porque hoy lo que me da estos datos no son iguales a lo que tengo yo
+[00:49:51 --> 00:49:55] porque no sé de dónde está, está sacando el valor del cocinado
+[00:49:55 --> 00:49:59] está bien, aquí lo chequeo
+[00:49:59 --> 00:50:05] entonces, segundo punto, esto era, ver dónde cuenta la obra programada, lo que vimos recién
+[00:50:05 --> 00:50:09] fallos mayores, entre ahí fallos mayores
+[00:50:09 --> 00:50:15] bueno, acá lo que deberíamos ver es si podemos cambiar los diferentes colores por tipo de falla
+[00:50:15 --> 00:50:20] están todos los mismos colores y lo mismo y lo mismo entender dónde cuentan las
+[00:50:20 --> 00:50:23] horas programadas por la indisponibilidad, este valor de dónde
+[00:50:23 --> 00:50:28] salen las horas programadas y en el pareto de detenciones que está bueno
+[00:50:28 --> 00:50:35] entre tres, acá deberíamos agregar un campo que me pueda filtrar por
+[00:50:35 --> 00:50:41] mes, porque estoy viendo toda la historia, entonces si yo puedo
+[00:50:41 --> 00:50:46] filtrar por mes puedo hacer un análisis por mes, realmente el pareto, ya con eso
+[00:50:46 --> 00:50:51] yo ahora no pude validar porque está todo junto, me entendes de decir la información y
+[00:50:51 --> 00:50:58] después cuando te cambie acá el detalle que esto lo hizo haciendo la
+[00:50:58 --> 00:51:01] predicción, esto va a quedar más estructurado me entendes cuando yo
+[00:51:01 --> 00:51:07] arme bien el árbol, si vos ves cuando lo cambias en el maestro no te actualiza
+[00:51:07 --> 00:51:13] esto, avísame porque yo le meto un update y listo, pero debería cambiar, la lógica dice que debería
+[00:51:13 --> 00:51:20] cambiar, porque se guarda en un lugar distinto, pero no importa, a hacer el cambio avísame,
+[00:51:20 --> 00:51:29] fíjate si no lo ves cambiado, lo actualizo, y bueno hasta ahí llegué más o menos, bien bastante
+[00:51:29 --> 00:51:37] se va sumando, el que está bueno y llama a medros, yo no quiero que se enfríe y viste el tema, ya que lo estamos...
+[00:51:37 --> 00:51:43] no, no, no, está mal, ahora voy a agarrar esto, lo voy a procesar, voy a agarrar esto, esto
+[00:51:43 --> 00:52:06] este si querés hacer una foto, cuando grabás y con que resumís?
+[00:52:06 --> 00:52:12] no, lo meto en un agente que tengo hecho yo
+[00:52:12 --> 00:52:14] claro, ya armaste uno
+[00:52:14 --> 00:52:18] Sí, no uso ninguna herramienta de marcado, digamos.
+[00:52:18 --> 00:52:29] Te lo dejo, ¿no?
+[00:52:29 --> 00:52:34] Sí, sí, igual lo tengo que digitalizar porque lo voy a mandar todo.
+[00:52:34 --> 00:52:35] Para procesar.
+[00:52:35 --> 00:52:38] ¿Te tomó?
+[00:52:38 --> 00:52:39] Bueno.
+[00:52:39 --> 00:52:42] Yo la semanita que viene, porque estoy en la semana, creo que casi van a ir.

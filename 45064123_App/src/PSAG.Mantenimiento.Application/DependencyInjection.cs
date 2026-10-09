@@ -15,6 +15,7 @@ public static class DependencyInjection
         // Registrar servicios de aplicación - Eje 1: Detenciones
         services.AddScoped<IDetencionService, DetencionService>();
         services.AddScoped<IExportacionService, ExportacionService>();
+        services.AddScoped<IAnalisisService, AnalisisService>();
 
         // Registrar servicios de aplicación - Eje 2: Variables de proceso
         services.AddScoped<IRegistroProcesoService, RegistroProcesoService>();

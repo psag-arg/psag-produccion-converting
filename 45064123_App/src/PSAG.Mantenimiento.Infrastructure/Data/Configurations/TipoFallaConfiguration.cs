@@ -23,6 +23,9 @@ public class TipoFallaConfiguration : IEntityTypeConfiguration<TipoFalla>
         builder.Property(x => x.Descripcion)
             .HasMaxLength(500);
 
+        builder.Property(x => x.Color)
+            .HasMaxLength(7);
+
         builder.Property(x => x.CreadoPorUsuarioId)
             .IsRequired()
             .HasMaxLength(450);

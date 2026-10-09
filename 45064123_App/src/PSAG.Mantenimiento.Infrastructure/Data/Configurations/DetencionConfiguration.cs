@@ -63,6 +63,39 @@ public class DetencionConfiguration : IEntityTypeConfiguration<Detencion>
         builder.Property(x => x.RowVersion)
             .IsRowVersion();
 
+        // Sólo se ven con IgnoreQueryFilters (administración).
+        builder.HasQueryFilter(d => !d.Eliminada);
+
+        builder.Property(x => x.Eliminada)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(x => x.EliminadaPorUsuarioId)
+            .HasMaxLength(450);
+
+        builder.Property(x => x.MotivoEliminacion)
+            .HasMaxLength(500);
+
+        // Análisis de falla
+        builder.Property(x => x.RequiereAnalisis)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(x => x.ResponsableRol)
+            .HasMaxLength(50);
+
+        builder.Property(x => x.ResponsableUsuarioId)
+            .HasMaxLength(450);
+
+        builder.Property(x => x.CausaFalla)
+            .HasMaxLength(2000);
+
+        builder.Property(x => x.PlanAccion)
+            .HasMaxLength(2000);
+
+        builder.Property(x => x.AnalisisPorUsuarioId)
+            .HasMaxLength(450);
+
         // Relaciones
         builder.HasOne(x => x.Linea)
             .WithMany(x => x.Detenciones)
@@ -94,6 +127,11 @@ public class DetencionConfiguration : IEntityTypeConfiguration<Detencion>
             .HasForeignKey(x => x.UsuarioLineaId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne(x => x.ReglaAnalisis)
+            .WithMany()
+            .HasForeignKey(x => x.ReglaAnalisisId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         // Índices
         builder.HasIndex(x => x.Codigo).IsUnique();
         builder.HasIndex(x => x.EstadoActual);
@@ -103,6 +141,7 @@ public class DetencionConfiguration : IEntityTypeConfiguration<Detencion>
         builder.HasIndex(x => x.TipoFallaId);
         builder.HasIndex(x => x.TurnoId);
         builder.HasIndex(x => x.UsuarioLineaId);
+        builder.HasIndex(x => x.ReglaAnalisisId);
         builder.HasIndex(x => new { x.LineaId, x.EstadoActual });
         builder.HasIndex(x => new { x.Fecha, x.EstadoActual });
         builder.HasIndex(x => new { x.Fecha, x.LineaId, x.TurnoId });

@@ -1,9 +1,13 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using PSAG.Mantenimiento.Application.DTOs.Catalogos;
+using PSAG.Mantenimiento.Application.Services.Implementations;
 using PSAG.Mantenimiento.Domain.Interfaces;
+using PSAG.Mantenimiento.Domain.Services;
 using PSAG.Mantenimiento.Infrastructure.Identity;
+using System.Text.RegularExpressions;
 
 namespace PSAG.Mantenimiento.Api.Controllers;
 
@@ -24,6 +28,18 @@ public class CatalogosController : ApiControllerBase
         _unitOfWork = unitOfWork;
         _logger = logger;
         _userManager = userManager;
+    }
+
+    private static readonly Regex ColorHexRegex = new(@"^#[0-9A-F]{6}$");
+
+
+    /// <summary>
+    /// Normaliza el color a #RRGGBB en mayúsculas. Vacío significa null (color automático).
+    /// </summary>
+    private static bool TryNormalizarColor(string? color, out string? normalizado)
+    {
+        normalizado = string.IsNullOrWhiteSpace(color) ? null : color.Trim().ToUpperInvariant();
+        return normalizado == null || ColorHexRegex.IsMatch(normalizado);
     }
 
     #region Líneas
@@ -181,6 +197,7 @@ public class CatalogosController : ApiControllerBase
             Nombre = e.Nombre,
             Descripcion = e.Descripcion,
             Orden = e.Orden,
+            Critico = e.Critico,
             Activo = e.Activo
         }).OrderBy(e => e.Orden);
 
@@ -204,6 +221,7 @@ public class CatalogosController : ApiControllerBase
             Nombre = equipo.Nombre,
             Descripcion = equipo.Descripcion,
             Orden = equipo.Orden,
+            Critico = equipo.Critico,
             Activo = equipo.Activo
         });
     }
@@ -223,6 +241,7 @@ public class CatalogosController : ApiControllerBase
             Nombre = request.Nombre,
             Descripcion = request.Descripcion,
             Orden = request.Orden,
+            Critico = request.Critico,
             Activo = true,
             CreadoPorUsuarioId = CurrentUserId,
             ModificadoPorUsuarioId = CurrentUserId
@@ -241,6 +260,7 @@ public class CatalogosController : ApiControllerBase
             Nombre = equipo.Nombre,
             Descripcion = equipo.Descripcion,
             Orden = equipo.Orden,
+            Critico = equipo.Critico,
             Activo = equipo.Activo
         });
     }
@@ -279,6 +299,7 @@ public class CatalogosController : ApiControllerBase
         equipo.Nombre = request.Nombre;
         equipo.Descripcion = request.Descripcion;
         equipo.Orden = request.Orden;
+        equipo.Critico = request.Critico;
         equipo.Activo = request.Activo;
         equipo.ModificadoPorUsuarioId = CurrentUserId;
         equipo.FechaHoraModificacion = DateTimeOffset.UtcNow;
@@ -296,6 +317,7 @@ public class CatalogosController : ApiControllerBase
             Nombre = equipo.Nombre,
             Descripcion = equipo.Descripcion,
             Orden = equipo.Orden,
+            Critico = equipo.Critico,
             Activo = equipo.Activo
         });
     }
@@ -319,6 +341,7 @@ public class CatalogosController : ApiControllerBase
             Nombre = t.Nombre,
             Descripcion = t.Descripcion,
             Orden = t.Orden,
+            Color = t.Color,
             Activo = t.Activo
         }).OrderBy(t => t.Orden);
 
@@ -341,6 +364,7 @@ public class CatalogosController : ApiControllerBase
             Nombre = tipo.Nombre,
             Descripcion = tipo.Descripcion,
             Orden = tipo.Orden,
+            Color = tipo.Color,
             Activo = tipo.Activo
         });
     }
@@ -353,12 +377,21 @@ public class CatalogosController : ApiControllerBase
         if (string.IsNullOrEmpty(CurrentUserId))
             return Unauthorized();
 
+        if (!TryNormalizarColor(request.Color, out var color))
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Color inválido",
+                Detail = "El color debe tener el formato #RRGGBB.",
+                Status = StatusCodes.Status400BadRequest
+            });
+
         var tipo = new Domain.Entities.TipoFalla
         {
             Codigo = request.Codigo,
             Nombre = request.Nombre,
             Descripcion = request.Descripcion,
             Orden = request.Orden,
+            Color = color,
             Activo = true,
             CreadoPorUsuarioId = CurrentUserId,
             ModificadoPorUsuarioId = CurrentUserId
@@ -376,6 +409,7 @@ public class CatalogosController : ApiControllerBase
             Nombre = tipo.Nombre,
             Descripcion = tipo.Descripcion,
             Orden = tipo.Orden,
+            Color = tipo.Color,
             Activo = tipo.Activo
         });
     }
@@ -389,6 +423,14 @@ public class CatalogosController : ApiControllerBase
     {
         if (string.IsNullOrEmpty(CurrentUserId))
             return Unauthorized();
+
+        if (!TryNormalizarColor(request.Color, out var color))
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Color inválido",
+                Detail = "El color debe tener el formato #RRGGBB.",
+                Status = StatusCodes.Status400BadRequest
+            });
 
         var tipo = await _unitOfWork.TiposFalla.GetByIdAsync(id);
         if (tipo == null)
@@ -413,6 +455,7 @@ public class CatalogosController : ApiControllerBase
         tipo.Nombre = request.Nombre;
         tipo.Descripcion = request.Descripcion;
         tipo.Orden = request.Orden;
+        tipo.Color = color;
         tipo.Activo = request.Activo;
         tipo.ModificadoPorUsuarioId = CurrentUserId;
         tipo.FechaHoraModificacion = DateTimeOffset.UtcNow;
@@ -429,6 +472,7 @@ public class CatalogosController : ApiControllerBase
             Nombre = tipo.Nombre,
             Descripcion = tipo.Descripcion,
             Orden = tipo.Orden,
+            Color = tipo.Color,
             Activo = tipo.Activo
         });
     }
@@ -602,7 +646,8 @@ public class CatalogosController : ApiControllerBase
             HoraInicio = t.HoraInicio,
             HoraFin = t.HoraFin,
             Orden = t.Orden,
-            Activo = t.Activo
+            Activo = t.Activo,
+            DuracionMinutos = t.DuracionMinutos()
         }).OrderBy(t => t.Orden);
 
         return Ok(items);
@@ -625,7 +670,8 @@ public class CatalogosController : ApiControllerBase
             HoraInicio = turno.HoraInicio,
             HoraFin = turno.HoraFin,
             Orden = turno.Orden,
-            Activo = turno.Activo
+            Activo = turno.Activo,
+            DuracionMinutos = turno.DuracionMinutos()
         });
     }
 
@@ -651,7 +697,8 @@ public class CatalogosController : ApiControllerBase
             HoraInicio = turno.HoraInicio,
             HoraFin = turno.HoraFin,
             Orden = turno.Orden,
-            Activo = turno.Activo
+            Activo = turno.Activo,
+            DuracionMinutos = turno.DuracionMinutos()
         });
     }
 
@@ -688,7 +735,8 @@ public class CatalogosController : ApiControllerBase
             HoraInicio = turno.HoraInicio,
             HoraFin = turno.HoraFin,
             Orden = turno.Orden,
-            Activo = turno.Activo
+            Activo = turno.Activo,
+            DuracionMinutos = turno.DuracionMinutos()
         });
     }
 
@@ -727,8 +775,373 @@ public class CatalogosController : ApiControllerBase
             HoraInicio = turno.HoraInicio,
             HoraFin = turno.HoraFin,
             Orden = turno.Orden,
-            Activo = turno.Activo
+            Activo = turno.Activo,
+            DuracionMinutos = turno.DuracionMinutos()
         });
+    }
+
+    #endregion
+
+    #region Reglas de análisis
+
+    [HttpGet("reglas-analisis")]
+    [ProducesResponseType(typeof(IEnumerable<ReglaAnalisisDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetReglasAnalisis()
+    {
+        var reglas = await _unitOfWork.ReglasAnalisis.GetAllAsync();
+        return Ok(await MapearReglasAnalisisAsync(reglas.OrderBy(r => r.ReglaAnalisisId)));
+    }
+
+    [HttpGet("reglas-analisis/{id:int}")]
+    [ProducesResponseType(typeof(ReglaAnalisisDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetReglaAnalisis(int id)
+    {
+        var regla = await _unitOfWork.ReglasAnalisis.GetByIdAsync(id);
+        if (regla == null)
+            return NotFound();
+
+        return Ok(await MapearReglaAnalisisAsync(regla));
+    }
+
+    [HttpPost("reglas-analisis")]
+    [Authorize(Policy = "CanManageCatalogs")]
+    [ProducesResponseType(typeof(ReglaAnalisisDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CreateReglaAnalisis([FromBody] CrearReglaAnalisisRequest request)
+    {
+        if (string.IsNullOrEmpty(CurrentUserId))
+            return Unauthorized();
+
+        var datos = NormalizarRegla(request);
+        var error = await ValidarReglaAnalisisAsync(datos);
+        if (error != null)
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Regla de análisis inválida",
+                Detail = error,
+                Status = StatusCodes.Status400BadRequest
+            });
+
+        var regla = new Domain.Entities.ReglaAnalisis
+        {
+            CreadoPorUsuarioId = CurrentUserId,
+            ModificadoPorUsuarioId = CurrentUserId
+        };
+        AplicarRegla(regla, datos);
+
+        await _unitOfWork.ReglasAnalisis.AddAsync(regla);
+        await _unitOfWork.SaveChangesAsync();
+
+        _logger.LogInformation("Regla de análisis {Id} creada por usuario {UserId}", regla.ReglaAnalisisId, CurrentUserId);
+
+        return CreatedAtAction(nameof(GetReglaAnalisis), new { id = regla.ReglaAnalisisId },
+            await MapearReglaAnalisisAsync(regla));
+    }
+
+    [HttpPut("reglas-analisis/{id:int}")]
+    [Authorize(Policy = "CanManageCatalogs")]
+    [ProducesResponseType(typeof(ReglaAnalisisDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> UpdateReglaAnalisis(int id, [FromBody] ActualizarReglaAnalisisRequest request)
+    {
+        if (string.IsNullOrEmpty(CurrentUserId))
+            return Unauthorized();
+
+        var regla = await _unitOfWork.ReglasAnalisis.GetByIdAsync(id);
+        if (regla == null)
+            return NotFound();
+
+        var datos = NormalizarRegla(request);
+        var error = await ValidarReglaAnalisisAsync(datos);
+        if (error != null)
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Regla de análisis inválida",
+                Detail = error,
+                Status = StatusCodes.Status400BadRequest
+            });
+
+        AplicarRegla(regla, datos);
+        regla.Activo = request.Activo;
+        regla.ModificadoPorUsuarioId = CurrentUserId;
+
+        await _unitOfWork.ReglasAnalisis.UpdateAsync(regla);
+        await _unitOfWork.SaveChangesAsync();
+
+        _logger.LogInformation("Regla de análisis {Id} actualizada por usuario {UserId}", regla.ReglaAnalisisId, CurrentUserId);
+
+        return Ok(await MapearReglaAnalisisAsync(regla));
+    }
+
+    private static CrearReglaAnalisisRequest NormalizarRegla(CrearReglaAnalisisRequest request) => new()
+    {
+        LineaId = IdOpcional(request.LineaId),
+        TipoFallaId = request.TipoFallaId,
+        EquipoId = IdOpcional(request.EquipoId),
+        MinutosMinimos = request.MinutosMinimos,
+        ResponsableRol = TextoOpcional(request.ResponsableRol)?.ToUpperInvariant(),
+        ResponsableUsuarioId = TextoOpcional(request.ResponsableUsuarioId)
+    };
+
+    private static void AplicarRegla(Domain.Entities.ReglaAnalisis regla, CrearReglaAnalisisRequest datos)
+    {
+        regla.LineaId = datos.LineaId;
+        regla.TipoFallaId = datos.TipoFallaId;
+        regla.EquipoId = datos.EquipoId;
+        regla.MinutosMinimos = datos.MinutosMinimos;
+        regla.ResponsableRol = datos.ResponsableRol;
+        regla.ResponsableUsuarioId = datos.ResponsableUsuarioId;
+    }
+
+    /// <summary>
+    /// Valida una regla contra la base. Devuelve el motivo del rechazo o null si es válida.
+    /// Exactamente un responsable: un rol de análisis o un usuario activo.
+    /// </summary>
+    private async Task<string?> ValidarReglaAnalisisAsync(CrearReglaAnalisisRequest datos)
+    {
+        if (datos.MinutosMinimos <= 0)
+            return "Los minutos deben ser mayores que cero.";
+
+        if (await _unitOfWork.TiposFalla.GetByIdAsync(datos.TipoFallaId) == null)
+            return "Debe seleccionar un tipo de falla válido.";
+
+        if (datos.LineaId.HasValue && await _unitOfWork.Lineas.GetByIdAsync(datos.LineaId.Value) == null)
+            return "La línea seleccionada no existe.";
+
+        if (datos.EquipoId.HasValue)
+        {
+            var equipo = await _unitOfWork.Equipos.GetByIdAsync(datos.EquipoId.Value);
+            if (equipo == null)
+                return "El equipo seleccionado no existe.";
+            if (datos.LineaId.HasValue && equipo.LineaId != datos.LineaId.Value)
+                return "El equipo no pertenece a la línea elegida.";
+        }
+
+        if ((datos.ResponsableRol == null) == (datos.ResponsableUsuarioId == null))
+            return "Elegí un rol o un usuario responsable, pero no los dos.";
+
+        if (datos.ResponsableRol != null && !AnalisisFallaReglas.RolesResponsables.Contains(datos.ResponsableRol))
+            return "El rol responsable no puede analizar fallas.";
+
+        if (datos.ResponsableUsuarioId != null)
+        {
+            var usuario = await _userManager.FindByIdAsync(datos.ResponsableUsuarioId);
+            if (usuario == null || !usuario.Activo)
+                return "El usuario responsable no existe o está inactivo.";
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Arma el DTO de una regla pidiendo solo los catálogos que usa (línea, tipo, equipo y usuario).
+    /// </summary>
+    private async Task<ReglaAnalisisDto> MapearReglaAnalisisAsync(Domain.Entities.ReglaAnalisis regla)
+    {
+        var linea = regla.LineaId is int lineaId ? await _unitOfWork.Lineas.GetByIdAsync(lineaId) : null;
+        var tipo = await _unitOfWork.TiposFalla.GetByIdAsync(regla.TipoFallaId);
+        var equipo = regla.EquipoId is int equipoId ? await _unitOfWork.Equipos.GetByIdAsync(equipoId) : null;
+        var usuario = regla.ResponsableUsuarioId != null
+            ? await _userManager.FindByIdAsync(regla.ResponsableUsuarioId)
+            : null;
+
+        return ArmarReglaDto(regla,
+            linea?.Nombre,
+            tipo?.Nombre,
+            equipo?.Nombre,
+            usuario == null ? null : NombreVisible(usuario));
+    }
+
+    /// <summary>
+    /// Arma los DTO de una lista con una consulta por catálogo, en lugar de una por regla.
+    /// </summary>
+    private async Task<List<ReglaAnalisisDto>> MapearReglasAnalisisAsync(IEnumerable<Domain.Entities.ReglaAnalisis> reglas)
+    {
+        var lista = reglas.ToList();
+        var lineas = (await _unitOfWork.Lineas.GetAllAsync()).ToDictionary(l => l.LineaId, l => l.Nombre);
+        var tipos = (await _unitOfWork.TiposFalla.GetAllAsync()).ToDictionary(t => t.TipoFallaId, t => t.Nombre);
+        var equipos = (await _unitOfWork.Equipos.GetAllAsync()).ToDictionary(e => e.EquipoId, e => e.Nombre);
+
+        var usuarioIds = lista.Select(r => r.ResponsableUsuarioId).OfType<string>().Distinct().ToList();
+        var usuarios = (await _userManager.Users.Where(u => usuarioIds.Contains(u.Id)).ToListAsync())
+            .ToDictionary(u => u.Id, NombreVisible);
+
+        return lista.Select(r => ArmarReglaDto(r,
+            r.LineaId is int lineaId ? lineas.GetValueOrDefault(lineaId) : null,
+            tipos.GetValueOrDefault(r.TipoFallaId),
+            r.EquipoId is int equipoId ? equipos.GetValueOrDefault(equipoId) : null,
+            r.ResponsableUsuarioId is string usuarioId ? usuarios.GetValueOrDefault(usuarioId) : null)).ToList();
+    }
+
+    private static ReglaAnalisisDto ArmarReglaDto(
+        Domain.Entities.ReglaAnalisis regla,
+        string? lineaNombre,
+        string? tipoNombre,
+        string? equipoNombre,
+        string? usuarioNombre) => new()
+    {
+        ReglaAnalisisId = regla.ReglaAnalisisId,
+        LineaId = regla.LineaId,
+        LineaNombre = lineaNombre,
+        TipoFallaId = regla.TipoFallaId,
+        TipoFallaNombre = tipoNombre ?? string.Empty,
+        EquipoId = regla.EquipoId,
+        EquipoNombre = equipoNombre,
+        MinutosMinimos = regla.MinutosMinimos,
+        ResponsableRol = regla.ResponsableRol,
+        ResponsableUsuarioId = regla.ResponsableUsuarioId,
+        ResponsableUsuarioNombre = usuarioNombre,
+        Activo = regla.Activo
+    };
+
+    private static string NombreVisible(ApplicationUser usuario) =>
+        string.IsNullOrWhiteSpace(usuario.NombreCompleto) ? usuario.UserName ?? usuario.Id : usuario.NombreCompleto;
+
+    private static int? IdOpcional(int? id) => id is > 0 ? id : null;
+
+    private static string? TextoOpcional(string? texto) => string.IsNullOrWhiteSpace(texto) ? null : texto.Trim();
+
+    #endregion
+
+    #region Tiempo programado por día
+
+    /// <summary>
+    /// Horas programadas de la línea día por día (ambos extremos incluidos). Incluye el estándar por turnos
+    /// para los días sin excepción. Máximo 366 días.
+    /// </summary>
+    [HttpGet("tiempos-programados")]
+    [ProducesResponseType(typeof(IEnumerable<DiaProgramadoDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetTiemposProgramados([FromQuery] int lineaId, [FromQuery] DateOnly desde, [FromQuery] DateOnly hasta)
+    {
+        if (desde > hasta || hasta.DayNumber - desde.DayNumber > 366)
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Rango inválido",
+                Detail = "El rango debe empezar antes o el mismo día que termina, y tener como máximo 366 días.",
+                Status = StatusCodes.Status400BadRequest
+            });
+
+        var linea = await _unitOfWork.Lineas.GetByIdAsync(lineaId);
+        if (linea == null)
+            return NotFound();
+
+        var turnos = await _unitOfWork.Turnos.GetActivosAsync();
+        var excepciones = (await _unitOfWork.TiemposProgramadosDia.GetPorRangoAsync(desde, hasta, lineaId)).ToList();
+
+        var dias = TiempoProgramadoReporte.DiasDeLinea(lineaId, linea.Nombre, desde, hasta, turnos, excepciones)
+            .Select(d => new DiaProgramadoDto
+            {
+                Fecha = d.Fecha,
+                Horas = (decimal)d.Horas,
+                Origen = d.Origen,
+                Motivo = d.Motivo,
+                TiempoProgramadoDiaId = d.TiempoProgramadoDiaId
+            });
+
+        return Ok(dias);
+    }
+
+    /// <summary>
+    /// Crea o reemplaza la excepción de una línea en una fecha (una fila por línea y fecha).
+    /// Una fila histórica pasa a EXCEPCION al editarla.
+    /// </summary>
+    [HttpPost("tiempos-programados")]
+    [Authorize(Policy = "CanManageCatalogs")]
+    [ProducesResponseType(typeof(DiaProgramadoDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GuardarTiempoProgramado([FromBody] GuardarTiempoProgramadoDiaRequest request)
+    {
+        if (string.IsNullOrEmpty(CurrentUserId))
+            return Unauthorized();
+
+        var motivo = TextoOpcional(request.Motivo);
+        if (request.Horas < 0 || request.Horas > 24)
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Horas inválidas",
+                Detail = "Las horas programadas deben estar entre 0 y 24.",
+                Status = StatusCodes.Status400BadRequest
+            });
+
+        if (motivo?.Length > 200)
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Motivo inválido",
+                Detail = "El motivo no puede exceder 200 caracteres.",
+                Status = StatusCodes.Status400BadRequest
+            });
+
+        if (await _unitOfWork.Lineas.GetByIdAsync(request.LineaId) == null)
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Línea inválida",
+                Detail = "Debe seleccionar una línea válida.",
+                Status = StatusCodes.Status400BadRequest
+            });
+
+        var fila = (await _unitOfWork.TiemposProgramadosDia.FindAsync(
+            t => t.LineaId == request.LineaId && t.Fecha == request.Fecha)).FirstOrDefault();
+        var esNueva = fila == null;
+
+        fila ??= new Domain.Entities.TiempoProgramadoDia
+        {
+            LineaId = request.LineaId,
+            Fecha = request.Fecha,
+            CreadoPorUsuarioId = CurrentUserId
+        };
+
+        fila.Horas = Math.Round(request.Horas, 2);
+        fila.Motivo = motivo;
+        fila.Origen = "EXCEPCION";
+        fila.Activo = true;
+        fila.ModificadoPorUsuarioId = CurrentUserId;
+
+        if (esNueva)
+            await _unitOfWork.TiemposProgramadosDia.AddAsync(fila);
+        else
+            await _unitOfWork.TiemposProgramadosDia.UpdateAsync(fila);
+
+        await _unitOfWork.SaveChangesAsync();
+
+        _logger.LogInformation("Tiempo programado de línea {LineaId} el {Fecha} guardado por usuario {UserId}", fila.LineaId, fila.Fecha, CurrentUserId);
+
+        return Ok(new DiaProgramadoDto
+        {
+            Fecha = fila.Fecha,
+            Horas = fila.Horas,
+            Origen = fila.Origen,
+            Motivo = fila.Motivo,
+            TiempoProgramadoDiaId = fila.TiempoProgramadoDiaId
+        });
+    }
+
+    /// <summary>
+    /// Quita una excepción sin borrarla: el día vuelve a regirse por los turnos activos.
+    /// </summary>
+    [HttpPost("tiempos-programados/{id:int}/desactivar")]
+    [Authorize(Policy = "CanManageCatalogs")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DesactivarTiempoProgramado(int id)
+    {
+        if (string.IsNullOrEmpty(CurrentUserId))
+            return Unauthorized();
+
+        var fila = await _unitOfWork.TiemposProgramadosDia.GetByIdAsync(id);
+        if (fila == null)
+            return NotFound();
+
+        fila.Activo = false;
+        fila.ModificadoPorUsuarioId = CurrentUserId;
+
+        await _unitOfWork.TiemposProgramadosDia.UpdateAsync(fila);
+        await _unitOfWork.SaveChangesAsync();
+
+        return NoContent();
     }
 
     #endregion

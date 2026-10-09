@@ -1,0 +1,434 @@
+@page "/maestros/reglas-analisis"
+@using Microsoft.AspNetCore.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize(Roles = "ADMINISTRADOR")]
+@inject ICatalogosService CatalogosService
+@inject IUsuariosService UsuariosService
+@inject IJSRuntime JS
+
+<PageTitle>Reglas de análisis - PSAG Produccion</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3>Reglas de análisis</h3>
+        <button class="btn btn-primary" @onclick="NuevaRegla">
+            <i class="bi bi-plus-circle me-2"></i>Nueva regla
+        </button>
+    </div>
+
+    <div class="alert alert-info d-flex gap-2">
+        <i class="bi bi-info-circle mt-1"></i>
+        <div>
+            Cuando una detención cumple una regla, pasa a <strong>Requiere análisis</strong>, aparece el ícono de análisis en la tabla
+            y le llega al responsable en <em>Mis pendientes</em>. El análisis es obligatorio para cerrar.
+            Las reglas se aplican a las detenciones que se creen o editen de ahora en adelante; no cambian las anteriores.
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorPagina))
+    {
+        <div class="alert alert-danger">@errorPagina</div>
+    }
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card">
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Linea</th>
+                            <th>Tipo de falla</th>
+                            <th>Minutos</th>
+                            <th>Analiza</th>
+                            <th>Formulario</th>
+                            <th class="text-center">Estado</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (reglas.Any())
+                        {
+                            @foreach (var regla in reglas)
+                            {
+                                <tr>
+                                    <td>
+                                        @if (regla.LineaNombre != null)
+                                        {
+                                            <span class="badge bg-info">@regla.LineaNombre</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">Todas las líneas</span>
+                                        }
+                                        @if (regla.EquipoNombre != null)
+                                        {
+                                            <div class="small text-muted mt-1">Equipo: @regla.EquipoNombre</div>
+                                        }
+                                    </td>
+                                    <td><strong>@regla.TipoFallaNombre</strong></td>
+                                    <td>≥ @regla.MinutosMinimos min</td>
+                                    <td>
+                                        @if (regla.ResponsableRol != null)
+                                        {
+                                            <i class="bi bi-people me-1"></i><span>Rol @NombreRol(regla.ResponsableRol)</span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-person me-1"></i><span>@regla.ResponsableUsuarioNombre</span>
+                                        }
+                                    </td>
+                                    <td>Identificación de fallas</td>
+                                    <td class="text-center">
+                                        @if (regla.Activo)
+                                        {
+                                            <span class="badge bg-success">Activa</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">Inactiva</span>
+                                        }
+                                    </td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-primary me-1" title="Editar" @onclick="() => EditarRegla(regla)">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        @if (regla.Activo)
+                                        {
+                                            <button class="btn btn-sm btn-outline-secondary" title="Desactivar" @onclick="() => CambiarActiva(regla)">
+                                                <i class="bi bi-pause-circle"></i>
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-sm btn-outline-success" title="Activar" @onclick="() => CambiarActiva(regla)">
+                                                <i class="bi bi-play-circle"></i>
+                                            </button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">No hay reglas de análisis registradas</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@if (showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(editando ? "Editar" : "Nueva") regla de análisis</h5>
+                    <button type="button" class="btn-close" @onclick="CerrarModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Linea</label>
+                            <select class="form-select" @onchange="CambiarLinea">
+                                <option value="0" selected="@(reglaActual.LineaId == null)">Todas las líneas</option>
+                                @foreach (var linea in lineas)
+                                {
+                                    <option value="@linea.LineaId" selected="@(reglaActual.LineaId == linea.LineaId)">@linea.Nombre</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Equipo (opcional)</label>
+                            <select class="form-select" @onchange="e => reglaActual.EquipoId = IdDesdeSelect(e.Value)">
+                                <option value="0" selected="@(reglaActual.EquipoId == null)">Cualquier equipo</option>
+                                @foreach (var equipo in EquiposDeLineaSeleccionada)
+                                {
+                                    <option value="@equipo.EquipoId" selected="@(reglaActual.EquipoId == equipo.EquipoId)">@equipo.Nombre</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Tipo de falla *</label>
+                            <select class="form-select" @onchange="e => reglaActual.TipoFallaId = IdDesdeSelect(e.Value) ?? 0">
+                                <option value="0" selected="@(reglaActual.TipoFallaId == 0)">Seleccioná un tipo</option>
+                                @foreach (var tipo in tiposFalla)
+                                {
+                                    <option value="@tipo.TipoFallaId" selected="@(reglaActual.TipoFallaId == tipo.TipoFallaId)">@tipo.Nombre</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Minutos mayor o igual a *</label>
+                            <input type="number" class="form-control" min="1" @bind="reglaActual.MinutosMinimos" />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Analiza *</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="analiza" id="analizaRol" checked="@(!analizaPorUsuario)" @onchange="() => CambiarResponsable(false)" />
+                            <label class="form-check-label" for="analizaRol">Un rol</label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="analiza" id="analizaUsuario" checked="@analizaPorUsuario" @onchange="() => CambiarResponsable(true)" />
+                            <label class="form-check-label" for="analizaUsuario">Un usuario específico</label>
+                        </div>
+                        @if (analizaPorUsuario)
+                        {
+                            <select class="form-select" @onchange="e => reglaActual.ResponsableUsuarioId = e.Value?.ToString()">
+                                <option value="" selected="@string.IsNullOrEmpty(reglaActual.ResponsableUsuarioId)">Seleccioná un usuario</option>
+                                @foreach (var usuario in usuarios)
+                                {
+                                    <option value="@usuario.Id" selected="@(reglaActual.ResponsableUsuarioId == usuario.Id)">@NombreUsuario(usuario)</option>
+                                }
+                            </select>
+                        }
+                        else
+                        {
+                            <select class="form-select" @onchange="e => reglaActual.ResponsableRol = e.Value?.ToString()">
+                                <option value="" selected="@string.IsNullOrEmpty(reglaActual.ResponsableRol)">Seleccioná un rol</option>
+                                @foreach (var rol in RolesResponsables)
+                                {
+                                    <option value="@rol.Valor" selected="@(reglaActual.ResponsableRol == rol.Valor)">@rol.Nombre</option>
+                                }
+                            </select>
+                        }
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="activa" @bind="reglaActual.Activo" />
+                        <label class="form-check-label" for="activa">Activa</label>
+                    </div>
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger mt-3 mb-0">@errorMessage</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CerrarModal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" @onclick="GuardarRegla" disabled="@isSaving">
+                        @if (isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        Guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private static readonly (string Valor, string Nombre)[] RolesResponsables =
+    {
+        ("MANTENIMIENTO", "Mantenimiento"),
+        ("SUPERVISOR", "Supervisor"),
+        ("OPERARIO", "Operario")
+    };
+
+    private List<ReglaAnalisisDto> reglas = new();
+    private List<LineaDto> lineas = new();
+    private List<TipoFallaDto> tiposFalla = new();
+    private List<EquipoDto> equipos = new();
+    private List<UsuarioDto> usuarios = new();
+    private ReglaAnalisisDto reglaActual = new();
+    private bool analizaPorUsuario = false;
+    private bool isLoading = true;
+    private bool showModal = false;
+    private bool editando = false;
+    private bool isSaving = false;
+    private string? errorPagina;
+    private string? errorMessage;
+
+    private IEnumerable<EquipoDto> EquiposDeLineaSeleccionada => reglaActual.LineaId is int linea
+        ? equipos.Where(e => e.LineaId == linea)
+        : equipos;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var tareaLineas = CatalogosService.GetLineasAsync();
+        var tareaTiposFalla = CatalogosService.GetTiposFallaAsync();
+        var tareaEquipos = CatalogosService.GetEquiposAsync();
+        var tareaUsuarios = UsuariosService.GetUsuariosAsync();
+        var tareaReglas = CargarReglas();
+
+        try
+        {
+            await Task.WhenAll(tareaLineas, tareaTiposFalla, tareaEquipos, tareaUsuarios);
+            lineas = await tareaLineas;
+            tiposFalla = await tareaTiposFalla;
+            equipos = await tareaEquipos;
+            usuarios = (await tareaUsuarios).Where(u => u.Activo).OrderBy(NombreUsuario).ToList();
+        }
+        catch (Exception ex)
+        {
+            errorPagina = ex.Message;
+        }
+
+        await tareaReglas;
+    }
+
+    private async Task CargarReglas()
+    {
+        isLoading = true;
+        try
+        {
+            reglas = await CatalogosService.GetReglasAnalisisAsync();
+        }
+        catch (Exception ex)
+        {
+            errorPagina = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private static int? IdDesdeSelect(object? valor) =>
+        int.TryParse(valor?.ToString(), out var id) && id > 0 ? id : null;
+
+    private static string NombreRol(string? rol) =>
+        RolesResponsables.Where(r => r.Valor == rol).Select(r => r.Nombre).FirstOrDefault() ?? rol ?? string.Empty;
+
+    private static string NombreUsuario(UsuarioDto usuario) =>
+        string.IsNullOrWhiteSpace(usuario.NombreCompleto) ? usuario.UserName : usuario.NombreCompleto;
+
+    private void CambiarLinea(ChangeEventArgs e)
+    {
+        reglaActual.LineaId = IdDesdeSelect(e.Value);
+        if (reglaActual.EquipoId is int equipo && !EquiposDeLineaSeleccionada.Any(x => x.EquipoId == equipo))
+            reglaActual.EquipoId = null;
+    }
+
+    private void CambiarResponsable(bool porUsuario)
+    {
+        analizaPorUsuario = porUsuario;
+        if (porUsuario)
+            reglaActual.ResponsableRol = null;
+        else
+            reglaActual.ResponsableUsuarioId = null;
+    }
+
+    private void NuevaRegla()
+    {
+        reglaActual = new ReglaAnalisisDto { Activo = true, MinutosMinimos = 60 };
+        analizaPorUsuario = false;
+        editando = false;
+        errorMessage = null;
+        showModal = true;
+    }
+
+    private void EditarRegla(ReglaAnalisisDto regla)
+    {
+        reglaActual = new ReglaAnalisisDto
+        {
+            ReglaAnalisisId = regla.ReglaAnalisisId,
+            LineaId = regla.LineaId,
+            TipoFallaId = regla.TipoFallaId,
+            EquipoId = regla.EquipoId,
+            MinutosMinimos = regla.MinutosMinimos,
+            ResponsableRol = regla.ResponsableRol,
+            ResponsableUsuarioId = regla.ResponsableUsuarioId,
+            Activo = regla.Activo
+        };
+        analizaPorUsuario = regla.ResponsableUsuarioId != null;
+        editando = true;
+        errorMessage = null;
+        showModal = true;
+    }
+
+    private void CerrarModal()
+    {
+        showModal = false;
+        reglaActual = new();
+    }
+
+    private async Task GuardarRegla()
+    {
+        if (reglaActual.TipoFallaId == 0)
+        {
+            errorMessage = "Debe seleccionar un tipo de falla.";
+            return;
+        }
+        if (reglaActual.MinutosMinimos <= 0)
+        {
+            errorMessage = "Los minutos deben ser mayores que cero.";
+            return;
+        }
+        if (analizaPorUsuario && string.IsNullOrEmpty(reglaActual.ResponsableUsuarioId))
+        {
+            errorMessage = "Debe seleccionar el usuario que analiza.";
+            return;
+        }
+        if (!analizaPorUsuario && string.IsNullOrEmpty(reglaActual.ResponsableRol))
+        {
+            errorMessage = "Debe seleccionar el rol que analiza.";
+            return;
+        }
+
+        isSaving = true;
+        errorMessage = null;
+
+        try
+        {
+            if (editando)
+            {
+                await CatalogosService.UpdateReglaAnalisisAsync(reglaActual);
+            }
+            else
+            {
+                await CatalogosService.CreateReglaAnalisisAsync(reglaActual);
+            }
+
+            showModal = false;
+            await CargarReglas();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task CambiarActiva(ReglaAnalisisDto regla)
+    {
+        if (regla.Activo)
+        {
+            var confirmed = await JS.InvokeAsync<bool>("confirm", $"¿Desactivar la regla de {regla.TipoFallaNombre}? No cambia las detenciones ya cargadas.");
+            if (!confirmed)
+                return;
+        }
+
+        try
+        {
+            regla.Activo = !regla.Activo;
+            await CatalogosService.UpdateReglaAnalisisAsync(regla);
+            await CargarReglas();
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Error: {ex.Message}");
+            await CargarReglas();
+        }
+    }
+}

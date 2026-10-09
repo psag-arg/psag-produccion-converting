@@ -33,6 +33,7 @@
                         <tr>
                             <th>ID</th>
                             <th>Nombre</th>
+                            <th>Color en gráficos</th>
                             <th>Descripcion</th>
                             <th class="text-center">Activo</th>
                             <th class="text-end">Acciones</th>
@@ -46,6 +47,19 @@
                                 <tr>
                                     <td>@tipo.TipoFallaId</td>
                                     <td><strong>@tipo.Nombre</strong></td>
+                                    <td>
+                                        @if (tipo.Color != null)
+                                        {
+                                            <span class="d-inline-flex align-items-center gap-2">
+                                                <span class="rounded border" style="display: inline-block; width: 18px; height: 18px; background-color: @tipo.Color;"></span>
+                                                <span class="font-monospace">@tipo.Color</span>
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">Automático</span>
+                                        }
+                                    </td>
                                     <td>@tipo.Descripcion</td>
                                     <td class="text-center">
                                         @if (tipo.Activo)
@@ -71,7 +85,7 @@
                         else
                         {
                             <tr>
-                                <td colspan="5" class="text-center text-muted py-4">No hay tipos de falla registrados</td>
+                                <td colspan="6" class="text-center text-muted py-4">No hay tipos de falla registrados</td>
                             </tr>
                         }
                     </tbody>
@@ -99,6 +113,20 @@
                     <div class="mb-3">
                         <label class="form-label">Descripcion</label>
                         <textarea class="form-control" rows="3" @bind="tipoFallaActual.Descripcion"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="colorPropio" checked="@(tipoFallaActual.Color != null)" @onchange="CambiarColorPropio" />
+                            <label class="form-check-label" for="colorPropio">Color propio en gráficos</label>
+                        </div>
+                        @if (tipoFallaActual.Color != null)
+                        {
+                            <input type="color" class="form-control form-control-color mt-2" title="Color en gráficos" @bind="tipoFallaActual.Color" />
+                        }
+                        else
+                        {
+                            <small class="text-muted">Sin color propio, el gráfico usa el color automático del sistema.</small>
+                        }
                     </div>
                     <div class="form-check">
                         <input type="checkbox" class="form-check-input" id="activo" @bind="tipoFallaActual.Activo" />
@@ -132,6 +160,8 @@
     private bool editando = false;
     private bool isSaving = false;
     private string? errorMessage;
+
+    private const string ColorNuevoPorDefecto = "#5B9BD5";
 
     protected override async Task OnInitializedAsync()
     {
@@ -168,8 +198,11 @@
         tipoFallaActual = new TipoFallaDto
         {
             TipoFallaId = tipo.TipoFallaId,
+            Codigo = tipo.Codigo,
             Nombre = tipo.Nombre,
             Descripcion = tipo.Descripcion,
+            Orden = tipo.Orden,
+            Color = tipo.Color,
             Activo = tipo.Activo
         };
         editando = true;
@@ -181,6 +214,12 @@
     {
         showModal = false;
         tipoFallaActual = new();
+    }
+
+    private void CambiarColorPropio(ChangeEventArgs e)
+    {
+        var conColor = e.Value is bool activo && activo;
+        tipoFallaActual.Color = conColor ? (tipoFallaActual.Color ?? ColorNuevoPorDefecto) : null;
     }
 
     private async Task GuardarTipoFalla()

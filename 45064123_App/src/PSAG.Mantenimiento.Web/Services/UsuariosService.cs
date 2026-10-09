@@ -1,6 +1,5 @@
 using PSAG.Mantenimiento.Web.Models;
 using System.Net.Http.Json;
-using System.Text.Json;
 
 namespace PSAG.Mantenimiento.Web.Services;
 
@@ -24,33 +23,6 @@ public class UsuariosService : IUsuariosService
         _httpClient = httpClient;
     }
 
-    private static async Task EnsureSuccessWithDetailAsync(HttpResponseMessage response)
-    {
-        if (!response.IsSuccessStatusCode)
-        {
-            var content = await response.Content.ReadAsStringAsync();
-            string errorMessage;
-
-            try
-            {
-                using var doc = JsonDocument.Parse(content);
-                errorMessage = doc.RootElement.TryGetProperty("detail", out var detail)
-                    ? detail.GetString() ?? response.ReasonPhrase ?? "Error desconocido"
-                    : doc.RootElement.TryGetProperty("title", out var title)
-                        ? title.GetString() ?? response.ReasonPhrase ?? "Error desconocido"
-                        : response.ReasonPhrase ?? "Error desconocido";
-            }
-            catch
-            {
-                errorMessage = string.IsNullOrEmpty(content)
-                    ? response.ReasonPhrase ?? "Error desconocido"
-                    : content;
-            }
-
-            throw new HttpRequestException(errorMessage, null, response.StatusCode);
-        }
-    }
-
     public async Task<List<UsuarioDto>> GetUsuariosAsync()
     {
         var result = await _httpClient.GetFromJsonAsync<List<UsuarioDto>>("api/usuarios");
@@ -66,13 +38,13 @@ public class UsuariosService : IUsuariosService
     public async Task CreateUsuarioAsync(CrearUsuarioRequest request)
     {
         var response = await _httpClient.PostAsJsonAsync("api/usuarios", request);
-        await EnsureSuccessWithDetailAsync(response);
+        await ApiErrores.AsegurarExitoAsync(response);
     }
 
     public async Task UpdateUsuarioAsync(string id, ActualizarUsuarioRequest request)
     {
         var response = await _httpClient.PutAsJsonAsync($"api/usuarios/{id}", request);
-        await EnsureSuccessWithDetailAsync(response);
+        await ApiErrores.AsegurarExitoAsync(response);
     }
 
     public async Task<List<string>> GetRolesAsync()
@@ -85,13 +57,13 @@ public class UsuariosService : IUsuariosService
     {
         var request = new { NuevaPassword = nuevaPassword };
         var response = await _httpClient.PostAsJsonAsync($"api/usuarios/{userId}/reset-password", request);
-        await EnsureSuccessWithDetailAsync(response);
+        await ApiErrores.AsegurarExitoAsync(response);
     }
 
     public async Task<EliminarUsuarioResponse> DeleteUsuarioAsync(string id)
     {
         var response = await _httpClient.DeleteAsync($"api/usuarios/{id}");
-        await EnsureSuccessWithDetailAsync(response);
+        await ApiErrores.AsegurarExitoAsync(response);
         var result = await response.Content.ReadFromJsonAsync<EliminarUsuarioResponse>();
         return result ?? new EliminarUsuarioResponse { Mensaje = "Operacion completada" };
     }

@@ -3,7 +3,7 @@ namespace PSAG.Mantenimiento.Application.DTOs.Detenciones;
 /// <summary>
 /// DTO para visualización de detención.
 /// </summary>
-public class DetencionDto
+public class DetencionDto : DatosAnalisisDetencion
 {
     public long DetencionId { get; set; }
     public string Codigo { get; set; } = string.Empty;
@@ -32,6 +32,7 @@ public class DetencionDto
 
     public string? AccionesRealizadas { get; set; }
     public string? ResolucionDescripcion { get; set; }
+
     public DateTimeOffset? FechaHoraCierre { get; set; }
     public string? CerradoPorUsuarioId { get; set; }
     public string? CerradoPorUsuarioNombre { get; set; }
@@ -46,7 +47,7 @@ public class DetencionDto
 /// <summary>
 /// DTO para listado resumido de detenciones.
 /// </summary>
-public class DetencionListaDto
+public class DetencionListaDto : DatosAnalisisDetencion
 {
     public long DetencionId { get; set; }
     public string Codigo { get; set; } = string.Empty;
@@ -58,5 +59,6 @@ public class DetencionListaDto
     public int MinutosEfectivos { get; set; }
     public string EstadoActual { get; set; } = string.Empty;
     public string EstadoActualDescripcion { get; set; } = string.Empty;
+
     public string CreadoPorUsuarioNombre { get; set; } = string.Empty;
 }

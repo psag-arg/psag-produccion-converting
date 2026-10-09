@@ -54,7 +54,7 @@ public static class EstadoDetencionExtensions
         return estado switch
         {
             EstadoDetencion.REGISTRADA => "Registrada",
-            EstadoDetencion.EN_SEGUIMIENTO => "En seguimiento",
+            EstadoDetencion.EN_SEGUIMIENTO => "En análisis",
             EstadoDetencion.CERRADA => "Cerrada",
             EstadoDetencion.PENDIENTE_JUSTIFICACION => "Pendiente de justificación",
             _ => estado.ToString()
@@ -62,4 +62,24 @@ public static class EstadoDetencionExtensions
     }
 
     public static string GetDescripcion(this EstadoDetencion estado) => ObtenerDescripcion(estado);
+}
+
+/// <summary>
+/// Texto del análisis de falla para pantallas y exportes. Null si la detención no requiere análisis.
+/// </summary>
+public static class EstadoAnalisisExtensions
+{
+    public static string? ObtenerDescripcionAnalisis(this Entities.Detencion detencion)
+    {
+        if (!detencion.RequiereAnalisis)
+            return null;
+
+        return detencion.EstadoActual switch
+        {
+            EstadoDetencion.REGISTRADA => "Requiere análisis",
+            EstadoDetencion.EN_SEGUIMIENTO => "En análisis",
+            EstadoDetencion.CERRADA => "Cerrada",
+            _ => detencion.EstadoActual.ObtenerDescripcion()
+        };
+    }
 }

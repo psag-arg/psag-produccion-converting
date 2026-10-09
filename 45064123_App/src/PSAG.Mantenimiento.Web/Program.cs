@@ -1,9 +1,15 @@
+using System.Globalization;
 using Blazored.LocalStorage;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using PSAG.Mantenimiento.Web;
 using PSAG.Mantenimiento.Web.Services;
+
+// Números, fechas y días en castellano argentino para toda la app
+var castellano = new CultureInfo("es-AR");
+CultureInfo.DefaultThreadCurrentCulture = castellano;
+CultureInfo.DefaultThreadCurrentUICulture = castellano;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
@@ -23,6 +29,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 
 // Servicios de negocio
 builder.Services.AddScoped<IDetencionesService, DetencionesService>();
+builder.Services.AddScoped<IAnalisisService, AnalisisService>();
 builder.Services.AddScoped<ICatalogosService, CatalogosService>();
 builder.Services.AddScoped<IUsuariosService, UsuariosService>();
 builder.Services.AddScoped<IRegistroProcesoService, RegistroProcesoService>();

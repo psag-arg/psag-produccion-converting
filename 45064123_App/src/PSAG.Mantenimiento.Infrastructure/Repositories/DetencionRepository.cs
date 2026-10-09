@@ -1,7 +1,9 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using PSAG.Mantenimiento.Domain.Entities;
 using PSAG.Mantenimiento.Domain.Enums;
 using PSAG.Mantenimiento.Domain.Interfaces;
+using PSAG.Mantenimiento.Domain.Services;
 using PSAG.Mantenimiento.Infrastructure.Data;
 
 namespace PSAG.Mantenimiento.Infrastructure.Repositories;
@@ -21,6 +23,13 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
             .Include(d => d.DetalleFalla)
             .Include(d => d.Turno)
             .FirstOrDefaultAsync(d => d.Codigo == codigo, cancellationToken);
+    }
+
+    public async Task<Detencion?> GetByIdIncluyendoEliminadasAsync(long detencionId, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(d => d.DetencionId == detencionId, cancellationToken);
     }
 
     public async Task<Detencion?> GetByIdWithDetailsAsync(long detencionId, CancellationToken cancellationToken = default)
@@ -112,7 +121,9 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
     {
         var fecha = DateTimeOffset.UtcNow.ToString("yyyyMMdd");
 
+        // IgnoreQueryFilters: el código es único en la tabla, también entre eliminadas.
         var ultimoCodigo = await _dbSet
+            .IgnoreQueryFilters()
             .Where(d => d.Codigo.StartsWith($"DET-{fecha}"))
             .OrderByDescending(d => d.Codigo)
             .Select(d => d.Codigo)
@@ -131,6 +142,118 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
         return $"DET-{fecha}-{siguienteNumero:D6}";
     }
 
+    public async Task<IReadOnlyList<int>> GetLineasConDetencionesAsync(DateOnly desde, DateOnly hasta, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .Where(d => d.Fecha >= desde && d.Fecha <= hasta)
+            .Select(d => d.LineaId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IEnumerable<Detencion>> GetAnalisisAbiertosAsync(CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .Include(d => d.Linea)
+            .Include(d => d.Equipo)
+            .Include(d => d.TipoFalla)
+            .Where(AnalisisFallaReglas.EstaAbiertoExpr)
+            .OrderBy(d => d.Fecha)
+            .ThenBy(d => d.DetencionId)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IEnumerable<Detencion>> GetAnalisisAbiertosAsignadosAAsync(
+        string usuarioId,
+        IReadOnlyCollection<string> roles,
+        CancellationToken cancellationToken = default)
+    {
+        return await AnalisisAbiertosAsignadosA(usuarioId, roles)
+            .Include(d => d.Linea)
+            .Include(d => d.Equipo)
+            .Include(d => d.TipoFalla)
+            .OrderBy(d => d.Fecha)
+            .ThenBy(d => d.DetencionId)
+            .ToListAsync(cancellationToken);
+    }
+
+    public Task<int> CountAnalisisAbiertosParaAsync(
+        string usuarioId,
+        IReadOnlyCollection<string> roles,
+        CancellationToken cancellationToken = default)
+    {
+        return AnalisisAbiertosAsignadosA(usuarioId, roles).CountAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Lista y conteo salen de acá: la misma consulta no puede divergir.
+    /// </summary>
+    private IQueryable<Detencion> AnalisisAbiertosAsignadosA(string usuarioId, IReadOnlyCollection<string> roles) =>
+        _dbSet
+            .Where(AnalisisFallaReglas.EstaAbiertoExpr)
+            .Where(AnalisisFallaReglas.AsignadaAExpr(usuarioId, roles));
+
+    public async Task<IEnumerable<Detencion>> GetAnalisisCerradosPorUsuarioAsync(
+        string usuarioId,
+        int limite,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .Include(d => d.Linea)
+            .Include(d => d.Equipo)
+            .Include(d => d.TipoFalla)
+            .Where(d => d.RequiereAnalisis
+                && d.EstadoActual == EstadoDetencion.CERRADA
+                && d.AnalisisPorUsuarioId == usuarioId)
+            .OrderByDescending(d => d.FechaHoraAnalisis)
+            .Take(limite)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IEnumerable<Detencion>> GetSolucionesAsync(
+        string? busqueda = null,
+        int? lineaId = null,
+        int? equipoId = null,
+        int? tipoFallaId = null,
+        long? excluirDetencionId = null,
+        int limite = 50,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _dbSet
+            .Include(d => d.Linea)
+            .Include(d => d.Equipo)
+            .Include(d => d.TipoFalla)
+            .Where(d => d.EstadoActual == EstadoDetencion.CERRADA
+                && ((d.AccionesRealizadas != null && d.AccionesRealizadas != "")
+                    || (d.CausaFalla != null && d.CausaFalla != "")));
+
+        if (lineaId.HasValue)
+            query = query.Where(d => d.LineaId == lineaId.Value);
+
+        if (equipoId.HasValue)
+            query = query.Where(d => d.EquipoId == equipoId.Value);
+
+        if (tipoFallaId.HasValue)
+            query = query.Where(d => d.TipoFallaId == tipoFallaId.Value);
+
+        if (excluirDetencionId.HasValue)
+            query = query.Where(d => d.DetencionId != excluirDetencionId.Value);
+
+        foreach (var palabra in (busqueda ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var buscada = palabra.ToLower();
+            query = query.Where(d => d.Descripcion.ToLower().Contains(buscada)
+                || (d.AccionesRealizadas != null && d.AccionesRealizadas.ToLower().Contains(buscada))
+                || (d.CausaFalla != null && d.CausaFalla.ToLower().Contains(buscada)));
+        }
+
+        return await query
+            .OrderByDescending(d => d.Fecha)
+            .ThenByDescending(d => d.DetencionId)
+            .Take(limite)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<(IEnumerable<Detencion> Items, int TotalCount)> GetPaginadoAsync(
         int page,
         int pageSize,
@@ -143,17 +266,19 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
         DateOnly? fechaDesde = null,
         DateOnly? fechaHasta = null,
         string? busqueda = null,
+        bool? analisisPendiente = null,
+        bool incluirEliminadas = false,
         string? ordenarPor = null,
         bool ordenDescendente = true,
         CancellationToken cancellationToken = default)
     {
-        var query = _dbSet
+        IQueryable<Detencion> query = incluirEliminadas ? _dbSet.IgnoreQueryFilters() : _dbSet;
+        query = query
             .Include(d => d.Linea)
             .Include(d => d.Equipo)
             .Include(d => d.TipoFalla)
             .Include(d => d.DetalleFalla)
-            .Include(d => d.Turno)
-            .AsQueryable();
+            .Include(d => d.Turno);
 
         // Aplicar filtros
         if (lineaId.HasValue)
@@ -179,6 +304,14 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
 
         if (fechaHasta.HasValue)
             query = query.Where(d => d.Fecha <= fechaHasta.Value);
+
+        if (analisisPendiente.HasValue)
+        {
+            var abierto = AnalisisFallaReglas.EstaAbiertoExpr;
+            query = analisisPendiente.Value
+                ? query.Where(abierto)
+                : query.Where(Expression.Lambda<Func<Detencion, bool>>(Expression.Not(abierto.Body), abierto.Parameters));
+        }
 
         if (!string.IsNullOrWhiteSpace(busqueda))
         {

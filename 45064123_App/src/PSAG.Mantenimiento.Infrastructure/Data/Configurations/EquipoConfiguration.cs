@@ -23,6 +23,10 @@ public class EquipoConfiguration : IEntityTypeConfiguration<Equipo>
         builder.Property(x => x.Descripcion)
             .HasMaxLength(500);
 
+        builder.Property(x => x.Critico)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         builder.Property(x => x.CreadoPorUsuarioId)
             .IsRequired()
             .HasMaxLength(450);

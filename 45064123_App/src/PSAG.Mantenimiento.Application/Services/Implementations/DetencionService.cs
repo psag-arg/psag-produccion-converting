@@ -5,6 +5,7 @@ using PSAG.Mantenimiento.Application.Services.Interfaces;
 using PSAG.Mantenimiento.Domain.Entities;
 using PSAG.Mantenimiento.Domain.Enums;
 using PSAG.Mantenimiento.Domain.Interfaces;
+using PSAG.Mantenimiento.Domain.Services;
 
 namespace PSAG.Mantenimiento.Application.Services.Implementations;
 
@@ -82,6 +83,8 @@ public class DetencionService : IDetencionService
             ModificadoPorUsuarioId = usuarioId
         };
 
+        await AplicarReglaAnalisisAsync(detencion, cancellationToken);
+
         // Agregar historial inicial
         detencion.HistorialEstados.Add(new DetencionEstadoHistorial
         {
@@ -139,7 +142,7 @@ public class DetencionService : IDetencionService
         if (detencion == null)
             return Result<DetencionDetalleDto>.Failure("NOT_FOUND", "Detención no encontrada.");
 
-        var dto = new DetencionDetalleDto
+        var dto = DatosAnalisisMapper.ConDatosAnalisis(new DetencionDetalleDto
         {
             DetencionId = detencion.DetencionId,
             Codigo = detencion.Codigo,
@@ -191,7 +194,7 @@ public class DetencionService : IDetencionService
                 TipoNota = n.TipoNota.ToString(),
                 EsNotaDeCierre = n.EsNotaDeCierre
             }).ToList()
-        };
+        }, detencion);
 
         return Result<DetencionDetalleDto>.Success(dto);
     }
@@ -218,11 +221,12 @@ public class DetencionService : IDetencionService
             filtro.FechaDesde,
             filtro.FechaHasta,
             filtro.Busqueda,
-            filtro.OrdenarPor,
-            filtro.OrdenDescendente,
-            cancellationToken);
+            analisisPendiente: filtro.AnalisisPendiente,
+            ordenarPor: filtro.OrdenarPor,
+            ordenDescendente: filtro.OrdenDescendente,
+            cancellationToken: cancellationToken);
 
-        var dtos = items.Select(d => new DetencionListaDto
+        var dtos = items.Select(d => DatosAnalisisMapper.ConDatosAnalisis(new DetencionListaDto
         {
             DetencionId = d.DetencionId,
             Codigo = d.Codigo,
@@ -235,7 +239,7 @@ public class DetencionService : IDetencionService
             EstadoActual = d.EstadoActual.ToString(),
             EstadoActualDescripcion = d.EstadoActual.ObtenerDescripcion(),
             CreadoPorUsuarioNombre = d.CreadoPorUsuarioId
-        }).ToList();
+        }, d)).ToList();
 
         return Result<PagedResult<DetencionListaDto>>.Success(new PagedResult<DetencionListaDto>
         {
@@ -270,6 +274,8 @@ public class DetencionService : IDetencionService
         detencion.TipoFallaId = request.TipoFallaId;
         detencion.DetalleFallaId = request.DetalleFallaId;
         detencion.ModificadoPorUsuarioId = usuarioId;
+
+        await AplicarReglaAnalisisAsync(detencion, cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -471,7 +477,7 @@ public class DetencionService : IDetencionService
             detenciones = detenciones.Where(d => lineasSet.Contains(d.LineaId));
         }
 
-        var dtos = detenciones.Select(d => new DetencionListaDto
+        var dtos = detenciones.Select(d => DatosAnalisisMapper.ConDatosAnalisis(new DetencionListaDto
         {
             DetencionId = d.DetencionId,
             Codigo = d.Codigo,
@@ -484,14 +490,46 @@ public class DetencionService : IDetencionService
             EstadoActual = d.EstadoActual.ToString(),
             EstadoActualDescripcion = d.EstadoActual.ObtenerDescripcion(),
             CreadoPorUsuarioNombre = d.CreadoPorUsuarioId
-        }).ToList();
+        }, d)).ToList();
 
         return Result<IReadOnlyList<DetencionListaDto>>.Success(dtos);
     }
 
+    /// <summary>
+    /// Evalúa las reglas activas contra la detención. Si aplica una, marca el análisis y su responsable.
+    /// Si no aplica ninguna y el análisis no empezó, limpia la marca y el responsable; si ya hay trabajo
+    /// cargado, lo conserva aunque la regla ya no aplique.
+    /// No reevalúa detenciones ya cargadas: sólo se llama al crear o editar.
+    /// </summary>
+    public async Task AplicarReglaAnalisisAsync(Detencion detencion, CancellationToken cancellationToken = default)
+    {
+        var reglas = await _unitOfWork.ReglasAnalisis.GetActivasAsync(cancellationToken);
+        var regla = ReglaAnalisisEvaluador.Evaluar(
+            reglas,
+            detencion.LineaId,
+            detencion.EquipoId,
+            detencion.TipoFallaId,
+            detencion.MinutosEfectivos);
+
+        if (regla != null)
+        {
+            detencion.RequiereAnalisis = true;
+            detencion.ReglaAnalisisId = regla.ReglaAnalisisId;
+            detencion.ResponsableRol = regla.ResponsableRol;
+            detencion.ResponsableUsuarioId = regla.ResponsableUsuarioId;
+        }
+        else if (AnalisisFallaReglas.PuedeQuitarMarcaAnalisis(detencion))
+        {
+            detencion.RequiereAnalisis = false;
+            detencion.ReglaAnalisisId = null;
+            detencion.ResponsableRol = null;
+            detencion.ResponsableUsuarioId = null;
+        }
+    }
+
     private static DetencionDto MapToDto(Detencion d)
     {
-        return new DetencionDto
+        return DatosAnalisisMapper.ConDatosAnalisis(new DetencionDto
         {
             DetencionId = d.DetencionId,
             Codigo = d.Codigo,
@@ -522,6 +560,6 @@ public class DetencionService : IDetencionService
             FechaHoraCreacion = d.FechaHoraCreacion,
             FechaHoraModificacion = d.FechaHoraModificacion,
             RowVersion = d.RowVersion
-        };
+        }, d);
     }
 }

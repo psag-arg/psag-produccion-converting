@@ -51,6 +51,7 @@
                             <th>Linea</th>
                             <th>Nombre</th>
                             <th>Descripcion</th>
+                            <th class="text-center">Crítico</th>
                             <th class="text-center">Activo</th>
                             <th class="text-end">Acciones</th>
                         </tr>
@@ -65,6 +66,16 @@
                                     <td><span class="badge bg-info">@equipo.LineaNombre</span></td>
                                     <td><strong>@equipo.Nombre</strong></td>
                                     <td>@equipo.Descripcion</td>
+                                    <td class="text-center">
+                                        @if (equipo.Critico)
+                                        {
+                                            <span class="badge bg-danger">Crítico</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">No</span>
+                                        }
+                                    </td>
                                     <td class="text-center">
                                         @if (equipo.Activo)
                                         {
@@ -89,7 +100,7 @@
                         else
                         {
                             <tr>
-                                <td colspan="6" class="text-center text-muted py-4">No hay equipos registrados</td>
+                                <td colspan="7" class="text-center text-muted py-4">No hay equipos registrados</td>
                             </tr>
                         }
                     </tbody>
@@ -138,6 +149,11 @@
                         <textarea class="form-control" rows="3" @bind="equipoActual.Descripcion"></textarea>
                     </div>
                     <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="critico" @bind="equipoActual.Critico" />
+                        <label class="form-check-label" for="critico">Crítico</label>
+                        <div class="form-text">Si este equipo se para, se para toda la línea.</div>
+                    </div>
+                    <div class="form-check mt-3">
                         <input type="checkbox" class="form-check-input" id="activo" @bind="equipoActual.Activo" />
                         <label class="form-check-label" for="activo">Activo</label>
                     </div>
@@ -216,6 +232,8 @@
             Codigo = equipo.Codigo,
             Nombre = equipo.Nombre,
             Descripcion = equipo.Descripcion,
+            Orden = equipo.Orden,
+            Critico = equipo.Critico,
             Activo = equipo.Activo
         };
         editando = true;

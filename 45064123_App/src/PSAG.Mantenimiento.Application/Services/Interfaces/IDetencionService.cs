@@ -1,5 +1,6 @@
 using PSAG.Mantenimiento.Application.Common;
 using PSAG.Mantenimiento.Application.DTOs.Detenciones;
+using PSAG.Mantenimiento.Domain.Entities;
 
 namespace PSAG.Mantenimiento.Application.Services.Interfaces;
 
@@ -69,4 +70,10 @@ public interface IDetencionService
     Task<Result<IReadOnlyList<DetencionListaDto>>> ObtenerDetencionesAbiertasAsync(
         IEnumerable<int>? lineasPermitidas,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Aplica las reglas de análisis a una detención recién creada o editada.
+    /// No guarda cambios: lo hace quien llama, después de este paso.
+    /// </summary>
+    Task AplicarReglaAnalisisAsync(Detencion detencion, CancellationToken cancellationToken = default);
 }
