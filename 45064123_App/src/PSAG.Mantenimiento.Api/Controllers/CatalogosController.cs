@@ -3,8 +3,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PSAG.Mantenimiento.Application.DTOs.Catalogos;
+using PSAG.Mantenimiento.Application.Services.Implementations;
 using PSAG.Mantenimiento.Domain.Interfaces;
-using PSAG.Mantenimiento.Domain.Services;
 using PSAG.Mantenimiento.Infrastructure.Identity;
 using System.Text.RegularExpressions;
 
@@ -1028,25 +1028,21 @@ public class CatalogosController : ApiControllerBase
                 Status = StatusCodes.Status400BadRequest
             });
 
-        if (await _unitOfWork.Lineas.GetByIdAsync(lineaId) == null)
+        var linea = await _unitOfWork.Lineas.GetByIdAsync(lineaId);
+        if (linea == null)
             return NotFound();
 
         var turnos = await _unitOfWork.Turnos.GetActivosAsync();
         var excepciones = (await _unitOfWork.TiemposProgramadosDia.GetPorLineaYRangoAsync(lineaId, desde, hasta)).ToList();
-        var porFecha = excepciones.Where(e => e.Activo).ToDictionary(e => e.Fecha);
 
-        var dias = TiempoProgramadoCalculador.MinutosProgramadosPorDia(desde, hasta, turnos, excepciones)
-            .Select(d =>
+        var dias = TiempoProgramadoReporte.DiasDeLinea(lineaId, linea.Nombre, desde, hasta, turnos, excepciones)
+            .Select(d => new DiaProgramadoDto
             {
-                porFecha.TryGetValue(d.Fecha, out var fila);
-                return new DiaProgramadoDto
-                {
-                    Fecha = d.Fecha,
-                    Horas = d.Minutos / 60m,
-                    Origen = fila?.Origen ?? "ESTANDAR",
-                    Motivo = fila?.Motivo,
-                    TiempoProgramadoDiaId = fila?.TiempoProgramadoDiaId
-                };
+                Fecha = d.Fecha,
+                Horas = (decimal)d.Horas,
+                Origen = d.Origen,
+                Motivo = d.Motivo,
+                TiempoProgramadoDiaId = d.TiempoProgramadoDiaId
             });
 
         return Ok(dias);

@@ -300,4 +300,5 @@ public class TiempoProgramadoDiaDto
     public double Horas { get; set; }
     public string Origen { get; set; } = string.Empty;
     public string? Motivo { get; set; }
+    public int? TiempoProgramadoDiaId { get; set; }
 }

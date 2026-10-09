@@ -8,7 +8,7 @@ public class DiaProgramadoDto
 {
     public DateOnly Fecha { get; set; }
     public decimal Horas { get; set; }
-    public string Origen { get; set; } = "ESTANDAR";
+    public string Origen { get; set; } = string.Empty;
     public string? Motivo { get; set; }
     public int? TiempoProgramadoDiaId { get; set; }
 }
