@@ -25,6 +25,7 @@ public class DetencionesController : ApiControllerBase
     private readonly IAuditoriaService _auditoriaService;
     private readonly ILogger<DetencionesController> _logger;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly TimeZoneInfo _zonaPlanta;
 
     public DetencionesController(
         IUnitOfWork unitOfWork,
@@ -32,7 +33,8 @@ public class DetencionesController : ApiControllerBase
         IExportacionService exportacionService,
         IAuditoriaService auditoriaService,
         ILogger<DetencionesController> logger,
-        UserManager<ApplicationUser> userManager)
+        UserManager<ApplicationUser> userManager,
+        TimeZoneInfo zonaPlanta)
     {
         _userManager = userManager;
         _unitOfWork = unitOfWork;
@@ -40,6 +42,7 @@ public class DetencionesController : ApiControllerBase
         _exportacionService = exportacionService;
         _auditoriaService = auditoriaService;
         _logger = logger;
+        _zonaPlanta = zonaPlanta;
     }
 
     /// <summary>
@@ -1041,9 +1044,9 @@ public class DetencionesController : ApiControllerBase
         return null;
     }
 
-    private static TiempoManual? CalcularTiempoManual(DateOnly fecha, TimeOnly? horaInicio, TimeOnly? horaFin) =>
+    private TiempoManual? CalcularTiempoManual(DateOnly fecha, TimeOnly? horaInicio, TimeOnly? horaFin) =>
         horaInicio is { } inicio && horaFin is { } fin
-            ? TiempoManualCalculador.Calcular(fecha, inicio, fin)
+            ? TiempoManualCalculador.Calcular(fecha, inicio, fin, _zonaPlanta)
             : null;
 
     /// <summary>

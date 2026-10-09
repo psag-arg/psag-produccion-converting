@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using PSAG.Mantenimiento.Api.Configuration;
 using PSAG.Mantenimiento.Api.Middleware;
 using PSAG.Mantenimiento.Application;
 using PSAG.Mantenimiento.Infrastructure;
@@ -29,6 +30,7 @@ var jwtSettings = configuration.GetSection("JwtSettings");
 // Agregar servicios de capas
 builder.Services.AddInfrastructure(configuration);
 builder.Services.AddApplication();
+builder.Services.AddSingleton(ZonaHorariaPlanta.Resolver(configuration));
 
 // Configurar Identity
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
