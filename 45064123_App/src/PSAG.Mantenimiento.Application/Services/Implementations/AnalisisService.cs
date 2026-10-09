@@ -130,7 +130,7 @@ public class AnalisisService : IAnalisisService
         {
             EsAdministrador = esAdministrador,
             VeDeclaracion = veDeclaracion,
-            VeAnalisis = !veDeclaracion || roles.Any(r => r is RolesSistema.Administrador or RolesSistema.Mantenimiento or RolesSistema.Supervisor),
+            VeAnalisis = AnalisisFallaReglas.MuestraAnalisis(usuarioId, roles, visibles),
             ParaAnalizar = visibles
                 .Where(d => d.EstadoActual == EstadoDetencion.REGISTRADA)
                 .Select(d => MapearPendiente(d, hoy))

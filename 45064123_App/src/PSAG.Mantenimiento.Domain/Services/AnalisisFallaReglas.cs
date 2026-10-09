@@ -10,10 +10,30 @@ namespace PSAG.Mantenimiento.Domain.Services;
 /// </summary>
 public static class AnalisisFallaReglas
 {
+    /// <summary>
+    /// Roles que una regla puede asignar como responsables de un análisis.
+    /// </summary>
+    public static readonly IReadOnlyList<string> RolesResponsables =
+        [RolesSistema.Operario, RolesSistema.Supervisor, RolesSistema.Mantenimiento];
+
     public static bool EsResponsable(Detencion detencion, string usuarioId, IEnumerable<string> roles)
     {
         return detencion.ResponsableUsuarioId == usuarioId
             || (detencion.ResponsableRol != null && roles.Contains(detencion.ResponsableRol));
+    }
+
+    /// <summary>
+    /// Muestra las pestañas de análisis en Mis pendientes: administrador, cualquier rol responsable,
+    /// o al menos un análisis abierto asignado al usuario por id. <paramref name="analisisAsignados"/>
+    /// son los análisis abiertos que el usuario ve (mismo criterio que la lista).
+    /// </summary>
+    public static bool MuestraAnalisis(string usuarioId, IEnumerable<string> roles, IEnumerable<Detencion> analisisAsignados)
+    {
+        var rolesUsuario = roles.ToList();
+        if (rolesUsuario.Contains(RolesSistema.Administrador) || rolesUsuario.Any(rol => RolesResponsables.Contains(rol)))
+            return true;
+
+        return analisisAsignados.Any(d => d.ResponsableUsuarioId == usuarioId);
     }
 
     /// <summary>

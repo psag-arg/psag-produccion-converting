@@ -109,6 +109,43 @@ public class AnalisisFallaReglasTests
         }
     }
 
+    [Theory]
+    [InlineData("OPERARIO")]
+    [InlineData("SUPERVISOR")]
+    [InlineData("MANTENIMIENTO")]
+    public void RolResponsable_VeLasPestaniasDeAnalisisAunSinAnalisisAsignados(string rol)
+    {
+        Assert.True(AnalisisFallaReglas.MuestraAnalisis("usuario-1", [rol], []));
+    }
+
+    [Fact]
+    public void Administrador_VeLasPestaniasDeAnalisis()
+    {
+        Assert.True(AnalisisFallaReglas.MuestraAnalisis("admin-1", [Administrador], []));
+    }
+
+    [Fact]
+    public void RolSinResponsabilidad_NoVeAnalisisSiNoTieneNadaAsignado()
+    {
+        Assert.False(AnalisisFallaReglas.MuestraAnalisis("gerente-1", ["GERENCIA"], []));
+    }
+
+    [Fact]
+    public void RolSinResponsabilidad_VeAnalisisSiTieneUnoAsignadoPorUsuario()
+    {
+        var asignado = Detencion(responsableRol: null, responsableUsuarioId: "gerente-1");
+
+        Assert.True(AnalisisFallaReglas.MuestraAnalisis("gerente-1", ["GERENCIA"], [asignado]));
+    }
+
+    [Fact]
+    public void RolSinResponsabilidad_NoVeAnalisisAsignadoAOtroUsuario()
+    {
+        var deOtro = Detencion(responsableRol: null, responsableUsuarioId: "otro-usuario");
+
+        Assert.False(AnalisisFallaReglas.MuestraAnalisis("gerente-1", ["GERENCIA"], [deOtro]));
+    }
+
     [Fact]
     public void CierreSinSolucion_DevuelveMotivo()
     {

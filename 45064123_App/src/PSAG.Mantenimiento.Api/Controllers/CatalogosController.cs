@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using PSAG.Mantenimiento.Application.DTOs.Catalogos;
 using PSAG.Mantenimiento.Application.Services.Implementations;
 using PSAG.Mantenimiento.Domain.Interfaces;
+using PSAG.Mantenimiento.Domain.Services;
 using PSAG.Mantenimiento.Infrastructure.Identity;
 using System.Text.RegularExpressions;
 
@@ -31,7 +32,6 @@ public class CatalogosController : ApiControllerBase
 
     private static readonly Regex ColorHexRegex = new(@"^#[0-9A-F]{6}$");
 
-    private static readonly string[] RolesResponsablesAnalisis = { Roles.Operario, Roles.Supervisor, Roles.Mantenimiento };
 
     /// <summary>
     /// Normaliza el color a #RRGGBB en mayúsculas. Vacío significa null (color automático).
@@ -922,7 +922,7 @@ public class CatalogosController : ApiControllerBase
         if ((datos.ResponsableRol == null) == (datos.ResponsableUsuarioId == null))
             return "Elegí un rol o un usuario responsable, pero no los dos.";
 
-        if (datos.ResponsableRol != null && !RolesResponsablesAnalisis.Contains(datos.ResponsableRol))
+        if (datos.ResponsableRol != null && !AnalisisFallaReglas.RolesResponsables.Contains(datos.ResponsableRol))
             return "El rol responsable no puede analizar fallas.";
 
         if (datos.ResponsableUsuarioId != null)
