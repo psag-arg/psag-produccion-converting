@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using PSAG.Mantenimiento.Application.Common;
 using PSAG.Mantenimiento.Application.DTOs.Detenciones;
@@ -7,6 +8,7 @@ using PSAG.Mantenimiento.Domain.Entities;
 using PSAG.Mantenimiento.Domain.Enums;
 using PSAG.Mantenimiento.Domain.Interfaces;
 using PSAG.Mantenimiento.Domain.Services;
+using PSAG.Mantenimiento.Infrastructure.Identity;
 
 namespace PSAG.Mantenimiento.Api.Controllers;
 
@@ -22,14 +24,17 @@ public class DetencionesController : ApiControllerBase
     private readonly IExportacionService _exportacionService;
     private readonly IAuditoriaService _auditoriaService;
     private readonly ILogger<DetencionesController> _logger;
+    private readonly UserManager<ApplicationUser> _userManager;
 
     public DetencionesController(
         IUnitOfWork unitOfWork,
         IDetencionService detencionService,
         IExportacionService exportacionService,
         IAuditoriaService auditoriaService,
-        ILogger<DetencionesController> logger)
+        ILogger<DetencionesController> logger,
+        UserManager<ApplicationUser> userManager)
     {
+        _userManager = userManager;
         _unitOfWork = unitOfWork;
         _detencionService = detencionService;
         _exportacionService = exportacionService;
@@ -157,6 +162,8 @@ public class DetencionesController : ApiControllerBase
                 Observacion = h.Observacion
             }).OrderByDescending(h => h.FechaHora).ToList()
         }, detencion);
+
+        dto.CreadoPorUsuarioNombre = await NombreMaquinistaAsync(detencion);
 
         return Ok(dto);
     }
@@ -1110,5 +1117,21 @@ public class DetencionesController : ApiControllerBase
         }
 
         return value;
+    }
+
+    /// <summary>
+    /// Maquinista: el usuario asignado a la línea en la carga; si no hay, quien la registró.
+    /// </summary>
+    private async Task<string> NombreMaquinistaAsync(Detencion detencion)
+    {
+        var usuarioId = detencion.CreadoPorUsuarioId;
+        if (detencion.UsuarioLineaId.HasValue)
+        {
+            var asignacion = await _unitOfWork.UsuariosLineas.GetByIdAsync(detencion.UsuarioLineaId.Value);
+            usuarioId = asignacion?.UsuarioId ?? usuarioId;
+        }
+
+        var usuario = string.IsNullOrEmpty(usuarioId) ? null : await _userManager.FindByIdAsync(usuarioId);
+        return usuario == null ? string.Empty : (string.IsNullOrWhiteSpace(usuario.NombreCompleto) ? usuario.UserName ?? string.Empty : usuario.NombreCompleto);
     }
 }
