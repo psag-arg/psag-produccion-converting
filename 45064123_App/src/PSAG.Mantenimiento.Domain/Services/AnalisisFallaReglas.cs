@@ -58,6 +58,17 @@ public static class AnalisisFallaReglas
     public static bool EstaAbierto(Detencion detencion) => EstaAbiertoCompilado(detencion);
 
     /// <summary>
+    /// Asignado al usuario: por id o por uno de sus roles. Es EsResponsable en forma de expresión, para que
+    /// EF la traduzca a SQL. Lista y conteo de Mis pendientes la usan juntos, así no pueden divergir.
+    /// </summary>
+    public static Expression<Func<Detencion, bool>> AsignadaAExpr(string usuarioId, IReadOnlyCollection<string> roles)
+    {
+        var rolesArray = roles.ToArray();
+        return d => d.ResponsableUsuarioId == usuarioId
+            || (d.ResponsableRol != null && rolesArray.Contains(d.ResponsableRol));
+    }
+
+    /// <summary>
     /// Devuelve el motivo por el que el análisis no se puede cerrar, o null si está completo.
     /// </summary>
     public static string? MotivoNoCerrable(string? solucion, string? causa)

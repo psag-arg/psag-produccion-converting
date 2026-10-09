@@ -163,17 +163,35 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IEnumerable<Detencion>> GetAnalisisAbiertosAsignadosAAsync(
+        string usuarioId,
+        IReadOnlyCollection<string> roles,
+        CancellationToken cancellationToken = default)
+    {
+        return await AnalisisAbiertosAsignadosA(usuarioId, roles)
+            .Include(d => d.Linea)
+            .Include(d => d.Equipo)
+            .Include(d => d.TipoFalla)
+            .OrderBy(d => d.Fecha)
+            .ThenBy(d => d.DetencionId)
+            .ToListAsync(cancellationToken);
+    }
+
     public Task<int> CountAnalisisAbiertosParaAsync(
         string usuarioId,
         IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken = default)
     {
-        var rolesArray = roles.ToArray();
-        return _dbSet
-            .Where(AnalisisFallaReglas.EstaAbiertoExpr)
-            .CountAsync(d => d.ResponsableUsuarioId == usuarioId
-                || (d.ResponsableRol != null && rolesArray.Contains(d.ResponsableRol)), cancellationToken);
+        return AnalisisAbiertosAsignadosA(usuarioId, roles).CountAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// Lista y conteo salen de acá: la misma consulta no puede divergir.
+    /// </summary>
+    private IQueryable<Detencion> AnalisisAbiertosAsignadosA(string usuarioId, IReadOnlyCollection<string> roles) =>
+        _dbSet
+            .Where(AnalisisFallaReglas.EstaAbiertoExpr)
+            .Where(AnalisisFallaReglas.AsignadaAExpr(usuarioId, roles));
 
     public async Task<IEnumerable<Detencion>> GetAnalisisCerradosPorUsuarioAsync(
         string usuarioId,

@@ -109,6 +109,29 @@ public class AnalisisFallaReglasTests
         }
     }
 
+    [Fact]
+    public void AsignadaAExpr_DaLoMismoQueEsResponsable()
+    {
+        var roles = new[] { Operario, "GERENCIA" };
+        var casos = new[]
+        {
+            Detencion(responsableRol: Mantenimiento, responsableUsuarioId: null),
+            Detencion(responsableRol: Operario, responsableUsuarioId: null),
+            Detencion(responsableRol: null, responsableUsuarioId: "usuario-1"),
+            Detencion(responsableRol: null, responsableUsuarioId: "otro-usuario"),
+            Detencion(responsableRol: Mantenimiento, responsableUsuarioId: "otro-usuario"),
+            Detencion(responsableRol: null, responsableUsuarioId: null),
+        };
+        var expresion = AnalisisFallaReglas.AsignadaAExpr("usuario-1", roles).Compile();
+
+        foreach (var caso in casos)
+        {
+            Assert.Equal(
+                AnalisisFallaReglas.EsResponsable(caso, "usuario-1", roles),
+                expresion(caso));
+        }
+    }
+
     [Theory]
     [InlineData("OPERARIO")]
     [InlineData("SUPERVISOR")]
