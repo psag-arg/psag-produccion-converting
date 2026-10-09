@@ -68,8 +68,10 @@ Cada unidad escribe `registro-U<n>.md` en esta carpeta (qué hizo, decisiones, c
 
 | Unidad | Estado | Commit | Veredicto |
 |---|---|---|---|
-| U0 | integrada (fechas de auditoría en curso) | 6df6417 | VERIFICADO con tests y API local SQLite; script 17 NO VERIFICADO en SQL Server |
-| U1 | en curso | | |
-| U2 | en curso | | |
-| U3 | en cola | | |
-| U4 | en curso | | |
+| U0 | integrada | 82b93ad | VERIFICADO con tests y API local (SQLite); script 17 NO VERIFICADO en SQL Server |
+| U1 | integrada | 587fba7 | VERIFICADO en pantalla local (SQLite) con historial real; script 18 NO VERIFICADO en SQL Server |
+| U2 | integrada | 816edd9 | VERIFICADO en pantalla local y 403 para OPERARIO |
+| U3 | integrada | 40072f5 | VERIFICADO en pantalla local, Excel abierto con openpyxl, 403 para OPERARIO |
+| U4 | integrada | 82c00d2 | VERIFICADO en pantalla local con usuarios MANTENIMIENTO y OPERARIO |
+
+| S1/S2 | simplificación en curso | | |
