@@ -524,7 +524,8 @@ public class DetencionService : IDetencionService
 
     /// <summary>
     /// Evalúa las reglas activas contra la detención. Si aplica una, marca el análisis y su responsable.
-    /// Si no aplica ninguna y todavía no hay análisis, limpia la marca y el responsable.
+    /// Si no aplica ninguna y el análisis no empezó, limpia la marca y el responsable; si ya hay trabajo
+    /// cargado, lo conserva aunque la regla ya no aplique.
     /// No reevalúa detenciones ya cargadas: sólo se llama al crear o editar.
     /// </summary>
     public async Task AplicarReglaAnalisisAsync(Detencion detencion, CancellationToken cancellationToken = default)
@@ -544,7 +545,7 @@ public class DetencionService : IDetencionService
             detencion.ResponsableRol = regla.ResponsableRol;
             detencion.ResponsableUsuarioId = regla.ResponsableUsuarioId;
         }
-        else if (!detencion.FechaHoraAnalisis.HasValue)
+        else if (AnalisisFallaReglas.PuedeQuitarMarcaAnalisis(detencion))
         {
             detencion.RequiereAnalisis = false;
             detencion.ReglaAnalisisId = null;

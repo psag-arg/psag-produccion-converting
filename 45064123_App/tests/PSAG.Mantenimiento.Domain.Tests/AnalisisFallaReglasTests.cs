@@ -170,6 +170,58 @@ public class AnalisisFallaReglasTests
     }
 
     [Fact]
+    public void SinAnalisisIniciado_PuedeQuitarLaMarca()
+    {
+        var detencion = Detencion(requiereAnalisis: true);
+
+        Assert.True(AnalisisFallaReglas.PuedeQuitarMarcaAnalisis(detencion));
+    }
+
+    [Fact]
+    public void TextoDeEspaciosNoCuentaComoAnalisisIniciado()
+    {
+        var detencion = Detencion(requiereAnalisis: true);
+        detencion.AccionesRealizadas = "   ";
+
+        Assert.True(AnalisisFallaReglas.PuedeQuitarMarcaAnalisis(detencion));
+    }
+
+    [Fact]
+    public void AnalisisEnSeguimiento_NoPierdeLaMarcaAunqueLaReglaYNoAplique()
+    {
+        var detencion = Detencion(requiereAnalisis: true);
+        detencion.EstadoActual = EstadoDetencion.EN_SEGUIMIENTO;
+
+        Assert.False(AnalisisFallaReglas.PuedeQuitarMarcaAnalisis(detencion));
+    }
+
+    [Theory]
+    [InlineData("solucion")]
+    [InlineData("causa")]
+    [InlineData("plan")]
+    public void AnalisisConTextoCargado_NoPierdeLaMarca(string campo)
+    {
+        var detencion = Detencion(requiereAnalisis: true);
+        switch (campo)
+        {
+            case "solucion": detencion.AccionesRealizadas = "Se cambia cadena"; break;
+            case "causa": detencion.CausaFalla = "Cadena estirada"; break;
+            case "plan": detencion.PlanAccion = "Revisar cada 15 días"; break;
+        }
+
+        Assert.False(AnalisisFallaReglas.PuedeQuitarMarcaAnalisis(detencion));
+    }
+
+    [Fact]
+    public void AnalisisConFechaDeAnalisis_NoPierdeLaMarca()
+    {
+        var detencion = Detencion(requiereAnalisis: true);
+        detencion.FechaHoraAnalisis = DateTimeOffset.UtcNow;
+
+        Assert.False(AnalisisFallaReglas.PuedeQuitarMarcaAnalisis(detencion));
+    }
+
+    [Fact]
     public void CierreSinSolucion_DevuelveMotivo()
     {
         var motivo = AnalisisFallaReglas.MotivoNoCerrable(null, "Cadena estirada");

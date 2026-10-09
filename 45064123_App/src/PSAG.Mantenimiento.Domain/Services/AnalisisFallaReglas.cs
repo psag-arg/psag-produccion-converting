@@ -69,6 +69,17 @@ public static class AnalisisFallaReglas
     }
 
     /// <summary>
+    /// Si una regla deja de aplicar, la marca de análisis y su responsable sólo se quitan cuando el análisis
+    /// no empezó: sigue REGISTRADA, sin solución, causa ni plan, y sin fecha de análisis. Si ya hay trabajo, se conserva.
+    /// </summary>
+    public static bool PuedeQuitarMarcaAnalisis(Detencion detencion) =>
+        detencion.EstadoActual == EstadoDetencion.REGISTRADA
+        && string.IsNullOrWhiteSpace(detencion.AccionesRealizadas)
+        && string.IsNullOrWhiteSpace(detencion.CausaFalla)
+        && string.IsNullOrWhiteSpace(detencion.PlanAccion)
+        && !detencion.FechaHoraAnalisis.HasValue;
+
+    /// <summary>
     /// Devuelve el motivo por el que el análisis no se puede cerrar, o null si está completo.
     /// </summary>
     public static string? MotivoNoCerrable(string? solucion, string? causa)
