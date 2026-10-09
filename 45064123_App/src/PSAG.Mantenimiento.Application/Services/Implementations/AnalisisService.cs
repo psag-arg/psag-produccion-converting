@@ -183,9 +183,6 @@ public class AnalisisService : IAnalisisService
         return Result<IReadOnlyList<SolucionDto>>.Success(detenciones.Select(MapearSolucion).ToList());
     }
 
-    /// <summary>
-    /// Carga la detención y valida que el análisis se pueda modificar por este usuario.
-    /// </summary>
     private async Task<Result<Detencion>> CargarEditableAsync(
         long detencionId,
         string usuarioId,
@@ -212,10 +209,6 @@ public class AnalisisService : IAnalisisService
         return Result<Detencion>.Success(detencion);
     }
 
-    /// <summary>
-    /// El administrador ve todos los análisis abiertos (con filtro de responsable opcional).
-    /// Los demás, solo los que son responsables por rol o por usuario.
-    /// </summary>
     private static List<Detencion> FiltrarVisibles(
         IEnumerable<Detencion> abiertos,
         string usuarioId,

@@ -10,9 +10,6 @@ namespace PSAG.Mantenimiento.Domain.Services;
 /// </summary>
 public static class AnalisisFallaReglas
 {
-    /// <summary>
-    /// Es responsable si la regla le asignó el usuario, o si tiene el rol responsable de la regla.
-    /// </summary>
     public static bool EsResponsable(Detencion detencion, string usuarioId, IEnumerable<string> roles)
     {
         return detencion.ResponsableUsuarioId == usuarioId

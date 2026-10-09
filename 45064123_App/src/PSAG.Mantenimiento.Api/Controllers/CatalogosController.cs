@@ -875,9 +875,6 @@ public class CatalogosController : ApiControllerBase
         return Ok(await MapearReglaAnalisisAsync(regla));
     }
 
-    /// <summary>
-    /// Deja los datos de la regla listos para validar y guardar: opcionales vacíos en null, rol en mayúsculas.
-    /// </summary>
     private static CrearReglaAnalisisRequest NormalizarRegla(CrearReglaAnalisisRequest request) => new()
     {
         LineaId = IdOpcional(request.LineaId),
