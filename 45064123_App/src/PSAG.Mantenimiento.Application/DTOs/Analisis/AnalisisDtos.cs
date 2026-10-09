@@ -12,19 +12,7 @@ public class AnalisisDetencionDto
     public string EstadoActualDescripcion { get; set; } = string.Empty;
     public bool RequiereAnalisis { get; set; }
 
-    // Falla
-    public string LineaNombre { get; set; } = string.Empty;
-    public DateOnly Fecha { get; set; }
-    public DateTimeOffset? FechaHoraParada { get; set; }
-    public string TurnoNombre { get; set; } = string.Empty;
-    public int MinutosEfectivos { get; set; }
-    public string? EquipoNombre { get; set; }
-    public bool EquipoCritico { get; set; }
     public string? TipoFallaNombre { get; set; }
-    public string? DetalleFallaNombre { get; set; }
-    public string Descripcion { get; set; } = string.Empty;
-    public string? CreadoPorUsuarioId { get; set; }
-    public string? CreadoPorUsuarioNombre { get; set; }
 
     // Regla que lo disparó y responsable
     public int? MinutosMinimosRegla { get; set; }

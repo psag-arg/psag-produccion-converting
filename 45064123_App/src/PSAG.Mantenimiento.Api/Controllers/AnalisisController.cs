@@ -176,14 +176,12 @@ public class AnalisisController : ApiControllerBase
     {
         var ids = new List<string?>
         {
-            dto.CreadoPorUsuarioId,
             dto.ResponsableUsuarioId,
             dto.AnalisisPorUsuarioId
         };
         ids.AddRange(dto.FallasParecidas.Select(f => f.AnalisisPorUsuarioId));
 
         var nombres = await NombresAsync(ids);
-        dto.CreadoPorUsuarioNombre = NombreDe(nombres, dto.CreadoPorUsuarioId);
         dto.ResponsableUsuarioNombre = NombreDe(nombres, dto.ResponsableUsuarioId);
         dto.AnalisisPorUsuarioNombre = NombreDe(nombres, dto.AnalisisPorUsuarioId);
         dto.ResponsableNombre = NombreDelResponsable(dto.ResponsableUsuarioId, dto.ResponsableUsuarioNombre, dto.ResponsableNombre);
