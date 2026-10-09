@@ -526,7 +526,7 @@ public class DetencionService : IDetencionService
     /// Si no aplica ninguna y todavía no hay análisis, limpia la marca y el responsable.
     /// No reevalúa detenciones ya cargadas: sólo se llama al crear o editar.
     /// </summary>
-    private async Task AplicarReglaAnalisisAsync(Detencion detencion, CancellationToken cancellationToken)
+    public async Task AplicarReglaAnalisisAsync(Detencion detencion, CancellationToken cancellationToken = default)
     {
         var reglas = await _unitOfWork.ReglasAnalisis.GetActivasAsync(cancellationToken);
         var regla = ReglaAnalisisEvaluador.Evaluar(

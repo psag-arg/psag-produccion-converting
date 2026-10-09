@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PSAG.Mantenimiento.Application.Common;
 using PSAG.Mantenimiento.Application.DTOs.Detenciones;
+using PSAG.Mantenimiento.Application.Services.Interfaces;
 using PSAG.Mantenimiento.Domain.Enums;
 using PSAG.Mantenimiento.Domain.Interfaces;
 
@@ -13,13 +14,16 @@ namespace PSAG.Mantenimiento.Api.Controllers;
 public class DetencionesController : ApiControllerBase
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IDetencionService _detencionService;
     private readonly ILogger<DetencionesController> _logger;
 
     public DetencionesController(
         IUnitOfWork unitOfWork,
+        IDetencionService detencionService,
         ILogger<DetencionesController> logger)
     {
         _unitOfWork = unitOfWork;
+        _detencionService = detencionService;
         _logger = logger;
     }
 
@@ -299,6 +303,7 @@ public class DetencionesController : ApiControllerBase
             CorrelationId = CorrelationId
         });
 
+        await _detencionService.AplicarReglaAnalisisAsync(detencion);
         await _unitOfWork.Detenciones.AddAsync(detencion);
         await _unitOfWork.SaveChangesAsync();
 
@@ -543,6 +548,7 @@ public class DetencionesController : ApiControllerBase
             detencion.MinutosEfectivos = (int)(request.FechaHoraArranque.Value - request.FechaHoraParada.Value).TotalMinutes;
         }
 
+        await _detencionService.AplicarReglaAnalisisAsync(detencion);
         await _unitOfWork.SaveChangesAsync();
 
         _logger.LogInformation("Detención {DetencionId} actualizada por usuario {UserId}", id, CurrentUserId);
