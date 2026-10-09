@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using PSAG.Mantenimiento.Domain.Entities;
 using PSAG.Mantenimiento.Infrastructure.Data.Conversions;
 using PSAG.Mantenimiento.Infrastructure.Identity;
@@ -42,14 +44,46 @@ public class MantenimientoDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<EjecucionInspeccionDetalle> EjecucionesInspeccionDetalle => Set<EjecucionInspeccionDetalle>();
     public DbSet<HallazgoNoOk> HallazgosNoOk => Set<HallazgoNoOk>();
 
+    private bool EsSqlite => Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true;
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
         base.ConfigureConventions(configurationBuilder);
 
-        if (Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true)
+        if (EsSqlite)
         {
             configurationBuilder.Properties<DateTimeOffset>().HaveConversion<DateTimeOffsetUtcConverter>();
             configurationBuilder.Properties<DateTimeOffset?>().HaveConversion<DateTimeOffsetUtcConverter>();
+        }
+    }
+
+    // SQLite no genera rowversion: EF lo asigna en cada insert y update (en SQL Server lo hace la base).
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        AsignarRowVersionSqlite();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        AsignarRowVersionSqlite();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void AsignarRowVersionSqlite()
+    {
+        if (!EsSqlite)
+            return;
+
+        ChangeTracker.DetectChanges();
+        foreach (var entry in ChangeTracker.Entries()
+                     .Where(e => e.State is EntityState.Added or EntityState.Modified))
+        {
+            var rowVersion = entry.Metadata.FindProperty("RowVersion");
+            if (rowVersion?.ClrType == typeof(byte[]))
+            {
+                entry.Property("RowVersion").CurrentValue = RandomNumberGenerator.GetBytes(8);
+            }
         }
     }
 
@@ -60,11 +94,17 @@ public class MantenimientoDbContext : IdentityDbContext<ApplicationUser>
         // Aplicar todas las configuraciones del ensamblado
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(MantenimientoDbContext).Assembly);
 
-        // Detectar si es SQLite
-        var isSqlite = Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true;
-
-        if (isSqlite)
+        if (EsSqlite)
         {
+            // SQLite no genera rowversion: lo asigna SaveChanges, así que EF debe enviarlo en el insert.
+            foreach (var entityType in modelBuilder.Model.GetEntityTypes().ToList())
+            {
+                if (entityType.FindProperty("RowVersion")?.ClrType == typeof(byte[]))
+                {
+                    modelBuilder.Entity(entityType.ClrType).Property("RowVersion").ValueGeneratedNever();
+                }
+            }
+
             // SQLite no soporta esquemas - remover todos los esquemas
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())
             {
