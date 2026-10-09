@@ -801,7 +801,7 @@ public class CatalogosController : ApiControllerBase
         if (regla == null)
             return NotFound();
 
-        return Ok((await MapearReglasAnalisisAsync(new[] { regla })).Single());
+        return Ok(await MapearReglaAnalisisAsync(regla));
     }
 
     [HttpPost("reglas-analisis")]
@@ -813,7 +813,8 @@ public class CatalogosController : ApiControllerBase
         if (string.IsNullOrEmpty(CurrentUserId))
             return Unauthorized();
 
-        var error = await ValidarReglaAnalisisAsync(request);
+        var datos = NormalizarRegla(request);
+        var error = await ValidarReglaAnalisisAsync(datos);
         if (error != null)
             return BadRequest(new ProblemDetails
             {
@@ -824,15 +825,10 @@ public class CatalogosController : ApiControllerBase
 
         var regla = new Domain.Entities.ReglaAnalisis
         {
-            LineaId = IdOpcional(request.LineaId),
-            TipoFallaId = request.TipoFallaId,
-            EquipoId = IdOpcional(request.EquipoId),
-            MinutosMinimos = request.MinutosMinimos,
-            ResponsableRol = TextoOpcional(request.ResponsableRol)?.ToUpperInvariant(),
-            ResponsableUsuarioId = TextoOpcional(request.ResponsableUsuarioId),
             CreadoPorUsuarioId = CurrentUserId,
             ModificadoPorUsuarioId = CurrentUserId
         };
+        AplicarRegla(regla, datos);
 
         await _unitOfWork.ReglasAnalisis.AddAsync(regla);
         await _unitOfWork.SaveChangesAsync();
@@ -840,7 +836,7 @@ public class CatalogosController : ApiControllerBase
         _logger.LogInformation("Regla de análisis {Id} creada por usuario {UserId}", regla.ReglaAnalisisId, CurrentUserId);
 
         return CreatedAtAction(nameof(GetReglaAnalisis), new { id = regla.ReglaAnalisisId },
-            (await MapearReglasAnalisisAsync(new[] { regla })).Single());
+            await MapearReglaAnalisisAsync(regla));
     }
 
     [HttpPut("reglas-analisis/{id:int}")]
@@ -857,7 +853,8 @@ public class CatalogosController : ApiControllerBase
         if (regla == null)
             return NotFound();
 
-        var error = await ValidarReglaAnalisisAsync(request);
+        var datos = NormalizarRegla(request);
+        var error = await ValidarReglaAnalisisAsync(datos);
         if (error != null)
             return BadRequest(new ProblemDetails
             {
@@ -866,12 +863,7 @@ public class CatalogosController : ApiControllerBase
                 Status = StatusCodes.Status400BadRequest
             });
 
-        regla.LineaId = IdOpcional(request.LineaId);
-        regla.TipoFallaId = request.TipoFallaId;
-        regla.EquipoId = IdOpcional(request.EquipoId);
-        regla.MinutosMinimos = request.MinutosMinimos;
-        regla.ResponsableRol = TextoOpcional(request.ResponsableRol)?.ToUpperInvariant();
-        regla.ResponsableUsuarioId = TextoOpcional(request.ResponsableUsuarioId);
+        AplicarRegla(regla, datos);
         regla.Activo = request.Activo;
         regla.ModificadoPorUsuarioId = CurrentUserId;
 
@@ -880,47 +872,65 @@ public class CatalogosController : ApiControllerBase
 
         _logger.LogInformation("Regla de análisis {Id} actualizada por usuario {UserId}", regla.ReglaAnalisisId, CurrentUserId);
 
-        return Ok((await MapearReglasAnalisisAsync(new[] { regla })).Single());
+        return Ok(await MapearReglaAnalisisAsync(regla));
+    }
+
+    /// <summary>
+    /// Deja los datos de la regla listos para validar y guardar: opcionales vacíos en null, rol en mayúsculas.
+    /// </summary>
+    private static CrearReglaAnalisisRequest NormalizarRegla(CrearReglaAnalisisRequest request) => new()
+    {
+        LineaId = IdOpcional(request.LineaId),
+        TipoFallaId = request.TipoFallaId,
+        EquipoId = IdOpcional(request.EquipoId),
+        MinutosMinimos = request.MinutosMinimos,
+        ResponsableRol = TextoOpcional(request.ResponsableRol)?.ToUpperInvariant(),
+        ResponsableUsuarioId = TextoOpcional(request.ResponsableUsuarioId)
+    };
+
+    private static void AplicarRegla(Domain.Entities.ReglaAnalisis regla, CrearReglaAnalisisRequest datos)
+    {
+        regla.LineaId = datos.LineaId;
+        regla.TipoFallaId = datos.TipoFallaId;
+        regla.EquipoId = datos.EquipoId;
+        regla.MinutosMinimos = datos.MinutosMinimos;
+        regla.ResponsableRol = datos.ResponsableRol;
+        regla.ResponsableUsuarioId = datos.ResponsableUsuarioId;
     }
 
     /// <summary>
     /// Valida una regla contra la base. Devuelve el motivo del rechazo o null si es válida.
     /// Exactamente un responsable: un rol de análisis o un usuario activo.
     /// </summary>
-    private async Task<string?> ValidarReglaAnalisisAsync(CrearReglaAnalisisRequest request)
+    private async Task<string?> ValidarReglaAnalisisAsync(CrearReglaAnalisisRequest datos)
     {
-        var lineaId = IdOpcional(request.LineaId);
-        var equipoId = IdOpcional(request.EquipoId);
-        var rol = TextoOpcional(request.ResponsableRol)?.ToUpperInvariant();
-        var usuarioId = TextoOpcional(request.ResponsableUsuarioId);
-
-        if (request.MinutosMinimos <= 0)
+        if (datos.MinutosMinimos <= 0)
             return "Los minutos deben ser mayores que cero.";
 
-        if (await _unitOfWork.TiposFalla.GetByIdAsync(request.TipoFallaId) == null)
+        if (await _unitOfWork.TiposFalla.GetByIdAsync(datos.TipoFallaId) == null)
             return "Debe seleccionar un tipo de falla válido.";
 
-        if (lineaId.HasValue && await _unitOfWork.Lineas.GetByIdAsync(lineaId.Value) == null)
+        if (datos.LineaId.HasValue && await _unitOfWork.Lineas.GetByIdAsync(datos.LineaId.Value) == null)
             return "La línea seleccionada no existe.";
 
-        if (equipoId.HasValue)
+        if (datos.EquipoId.HasValue)
         {
-            var equipo = await _unitOfWork.Equipos.GetByIdAsync(equipoId.Value);
+            var equipo = await _unitOfWork.Equipos.GetByIdAsync(datos.EquipoId.Value);
             if (equipo == null)
                 return "El equipo seleccionado no existe.";
-            if (lineaId.HasValue && equipo.LineaId != lineaId.Value)
+            if (datos.LineaId.HasValue && equipo.LineaId != datos.LineaId.Value)
                 return "El equipo no pertenece a la línea elegida.";
         }
 
-        if ((rol == null) == (usuarioId == null))
+        if ((datos.ResponsableRol == null) == (datos.ResponsableUsuarioId == null))
             return "Elegí un rol o un usuario responsable, pero no los dos.";
 
-        if (rol != null && !RolesResponsablesAnalisis.Contains(rol))
+        if (datos.ResponsableRol != null && !RolesResponsablesAnalisis.Contains(datos.ResponsableRol))
             return "El rol responsable no puede analizar fallas.";
 
-        if (usuarioId != null)
+        if (datos.ResponsableUsuarioId != null)
         {
-            var usuario = await _userManager.FindByIdAsync(usuarioId);
+            var usuario = await _userManager.FindByIdAsync(datos.ResponsableUsuarioId);
             if (usuario == null || !usuario.Activo)
                 return "El usuario responsable no existe o está inactivo.";
         }
@@ -929,7 +939,26 @@ public class CatalogosController : ApiControllerBase
     }
 
     /// <summary>
-    /// Arma los DTO con los nombres de línea, tipo, equipo y usuario (una consulta por catálogo).
+    /// Arma el DTO de una regla pidiendo solo los catálogos que usa (línea, tipo, equipo y usuario).
+    /// </summary>
+    private async Task<ReglaAnalisisDto> MapearReglaAnalisisAsync(Domain.Entities.ReglaAnalisis regla)
+    {
+        var linea = regla.LineaId is int lineaId ? await _unitOfWork.Lineas.GetByIdAsync(lineaId) : null;
+        var tipo = await _unitOfWork.TiposFalla.GetByIdAsync(regla.TipoFallaId);
+        var equipo = regla.EquipoId is int equipoId ? await _unitOfWork.Equipos.GetByIdAsync(equipoId) : null;
+        var usuario = regla.ResponsableUsuarioId != null
+            ? await _userManager.FindByIdAsync(regla.ResponsableUsuarioId)
+            : null;
+
+        return ArmarReglaDto(regla,
+            linea?.Nombre,
+            tipo?.Nombre,
+            equipo?.Nombre,
+            usuario == null ? null : NombreVisible(usuario));
+    }
+
+    /// <summary>
+    /// Arma los DTO de una lista con una consulta por catálogo, en lugar de una por regla.
     /// </summary>
     private async Task<List<ReglaAnalisisDto>> MapearReglasAnalisisAsync(IEnumerable<Domain.Entities.ReglaAnalisis> reglas)
     {
@@ -940,24 +969,38 @@ public class CatalogosController : ApiControllerBase
 
         var usuarioIds = lista.Select(r => r.ResponsableUsuarioId).OfType<string>().Distinct().ToList();
         var usuarios = (await _userManager.Users.Where(u => usuarioIds.Contains(u.Id)).ToListAsync())
-            .ToDictionary(u => u.Id, u => string.IsNullOrWhiteSpace(u.NombreCompleto) ? u.UserName ?? u.Id : u.NombreCompleto);
+            .ToDictionary(u => u.Id, NombreVisible);
 
-        return lista.Select(r => new ReglaAnalisisDto
-        {
-            ReglaAnalisisId = r.ReglaAnalisisId,
-            LineaId = r.LineaId,
-            LineaNombre = r.LineaId is int lineaId ? lineas.GetValueOrDefault(lineaId) : null,
-            TipoFallaId = r.TipoFallaId,
-            TipoFallaNombre = tipos.GetValueOrDefault(r.TipoFallaId, string.Empty),
-            EquipoId = r.EquipoId,
-            EquipoNombre = r.EquipoId is int equipoId ? equipos.GetValueOrDefault(equipoId) : null,
-            MinutosMinimos = r.MinutosMinimos,
-            ResponsableRol = r.ResponsableRol,
-            ResponsableUsuarioId = r.ResponsableUsuarioId,
-            ResponsableUsuarioNombre = r.ResponsableUsuarioId is string usuarioId ? usuarios.GetValueOrDefault(usuarioId) : null,
-            Activo = r.Activo
-        }).ToList();
+        return lista.Select(r => ArmarReglaDto(r,
+            r.LineaId is int lineaId ? lineas.GetValueOrDefault(lineaId) : null,
+            tipos.GetValueOrDefault(r.TipoFallaId),
+            r.EquipoId is int equipoId ? equipos.GetValueOrDefault(equipoId) : null,
+            r.ResponsableUsuarioId is string usuarioId ? usuarios.GetValueOrDefault(usuarioId) : null)).ToList();
     }
+
+    private static ReglaAnalisisDto ArmarReglaDto(
+        Domain.Entities.ReglaAnalisis regla,
+        string? lineaNombre,
+        string? tipoNombre,
+        string? equipoNombre,
+        string? usuarioNombre) => new()
+    {
+        ReglaAnalisisId = regla.ReglaAnalisisId,
+        LineaId = regla.LineaId,
+        LineaNombre = lineaNombre,
+        TipoFallaId = regla.TipoFallaId,
+        TipoFallaNombre = tipoNombre ?? string.Empty,
+        EquipoId = regla.EquipoId,
+        EquipoNombre = equipoNombre,
+        MinutosMinimos = regla.MinutosMinimos,
+        ResponsableRol = regla.ResponsableRol,
+        ResponsableUsuarioId = regla.ResponsableUsuarioId,
+        ResponsableUsuarioNombre = usuarioNombre,
+        Activo = regla.Activo
+    };
+
+    private static string NombreVisible(ApplicationUser usuario) =>
+        string.IsNullOrWhiteSpace(usuario.NombreCompleto) ? usuario.UserName ?? usuario.Id : usuario.NombreCompleto;
 
     private static int? IdOpcional(int? id) => id is > 0 ? id : null;
 
