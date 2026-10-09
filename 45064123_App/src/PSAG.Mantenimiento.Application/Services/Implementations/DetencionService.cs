@@ -5,6 +5,7 @@ using PSAG.Mantenimiento.Application.Services.Interfaces;
 using PSAG.Mantenimiento.Domain.Entities;
 using PSAG.Mantenimiento.Domain.Enums;
 using PSAG.Mantenimiento.Domain.Interfaces;
+using PSAG.Mantenimiento.Domain.Services;
 
 namespace PSAG.Mantenimiento.Application.Services.Implementations;
 
@@ -81,6 +82,8 @@ public class DetencionService : IDetencionService
             CreadoPorUsuarioId = usuarioId,
             ModificadoPorUsuarioId = usuarioId
         };
+
+        await AplicarReglaAnalisisAsync(detencion, cancellationToken);
 
         // Agregar historial inicial
         detencion.HistorialEstados.Add(new DetencionEstadoHistorial
@@ -166,6 +169,15 @@ public class DetencionService : IDetencionService
             ResolucionDescripcion = detencion.ResolucionDescripcion,
             FechaHoraCierre = detencion.FechaHoraCierre,
             CerradoPorUsuarioId = detencion.CerradoPorUsuarioId,
+            Eliminada = detencion.Eliminada,
+            RequiereAnalisis = detencion.RequiereAnalisis,
+            ResponsableRol = detencion.ResponsableRol,
+            ResponsableUsuarioId = detencion.ResponsableUsuarioId,
+            CausaFalla = detencion.CausaFalla,
+            PlanAccion = detencion.PlanAccion,
+            AnalisisPorUsuarioId = detencion.AnalisisPorUsuarioId,
+            FechaHoraAnalisis = detencion.FechaHoraAnalisis,
+            EquipoCritico = detencion.Equipo?.Critico ?? false,
             FechaHoraCreacion = detencion.FechaHoraCreacion,
             CreadoPorUsuarioId = detencion.CreadoPorUsuarioId,
             RowVersion = detencion.RowVersion,
@@ -234,6 +246,15 @@ public class DetencionService : IDetencionService
             MinutosEfectivos = d.MinutosEfectivos,
             EstadoActual = d.EstadoActual.ToString(),
             EstadoActualDescripcion = d.EstadoActual.ObtenerDescripcion(),
+            Eliminada = d.Eliminada,
+            RequiereAnalisis = d.RequiereAnalisis,
+            ResponsableRol = d.ResponsableRol,
+            ResponsableUsuarioId = d.ResponsableUsuarioId,
+            CausaFalla = d.CausaFalla,
+            PlanAccion = d.PlanAccion,
+            AnalisisPorUsuarioId = d.AnalisisPorUsuarioId,
+            FechaHoraAnalisis = d.FechaHoraAnalisis,
+            EquipoCritico = d.Equipo?.Critico ?? false,
             CreadoPorUsuarioNombre = d.CreadoPorUsuarioId
         }).ToList();
 
@@ -270,6 +291,8 @@ public class DetencionService : IDetencionService
         detencion.TipoFallaId = request.TipoFallaId;
         detencion.DetalleFallaId = request.DetalleFallaId;
         detencion.ModificadoPorUsuarioId = usuarioId;
+
+        await AplicarReglaAnalisisAsync(detencion, cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -483,10 +506,50 @@ public class DetencionService : IDetencionService
             MinutosEfectivos = d.MinutosEfectivos,
             EstadoActual = d.EstadoActual.ToString(),
             EstadoActualDescripcion = d.EstadoActual.ObtenerDescripcion(),
+            Eliminada = d.Eliminada,
+            RequiereAnalisis = d.RequiereAnalisis,
+            ResponsableRol = d.ResponsableRol,
+            ResponsableUsuarioId = d.ResponsableUsuarioId,
+            CausaFalla = d.CausaFalla,
+            PlanAccion = d.PlanAccion,
+            AnalisisPorUsuarioId = d.AnalisisPorUsuarioId,
+            FechaHoraAnalisis = d.FechaHoraAnalisis,
+            EquipoCritico = d.Equipo?.Critico ?? false,
             CreadoPorUsuarioNombre = d.CreadoPorUsuarioId
         }).ToList();
 
         return Result<IReadOnlyList<DetencionListaDto>>.Success(dtos);
+    }
+
+    /// <summary>
+    /// Evalúa las reglas activas contra la detención. Si aplica una, marca el análisis y su responsable.
+    /// Si no aplica ninguna y todavía no hay análisis, limpia la marca y el responsable.
+    /// No reevalúa detenciones ya cargadas: sólo se llama al crear o editar.
+    /// </summary>
+    private async Task AplicarReglaAnalisisAsync(Detencion detencion, CancellationToken cancellationToken)
+    {
+        var reglas = await _unitOfWork.ReglasAnalisis.GetActivasAsync(cancellationToken);
+        var regla = ReglaAnalisisEvaluador.Evaluar(
+            reglas,
+            detencion.LineaId,
+            detencion.EquipoId,
+            detencion.TipoFallaId,
+            detencion.MinutosEfectivos);
+
+        if (regla != null)
+        {
+            detencion.RequiereAnalisis = true;
+            detencion.ReglaAnalisisId = regla.ReglaAnalisisId;
+            detencion.ResponsableRol = regla.ResponsableRol;
+            detencion.ResponsableUsuarioId = regla.ResponsableUsuarioId;
+        }
+        else if (!detencion.FechaHoraAnalisis.HasValue)
+        {
+            detencion.RequiereAnalisis = false;
+            detencion.ReglaAnalisisId = null;
+            detencion.ResponsableRol = null;
+            detencion.ResponsableUsuarioId = null;
+        }
     }
 
     private static DetencionDto MapToDto(Detencion d)
@@ -521,6 +584,15 @@ public class DetencionService : IDetencionService
             CreadoPorUsuarioId = d.CreadoPorUsuarioId,
             FechaHoraCreacion = d.FechaHoraCreacion,
             FechaHoraModificacion = d.FechaHoraModificacion,
+            Eliminada = d.Eliminada,
+            RequiereAnalisis = d.RequiereAnalisis,
+            ResponsableRol = d.ResponsableRol,
+            ResponsableUsuarioId = d.ResponsableUsuarioId,
+            CausaFalla = d.CausaFalla,
+            PlanAccion = d.PlanAccion,
+            AnalisisPorUsuarioId = d.AnalisisPorUsuarioId,
+            FechaHoraAnalisis = d.FechaHoraAnalisis,
+            EquipoCritico = d.Equipo?.Critico ?? false,
             RowVersion = d.RowVersion
         };
     }
