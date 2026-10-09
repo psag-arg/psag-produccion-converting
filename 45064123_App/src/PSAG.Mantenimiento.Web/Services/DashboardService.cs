@@ -9,6 +9,7 @@ public interface IDashboardService
     Task<IndisponibilidadReporteDto?> GetIndisponibilidadAsync(int? lineaId = null, int? anio = null);
     Task<FallosMayoresReporteDto?> GetFallosMayoresAsync(int? lineaId = null, int? anio = null, int umbralMinutos = 60);
     Task<ParetoDetencionesReporteDto?> GetParetoAsync(int? lineaId = null, int? turnoId = null, DateTime? fechaDesde = null, DateTime? fechaHasta = null);
+    Task<List<TiempoProgramadoDiaDto>?> GetTiempoProgramadoAsync(int? lineaId, int anio, int mes);
 }
 
 public class DashboardService : IDashboardService
@@ -106,5 +107,15 @@ public class DashboardService : IDashboardService
             url += "?" + string.Join("&", queryParams);
 
         return await _httpClient.GetFromJsonAsync<ParetoDetencionesReporteDto>(url);
+    }
+
+    public async Task<List<TiempoProgramadoDiaDto>?> GetTiempoProgramadoAsync(int? lineaId, int anio, int mes)
+    {
+        var url = $"api/dashboard/tiempo-programado?anio={anio}&mes={mes}";
+
+        if (lineaId.HasValue)
+            url += $"&lineaId={lineaId}";
+
+        return await _httpClient.GetFromJsonAsync<List<TiempoProgramadoDiaDto>>(url);
     }
 }
