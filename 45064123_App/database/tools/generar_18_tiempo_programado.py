@@ -60,6 +60,9 @@ def generar(ruta, salida=SALIDA):
 -- Idempotente: no inserta fechas que ya tienen fila para la línea.
 -- ============================================================================
 
+USE [PSAG_Mantenimiento]
+GO
+
 DECLARE @LineaId INT = (SELECT TOP (1) [LineaId] FROM [mnt].[Lineas] WHERE [Nombre] = N'{LINEA}');
 
 IF @LineaId IS NULL
