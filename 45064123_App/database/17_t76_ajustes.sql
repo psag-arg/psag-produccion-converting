@@ -3,7 +3,7 @@
 -- Descripción: Ajustes T-76 Converting. Eliminación lógica de detenciones,
 --              análisis de falla (reglas y responsables), criticidad de equipos,
 --              color de tipos de falla y tiempo programado por día,
---              estados con PENDIENTE_JUSTIFICACION.
+--              estados con PENDIENTE_JUSTIFICACION y vistas sin eliminadas.
 -- Versión: 1.0 - T-76 (fundación U0)
 -- Idempotente: se puede ejecutar más de una vez.
 -- ==============================================================================
@@ -363,6 +363,148 @@ BEGIN
     ADD CONSTRAINT [CK_DetencionesEstadoHistorial_EstadoNuevo] CHECK ([EstadoNuevo] IN ('REGISTRADA', 'EN_SEGUIMIENTO', 'CERRADA', 'PENDIENTE_JUSTIFICACION'))
     PRINT 'Check Constraint CK_DetencionesEstadoHistorial_EstadoNuevo creado (con PENDIENTE_JUSTIFICACION).'
 END
+GO
+
+-- ============================================================================
+-- VISTAS: excluyen detenciones eliminadas (Eliminada = 1).
+-- Copia exacta de 06_create_views.sql con sólo el filtro agregado.
+-- Ningún código de la aplicación lee estas vistas; se mantienen para reportes SQL.
+-- ============================================================================
+
+-- Vista: VW_DetencionesDetalle (excluye eliminadas)
+CREATE OR ALTER VIEW [mnt].[VW_DetencionesDetalle]
+AS
+SELECT
+    d.[DetencionId],
+    d.[Codigo],
+    d.[LineaId],
+    l.[Nombre] AS [LineaNombre],
+    d.[EquipoId],
+    e.[Nombre] AS [EquipoNombre],
+    d.[TipoFallaId],
+    tf.[Nombre] AS [TipoFallaNombre],
+    d.[DetalleFallaId],
+    df.[Nombre] AS [DetalleFallaNombre],
+    d.[TurnoId],
+    t.[Nombre] AS [TurnoNombre],
+    d.[Fecha],
+    d.[MinutosDeclarados],
+    d.[FechaHoraParada],
+    d.[FechaHoraArranque],
+    d.[OrigenTiempo],
+    d.[MinutosEfectivos],
+    d.[Descripcion],
+    d.[EstadoActual],
+    d.[AccionesRealizadas],
+    d.[ResolucionDescripcion],
+    d.[FechaHoraCierre],
+    d.[CerradoPorUsuarioId],
+    uc.[NombreCompleto] AS [CerradoPorNombre],
+    d.[FechaHoraCreacion],
+    d.[CreadoPorUsuarioId],
+    ucr.[NombreCompleto] AS [CreadoPorNombre],
+    d.[FechaHoraModificacion],
+    d.[ModificadoPorUsuarioId],
+    umo.[NombreCompleto] AS [ModificadoPorNombre],
+    -- Indicador si esta abierto
+    CASE WHEN d.[EstadoActual] != 'CERRADA' THEN 1 ELSE 0 END AS [EstaAbierta],
+    -- Cantidad de notas
+    (SELECT COUNT(*) FROM [mnt].[DetencionesNotas] dn WHERE dn.[DetencionId] = d.[DetencionId]) AS [CantidadNotas]
+FROM [mnt].[Detenciones] d
+INNER JOIN [mnt].[Lineas] l ON d.[LineaId] = l.[LineaId]
+LEFT JOIN [mnt].[Equipos] e ON d.[EquipoId] = e.[EquipoId]
+LEFT JOIN [mnt].[TiposFalla] tf ON d.[TipoFallaId] = tf.[TipoFallaId]
+LEFT JOIN [mnt].[DetallesFalla] df ON d.[DetalleFallaId] = df.[DetalleFallaId]
+INNER JOIN [mnt].[Turnos] t ON d.[TurnoId] = t.[TurnoId]
+LEFT JOIN [dbo].[AspNetUsers] uc ON d.[CerradoPorUsuarioId] = uc.[Id]
+LEFT JOIN [dbo].[AspNetUsers] ucr ON d.[CreadoPorUsuarioId] = ucr.[Id]
+LEFT JOIN [dbo].[AspNetUsers] umo ON d.[ModificadoPorUsuarioId] = umo.[Id]
+WHERE d.[Eliminada] = 0
+GO
+
+PRINT 'Vista VW_DetencionesDetalle actualizada (T-76).'
+GO
+
+-- Vista: VW_DetencionesAbiertas (excluye eliminadas)
+CREATE OR ALTER VIEW [mnt].[VW_DetencionesAbiertas]
+AS
+SELECT
+    d.[DetencionId],
+    d.[Codigo],
+    d.[LineaId],
+    l.[Nombre] AS [LineaNombre],
+    d.[EquipoId],
+    e.[Nombre] AS [EquipoNombre],
+    d.[TipoFallaId],
+    tf.[Nombre] AS [TipoFallaNombre],
+    d.[TurnoId],
+    t.[Nombre] AS [TurnoNombre],
+    d.[Fecha],
+    d.[MinutosEfectivos],
+    d.[Descripcion],
+    d.[EstadoActual],
+    d.[CreadoPorUsuarioId],
+    u.[NombreCompleto] AS [CreadoPorNombre],
+    d.[FechaHoraCreacion]
+FROM [mnt].[Detenciones] d
+INNER JOIN [mnt].[Lineas] l ON d.[LineaId] = l.[LineaId]
+LEFT JOIN [mnt].[Equipos] e ON d.[EquipoId] = e.[EquipoId]
+LEFT JOIN [mnt].[TiposFalla] tf ON d.[TipoFallaId] = tf.[TipoFallaId]
+INNER JOIN [mnt].[Turnos] t ON d.[TurnoId] = t.[TurnoId]
+LEFT JOIN [dbo].[AspNetUsers] u ON d.[CreadoPorUsuarioId] = u.[Id]
+WHERE d.[EstadoActual] != 'CERRADA'
+  AND d.[Eliminada] = 0
+GO
+
+PRINT 'Vista VW_DetencionesAbiertas actualizada (T-76).'
+GO
+
+-- Vista: VW_DetencionesIndicadores (excluye eliminadas)
+CREATE OR ALTER VIEW [mnt].[VW_DetencionesIndicadores]
+AS
+SELECT
+    l.[LineaId],
+    l.[Nombre] AS [LineaNombre],
+    d.[Fecha],
+    t.[TurnoId],
+    t.[Nombre] AS [TurnoNombre],
+    COUNT(*) AS [TotalDetenciones],
+    SUM(CASE WHEN d.[EstadoActual] = 'REGISTRADA' THEN 1 ELSE 0 END) AS [DetencionesRegistradas],
+    SUM(CASE WHEN d.[EstadoActual] = 'EN_SEGUIMIENTO' THEN 1 ELSE 0 END) AS [DetencionesEnSeguimiento],
+    SUM(CASE WHEN d.[EstadoActual] = 'CERRADA' THEN 1 ELSE 0 END) AS [DetencionesCerradas],
+    AVG(CAST(d.[MinutosEfectivos] AS FLOAT)) AS [DuracionPromedioMinutos],
+    SUM(d.[MinutosEfectivos]) AS [TiempoTotalParadaMinutos]
+FROM [mnt].[Detenciones] d
+INNER JOIN [mnt].[Lineas] l ON d.[LineaId] = l.[LineaId]
+INNER JOIN [mnt].[Turnos] t ON d.[TurnoId] = t.[TurnoId]
+WHERE d.[Eliminada] = 0
+GROUP BY l.[LineaId], l.[Nombre], d.[Fecha], t.[TurnoId], t.[Nombre]
+GO
+
+PRINT 'Vista VW_DetencionesIndicadores actualizada (T-76).'
+GO
+
+-- Vista: VW_ResumenTurnoActual (excluye eliminadas)
+CREATE OR ALTER VIEW [mnt].[VW_ResumenTurnoActual]
+AS
+SELECT
+    l.[LineaId],
+    l.[Nombre] AS [LineaNombre],
+    d.[TurnoId],
+    t.[Nombre] AS [TurnoNombre],
+    d.[Fecha],
+    COUNT(*) AS [TotalDetenciones],
+    SUM(d.[MinutosEfectivos]) AS [MinutosTotales],
+    SUM(CASE WHEN d.[EstadoActual] != 'CERRADA' THEN 1 ELSE 0 END) AS [DetencionesAbiertas]
+FROM [mnt].[Detenciones] d
+INNER JOIN [mnt].[Lineas] l ON d.[LineaId] = l.[LineaId]
+INNER JOIN [mnt].[Turnos] t ON d.[TurnoId] = t.[TurnoId]
+WHERE d.[Fecha] = CAST(GETDATE() AS DATE)
+  AND d.[Eliminada] = 0
+GROUP BY l.[LineaId], l.[Nombre], d.[TurnoId], t.[Nombre], d.[Fecha]
+GO
+
+PRINT 'Vista VW_ResumenTurnoActual actualizada (T-76).'
 GO
 
 PRINT 'Script 17_t76_ajustes.sql completado.'
