@@ -10,8 +10,9 @@ public class TiempoProgramadoDiaConfiguration : IEntityTypeConfiguration<TiempoP
     {
         builder.ToTable("TiemposProgramadosDia", "mnt", t =>
         {
+            // CAST: SQLite guarda decimal como TEXT y compararía como texto.
             t.HasCheckConstraint("CK_TiemposProgramadosDia_Horas",
-                "[Horas] >= 0 AND [Horas] <= 24");
+                "CAST([Horas] AS FLOAT) >= 0 AND CAST([Horas] AS FLOAT) <= 24");
             t.HasCheckConstraint("CK_TiemposProgramadosDia_Origen",
                 "[Origen] IN ('EXCEPCION', 'HISTORICO')");
         });
