@@ -311,6 +311,97 @@ GO
 -- que no alcanza para sus 23 caracteres. Se amplían a NVARCHAR(30), igual que EF.
 -- ============================================================================
 
+-- SQL Server no permite ALTER COLUMN sobre una columna que tiene DEFAULT, CHECK o
+-- índices que la usan (msg 5074). Por cada columna, en una sola transacción: se
+-- capturan y eliminan esos objetos desde sys.*, se ALTERA la columna y se recrean con
+-- la misma definición (mismo nombre de DEFAULT, mismas claves, INCLUDE, filtro y
+-- unicidad). Los CHECK eliminados se vuelven a crear más abajo. max_length en bytes:
+-- VARCHAR(20) = 20, NVARCHAR(30) = 60.
+SET XACT_ABORT ON;
+
+DECLARE @Tabla SYSNAME, @Columna SYSNAME, @ObjectId INT, @ColumnId INT, @Nulo BIT;
+DECLARE @Antes NVARCHAR(MAX), @Alter NVARCHAR(MAX), @Despues NVARCHAR(MAX);
+DECLARE @Indices TABLE ([Nombre] SYSNAME NOT NULL, [Definicion] NVARCHAR(MAX) NOT NULL);
+
+DECLARE columnas_estado CURSOR LOCAL FAST_FORWARD FOR
+    SELECT v.[Tabla], v.[Columna]
+    FROM (VALUES (N'Detenciones', N'EstadoActual'),
+                 (N'DetencionesEstadoHistorial', N'EstadoNuevo'),
+                 (N'DetencionesEstadoHistorial', N'EstadoAnterior')) AS v ([Tabla], [Columna]);
+
+OPEN columnas_estado;
+FETCH NEXT FROM columnas_estado INTO @Tabla, @Columna;
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    SET @ObjectId = OBJECT_ID(N'[mnt].' + QUOTENAME(@Tabla));
+    SET @ColumnId = NULL;
+    SELECT @ColumnId = [column_id], @Nulo = [is_nullable]
+    FROM sys.columns
+    WHERE [object_id] = @ObjectId AND [name] = @Columna AND [max_length] < 60;
+
+    IF @ColumnId IS NOT NULL
+    BEGIN
+        DELETE FROM @Indices;
+        INSERT INTO @Indices ([Nombre], [Definicion])
+        SELECT i.[name],
+               N'CREATE ' + CASE WHEN i.[is_unique] = 1 THEN N'UNIQUE ' ELSE N'' END
+               + N'NONCLUSTERED INDEX ' + QUOTENAME(i.[name]) + N' ON [mnt].' + QUOTENAME(@Tabla)
+               + N' (' + (SELECT STRING_AGG(QUOTENAME(c.[name]) + CASE WHEN ic.[is_descending_key] = 1 THEN N' DESC' ELSE N' ASC' END, N', ')
+                                              WITHIN GROUP (ORDER BY ic.[key_ordinal])
+                          FROM sys.index_columns ic
+                          JOIN sys.columns c ON c.[object_id] = ic.[object_id] AND c.[column_id] = ic.[column_id]
+                          WHERE ic.[object_id] = i.[object_id] AND ic.[index_id] = i.[index_id] AND ic.[is_included_column] = 0)
+               + N')'
+               + ISNULL(N' INCLUDE (' + (SELECT STRING_AGG(QUOTENAME(c.[name]), N', ') WITHIN GROUP (ORDER BY ic.[index_column_id])
+                                          FROM sys.index_columns ic
+                                          JOIN sys.columns c ON c.[object_id] = ic.[object_id] AND c.[column_id] = ic.[column_id]
+                                          WHERE ic.[object_id] = i.[object_id] AND ic.[index_id] = i.[index_id] AND ic.[is_included_column] = 1)
+                        + N')', N'')
+               + ISNULL(N' WHERE ' + i.[filter_definition], N'')
+        FROM sys.indexes i
+        WHERE i.[object_id] = @ObjectId AND i.[type] = 2 AND i.[is_primary_key] = 0 AND i.[is_unique_constraint] = 0
+          AND EXISTS (SELECT 1 FROM sys.index_columns ic
+                      WHERE ic.[object_id] = i.[object_id] AND ic.[index_id] = i.[index_id] AND ic.[column_id] = @ColumnId);
+
+        SET @Antes = N'';
+        SET @Despues = N'';
+
+        SELECT @Antes += N'DROP INDEX ' + QUOTENAME([Nombre]) + N' ON [mnt].' + QUOTENAME(@Tabla) + N';'
+        FROM @Indices;
+
+        SELECT @Antes += N'ALTER TABLE [mnt].' + QUOTENAME(@Tabla) + N' DROP CONSTRAINT ' + QUOTENAME(dc.[name]) + N';',
+               @Despues += N'ALTER TABLE [mnt].' + QUOTENAME(@Tabla) + N' ADD CONSTRAINT ' + QUOTENAME(dc.[name])
+                         + N' DEFAULT ' + dc.[definition] + N' FOR ' + QUOTENAME(@Columna) + N';'
+        FROM sys.default_constraints dc
+        WHERE dc.[parent_object_id] = @ObjectId AND dc.[parent_column_id] = @ColumnId;
+
+        SELECT @Antes += N'ALTER TABLE [mnt].' + QUOTENAME(@Tabla) + N' DROP CONSTRAINT ' + QUOTENAME(cc.[name]) + N';'
+        FROM sys.check_constraints cc
+        WHERE cc.[parent_object_id] = @ObjectId AND CHARINDEX(QUOTENAME(@Columna), cc.[definition]) > 0;
+
+        SELECT @Despues += [Definicion] + N';'
+        FROM @Indices;
+
+        SET @Alter = N'ALTER TABLE [mnt].' + QUOTENAME(@Tabla) + N' ALTER COLUMN ' + QUOTENAME(@Columna)
+                   + N' NVARCHAR(30) ' + CASE WHEN @Nulo = 1 THEN N'NULL' ELSE N'NOT NULL' END + N';';
+
+        BEGIN TRANSACTION;
+        EXEC (@Antes);
+        EXEC (@Alter);
+        EXEC (@Despues);
+        COMMIT TRANSACTION;
+
+        PRINT CONCAT(N'Columna mnt.', @Tabla, N'.', @Columna, N' ampliada a NVARCHAR(30).');
+    END
+
+    FETCH NEXT FROM columnas_estado INTO @Tabla, @Columna;
+END
+
+CLOSE columnas_estado;
+DEALLOCATE columnas_estado;
+SET XACT_ABORT OFF;
+GO
+
 IF EXISTS (SELECT * FROM sys.check_constraints WHERE name = N'CK_Detenciones_EstadoActual'
            AND definition NOT LIKE N'%PENDIENTE_JUSTIFICACION%')
 BEGIN
@@ -324,28 +415,6 @@ IF EXISTS (SELECT * FROM sys.check_constraints WHERE name = N'CK_DetencionesEsta
 BEGIN
     ALTER TABLE [mnt].[DetencionesEstadoHistorial] DROP CONSTRAINT [CK_DetencionesEstadoHistorial_EstadoNuevo]
     PRINT 'Check Constraint CK_DetencionesEstadoHistorial_EstadoNuevo eliminado (versión sin PENDIENTE_JUSTIFICACION).'
-END
-GO
-
--- max_length en bytes: VARCHAR(20) = 20, NVARCHAR(30) = 60
-IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[mnt].[Detenciones]') AND name = N'EstadoActual' AND max_length < 60)
-BEGIN
-    ALTER TABLE [mnt].[Detenciones] ALTER COLUMN [EstadoActual] NVARCHAR(30) NOT NULL
-    PRINT 'Columna mnt.Detenciones.EstadoActual ampliada a NVARCHAR(30).'
-END
-GO
-
-IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[mnt].[DetencionesEstadoHistorial]') AND name = N'EstadoNuevo' AND max_length < 60)
-BEGIN
-    ALTER TABLE [mnt].[DetencionesEstadoHistorial] ALTER COLUMN [EstadoNuevo] NVARCHAR(30) NOT NULL
-    PRINT 'Columna mnt.DetencionesEstadoHistorial.EstadoNuevo ampliada a NVARCHAR(30).'
-END
-GO
-
-IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[mnt].[DetencionesEstadoHistorial]') AND name = N'EstadoAnterior' AND max_length < 60)
-BEGIN
-    ALTER TABLE [mnt].[DetencionesEstadoHistorial] ALTER COLUMN [EstadoAnterior] NVARCHAR(30) NULL
-    PRINT 'Columna mnt.DetencionesEstadoHistorial.EstadoAnterior ampliada a NVARCHAR(30).'
 END
 GO
 
