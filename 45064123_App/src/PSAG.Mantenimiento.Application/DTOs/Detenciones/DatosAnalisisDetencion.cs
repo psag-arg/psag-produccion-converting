@@ -2,7 +2,7 @@ namespace PSAG.Mantenimiento.Application.DTOs.Detenciones;
 
 /// <summary>
 /// Campos de eliminación y análisis que muestran las vistas de detención.
-/// Se completan desde la entidad en un único lugar de la API.
+/// Se completan desde la entidad con DatosAnalisisMapper.
 /// </summary>
 public abstract class DatosAnalisisDetencion
 {

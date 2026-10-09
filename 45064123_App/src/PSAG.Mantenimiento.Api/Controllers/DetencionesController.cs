@@ -54,7 +54,7 @@ public class DetencionesController : ApiControllerBase
     {
         var (detenciones, total) = await BuscarDetencionesAsync(filtro, filtro.Page, filtro.PageSize);
 
-        var items = detenciones.Select(d => ConDatosAnalisis(new DetencionDto
+        var items = detenciones.Select(d => DatosAnalisisMapper.ConDatosAnalisis(new DetencionDto
         {
             DetencionId = d.DetencionId,
             Codigo = d.Codigo,
@@ -115,7 +115,7 @@ public class DetencionesController : ApiControllerBase
             });
         }
 
-        var dto = ConDatosAnalisis(new DetencionDetalleDto
+        var dto = DatosAnalisisMapper.ConDatosAnalisis(new DetencionDetalleDto
         {
             DetencionId = detencion.DetencionId,
             Codigo = detencion.Codigo,
@@ -470,7 +470,7 @@ public class DetencionesController : ApiControllerBase
             detenciones = detenciones.Where(d => d.LineaId == lineaId.Value);
         }
 
-        var items = detenciones.Select(d => ConDatosAnalisis(new DetencionListaDto
+        var items = detenciones.Select(d => DatosAnalisisMapper.ConDatosAnalisis(new DetencionListaDto
         {
             DetencionId = d.DetencionId,
             Codigo = d.Codigo,
@@ -599,7 +599,7 @@ public class DetencionesController : ApiControllerBase
         // Recargar con relaciones
         detencion = await _unitOfWork.Detenciones.GetByIdWithDetailsAsync(id);
 
-        return Ok(ConDatosAnalisis(new DetencionDto
+        return Ok(DatosAnalisisMapper.ConDatosAnalisis(new DetencionDto
         {
             DetencionId = detencion!.DetencionId,
             Codigo = detencion.Codigo,
@@ -1033,25 +1033,6 @@ public class DetencionesController : ApiControllerBase
 
     private static OrigenTiempo? ParsearOrigen(string? texto) =>
         Enum.TryParse<OrigenTiempo>(texto, true, out var origen) ? origen : null;
-
-    /// <summary>
-    /// Copia los campos de eliminación y análisis. Todas las vistas de detención pasan por acá.
-    /// </summary>
-    private static T ConDatosAnalisis<T>(T dto, Detencion detencion) where T : DatosAnalisisDetencion
-    {
-        dto.Eliminada = detencion.Eliminada;
-        dto.RequiereAnalisis = detencion.RequiereAnalisis;
-        dto.ResponsableRol = detencion.ResponsableRol;
-        dto.ResponsableUsuarioId = detencion.ResponsableUsuarioId;
-        dto.CausaFalla = detencion.CausaFalla;
-        dto.PlanAccion = detencion.PlanAccion;
-        dto.AnalisisPorUsuarioId = detencion.AnalisisPorUsuarioId;
-        dto.FechaHoraAnalisis = detencion.FechaHoraAnalisis;
-        dto.EquipoCritico = detencion.Equipo?.Critico ?? false;
-        dto.AnalisisPendiente = AnalisisFallaReglas.EstaAbierto(detencion);
-        dto.EstadoAnalisisDescripcion = detencion.ObtenerDescripcionAnalisis();
-        return dto;
-    }
 
     private static byte[] GenerarCsv(IEnumerable<Domain.Entities.Detencion> detenciones)
     {
