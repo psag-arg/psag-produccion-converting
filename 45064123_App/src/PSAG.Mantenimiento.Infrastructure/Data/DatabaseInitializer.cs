@@ -157,7 +157,7 @@ public static class DatabaseInitializer
         {
             var turnos = new[]
             {
-                new Turno { Codigo = "T1", Nombre = "Turno 1 (Manana)", HoraInicio = new TimeOnly(6, 0), HoraFin = new TimeOnly(14, 0), Orden = 1, Activo = true, CreadoPorUsuarioId = SystemUserId, ModificadoPorUsuarioId = SystemUserId, FechaHoraCreacion = now, FechaHoraModificacion = now },
+                new Turno { Codigo = "T1", Nombre = "Turno 1 (Mañana)", HoraInicio = new TimeOnly(6, 0), HoraFin = new TimeOnly(14, 0), Orden = 1, Activo = true, CreadoPorUsuarioId = SystemUserId, ModificadoPorUsuarioId = SystemUserId, FechaHoraCreacion = now, FechaHoraModificacion = now },
                 new Turno { Codigo = "T2", Nombre = "Turno 2 (Tarde)", HoraInicio = new TimeOnly(14, 0), HoraFin = new TimeOnly(22, 0), Orden = 2, Activo = true, CreadoPorUsuarioId = SystemUserId, ModificadoPorUsuarioId = SystemUserId, FechaHoraCreacion = now, FechaHoraModificacion = now },
                 new Turno { Codigo = "T3", Nombre = "Turno 3 (Noche)", HoraInicio = new TimeOnly(22, 0), HoraFin = new TimeOnly(6, 0), Orden = 3, Activo = true, CreadoPorUsuarioId = SystemUserId, ModificadoPorUsuarioId = SystemUserId, FechaHoraCreacion = now, FechaHoraModificacion = now },
             };
