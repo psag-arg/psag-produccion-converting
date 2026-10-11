@@ -14,6 +14,8 @@ public abstract class ApiControllerBase : ControllerBase
 
     protected string? CorrelationId => HttpContext.Items["CorrelationId"]?.ToString();
 
+    protected IReadOnlyCollection<string> Roles => User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
+
     protected IActionResult HandleResult<T>(Result<T> result)
     {
         if (result.IsSuccess)

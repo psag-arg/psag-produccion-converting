@@ -86,6 +86,8 @@ public class DetencionesController : ApiControllerBase
             RowVersion = d.RowVersion
         }, d)).ToList();
 
+        await CompletarEliminadaPorAsync(items);
+
         return Ok(new PagedResult<DetencionDto>
         {
             Items = items,
@@ -185,15 +187,30 @@ public class DetencionesController : ApiControllerBase
             return Unauthorized();
         }
 
-        int turnoId;
-        int? usuarioLineaId = null;
-        string turnoNombre;
+        var hoyPlanta = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, _zonaPlanta).DateTime);
+        if (DetencionCargaReglas.EsFechaFutura(request.Fecha, hoyPlanta))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Fecha no válida",
+                Detail = DetencionCargaReglas.MensajeFechaFutura,
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
 
-        // Si se proporciona UsuarioLineaId en el request (admin/supervisor asignando a otro maquinista)
+        // La restricción por línea asignada se valida acá, no sólo en la pantalla.
+        var asignacionPropia = await _unitOfWork.UsuariosLineas.GetByUsuarioYLineaAsync(CurrentUserId, request.LineaId);
+        if (!DetencionCargaReglas.PuedeCargarEnLinea(Roles, asignacionPropia != null))
+        {
+            return LineaNoAsignada();
+        }
+
+        // Maquinista: el elegido (admin/supervisor) o la asignación propia en la línea.
+        UsuarioLinea? maquinista = asignacionPropia;
         if (request.UsuarioLineaId.HasValue)
         {
-            var usuarioLineaAsignado = await _unitOfWork.UsuariosLineas.GetByIdAsync(request.UsuarioLineaId.Value);
-            if (usuarioLineaAsignado == null)
+            maquinista = await _unitOfWork.UsuariosLineas.GetByIdAsync(request.UsuarioLineaId.Value);
+            if (maquinista == null)
             {
                 return BadRequest(new ProblemDetails
                 {
@@ -202,52 +219,8 @@ public class DetencionesController : ApiControllerBase
                     Status = StatusCodes.Status400BadRequest
                 });
             }
-            if (!usuarioLineaAsignado.TurnoId.HasValue)
-            {
-                return BadRequest(new ProblemDetails
-                {
-                    Title = "Turno no asignado",
-                    Detail = "El maquinista seleccionado no tiene turno asignado.",
-                    Status = StatusCodes.Status400BadRequest
-                });
-            }
-            turnoId = usuarioLineaAsignado.TurnoId.Value;
-            usuarioLineaId = usuarioLineaAsignado.UsuarioLineaId;
-            var turno = await _unitOfWork.Turnos.GetByIdAsync(turnoId);
-            turnoNombre = turno?.Nombre ?? "Turno desconocido";
-        }
-        else
-        {
-            // Buscar asignacion del usuario actual para la linea
-            var usuarioLinea = await _unitOfWork.UsuariosLineas.GetByUsuarioYLineaAsync(CurrentUserId, request.LineaId);
-
-            if (usuarioLinea != null && usuarioLinea.TurnoId.HasValue)
-            {
-                // Usuario tiene asignacion con turno - usar turno del maquinista
-                turnoId = usuarioLinea.TurnoId.Value;
-                usuarioLineaId = usuarioLinea.UsuarioLineaId;
-                var turno = await _unitOfWork.Turnos.GetByIdAsync(turnoId);
-                turnoNombre = turno?.Nombre ?? "Turno desconocido";
-            }
-            else
-            {
-                // Fallback: usar turno actual por hora (para supervisores/admins sin asignacion)
-                var turnoActual = await _unitOfWork.Turnos.GetTurnoActualAsync();
-                if (turnoActual == null)
-                {
-                    return BadRequest(new ProblemDetails
-                    {
-                        Title = "Turno no encontrado",
-                        Detail = "No se encontró un turno activo para la hora actual y el usuario no tiene asignación de turno para esta línea.",
-                        Status = StatusCodes.Status400BadRequest
-                    });
-                }
-                turnoId = turnoActual.TurnoId;
-                turnoNombre = turnoActual.Nombre;
-            }
         }
 
-        // Con hora de inicio y fin, el turno sale de la hora de inicio.
         var tiempoManual = CalcularTiempoManual(request.Fecha, request.HoraInicio, request.HoraFin);
         var errorHoras = ValidarHorasManuales(request.HoraInicio, request.HoraFin, tiempoManual);
         if (errorHoras != null)
@@ -255,21 +228,37 @@ public class DetencionesController : ApiControllerBase
             return BadRequest(errorHoras);
         }
 
-        if (tiempoManual.HasValue)
+        var fuenteTurno = DetencionCargaReglas.ElegirFuenteTurno(
+            conHoras: tiempoManual.HasValue,
+            maquinistaElegido: request.UsuarioLineaId.HasValue,
+            maquinistaTieneTurno: maquinista?.TurnoId.HasValue == true);
+
+        Turno? turno = fuenteTurno switch
         {
-            var turnoPorHora = await _unitOfWork.Turnos.GetTurnoPorHoraAsync(request.HoraInicio!.Value);
-            if (turnoPorHora == null)
+            FuenteTurno.HoraInicio => await _unitOfWork.Turnos.GetTurnoPorHoraAsync(request.HoraInicio!.Value),
+            FuenteTurno.Maquinista => await _unitOfWork.Turnos.GetByIdAsync(maquinista!.TurnoId!.Value),
+            FuenteTurno.HoraActual => await _unitOfWork.Turnos.GetTurnoActualAsync(),
+            _ => null
+        };
+
+        if (turno == null)
+        {
+            return BadRequest(new ProblemDetails
             {
-                return BadRequest(new ProblemDetails
+                Title = "Turno no encontrado",
+                Detail = fuenteTurno switch
                 {
-                    Title = "Turno no encontrado",
-                    Detail = "No hay un turno activo para la hora de inicio ingresada.",
-                    Status = StatusCodes.Status400BadRequest
-                });
-            }
-            turnoId = turnoPorHora.TurnoId;
-            turnoNombre = turnoPorHora.Nombre;
+                    null => DetencionCargaReglas.MensajeMaquinistaSinTurno,
+                    FuenteTurno.HoraInicio => "No hay un turno activo para la hora de inicio ingresada. Revisá los horarios en Configuración → Turnos.",
+                    _ => "No hay un turno activo para la hora actual. Cargá la hora de inicio y fin de la parada."
+                },
+                Status = StatusCodes.Status400BadRequest
+            });
         }
+
+        var turnoId = turno.TurnoId;
+        var turnoNombre = turno.Nombre;
+        var usuarioLineaId = maquinista?.UsuarioLineaId;
 
         // Mismo cálculo que la previsualización de análisis.
         var tiempo = TiempoDetencionCalculador.Calcular(TiempoDeSolicitud(request), _zonaPlanta);
@@ -531,7 +520,24 @@ public class DetencionesController : ApiControllerBase
             return BadRequest(new ProblemDetails
             {
                 Title = "Detención cerrada",
-                Detail = "No se puede modificar una detención cerrada",
+                Detail = "No se puede modificar una detención cerrada.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        var asignada = await _unitOfWork.UsuariosLineas.GetByUsuarioYLineaAsync(CurrentUserId, detencion.LineaId) != null;
+        if (!DetencionCargaReglas.PuedeCargarEnLinea(Roles, asignada))
+        {
+            return LineaNoAsignada();
+        }
+
+        var hoyPlanta = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, _zonaPlanta).DateTime);
+        if (request.Fecha is { } fechaNueva && DetencionCargaReglas.EsFechaFutura(fechaNueva, hoyPlanta))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Fecha no válida",
+                Detail = DetencionCargaReglas.MensajeFechaFutura,
                 Status = StatusCodes.Status400BadRequest
             });
         }
@@ -981,6 +987,33 @@ public class DetencionesController : ApiControllerBase
             analisisPendiente: filtro.AnalisisPendiente,
             incluirEliminadas: verEliminadas);
     }
+
+    /// <summary>
+    /// Nombre de quien eliminó cada detención eliminada de la página (sólo las ve el administrador).
+    /// </summary>
+    private async Task CompletarEliminadaPorAsync(IEnumerable<DetencionDto> items)
+    {
+        var nombres = new Dictionary<string, string>();
+        foreach (var item in items.Where(i => i.Eliminada && !string.IsNullOrEmpty(i.EliminadaPorUsuarioId)))
+        {
+            var id = item.EliminadaPorUsuarioId!;
+            if (!nombres.TryGetValue(id, out var nombre))
+            {
+                var usuario = await _userManager.FindByIdAsync(id);
+                nombre = usuario == null ? "un usuario dado de baja"
+                    : string.IsNullOrWhiteSpace(usuario.NombreCompleto) ? usuario.UserName ?? id : usuario.NombreCompleto;
+                nombres[id] = nombre;
+            }
+            item.EliminadaPorUsuarioNombre = nombre;
+        }
+    }
+
+    private ObjectResult LineaNoAsignada() => StatusCode(StatusCodes.Status403Forbidden, new ProblemDetails
+    {
+        Title = "Línea no asignada",
+        Detail = DetencionCargaReglas.MensajeLineaNoAsignada,
+        Status = StatusCodes.Status403Forbidden
+    });
 
     /// <summary>
     /// Horas de inicio y fin van juntas. Devuelve el error de validación o null.
