@@ -58,7 +58,14 @@
             }
         </ul>
 
-        @if (pestania == Pestania.Declarar)
+        @if (pestania == Pestania.Declarar && !pendientes.VeAnalisis && !esOperario)
+        {
+            <div class="alert alert-info">
+                Tu usuario no tiene análisis asignados. Para ver cómo vienen, entrá a
+                <a href="detenciones">Detenciones</a> y filtrá por <em>Análisis</em>.
+            </div>
+        }
+        else if (pestania == Pestania.Declarar)
         {
             <div class="card">
                 <div class="table-responsive">
@@ -216,6 +223,7 @@
     private Pestania pestania = Pestania.Analizar;
     private string filtroResponsable = string.Empty;
     private string subtitulo = string.Empty;
+    private bool esOperario;
 
     private bool Abierto => pestania != Pestania.Cerradas;
 
@@ -228,9 +236,12 @@
             .Distinct()
             .OrderBy(r => r)
             .Select(Capitalizar);
-        subtitulo = $"Rol: {string.Join(", ", roles)} · ves solo lo que te toca a vos";
+        esOperario = authState.User.IsInRole("OPERARIO");
 
         await CargarPendientes();
+        subtitulo = pendientes?.EsAdministrador == true
+            ? "Rol: Administrador · ves los análisis abiertos de todos los responsables"
+            : $"Rol: {string.Join(", ", roles)} · ves solo lo que te toca a vos";
         pestania = pendientes?.VeAnalisis == true ? Pestania.Analizar : Pestania.Declarar;
     }
 
@@ -324,16 +335,28 @@
         _ => pendientes?.ParaAnalizar ?? new List<PendienteAnalisisDto>()
     };
 
-    private string TextoVacio() => pestania switch
+    private string TextoVacio()
     {
-        Pestania.Cerradas => "Todavía no cerraste ningún análisis.",
-        Pestania.EnAnalisis => "No hay análisis en curso para vos.",
-        _ => "No hay fallas esperando análisis para vos."
-    };
+        if (pestania == Pestania.Cerradas)
+        {
+            return "Todavía no cerraste ningún análisis.";
+        }
+
+        var enCurso = pestania == Pestania.EnAnalisis;
+        if (pendientes?.EsAdministrador == true)
+        {
+            var paraQuien = string.IsNullOrEmpty(filtroResponsable) ? "" : " para este responsable";
+            return enCurso ? $"No hay análisis en curso{paraQuien}." : $"No hay fallas esperando análisis{paraQuien}.";
+        }
+
+        return enCurso
+            ? "No hay análisis en curso para vos. Pasan acá cuando guardás un borrador de un análisis."
+            : "No hay fallas esperando análisis para vos. Llegan acá cuando una detención cumple una regla de análisis asignada a tu rol.";
+    }
 
     private void AbrirDetencion(long detencionId)
     {
-        Navigation.NavigateTo($"detenciones/{detencionId}");
+        Navigation.NavigateTo($"detenciones/{detencionId}?volver=/detenciones/pendientes");
     }
 
     private static string ValorOpcion(ResponsableOpcionDto opcion) =>

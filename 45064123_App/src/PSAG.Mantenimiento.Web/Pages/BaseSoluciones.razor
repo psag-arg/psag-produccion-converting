@@ -44,9 +44,13 @@
                         <option value="">Todos</option>
                         @foreach (var equipo in equipos)
                         {
-                            <option value="@equipo.EquipoId">@equipo.Nombre</option>
+                            <option value="@equipo.EquipoId">@(lineaId.HasValue ? equipo.Nombre : $"{equipo.Nombre} ({equipo.LineaNombre})")</option>
                         }
                     </select>
+                    @if (!lineaId.HasValue)
+                    {
+                        <div class="form-text">Elegí una línea para ver sólo sus equipos.</div>
+                    }
                 </div>
                 <div class="col-lg-2 col-md-4">
                     <label class="form-label">Tipo de falla</label>
@@ -75,13 +79,20 @@
     }
     else
     {
-        <div class="text-muted mb-3">
-            @resultados.Count análisis cerrados coinciden
-            @if (resultados.Count >= LimiteResultados)
-            {
-                <span>(se muestran los primeros @LimiteResultados; afiná la búsqueda para ver menos)</span>
-            }
-        </div>
+        @if (errorBusqueda != null)
+        {
+            <div class="alert alert-danger">@errorBusqueda</div>
+        }
+        else if (resultados.Any())
+        {
+            <div class="text-muted mb-3">
+                @(resultados.Count == 1 ? "1 falla cerrada coincide" : $"{resultados.Count} fallas cerradas coinciden")
+                @if (resultados.Count >= LimiteResultados)
+                {
+                    <span>(se muestran las primeras @LimiteResultados; afiná la búsqueda para ver menos)</span>
+                }
+            </div>
+        }
 
         @foreach (var item in resultados)
         {
@@ -89,7 +100,7 @@
                 <div class="card-body">
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
                         <div class="d-flex flex-wrap align-items-center gap-2">
-                            <a href="detenciones/@item.DetencionId"><strong>@item.Codigo</strong></a>
+                            <a href="detenciones/@item.DetencionId?volver=/detenciones/soluciones"><strong>@item.Codigo</strong></a>
                             <span class="badge bg-light text-dark border">@item.LineaNombre</span>
                             @if (item.EquipoNombre != null)
                             {
@@ -119,11 +130,18 @@
             </div>
         }
 
-        @if (!resultados.Any())
+        @if (!resultados.Any() && errorBusqueda == null)
         {
             <div class="card">
                 <div class="card-body text-center text-muted py-4">
-                    No hay análisis cerrados que coincidan con la búsqueda.
+                    @if (buscoConFiltros)
+                    {
+                        <span>Ninguna falla cerrada coincide con estos filtros. Probá con menos palabras o tocá <em>Limpiar</em>.</span>
+                    }
+                    else
+                    {
+                        <span>Todavía no hay fallas cerradas con solución. Aparecen acá cuando alguien cierra un análisis.</span>
+                    }
                 </div>
             </div>
         }
@@ -150,6 +168,8 @@
     private List<TipoFallaDto> tiposFalla = new();
     private List<SolucionDto> resultados = new();
     private bool buscando = true;
+    private bool buscoConFiltros;
+    private string? errorBusqueda;
 
     // Enlazados a los filtros (la query string solo define el estado inicial)
     private string? busqueda;
@@ -208,6 +228,8 @@
     private async Task Buscar()
     {
         buscando = true;
+        errorBusqueda = null;
+        buscoConFiltros = !string.IsNullOrWhiteSpace(busqueda) || lineaId.HasValue || equipoId.HasValue || tipoFallaId.HasValue;
         try
         {
             resultados = await AnalisisService.BuscarSolucionesAsync(new BuscarSolucionesFiltro
@@ -217,6 +239,12 @@
                 EquipoId = equipoId,
                 TipoFallaId = tipoFallaId
             });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error buscando soluciones: {ex.Message}");
+            resultados = new();
+            errorBusqueda = "No se pudo buscar en la base de soluciones. Revisá la conexión y probá de nuevo.";
         }
         finally
         {
