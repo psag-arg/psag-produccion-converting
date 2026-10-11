@@ -136,12 +136,7 @@ public class UsuariosController : ApiControllerBase
 
         if (DetencionCargaReglas.OperarioSinLineas(request.Roles, request.LineasAsignadas.Count))
         {
-            return BadRequest(new ProblemDetails
-            {
-                Title = "Operario sin línea",
-                Detail = DetencionCargaReglas.MensajeOperarioSinLinea,
-                Status = StatusCodes.Status400BadRequest
-            });
+            return OperarioSinLinea();
         }
 
         var user = new ApplicationUser
@@ -245,12 +240,7 @@ public class UsuariosController : ApiControllerBase
         // Un usuario inactivo se puede guardar igual (por ejemplo, para darlo de baja).
         if (request.Activo && DetencionCargaReglas.OperarioSinLineas(request.Roles, request.LineasAsignadas.Count))
         {
-            return BadRequest(new ProblemDetails
-            {
-                Title = "Operario sin línea",
-                Detail = DetencionCargaReglas.MensajeOperarioSinLinea,
-                Status = StatusCodes.Status400BadRequest
-            });
+            return OperarioSinLinea();
         }
 
         user.Email = request.Email;
@@ -473,6 +463,13 @@ public class UsuariosController : ApiControllerBase
 
         return NoContent();
     }
+
+    private BadRequestObjectResult OperarioSinLinea() => BadRequest(new ProblemDetails
+    {
+        Title = "Operario sin línea",
+        Detail = DetencionCargaReglas.MensajeOperarioSinLinea,
+        Status = StatusCodes.Status400BadRequest
+    });
 }
 
 public class ResetPasswordRequest

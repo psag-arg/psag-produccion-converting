@@ -28,7 +28,6 @@ public class AnalisisController : ApiControllerBase
         _userManager = userManager;
     }
 
-
     /// <summary>
     /// Obtener el análisis de una detención. Todos los usuarios pueden leerlo.
     /// </summary>
