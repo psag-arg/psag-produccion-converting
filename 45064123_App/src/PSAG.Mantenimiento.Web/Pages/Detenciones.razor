@@ -1,5 +1,6 @@
 @page "/detenciones"
 @using System.Globalization
+@using System.Security.Claims
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.JSInterop
@@ -17,20 +18,33 @@
 
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>Detenciones</h2>
+        <div>
+            <h2 class="mb-0">Detenciones</h2>
+            @if (!puedeCargar)
+            {
+                <small class="text-muted">Tu usuario es de consulta: podés ver y exportar, no cargar ni editar.</small>
+            }
+        </div>
         <div class="d-flex gap-2">
             <button class="btn btn-outline-success" @onclick="ExportarExcel">
                 <i class="bi bi-file-earmark-excel me-2"></i>Exportar Excel
             </button>
-            <button class="btn btn-primary" @onclick="AbrirModalNueva">
-                <i class="bi bi-plus-lg me-2"></i>Nueva Detencion
-            </button>
+            @if (puedeCargar)
+            {
+                <button class="btn btn-primary" @onclick="AbrirModalNueva">
+                    <i class="bi bi-plus-lg me-2"></i>Nueva detención
+                </button>
+            }
         </div>
     </div>
 
     @if (!string.IsNullOrEmpty(mensajeError))
     {
         <div class="alert alert-danger">@mensajeError</div>
+    }
+    @if (!string.IsNullOrEmpty(mensajeAviso))
+    {
+        <div class="alert alert-warning">@mensajeAviso</div>
     }
 
     <!-- Filtros -->
@@ -42,7 +56,7 @@
                     <label class="form-label">Buscar</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-search"></i></span>
-                        <input type="text" class="form-control" placeholder="Codigo, equipo, tipo falla, descripcion..."
+                        <input type="text" class="form-control" placeholder="Código, equipo, tipo de falla, descripción..."
                                @bind="filtroBusqueda" @bind:event="oninput" @onkeyup="OnBusquedaKeyUp" />
                         @if (!string.IsNullOrEmpty(filtroBusqueda))
                         {
@@ -54,15 +68,15 @@
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">Fecha Desde</label>
-                    <input type="date" class="form-control" @bind="filtroFechaDesde" @bind:after="@(async () => await CargarDetenciones())" />
+                    <input type="date" class="form-control" @bind="filtroFechaDesde" @bind:after="@(async () => await AplicarFiltros())" />
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">Fecha Hasta</label>
-                    <input type="date" class="form-control" @bind="filtroFechaHasta" @bind:after="@(async () => await CargarDetenciones())" />
+                    <input type="date" class="form-control" @bind="filtroFechaHasta" @bind:after="@(async () => await AplicarFiltros())" />
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label">Linea</label>
-                    <select class="form-select" @bind="filtroLineaId" @bind:after="@(async () => await CargarDetenciones())">
+                    <label class="form-label">Línea</label>
+                    <select class="form-select" @bind="filtroLineaId" @bind:after="@(async () => await AplicarFiltros())">
                         <option value="">Todas</option>
                         @foreach (var linea in lineas)
                         {
@@ -72,9 +86,9 @@
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">Estado</label>
-                    <select class="form-select" @bind="filtroEstado" @bind:after="@(async () => await CargarDetenciones())">
+                    <select class="form-select" @bind="filtroEstado" @bind:after="@(async () => await AplicarFiltros())">
                         <option value="">Todos</option>
-                        <option value="REGISTRADA">Registrada</option>
+                        <option value="REGISTRADA">Registrada (incluye las que requieren análisis)</option>
                         <option value="EN_SEGUIMIENTO">En análisis</option>
                         <option value="CERRADA">Cerrada</option>
                     </select>
@@ -85,17 +99,17 @@
                     <label class="form-label">Análisis</label>
                     <select class="form-select" @bind="filtroAnalisis" @bind:after="@(async () => await AplicarFiltros())">
                         <option value="">Todos</option>
-                        <option value="PENDIENTE">Requiere análisis</option>
-                        <option value="SIN">Sin análisis</option>
+                        <option value="PENDIENTE">Análisis pendiente</option>
+                        <option value="SIN">Sin análisis pendiente</option>
                     </select>
                 </div>
-                <div class="col-md-10 d-flex justify-content-end align-items-center gap-3">
+                <div class="col-md-9 d-flex justify-content-end align-items-center gap-3">
                     @if (esAdministrador)
                     {
                         <div class="form-check form-switch mb-0">
                             <input class="form-check-input" type="checkbox" role="switch" id="verEliminadas"
                                    @bind="verEliminadas" @bind:after="@(async () => await AplicarFiltros())" />
-                            <label class="form-check-label" for="verEliminadas">Ver eliminadas</label>
+                            <label class="form-check-label" for="verEliminadas">Incluir eliminadas</label>
                         </div>
                     }
                     <button class="btn btn-outline-secondary btn-sm" @onclick="LimpiarFiltros">
@@ -115,6 +129,10 @@
             </div>
         </div>
     }
+    else if (errorCarga != null)
+    {
+        <div class="alert alert-danger">@errorCarga</div>
+    }
     else if (detenciones.Items.Any())
     {
         <div class="card">
@@ -122,11 +140,11 @@
                 <table class="table table-hover mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th>Codigo</th>
+                            <th>Código</th>
                             <th>Fecha y hora</th>
-                            <th>Linea</th>
+                            <th>Línea</th>
                             <th>Equipo</th>
-                            <th>Tipo Falla</th>
+                            <th>Tipo de falla</th>
                             <th>Minutos</th>
                             <th>Estado</th>
                             <th>Turno</th>
@@ -160,7 +178,8 @@
                                     </span>
                                     @if (det.Eliminada)
                                     {
-                                        <span class="badge bg-dark ms-1">Eliminada</span>
+                                        <span class="badge bg-dark ms-1" title="@TextoEliminada(det)">Eliminada</span>
+                                        <div class="small text-muted">@TextoEliminada(det)</div>
                                     }
                                 </td>
                                 <td>@det.TurnoNombre</td>
@@ -181,12 +200,12 @@
                                         </button>
                                         @if (det.AnalisisPendiente)
                                         {
-                                            <button class="btn btn-sm me-1" title="Completar análisis" style="color: var(--bs-orange); border: 1px solid var(--bs-orange);"
+                                            <button class="btn btn-sm me-1" title="@TituloAnalisis(det)" style="color: var(--bs-orange); border: 1px solid var(--bs-orange);"
                                                     @onclick="() => VerDetalle(det.DetencionId)">
                                                 <i class="bi bi-tools"></i>
                                             </button>
                                         }
-                                        @if (det.EstadoActual != "CERRADA")
+                                        @if (det.EstadoActual != "CERRADA" && puedeCargar)
                                         {
                                             <button class="btn btn-sm btn-outline-secondary me-1" title="Editar" @onclick="() => EditarDetencion(det)">
                                                 <i class="bi bi-pencil"></i>
@@ -215,12 +234,19 @@
                     <li class="page-item @(currentPage == 1 ? "disabled" : "")">
                         <button class="page-link" @onclick="() => CambiarPagina(currentPage - 1)">Anterior</button>
                     </li>
-                    @for (int i = 1; i <= Math.Min(detenciones.TotalPages, 5); i++)
+                    @foreach (var pagina in PaginasVisibles())
                     {
-                        var pageNum = i;
-                        <li class="page-item @(currentPage == pageNum ? "active" : "")">
-                            <button class="page-link" @onclick="() => CambiarPagina(pageNum)">@pageNum</button>
-                        </li>
+                        var pageNum = pagina;
+                        @if (pageNum == 0)
+                        {
+                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                        }
+                        else
+                        {
+                            <li class="page-item @(currentPage == pageNum ? "active" : "")">
+                                <button class="page-link" @onclick="() => CambiarPagina(pageNum)">@pageNum</button>
+                            </li>
+                        }
                     }
                     <li class="page-item @(currentPage == detenciones.TotalPages ? "disabled" : "")">
                         <button class="page-link" @onclick="() => CambiarPagina(currentPage + 1)">Siguiente</button>
@@ -230,13 +256,13 @@
         }
 
         <p class="text-muted text-center mt-2">
-            Mostrando @detenciones.Items.Count de @detenciones.TotalCount registros
+            Página @currentPage de @Math.Max(detenciones.TotalPages, 1) · @detenciones.TotalCount detenciones
         </p>
     }
     else
     {
         <div class="alert alert-info">
-            No se encontraron detenciones con los filtros seleccionados.
+            No se encontraron detenciones con los filtros seleccionados. Probá con otras fechas o tocá <em>Limpiar filtros</em>.
         </div>
     }
 </div>
@@ -248,12 +274,12 @@
         <div class="modal-dialog modal-xl">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">@(editando ? "Editar" : "Nueva") Detencion</h5>
+                    <h5 class="modal-title">@(editando ? "Editar detención" : "Nueva detención")</h5>
                     <button type="button" class="btn-close" @onclick="CerrarModal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="row">
-                        <div class="col-lg-8">
+                        <div class="@(editando ? "col-12" : "col-lg-8")">
                             @if (!string.IsNullOrEmpty(errorMessage))
                             {
                                 <div class="alert alert-danger">@errorMessage</div>
@@ -261,7 +287,7 @@
 
                             <div class="row mb-3">
                                 <div class="col-md-6">
-                                    <label class="form-label">Linea *</label>
+                                    <label class="form-label">Línea *</label>
                                     <fieldset disabled="@editando">
                                         <AutocompleteSelect TItem="LineaDto"
                                                             TValue="int"
@@ -270,16 +296,26 @@
                                                             OnValueChanged="OnLineaChanged"
                                                             ValueSelector="@(l => l.LineaId)"
                                                             TextSelector="@(l => l.Nombre)"
-                                                            Placeholder="Buscar linea...">
+                                                            EmptyText="No tenés líneas asignadas. Pedile al administrador que te asigne una."
+                                                            Placeholder="Buscar línea...">
                                             <ItemTemplate Context="linea">
                                                 @linea.Nombre
                                             </ItemTemplate>
                                         </AutocompleteSelect>
                                     </fieldset>
+                                    @if (!editando && errorCatalogos)
+                                    {
+                                        <div class="form-text text-danger">No se pudo cargar la lista de líneas. Cerrá esta ventana y recargá la página.</div>
+                                    }
+                                    else if (!editando && !lineasDisponibles.Any())
+                                    {
+                                        <div class="form-text text-danger">No tenés líneas asignadas. Pedile al administrador que te asigne una.</div>
+                                    }
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Fecha *</label>
-                                    <input type="date" class="form-control" @bind="model.Fecha" />
+                                    <input type="date" class="form-control" @bind="model.Fecha" max="@HoyIso"
+                                           @bind:after="@(() => errorMessage = null)" />
                                 </div>
                             </div>
 
@@ -293,7 +329,7 @@
                                     <input type="time" class="form-control" value="@horaFinTexto" disabled="@editandoPlc" @onchange="CambiarHoraFin" />
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label">Minutos de Parada</label>
+                                    <label class="form-label">Minutos de parada @(editandoPlc || MinutosManuales.HasValue ? "" : "*")</label>
                                     @if (editandoPlc)
                                     {
                                         <div class="form-control bg-light">
@@ -307,11 +343,20 @@
                                             <strong>@minutosCalculados</strong> min
                                             <small class="text-muted ms-1">calculados por horas</small>
                                         </div>
+                                        @if (CruzaMedianoche)
+                                        {
+                                            <div class="form-text">Termina al día siguiente (cruza la medianoche).</div>
+                                        }
+                                        @if (minutosCalculados > 12 * 60)
+                                        {
+                                            <div class="form-text text-danger">Revisá las horas: son más de 12 h de parada.</div>
+                                        }
                                     }
                                     else
                                     {
                                         <input type="number" class="form-control" @bind="model.MinutosDeclarados" min="1"
                                                @bind:after="@(async () => await ActualizarAvisoAnalisisAsync())" />
+                                        <div class="form-text">O cargá hora de inicio y fin y se calculan solos.</div>
                                     }
                                 </div>
                             </div>
@@ -322,16 +367,30 @@
                                 <div class="row mb-3">
                                     <div class="col-md-6">
                                         <label class="form-label">Maquinista @(puedeSeleccionarMaquinista && !editando ? "*" : "")</label>
-                                        @if (puedeSeleccionarMaquinista && !editando)
+                                        @if (editando)
                                         {
-                                            @* Admin/Gerencia/Supervisor pueden seleccionar cualquier maquinista de la linea *@
+                                            <div class="form-control bg-light @(string.IsNullOrWhiteSpace(maquinistaGuardado) ? "text-muted" : "")">
+                                                <i class="bi bi-person-fill me-2"></i>@(string.IsNullOrWhiteSpace(maquinistaGuardado) ? "No registrado" : maquinistaGuardado)
+                                            </div>
+                                        }
+                                        else if (puedeSeleccionarMaquinista)
+                                        {
+                                            @* Admin/Supervisor eligen cualquier maquinista de la línea *@
                                             <select class="form-select" @bind="selectedMaquinistaId" @bind:after="OnMaquinistaChanged">
-                                                <option value="0">-- Seleccione maquinista --</option>
+                                                <option value="0">-- Elegí el maquinista --</option>
                                                 @foreach (var maq in maquinistasLinea)
                                                 {
-                                                    <option value="@maq.UsuarioLineaId">@maq.NombreUsuario (@maq.TurnoNombre)</option>
+                                                    <option value="@maq.UsuarioLineaId">@maq.NombreUsuario · @(string.IsNullOrEmpty(maq.TurnoNombre) ? "sin turno" : maq.TurnoNombre)</option>
                                                 }
                                             </select>
+                                            @if (!maquinistasLinea.Any())
+                                            {
+                                                <div class="form-text text-danger">Esta línea no tiene maquinistas asignados. Pedile al administrador que los cargue en Configuración → Maquinistas.</div>
+                                            }
+                                            else if (MaquinistaElegido is { TurnoId: null } && !HorasCargadas)
+                                            {
+                                                <div class="form-text text-warning-emphasis">Este maquinista no tiene turno. Cargá la hora de inicio y fin, o asignale un turno en Configuración → Maquinistas.</div>
+                                            }
                                         }
                                         else if (maquinistaActual != null)
                                         {
@@ -341,14 +400,21 @@
                                         }
                                         else
                                         {
-                                            <div class="form-control bg-warning-subtle text-warning-emphasis">
-                                                <i class="bi bi-exclamation-triangle me-2"></i>Sin asignación
+                                            <div class="form-control bg-light text-muted">
+                                                <i class="bi bi-person me-2"></i>Vos (no figurás como maquinista de esta línea)
                                             </div>
                                         }
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Turno</label>
-                                        @if (HorasCargadas)
+                                        @if (editando && !horasEditadas)
+                                        {
+                                            <div class="form-control bg-light">
+                                                <i class="bi bi-clock-fill me-2 text-success"></i>@editandoDetencion?.TurnoNombre
+                                            </div>
+                                            <div class="form-text">No cambia salvo que cambies la hora de inicio.</div>
+                                        }
+                                        else if (HorasCargadas)
                                         {
                                             <div class="form-control bg-light">
                                                 <i class="bi bi-clock-fill me-2 text-success"></i>Según hora de inicio
@@ -360,11 +426,18 @@
                                                 <i class="bi bi-clock-fill me-2 text-success"></i>@turnoAsignado
                                             </div>
                                         }
+                                        else if (MaquinistaElegido is { TurnoId: null })
+                                        {
+                                            <div class="form-control bg-warning-subtle text-warning-emphasis">
+                                                <i class="bi bi-exclamation-triangle me-2"></i>Cargá hora de inicio y fin
+                                            </div>
+                                        }
                                         else
                                         {
                                             <div class="form-control bg-warning-subtle text-warning-emphasis">
-                                                <i class="bi bi-exclamation-triangle me-2"></i>Por hora actual
+                                                <i class="bi bi-clock me-2"></i>El de ahora (@resumenTurno.TurnoNombre)
                                             </div>
+                                            <div class="form-text">Si la parada fue en otro turno, cargá la hora de inicio y fin.</div>
                                         }
                                     </div>
                                 </div>
@@ -425,9 +498,10 @@
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label">Descripcion *</label>
+                                <label class="form-label">Descripción *</label>
                                 <textarea class="form-control" @bind="model.Descripcion" rows="4"
-                                    placeholder="Describa la causa de la detencion..."></textarea>
+                                    @bind:after="@(() => errorMessage = null)"
+                                    placeholder="Describí qué pasó y la causa de la detención..."></textarea>
                             </div>
 
                             @if (requiereAnalisisPrevio)
@@ -435,13 +509,28 @@
                                 <div class="alert alert-warning d-flex align-items-start gap-2 mb-0">
                                     <i class="bi bi-tools mt-1"></i>
                                     <div>
-                                        <strong>Esta detención va a requerir análisis.</strong>
-                                        Al registrarla le aparece al responsable en <em>Mis pendientes</em>.
+                                        @if (!editando)
+                                        {
+                                            <strong>Esta detención va a requerir análisis.</strong>
+                                            <span>Al registrarla le aparece al responsable en <em>Mis pendientes</em>.</span>
+                                        }
+                                        else if (editandoDetencion?.RequiereAnalisis == true)
+                                        {
+                                            <strong>Esta detención requiere análisis.</strong>
+                                            <span>Está en <em>Mis pendientes</em> del responsable.</span>
+                                        }
+                                        else
+                                        {
+                                            <strong>Con estos cambios la detención va a requerir análisis.</strong>
+                                            <span>Al guardar los cambios, le aparece al responsable en <em>Mis pendientes</em>.</span>
+                                        }
                                     </div>
                                 </div>
                             }
                         </div>
 
+                        @if (!editando)
+                        {
                         <div class="col-lg-4">
                             <div class="card bg-light">
                                 <div class="card-header bg-info text-white">
@@ -494,12 +583,13 @@
                                         }
                                         else
                                         {
-                                            <p class="text-muted text-center mb-0">Sin detenciones</p>
+                                            <p class="text-muted text-center mb-0">Todavía no hay detenciones en este turno.</p>
                                         }
                                     }
                                 </div>
                             </div>
                         </div>
+                        }
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -535,7 +625,7 @@
                     </p>
                     <div class="alert alert-secondary small">
                         No se borra de la base. Queda marcada como eliminada, con usuario, fecha y motivo, y deja de contar en indicadores y reportes.
-                        Se puede ver con el filtro <em>Ver eliminadas</em> y restaurar.
+                        Se puede ver con el filtro <em>Incluir eliminadas</em> y restaurar.
                     </div>
                     <label class="form-label">Motivo <span class="text-danger">*</span></label>
                     <textarea class="form-control" rows="3" maxlength="500" @bind="motivoEliminacion" @bind:event="oninput"
@@ -566,8 +656,12 @@
     private MaquinistaDto? maquinistaActual;
     private string? turnoAsignado;
     private int selectedMaquinistaId;
-    private bool puedeSeleccionarMaquinista;  // True si es Admin/Gerencia/Supervisor
+    private bool puedeSeleccionarMaquinista;  // True si es Admin/Supervisor
+    private bool puedeCargar;                 // Mismos roles que la política CanCreateDetenciones
+    private bool esSoloOperario;
     private bool esAdministrador;
+    private ClaimsPrincipal? usuario;
+    private string? maquinistaGuardado;
     private List<EquipoDto> equipos = new();
     private List<TipoFallaDto> tiposFalla = new();
     private List<DetalleFallaDto> detallesFalla = new();
@@ -581,6 +675,9 @@
     private bool requiereAnalisisPrevio = false;
     private string? errorMessage;
     private string? mensajeError;
+    private string? mensajeAviso;
+    private string? errorCarga;
+    private bool errorCatalogos;
 
     private int currentPage = 1;
     private int pageSize = 10;
@@ -607,6 +704,14 @@
     private IJSObjectReference? moduloDescargas;
 
     private bool HorasCargadas => ParsearHora(horaInicioTexto).HasValue && ParsearHora(horaFinTexto).HasValue;
+
+    private static string HoyIso => DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    private MaquinistaDto? MaquinistaElegido =>
+        selectedMaquinistaId > 0 ? maquinistasLinea.FirstOrDefault(m => m.UsuarioLineaId == selectedMaquinistaId) : null;
+
+    private bool CruzaMedianoche =>
+        ParsearHora(horaInicioTexto) is { } inicio && ParsearHora(horaFinTexto) is { } fin && fin < inicio;
 
     /// <summary>
     /// Las horas de una detención del PLC se ven pero no se editan.
@@ -635,10 +740,13 @@
         // Verificar si el usuario puede seleccionar maquinista (Admin/Gerencia/Supervisor)
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
+        usuario = user;
         puedeSeleccionarMaquinista = user.IsInRole("ADMINISTRADOR") ||
-                                      user.IsInRole("GERENCIA") ||
                                       user.IsInRole("SUPERVISOR");
         esAdministrador = user.IsInRole("ADMINISTRADOR");
+        puedeCargar = new[] { "ADMINISTRADOR", "MANTENIMIENTO", "SUPERVISOR", "OPERARIO" }.Any(user.IsInRole);
+        esSoloOperario = user.IsInRole("OPERARIO")
+            && !new[] { "ADMINISTRADOR", "MANTENIMIENTO", "SUPERVISOR" }.Any(user.IsInRole);
 
         await CargarLineas();
         await CargarDetenciones();
@@ -682,11 +790,16 @@
             }
             else
             {
-                // Sin asignaciones: mostrar todas las lineas (admin/supervisor)
-                lineasDisponibles = lineas;
+                // Sin asignaciones: el operario no puede cargar (la API lo rechaza); el resto ve todas.
+                lineasDisponibles = esSoloOperario ? new() : lineas;
             }
+            errorCatalogos = false;
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error cargando catálogos: {ex.Message}");
+            errorCatalogos = true;
+        }
     }
 
     private DetencionFiltroRequest ConstruirFiltro() => new()
@@ -710,6 +823,7 @@
     private async Task CargarDetenciones()
     {
         isLoading = true;
+        errorCarga = null;
         try
         {
             detenciones = await DetencionesService.GetDetencionesConFiltrosAsync(ConstruirFiltro());
@@ -717,6 +831,9 @@
         catch (Exception ex)
         {
             Console.WriteLine($"Error: {ex.Message}");
+            // No dejar a la vista filas que no corresponden al filtro.
+            detenciones = new PagedResult<DetencionDto>();
+            errorCarga = "No se pudieron cargar las detenciones. Revisá la conexión y recargá la página.";
         }
         finally
         {
@@ -778,6 +895,12 @@
     private async Task ExportarExcel()
     {
         mensajeError = null;
+        mensajeAviso = null;
+        if (errorCarga == null && detenciones.TotalCount == 0)
+        {
+            mensajeAviso = "No hay detenciones para exportar con estos filtros.";
+            return;
+        }
         var contenido = await DetencionesService.ExportarExcelAsync(ConstruirFiltro());
         if (contenido == null || moduloDescargas == null)
         {
@@ -809,6 +932,7 @@
         horaInicioTexto = null;
         horaFinTexto = null;
         horasEditadas = false;
+        maquinistaGuardado = null;
         showModal = true;
         await CargarResumenTurno();
     }
@@ -845,9 +969,19 @@
         editandoDetencion = det;
         editando = true;
         errorMessage = null;
+        maquinistaGuardado = null;
         showModal = true;
-        await CargarResumenTurno();
         await ActualizarAvisoAnalisisAsync();
+        try
+        {
+            // La lista no trae el maquinista; el detalle sí.
+            maquinistaGuardado = (await DetencionesService.GetDetencionAsync(det.DetencionId))?.CreadoPorUsuarioNombre;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error cargando el maquinista: {ex.Message}");
+            maquinistaGuardado = null;
+        }
     }
 
     private void CerrarModal()
@@ -860,6 +994,7 @@
 
     private async Task OnLineaChanged()
     {
+        errorMessage = null;
         model.LineaId = selectedLineaId;
         maquinistaActual = null;
         turnoAsignado = null;
@@ -900,6 +1035,7 @@
 
     private async Task OnMaquinistaChanged()
     {
+        errorMessage = null;
         turnoAsignado = null;
 
         if (selectedMaquinistaId > 0)
@@ -943,6 +1079,7 @@
     /// </summary>
     private async Task ActualizarAvisoAnalisisAsync()
     {
+        errorMessage = null;
         AplicarHorasAlModelo();
         model.LineaId = selectedLineaId;
         requiereAnalisisPrevio = selectedLineaId > 0
@@ -968,48 +1105,50 @@
     {
         errorMessage = null;
 
-        if (selectedLineaId == 0)
+        var inicio = ParsearHora(horaInicioTexto);
+        var fin = ParsearHora(horaFinTexto);
+
+        // Lo que falta, todo junto, para no descubrir los errores de a uno.
+        var faltan = new List<string>();
+        if (selectedLineaId == 0) faltan.Add("línea");
+        if (!editando && puedeSeleccionarMaquinista && selectedMaquinistaId <= 0) faltan.Add("maquinista");
+        if (!inicio.HasValue && !fin.HasValue && (model.MinutosDeclarados == null || model.MinutosDeclarados <= 0)) faltan.Add("minutos de parada (o hora de inicio y fin)");
+        if (string.IsNullOrWhiteSpace(model.Descripcion)) faltan.Add("descripción");
+        if (faltan.Any())
         {
-            errorMessage = "Debe seleccionar una linea";
+            errorMessage = "Falta completar: " + UnirConY(faltan) + ".";
             return;
         }
-        model.LineaId = selectedLineaId;
 
+        model.LineaId = selectedLineaId;
         if (!editando && puedeSeleccionarMaquinista)
         {
-            if (selectedMaquinistaId <= 0)
-            {
-                errorMessage = "Debe seleccionar un maquinista";
-                return;
-            }
             model.UsuarioLineaId = selectedMaquinistaId;
         }
 
-        var inicio = ParsearHora(horaInicioTexto);
-        var fin = ParsearHora(horaFinTexto);
+        if (model.Fecha > DateOnly.FromDateTime(DateTime.Today))
+        {
+            errorMessage = "La fecha no puede ser posterior a hoy.";
+            return;
+        }
         if (inicio.HasValue != fin.HasValue)
         {
-            errorMessage = "Ingresá la hora de inicio y la de fin, o ninguna de las dos";
+            errorMessage = "Ingresá la hora de inicio y la de fin, o ninguna de las dos.";
             return;
         }
         if (editando && editandoDetencion is { OrigenTiempo: "CALCULADO", FechaHoraParada: not null } && !inicio.HasValue)
         {
-            errorMessage = "Una detención cargada con horas no puede quedarse sin ellas";
-            return;
-        }
-        if (!inicio.HasValue && (model.MinutosDeclarados == null || model.MinutosDeclarados <= 0))
-        {
-            errorMessage = "Debe ingresar los minutos de parada";
+            errorMessage = "Esta detención se cargó con horas: dejá la hora de inicio y la de fin.";
             return;
         }
         if (inicio.HasValue && MinutosManuales == 0)
         {
-            errorMessage = "La hora de inicio y la de fin no pueden ser iguales";
+            errorMessage = "La hora de inicio y la de fin no pueden ser iguales.";
             return;
         }
-        if (string.IsNullOrWhiteSpace(model.Descripcion))
+        if (!editando && MaquinistaElegido is { TurnoId: null } && !inicio.HasValue)
         {
-            errorMessage = "Debe ingresar una descripcion";
+            errorMessage = "Este maquinista no tiene turno. Asignáselo en Configuración → Maquinistas o cargá la hora de inicio y fin.";
             return;
         }
 
@@ -1137,6 +1276,7 @@
 
     private async Task CambiarHoraInicio(ChangeEventArgs e)
     {
+        errorMessage = null;
         horaInicioTexto = e.Value?.ToString();
         horasEditadas = true;
         await ActualizarAvisoAnalisisAsync();
@@ -1144,6 +1284,7 @@
 
     private async Task CambiarHoraFin(ChangeEventArgs e)
     {
+        errorMessage = null;
         horaFinTexto = e.Value?.ToString();
         horasEditadas = true;
         await ActualizarAvisoAnalisisAsync();
@@ -1172,5 +1313,57 @@
     private void VerDetalle(long id)
     {
         Navigation.NavigateTo($"/detenciones/{id}");
+    }
+
+    private static string UnirConY(List<string> partes) =>
+        partes.Count == 1 ? partes[0] : string.Join(", ", partes.Take(partes.Count - 1)) + " y " + partes[^1];
+
+    /// <summary>
+    /// Números de página a mostrar: la primera, la última y hasta 5 alrededor de la actual. 0 es "…".
+    /// </summary>
+    private List<int> PaginasVisibles()
+    {
+        var total = detenciones.TotalPages;
+        var desde = Math.Max(1, Math.Min(currentPage - 2, total - 4));
+        var hasta = Math.Min(total, desde + 4);
+        var paginas = new List<int>();
+        if (desde > 1)
+        {
+            paginas.Add(1);
+            if (desde > 2) paginas.Add(0);
+        }
+        for (var i = desde; i <= hasta; i++) paginas.Add(i);
+        if (hasta < total)
+        {
+            if (hasta < total - 1) paginas.Add(0);
+            paginas.Add(total);
+        }
+        return paginas;
+    }
+
+    private static string TextoEliminada(DetencionDto det)
+    {
+        var quien = string.IsNullOrWhiteSpace(det.EliminadaPorUsuarioNombre) ? "" : $" por {det.EliminadaPorUsuarioNombre}";
+        var cuando = det.FechaHoraEliminacion is { } fecha ? $" el {fecha.ToLocalTime():dd/MM/yyyy}" : "";
+        var motivo = string.IsNullOrWhiteSpace(det.MotivoEliminacion) ? "" : $": {det.MotivoEliminacion}";
+        return $"Eliminada{quien}{cuando}{motivo}";
+    }
+
+    /// <summary>
+    /// El análisis lo completa el responsable o un administrador; el resto sólo lo ve.
+    /// </summary>
+    private string TituloAnalisis(DetencionDto det)
+    {
+        var esResponsable = (det.ResponsableUsuarioId != null && det.ResponsableUsuarioId == usuario?.FindFirst(ClaimTypes.NameIdentifier)?.Value)
+            || (det.ResponsableRol != null && usuario?.IsInRole(det.ResponsableRol) == true);
+        if (esAdministrador || esResponsable)
+        {
+            return "Completar análisis";
+        }
+
+        var quien = det.ResponsableRol is { Length: > 0 } rol
+            ? char.ToUpperInvariant(rol[0]) + rol[1..].ToLowerInvariant()
+            : "el responsable";
+        return $"Ver análisis (lo completa {quien})";
     }
 }
