@@ -161,7 +161,7 @@ public class UsuariosController : ApiControllerBase
             return BadRequest(new ProblemDetails
             {
                 Title = "Error al crear usuario",
-                Detail = string.Join(", ", result.Errors.Select(e => e.Description)),
+                Detail = string.Join(" ", result.Errors.Select(e => e.Description)),
                 Status = StatusCodes.Status400BadRequest
             });
         }
@@ -263,7 +263,7 @@ public class UsuariosController : ApiControllerBase
             return BadRequest(new ProblemDetails
             {
                 Title = "Error al actualizar usuario",
-                Detail = string.Join(", ", updateResult.Errors.Select(e => e.Description)),
+                Detail = string.Join(" ", updateResult.Errors.Select(e => e.Description)),
                 Status = StatusCodes.Status400BadRequest
             });
         }
@@ -424,7 +424,7 @@ public class UsuariosController : ApiControllerBase
                 return BadRequest(new ProblemDetails
                 {
                     Title = "Error al eliminar usuario",
-                    Detail = string.Join(", ", result.Errors.Select(e => e.Description)),
+                    Detail = string.Join(" ", result.Errors.Select(e => e.Description)),
                     Status = StatusCodes.Status400BadRequest
                 });
             }
@@ -461,7 +461,7 @@ public class UsuariosController : ApiControllerBase
             return BadRequest(new ProblemDetails
             {
                 Title = "Error al restablecer password",
-                Detail = string.Join(", ", result.Errors.Select(e => e.Description)),
+                Detail = string.Join(" ", result.Errors.Select(e => e.Description)),
                 Status = StatusCodes.Status400BadRequest
             });
         }

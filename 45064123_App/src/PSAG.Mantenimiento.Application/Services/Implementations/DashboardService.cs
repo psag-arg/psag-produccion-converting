@@ -965,7 +965,7 @@ public class DashboardService : IDashboardService
                             DetalleFallaId = detalleGrupo.Key,
                             DetalleFallaNombre = detalleGrupo.Key.HasValue
                                 ? detallesFalla.FirstOrDefault(df => df.DetalleFallaId == detalleGrupo.Key.Value)?.Nombre ?? detalleGrupo.First().Descripcion
-                                : detalleGrupo.First().Descripcion,
+                                : string.Empty, // agrupa varias detenciones sin detalle: la pantalla muestra "(Sin detalle)"
                             MinutosTotales = minutosDetalle,
                             PorcentajeDelTotal = totalMinutos > 0
                                 ? Math.Round((double)minutosDetalle / totalMinutos * 100, 0)

@@ -824,6 +824,7 @@
     {
         isLoading = true;
         errorCarga = null;
+        mensajeAviso = null;
         try
         {
             detenciones = await DetencionesService.GetDetencionesConFiltrosAsync(ConstruirFiltro());

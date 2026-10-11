@@ -554,7 +554,7 @@
                             }
                             else
                             {
-                                <span>@detencionesDetalle.TotalCount detenciones · Total minutos: <strong>@detencionesDetalle.Items.Sum(d => d.MinutosEfectivos).ToString("N0")</strong></span>
+                                <span>@detencionesDetalle.TotalCount @(detencionesDetalle.TotalCount == 1 ? "detención" : "detenciones") · Total minutos: <strong>@detencionesDetalle.Items.Sum(d => d.MinutosEfectivos).ToString("N0")</strong></span>
                             }
                         </div>
                         <div class="table-responsive" style="max-height: 500px;">
