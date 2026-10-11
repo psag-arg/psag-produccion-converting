@@ -36,7 +36,7 @@
                             <th>Nombre Completo</th>
                             <th>Email</th>
                             <th>Roles</th>
-                            <th>Lineas</th>
+                            <th>Líneas</th>
                             <th class="text-center">Activo</th>
                             <th class="text-end">Acciones</th>
                         </tr>
@@ -76,7 +76,7 @@
                                         <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => EditarUsuario(usuario)" title="Editar">
                                             <i class="bi bi-pencil"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-outline-warning me-1" @onclick="() => ResetPassword(usuario)" title="Restablecer password">
+                                        <button class="btn btn-sm btn-outline-warning me-1" @onclick="() => ResetPassword(usuario)" title="Restablecer contraseña">
                                             <i class="bi bi-key"></i>
                                         </button>
                                         <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmarEliminar(usuario)" title="Eliminar/Desactivar">
@@ -125,15 +125,15 @@
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Nombre Completo *</label>
+                        <label class="form-label">Nombre completo *</label>
                         <input type="text" class="form-control" @bind="usuarioActual.NombreCompleto" />
                     </div>
                     @if (!editando)
                     {
                         <div class="mb-3">
-                            <label class="form-label">Password *</label>
+                            <label class="form-label">Contraseña *</label>
                             <input type="password" class="form-control" @bind="password" />
-                            <small class="text-muted">Minimo 6 caracteres, una mayuscula, un numero</small>
+                            <small class="text-muted">@AyudaPassword</small>
                         </div>
                     }
                     <div class="mb-3">
@@ -151,7 +151,7 @@
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Lineas Asignadas</label>
+                        <label class="form-label">Líneas asignadas @(SoloOperario ? "*" : "")</label>
                         <div class="d-flex flex-wrap gap-2">
                             @foreach (var linea in lineas)
                             {
@@ -163,12 +163,17 @@
                                 </div>
                             }
                         </div>
+                        <div class="form-text">
+                            @(SoloOperario
+                                ? "Un operario necesita al menos una línea asignada para poder cargar detenciones."
+                                : "El operario sólo carga detenciones en sus líneas. Para elegir su turno, usá Configuración → Maquinistas.")
+                        </div>
                     </div>
                     @if (editando)
                     {
                         <div class="form-check">
                             <input type="checkbox" class="form-check-input" id="activo" @bind="usuarioActual.Activo" />
-                            <label class="form-check-label" for="activo">Usuario Activo</label>
+                            <label class="form-check-label" for="activo">Usuario activo</label>
                         </div>
                     }
                     @if (!string.IsNullOrEmpty(errorMessage))
@@ -198,15 +203,15 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Restablecer Password</h5>
+                    <h5 class="modal-title">Restablecer contraseña</h5>
                     <button type="button" class="btn-close" @onclick="() => showResetPasswordModal = false"></button>
                 </div>
                 <div class="modal-body">
                     <p>Restablecer password para: <strong>@usuarioParaReset?.NombreCompleto</strong></p>
                     <div class="mb-3">
-                        <label class="form-label">Nueva Password *</label>
+                        <label class="form-label">Nueva contraseña *</label>
                         <input type="password" class="form-control" @bind="nuevaPassword" />
-                        <small class="text-muted">Minimo 6 caracteres, una mayuscula, un numero</small>
+                        <small class="text-muted">@AyudaPassword</small>
                     </div>
                     @if (!string.IsNullOrEmpty(resetErrorMessage))
                     {
@@ -235,6 +240,12 @@
     private UsuarioDto usuarioActual = new();
     private HashSet<string> rolesSeleccionados = new();
     private HashSet<int> lineasSeleccionadas = new();
+
+    // Debe coincidir con options.Password en el Program.cs de la API.
+    private const string AyudaPassword = "Mínimo 8 caracteres, con una mayúscula, una minúscula, un número y un símbolo (ej.: Clave123!).";
+
+    private bool SoloOperario => rolesSeleccionados.Contains("OPERARIO")
+        && !rolesSeleccionados.Any(r => r is "ADMINISTRADOR" or "SUPERVISOR" or "MANTENIMIENTO");
     private string password = string.Empty;
     private bool isLoading = true;
     private bool showModal = false;
@@ -354,27 +365,32 @@
     {
         if (string.IsNullOrWhiteSpace(usuarioActual.UserName))
         {
-            errorMessage = "El nombre de usuario es requerido";
+            errorMessage = "Completá el nombre de usuario.";
             return;
         }
         if (string.IsNullOrWhiteSpace(usuarioActual.Email))
         {
-            errorMessage = "El email es requerido";
+            errorMessage = "Completá el email.";
             return;
         }
         if (string.IsNullOrWhiteSpace(usuarioActual.NombreCompleto))
         {
-            errorMessage = "El nombre completo es requerido";
+            errorMessage = "Completá el nombre completo.";
             return;
         }
         if (!editando && string.IsNullOrWhiteSpace(password))
         {
-            errorMessage = "La password es requerida";
+            errorMessage = "Completá la contraseña.";
             return;
         }
         if (!rolesSeleccionados.Any())
         {
-            errorMessage = "Debe seleccionar al menos un rol";
+            errorMessage = "Elegí al menos un rol.";
+            return;
+        }
+        if (SoloOperario && !lineasSeleccionadas.Any() && (!editando || usuarioActual.Activo))
+        {
+            errorMessage = "Un operario necesita al menos una línea asignada para poder cargar detenciones.";
             return;
         }
 
@@ -434,7 +450,7 @@
     {
         if (string.IsNullOrWhiteSpace(nuevaPassword))
         {
-            resetErrorMessage = "La password es requerida";
+            resetErrorMessage = "Completá la contraseña nueva.";
             return;
         }
 

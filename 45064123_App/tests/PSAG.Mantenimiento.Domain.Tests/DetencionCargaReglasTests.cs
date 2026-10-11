@@ -49,4 +49,12 @@ public class DetencionCargaReglasTests
     {
         Assert.Equal(esperado, DetencionCargaReglas.PuedeCargarEnLinea(roles, lineaAsignada));
     }
+
+    [Fact]
+    public void OperarioSinLineas_SeDetectaSoloSiEsSoloOperario()
+    {
+        Assert.True(DetencionCargaReglas.OperarioSinLineas(["OPERARIO"], 0));
+        Assert.False(DetencionCargaReglas.OperarioSinLineas(["OPERARIO"], 1));
+        Assert.False(DetencionCargaReglas.OperarioSinLineas(["SUPERVISOR"], 0));
+    }
 }

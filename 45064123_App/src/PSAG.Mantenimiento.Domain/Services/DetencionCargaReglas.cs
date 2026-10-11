@@ -22,6 +22,8 @@ public static class DetencionCargaReglas
 {
     public const string MensajeFechaFutura = "La fecha no puede ser posterior a hoy.";
     public const string MensajeLineaNoAsignada = "No tenés asignada esta línea. Pedile al administrador que te la asigne.";
+    public const string MensajeOperarioSinLinea =
+        "Un operario necesita al menos una línea asignada para poder cargar detenciones.";
     public const string MensajeMaquinistaSinTurno =
         "Este maquinista no tiene turno. Asignáselo en Configuración → Maquinistas o cargá la hora de inicio y fin.";
 
@@ -48,4 +50,10 @@ public static class DetencionCargaReglas
             && !rolesUsuario.Any(r => r is RolesSistema.Administrador or RolesSistema.Supervisor or RolesSistema.Mantenimiento);
         return !soloOperario || lineaAsignada;
     }
+
+    /// <summary>
+    /// Un usuario que sólo es operario y no tiene líneas no puede cargar nada: se avisa al darlo de alta.
+    /// </summary>
+    public static bool OperarioSinLineas(IEnumerable<string> roles, int cantidadLineas) =>
+        !PuedeCargarEnLinea(roles, cantidadLineas > 0);
 }

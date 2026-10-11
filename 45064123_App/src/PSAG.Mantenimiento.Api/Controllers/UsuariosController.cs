@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PSAG.Mantenimiento.Application.DTOs.Auth;
 using PSAG.Mantenimiento.Domain.Interfaces;
+using PSAG.Mantenimiento.Domain.Services;
 using PSAG.Mantenimiento.Infrastructure.Identity;
 
 namespace PSAG.Mantenimiento.Api.Controllers;
@@ -133,6 +134,16 @@ public class UsuariosController : ApiControllerBase
             });
         }
 
+        if (DetencionCargaReglas.OperarioSinLineas(request.Roles, request.LineasAsignadas.Count))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Operario sin línea",
+                Detail = DetencionCargaReglas.MensajeOperarioSinLinea,
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
         var user = new ApplicationUser
         {
             UserName = request.UserName,
@@ -230,6 +241,17 @@ public class UsuariosController : ApiControllerBase
         var user = await _userManager.FindByIdAsync(id);
         if (user == null)
             return NotFound();
+
+        // Un usuario inactivo se puede guardar igual (por ejemplo, para darlo de baja).
+        if (request.Activo && DetencionCargaReglas.OperarioSinLineas(request.Roles, request.LineasAsignadas.Count))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Operario sin línea",
+                Detail = DetencionCargaReglas.MensajeOperarioSinLinea,
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
 
         user.Email = request.Email;
         user.NombreCompleto = request.NombreCompleto;
