@@ -1,4 +1,5 @@
 @page "/configuracion/turnos"
+@using System.Globalization
 @using Microsoft.AspNetCore.Authorization
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
@@ -12,8 +13,23 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h3>Turnos</h3>
         <button class="btn btn-primary" @onclick="NuevoTurno">
-            <i class="bi bi-plus-circle me-2"></i>Nuevo Turno
+            <i class="bi bi-plus-circle me-2"></i>Nuevo turno
         </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(mensajeLista))
+    {
+        <div class="alert alert-warning alert-dismissible">
+            @mensajeLista
+            <button type="button" class="btn-close" @onclick="() => mensajeLista = null"></button>
+        </div>
+    }
+
+    <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" role="switch" id="mostrarInactivos"
+               @bind="mostrarInactivos" @bind:after="@(async () => await CargarTurnos())" />
+        <label class="form-check-label" for="mostrarInactivos">Mostrar inactivos</label>
+        <div class="form-text mt-0">Los turnos activos no pueden superponerse y entre todos suman como máximo 24 h por día.</div>
     </div>
 
     @if (isLoading)
@@ -32,7 +48,7 @@
                     <thead class="table-light">
                         <tr>
                             <th>ID</th>
-                            <th>Codigo</th>
+                            <th>Código</th>
                             <th>Nombre</th>
                             <th>Hora Inicio</th>
                             <th>Hora Fin</th>
@@ -67,9 +83,12 @@
                                         <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => EditarTurno(turno)">
                                             <i class="bi bi-pencil"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmarDesactivar(turno)">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
+                                        @if (turno.Activo)
+                                        {
+                                            <button class="btn btn-sm btn-outline-danger" title="Desactivar" @onclick="() => ConfirmarDesactivar(turno)">
+                                                <i class="bi bi-pause-circle"></i>
+                                            </button>
+                                        }
                                     </td>
                                 </tr>
                             }
@@ -77,7 +96,7 @@
                         else
                         {
                             <tr>
-                                <td colspan="8" class="text-center text-muted py-4">No hay turnos registrados</td>
+                                <td colspan="8" class="text-center text-muted py-4">No hay turnos cargados.</td>
                             </tr>
                         }
                     </tbody>
@@ -88,15 +107,21 @@
         <div class="card mt-4">
             <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <h5 class="mb-0"><i class="bi bi-calendar3 me-2"></i>Calendario de excepciones</h5>
-                <select class="form-select form-select-sm" style="width: 220px;" @onchange="CambiarLineaCalendario">
-                    @foreach (var linea in lineas)
-                    {
-                        <option value="@linea.LineaId" selected="@(linea.LineaId == lineaCalendarioId)">@linea.Nombre</option>
-                    }
-                </select>
+                <div class="d-flex align-items-center gap-2">
+                    <label class="form-label mb-0" for="lineaCalendario">Línea:</label>
+                    <select id="lineaCalendario" class="form-select form-select-sm" style="width: 220px;" @onchange="CambiarLineaCalendario">
+                        @foreach (var linea in lineas)
+                        {
+                            <option value="@linea.LineaId" selected="@(linea.LineaId == lineaCalendarioId)">@linea.Nombre</option>
+                        }
+                    </select>
+                </div>
             </div>
             <div class="card-body">
-                <p class="text-muted small mb-3">Si un día no tiene excepción, se usan los turnos activos de la línea. Solo se cargan los días distintos.</p>
+                <p class="text-muted small mb-3">
+                    Si un día no tiene excepción, se usan las horas de los turnos activos de la planta (hoy @HorasEstandar).
+                    Cargá sólo los días distintos.
+                </p>
 
                 @if (!string.IsNullOrEmpty(errorCalendario) && diaSeleccionado == null)
                 {
@@ -157,7 +182,14 @@
                                 <div class="mb-3">
                                     <label class="form-label">Horas programadas *</label>
                                     <input type="number" class="form-control" min="0" max="24" step="0.5" @bind="horasDiaSeleccionado" />
-                                    <small class="text-muted">0 = la línea no trabaja ese día.</small>
+                                    @if (horasDiaSeleccionado == null)
+                                    {
+                                        <small class="text-danger">Escribí las horas programadas (0 si la línea no trabaja ese día).</small>
+                                    }
+                                    else
+                                    {
+                                        <small class="text-muted">0 = la línea no trabaja ese día.</small>
+                                    }
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Motivo</label>
@@ -165,7 +197,10 @@
                                 </div>
                                 @if (diaSeleccionado.Origen == "HISTORICO")
                                 {
-                                    <div class="form-text mb-3">Día con horas históricas (HS PROG). Al guardar pasa a excepción.</div>
+                                    <div class="alert alert-info small py-2 mb-3">
+                                        Este día tiene @FormatearHorasDia(diaSeleccionado.Horas) históricas (HS PROG).
+                                        Si guardás otro valor pasa a excepción y el dato histórico queda anotado en el motivo.
+                                    </div>
                                 }
                                 @if (!string.IsNullOrEmpty(errorCalendario))
                                 {
@@ -204,27 +239,28 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">@(editando ? "Editar" : "Nuevo") Turno</h5>
+                    <h5 class="modal-title">@(editando ? "Editar turno" : "Nuevo turno")</h5>
                     <button type="button" class="btn-close" @onclick="CerrarModal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">Codigo *</label>
+                        <label class="form-label">Código *</label>
                         <input type="text" class="form-control" @bind="turnoActual.Codigo" placeholder="Ej: T1, T2, T3" />
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Nombre *</label>
-                        <input type="text" class="form-control" @bind="turnoActual.Nombre" placeholder="Ej: Turno Manana" />
+                        <input type="text" class="form-control" @bind="turnoActual.Nombre" placeholder="Ej: Turno Mañana" />
                     </div>
                     <div class="row">
                         <div class="col-6 mb-3">
-                            <label class="form-label">Hora Inicio *</label>
-                            <input type="text" class="form-control" @bind="horaInicioStr" placeholder="HH:mm" />
+                            <label class="form-label">Hora de inicio *</label>
+                            <input type="time" class="form-control" value="@horaInicioStr" @onchange="e => horaInicioStr = e.Value?.ToString() ?? string.Empty" />
                         </div>
                         <div class="col-6 mb-3">
-                            <label class="form-label">Hora Fin *</label>
-                            <input type="text" class="form-control" @bind="horaFinStr" placeholder="HH:mm" />
+                            <label class="form-label">Hora de fin *</label>
+                            <input type="time" class="form-control" value="@horaFinStr" @onchange="e => horaFinStr = e.Value?.ToString() ?? string.Empty" />
                         </div>
+                        <div class="col-12 form-text mt-n2 mb-3">Si la hora de fin es menor que la de inicio, el turno termina al día siguiente (por ejemplo, 22:00 a 06:00).</div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Orden</label>
@@ -270,10 +306,15 @@
     private DateOnly mesCalendario;
     private List<DiaProgramadoDto> diasCalendario = new();
     private DiaProgramadoDto? diaSeleccionado;
-    private decimal horasDiaSeleccionado;
+    private decimal? horasDiaSeleccionado;
     private string? motivoDiaSeleccionado;
     private string? errorCalendario;
     private bool isSavingDia = false;
+    private string? mensajeLista;
+    private bool mostrarInactivos;
+
+    private string HorasEstandar =>
+        FormatearHorasDia(turnos.Where(t => t.Activo).Sum(t => t.DuracionMinutos) / 60m);
 
     private string NombreMes => mesCalendario.ToString("MMMM yyyy");
 
@@ -286,8 +327,25 @@
         var tareaLineas = CatalogosService.GetLineasAsync();
         var tareaTurnos = CargarTurnos();
         lineas = await tareaLineas;
+        await tareaTurnos;
+        await ElegirLineaConDatos();
+    }
+
+    /// <summary>
+    /// Abre en la primera línea con excepciones o históricos este mes; si ninguna tiene, en la primera.
+    /// </summary>
+    private async Task ElegirLineaConDatos()
+    {
+        foreach (var linea in lineas)
+        {
+            lineaCalendarioId = linea.LineaId;
+            await CargarCalendario();
+            if (diasCalendario.Any(d => d.Origen is "EXCEPCION" or "HISTORICO"))
+                return;
+        }
+
         lineaCalendarioId = lineas.FirstOrDefault()?.LineaId ?? 0;
-        await Task.WhenAll(tareaTurnos, CargarCalendario());
+        await CargarCalendario();
     }
 
     private static string FormatearHoras(TurnoDto turno) => $"{turno.DuracionMinutos / 60.0:0.##} h";
@@ -360,7 +418,12 @@
         if (diaSeleccionado == null)
             return;
 
-        if (horasDiaSeleccionado < 0 || horasDiaSeleccionado > 24)
+        if (horasDiaSeleccionado is not decimal horas)
+        {
+            errorCalendario = "Escribí las horas programadas (0 si la línea no trabaja ese día).";
+            return;
+        }
+        if (horas < 0 || horas > 24)
         {
             errorCalendario = "Las horas programadas deben estar entre 0 y 24.";
             return;
@@ -372,7 +435,7 @@
 
         try
         {
-            await CatalogosService.GuardarTiempoProgramadoAsync(lineaCalendarioId, fecha, horasDiaSeleccionado, motivoDiaSeleccionado);
+            await CatalogosService.GuardarTiempoProgramadoAsync(lineaCalendarioId, fecha, horas, motivoDiaSeleccionado);
             await CargarCalendario();
             var actualizado = diasCalendario.FirstOrDefault(d => d.Fecha == fecha);
             if (actualizado != null)
@@ -393,7 +456,11 @@
         if (diaSeleccionado?.TiempoProgramadoDiaId is not int id)
             return;
 
-        var confirmed = await JS.InvokeAsync<bool>("confirm", $"¿Quitar la excepción del {diaSeleccionado.Fecha.ToString("dd/MM/yyyy")}? El día vuelve a regirse por los turnos activos.");
+        var historico = diaSeleccionado.Motivo?.Contains("históricas (HS PROG)") == true
+            ? $" Las horas históricas anotadas en el motivo ({diaSeleccionado.Motivo}) no se recuperan."
+            : "";
+        var confirmed = await JS.InvokeAsync<bool>("confirm",
+            $"¿Quitar la excepción del {diaSeleccionado.Fecha:dd/MM/yyyy}? El día vuelve a las horas de los turnos activos ({HorasEstandar}).{historico}");
         if (!confirmed)
             return;
 
@@ -414,7 +481,7 @@
         isLoading = true;
         try
         {
-            turnos = await CatalogosService.GetTurnosAsync();
+            turnos = await CatalogosService.GetTurnosAsync(incluirInactivos: mostrarInactivos);
         }
         catch (Exception ex)
         {
@@ -465,29 +532,29 @@
     {
         if (string.IsNullOrWhiteSpace(turnoActual.Codigo))
         {
-            errorMessage = "El codigo es requerido";
+            errorMessage = "Completá el código.";
             return;
         }
         if (string.IsNullOrWhiteSpace(turnoActual.Nombre))
         {
-            errorMessage = "El nombre es requerido";
+            errorMessage = "Completá el nombre.";
             return;
         }
 
-        // Parsear horas
-        if (!TimeSpan.TryParse(horaInicioStr, out var horaInicio))
+        // TimeSpan.TryParse lee "6" como 6 días: se exige HH:mm.
+        if (ParsearHora(horaInicioStr) is not TimeOnly horaInicio || ParsearHora(horaFinStr) is not TimeOnly horaFin)
         {
-            errorMessage = "Hora de inicio invalida";
+            errorMessage = "Escribí la hora como HH:mm, por ejemplo 06:00.";
             return;
         }
-        if (!TimeSpan.TryParse(horaFinStr, out var horaFin))
+        if (horaInicio == horaFin)
         {
-            errorMessage = "Hora de fin invalida";
+            errorMessage = "La hora de inicio y la de fin no pueden ser iguales.";
             return;
         }
 
-        turnoActual.HoraInicio = horaInicio;
-        turnoActual.HoraFin = horaFin;
+        turnoActual.HoraInicio = horaInicio.ToTimeSpan();
+        turnoActual.HoraFin = horaFin.ToTimeSpan();
 
         isSaving = true;
         errorMessage = null;
@@ -505,6 +572,7 @@
 
             showModal = false;
             await CargarTurnos();
+            await CargarCalendario();
         }
         catch (Exception ex)
         {
@@ -518,19 +586,28 @@
 
     private async Task ConfirmarDesactivar(TurnoDto turno)
     {
-        var confirmed = await JS.InvokeAsync<bool>("confirm", $"¿Desea desactivar el turno '{turno.Nombre}'?");
-        if (confirmed)
+        var confirmed = await JS.InvokeAsync<bool>("confirm",
+            $"¿Desactivar el turno '{turno.Nombre}'? Las horas programadas por día bajan en {FormatearHoras(turno)}. Se puede reactivar con \"Mostrar inactivos\" y Editar.");
+        if (!confirmed) return;
+
+        mensajeLista = null;
+        turno.Activo = false;
+        try
         {
-            try
-            {
-                turno.Activo = false;
-                await CatalogosService.UpdateTurnoAsync(turno);
-                await CargarTurnos();
-            }
-            catch (Exception ex)
-            {
-                await JS.InvokeVoidAsync("alert", $"Error: {ex.Message}");
-            }
+            await CatalogosService.UpdateTurnoAsync(turno);
         }
+        catch (Exception ex)
+        {
+            turno.Activo = true;
+            mensajeLista = ex.Message;
+            return;
+        }
+        await CargarTurnos();
+        await CargarCalendario();
     }
+
+    private static TimeOnly? ParsearHora(string? texto) =>
+        TimeOnly.TryParseExact(texto?.Trim(), new[] { "HH:mm", "H:mm", "HH:mm:ss" }, CultureInfo.InvariantCulture, DateTimeStyles.None, out var hora)
+            ? hora
+            : null;
 }

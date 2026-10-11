@@ -712,8 +712,8 @@ public class CatalogosController : ApiControllerBase
 
         var turno = new Domain.Entities.Turno
         {
-            Codigo = request.Codigo,
-            Nombre = request.Nombre,
+            Codigo = request.Codigo?.Trim() ?? string.Empty,
+            Nombre = request.Nombre?.Trim() ?? string.Empty,
             HoraInicio = request.HoraInicio,
             HoraFin = request.HoraFin,
             Orden = request.Orden,
@@ -721,6 +721,10 @@ public class CatalogosController : ApiControllerBase
             CreadoPorUsuarioId = CurrentUserId,
             ModificadoPorUsuarioId = CurrentUserId
         };
+
+        var error = await ValidarTurnoAsync(turno);
+        if (error != null)
+            return BadRequest(error);
 
         await _unitOfWork.Turnos.AddAsync(turno);
         await _unitOfWork.SaveChangesAsync();
@@ -753,8 +757,22 @@ public class CatalogosController : ApiControllerBase
         if (turno == null)
             return NotFound();
 
-        turno.Codigo = request.Codigo;
-        turno.Nombre = request.Nombre;
+        // Validar sobre una copia: si se rechaza, la entidad rastreada no queda modificada.
+        var propuesto = new Domain.Entities.Turno
+        {
+            TurnoId = turno.TurnoId,
+            Codigo = request.Codigo?.Trim() ?? string.Empty,
+            Nombre = request.Nombre?.Trim() ?? string.Empty,
+            HoraInicio = request.HoraInicio,
+            HoraFin = request.HoraFin,
+            Activo = request.Activo
+        };
+        var error = await ValidarTurnoAsync(propuesto);
+        if (error != null)
+            return BadRequest(error);
+
+        turno.Codigo = propuesto.Codigo;
+        turno.Nombre = propuesto.Nombre;
         turno.HoraInicio = request.HoraInicio;
         turno.HoraFin = request.HoraFin;
         turno.Orden = request.Orden;
@@ -778,6 +796,24 @@ public class CatalogosController : ApiControllerBase
             Activo = turno.Activo,
             DuracionMinutos = turno.DuracionMinutos()
         });
+    }
+
+    /// <summary>
+    /// Código y nombre obligatorios; un turno activo no se superpone con otro ni hace pasar el día de 24 h.
+    /// </summary>
+    private async Task<ProblemDetails?> ValidarTurnoAsync(Domain.Entities.Turno turno)
+    {
+        string? motivo = null;
+        if (string.IsNullOrWhiteSpace(turno.Codigo))
+            motivo = "Completá el código del turno.";
+        else if (string.IsNullOrWhiteSpace(turno.Nombre))
+            motivo = "Completá el nombre del turno.";
+        else if (turno.Activo)
+            motivo = TurnoReglas.MotivoHorarioInvalido(turno, await _unitOfWork.Turnos.GetActivosAsync());
+
+        return motivo == null
+            ? null
+            : new ProblemDetails { Title = "Turno inválido", Detail = motivo, Status = StatusCodes.Status400BadRequest };
     }
 
     #endregion
@@ -1100,6 +1136,25 @@ public class CatalogosController : ApiControllerBase
         var fila = (await _unitOfWork.TiemposProgramadosDia.FindAsync(
             t => t.LineaId == request.LineaId && t.Fecha == request.Fecha)).FirstOrDefault();
         var esNueva = fila == null;
+
+        // Guardar un histórico sin cambios lo deja como estaba (no lo convierte en excepción).
+        if (fila != null && TurnoReglas.HistoricoSinCambios(fila, request.Horas, motivo))
+        {
+            return Ok(new DiaProgramadoDto
+            {
+                Fecha = fila.Fecha,
+                Horas = fila.Horas,
+                Origen = fila.Origen,
+                Motivo = fila.Motivo,
+                TiempoProgramadoDiaId = fila.TiempoProgramadoDiaId
+            });
+        }
+
+        // Al reemplazar un histórico, el valor anterior queda en el motivo para no perderlo.
+        if (fila is { Activo: true, Origen: "HISTORICO" })
+        {
+            motivo = TurnoReglas.MotivoReemplazandoHistorico(fila.Horas, motivo);
+        }
 
         fila ??= new Domain.Entities.TiempoProgramadoDia
         {
