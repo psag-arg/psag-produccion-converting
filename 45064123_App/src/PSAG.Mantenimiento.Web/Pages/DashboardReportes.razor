@@ -127,13 +127,7 @@
                             var topeIndisp = TopeEscala(indisponibilidad.Meses.Select(m => m.IndisponibilidadTotal)
                                 .Append(indisponibilidad.Promedio?.IndisponibilidadTotal ?? 0).Max(), 5);
                             <div class="chart-container" style="display: flex; align-items: flex-start; gap: 10px; position: relative;">
-                                <!-- Eje Y: cada marca a la altura exacta de su valor -->
-                                <div style="position: absolute; left: 10px; top: 0; height: @(AlturaGrafico)px; width: 45px;">
-                                    @foreach (var marca in Marcas(topeIndisp))
-                                    {
-                                        <span class="small text-muted position-absolute end-0" style="bottom: @Px(marca / topeIndisp * AlturaGrafico); transform: translateY(50%);">@marca.ToString("0.#")%</span>
-                                    }
-                                </div>
+                                @EjeY(topeIndisp, "%")
 
                                 @foreach (var mes in indisponibilidad.Meses)
                                 {
@@ -248,7 +242,7 @@
                         }
                         else if (errorReportes == null)
                         {
-                            <p class="text-muted text-center py-4">@TextoVacio("detenciones", incluirTurno: false)</p>
+                            <p class="text-muted text-center py-4">@TextoVacio("detenciones")</p>
                         }
                     </div>
                 </div>
@@ -287,12 +281,7 @@
                             var topeEventos = TopeEscala(fallosMayores.Meses.Select(m => m.TotalEventos)
                                 .Append(fallosMayores.Promedio?.TotalEventos ?? 0).Max(), 5);
                             <div class="chart-container" style="display: flex; align-items: flex-start; gap: 10px; position: relative;">
-                                <div style="position: absolute; left: 10px; top: 0; height: @(AlturaGrafico)px; width: 45px;">
-                                    @foreach (var marca in Marcas(topeEventos))
-                                    {
-                                        <span class="small text-muted position-absolute end-0" style="bottom: @Px(marca / topeEventos * AlturaGrafico); transform: translateY(50%);">@marca.ToString("0.#")</span>
-                                    }
-                                </div>
+                                @EjeY(topeEventos, "")
 
                                 @foreach (var mes in fallosMayores.Meses)
                                 {
@@ -392,7 +381,7 @@
                         }
                         else
                         {
-                            <p class="text-muted text-center py-4">@(errorReportes == null ? TextoVacio("fallos mayores", incluirTurno: false) : "")</p>
+                            <p class="text-muted text-center py-4">@(errorReportes == null ? TextoVacio("fallos mayores") : "")</p>
                         }
                     </div>
                 </div>
@@ -503,7 +492,7 @@
                         }
                         else if (errorReportes == null)
                         {
-                            <p class="text-muted text-center py-4">@TextoVacio("detenciones", incluirTurno: true)</p>
+                            <p class="text-muted text-center py-4">@TextoVacio("detenciones")</p>
                         }
                     </div>
                 </div>
@@ -1124,19 +1113,30 @@
         return Math.Ceiling(maximo / 4) * 4;
     }
 
-    private static IEnumerable<double> Marcas(double tope) => Enumerable.Range(0, 5).Select(i => tope * i / 4);
+    /// <summary>
+    /// Eje Y de 0 al tope en 4 tramos, cada marca a la altura exacta de su valor.
+    /// </summary>
+    private RenderFragment EjeY(double tope, string sufijo) =>
+        @<div style="position: absolute; left: 10px; top: 0; height: @(AlturaGrafico)px; width: 45px;">
+            @foreach (var marca in Enumerable.Range(0, 5).Select(i => tope * i / 4))
+            {
+                <span class="small text-muted position-absolute end-0" style="bottom: @Px(marca / tope * AlturaGrafico); transform: translateY(50%);">@marca.ToString("0.#")@sufijo</span>
+            }
+        </div>;
 
     /// <summary>
     /// Estado vacío que dice qué filtro lo dejó vacío y qué probar.
     /// </summary>
-    private string TextoVacio(string que, bool incluirTurno)
+    private string TextoVacio(string que)
     {
+        // El Pareto filtra además por mes y turno.
+        var esPareto = activeTab == 2;
         var linea = lineas.FirstOrDefault(l => l.LineaId == filtroLineaId)?.Nombre ?? "ninguna línea";
-        var periodo = activeTab == 2 ? TextoPeriodoPareto() : filtroAnio.ToString();
-        var turno = incluirTurno && filtroTurnoId > 0
+        var periodo = esPareto ? TextoPeriodoPareto() : filtroAnio.ToString();
+        var turno = esPareto && filtroTurnoId > 0
             ? $" · {turnos.FirstOrDefault(t => t.TurnoId == filtroTurnoId)?.Nombre}"
             : "";
-        var sugerencia = activeTab == 2 ? "Probá con otra línea, otro año o Mes: Todos." : "Probá con otra línea u otro año.";
+        var sugerencia = esPareto ? "Probá con otra línea, otro año o Mes: Todos." : "Probá con otra línea u otro año.";
         return $"No hay {que} de {linea} en {periodo}{turno}. {sugerencia}";
     }
 
