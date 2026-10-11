@@ -747,8 +747,7 @@
                                       user.IsInRole("SUPERVISOR");
         esAdministrador = user.IsInRole("ADMINISTRADOR");
         puedeCargar = new[] { "ADMINISTRADOR", "MANTENIMIENTO", "SUPERVISOR", "OPERARIO" }.Any(user.IsInRole);
-        esSoloOperario = user.IsInRole("OPERARIO")
-            && !new[] { "ADMINISTRADOR", "MANTENIMIENTO", "SUPERVISOR" }.Any(user.IsInRole);
+        esSoloOperario = RolesCarga.SoloOperario(user.IsInRole);
 
         await CargarLineas();
         await CargarDetenciones();

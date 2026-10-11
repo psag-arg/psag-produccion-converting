@@ -246,8 +246,7 @@
 
     private const string OperarioSinLinea = "Un operario necesita al menos una línea asignada para poder cargar detenciones.";
 
-    private bool SoloOperario => rolesSeleccionados.Contains("OPERARIO")
-        && !rolesSeleccionados.Any(r => r is "ADMINISTRADOR" or "SUPERVISOR" or "MANTENIMIENTO");
+    private bool SoloOperario => RolesCarga.SoloOperario(rolesSeleccionados.Contains);
     private string password = string.Empty;
     private bool isLoading = true;
     private bool showModal = false;
