@@ -80,6 +80,21 @@ public static class AnalisisFallaReglas
         && !detencion.FechaHoraAnalisis.HasValue;
 
     /// <summary>
+    /// Un borrador vacío no puede pasar el análisis de "Para analizar" a "En análisis".
+    /// Si ya estaba en análisis, se permite vaciarlo. Devuelve el motivo o null.
+    /// </summary>
+    public static string? MotivoBorradorNoGuardable(EstadoDetencion estado, string? solucion, string? causa, string? plan)
+    {
+        var vacio = string.IsNullOrWhiteSpace(solucion)
+            && string.IsNullOrWhiteSpace(causa)
+            && string.IsNullOrWhiteSpace(plan);
+
+        return vacio && estado == EstadoDetencion.REGISTRADA
+            ? "Escribí algo antes de guardar el borrador."
+            : null;
+    }
+
+    /// <summary>
     /// Devuelve el motivo por el que el análisis no se puede cerrar, o null si está completo.
     /// </summary>
     public static string? MotivoNoCerrable(string? solucion, string? causa)
