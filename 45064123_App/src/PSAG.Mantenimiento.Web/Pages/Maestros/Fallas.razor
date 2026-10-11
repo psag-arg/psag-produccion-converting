@@ -32,20 +32,9 @@
         </div>
     </div>
 
-    @if (!string.IsNullOrEmpty(mensajeLista))
-    {
-        <div class="alert alert-warning alert-dismissible">
-            @mensajeLista
-            <button type="button" class="btn-close" @onclick="() => mensajeLista = null"></button>
-        </div>
-    }
+    <AvisoDescartable @bind-Mensaje="mensajeLista" />
 
-    <div class="form-check form-switch mb-2">
-        <input class="form-check-input" type="checkbox" role="switch" id="mostrarInactivos"
-               @bind="mostrarInactivos" @bind:after="@(async () => await CargarFallas())" />
-        <label class="form-check-label" for="mostrarInactivos">Mostrar inactivos</label>
-        <div class="form-text mt-0">Los desactivados no aparecen al cargar detenciones. Para reactivar uno, mostralo y editalo.</div>
-    </div>
+    <SwitchInactivos @bind-Mostrar="mostrarInactivos" @bind-Mostrar:after="CargarFallas" />
 
     @if (isLoading)
     {
@@ -292,25 +281,7 @@
         }
     }
 
-    private async Task ConfirmarDesactivar(DetalleFallaDto falla)
-    {
-        var confirmed = await JS.InvokeAsync<bool>("confirm",
-            $"¿Desactivar la falla '{falla.Nombre}'? Deja de aparecer al cargar detenciones. Se puede reactivar con \"Mostrar inactivos\" y Editar.");
-        if (!confirmed) return;
-
-        mensajeLista = null;
-        falla.Activo = false;
-        try
-        {
-            await CatalogosService.UpdateDetalleFallaAsync(falla);
-        }
-        catch (Exception ex)
-        {
-            // La API explica por qué no se pudo (por ejemplo, tiene elementos activos que dependen).
-            falla.Activo = true;
-            mensajeLista = ex.Message;
-            return;
-        }
-        await CargarFallas();
-    }
+    private Task ConfirmarDesactivar(DetalleFallaDto falla) =>
+        JS.ConfirmarYDesactivarAsync($"la falla '{falla.Nombre}'", Desactivacion.EfectoEnCarga,
+            activo => falla.Activo = activo, () => CatalogosService.UpdateDetalleFallaAsync(falla), CargarFallas, m => mensajeLista = m);
 }

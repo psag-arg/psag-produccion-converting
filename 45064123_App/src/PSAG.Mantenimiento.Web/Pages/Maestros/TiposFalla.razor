@@ -16,20 +16,9 @@
         </button>
     </div>
 
-    @if (!string.IsNullOrEmpty(mensajeLista))
-    {
-        <div class="alert alert-warning alert-dismissible">
-            @mensajeLista
-            <button type="button" class="btn-close" @onclick="() => mensajeLista = null"></button>
-        </div>
-    }
+    <AvisoDescartable @bind-Mensaje="mensajeLista" />
 
-    <div class="form-check form-switch mb-2">
-        <input class="form-check-input" type="checkbox" role="switch" id="mostrarInactivos"
-               @bind="mostrarInactivos" @bind:after="@(async () => await CargarTiposFalla())" />
-        <label class="form-check-label" for="mostrarInactivos">Mostrar inactivos</label>
-        <div class="form-text mt-0">Los desactivados no aparecen al cargar detenciones. Para reactivar uno, mostralo y editalo.</div>
-    </div>
+    <SwitchInactivos @bind-Mostrar="mostrarInactivos" @bind-Mostrar:after="CargarTiposFalla" />
 
     @if (isLoading)
     {
@@ -277,25 +266,7 @@
         }
     }
 
-    private async Task ConfirmarDesactivar(TipoFallaDto tipo)
-    {
-        var confirmed = await JS.InvokeAsync<bool>("confirm",
-            $"¿Desactivar el tipo de falla '{tipo.Nombre}'? Deja de aparecer al cargar detenciones. Se puede reactivar con \"Mostrar inactivos\" y Editar.");
-        if (!confirmed) return;
-
-        mensajeLista = null;
-        tipo.Activo = false;
-        try
-        {
-            await CatalogosService.UpdateTipoFallaAsync(tipo);
-        }
-        catch (Exception ex)
-        {
-            // La API explica por qué no se pudo (por ejemplo, tiene elementos activos que dependen).
-            tipo.Activo = true;
-            mensajeLista = ex.Message;
-            return;
-        }
-        await CargarTiposFalla();
-    }
+    private Task ConfirmarDesactivar(TipoFallaDto tipo) =>
+        JS.ConfirmarYDesactivarAsync($"el tipo de falla '{tipo.Nombre}'", Desactivacion.EfectoEnCarga,
+            activo => tipo.Activo = activo, () => CatalogosService.UpdateTipoFallaAsync(tipo), CargarTiposFalla, m => mensajeLista = m);
 }
