@@ -10,6 +10,7 @@ public static class ApiErrores
 {
     public const string SinPermiso = "Tu usuario no tiene permiso para hacer esto. Si lo necesitás, pedíselo al administrador.";
     public const string SesionVencida = "Tu sesión venció. Volvé a entrar para seguir.";
+    public const string SinConexion = "No hay conexión con el servidor. Probá de nuevo en un rato.";
     public const string DatosInvalidos = "Hay datos con un formato que no se puede leer. Revisalos e intentá de nuevo.";
 
     /// <summary>

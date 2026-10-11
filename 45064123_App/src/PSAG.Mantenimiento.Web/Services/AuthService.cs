@@ -55,7 +55,7 @@ public class AuthService : IAuthService
         }
         catch (HttpRequestException)
         {
-            return new LoginResult { Success = false, Error = "No hay conexión con el servidor. Probá de nuevo en un rato." };
+            return new LoginResult { Success = false, Error = ApiErrores.SinConexion };
         }
     }
 
