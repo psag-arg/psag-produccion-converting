@@ -10,7 +10,7 @@
 
         @if (Vencida == "1" && string.IsNullOrEmpty(errorMessage))
         {
-            <div class="alert alert-warning">Tu sesión venció. Volvé a entrar para seguir.</div>
+            <div class="alert alert-warning">@ApiErrores.SesionVencida</div>
         }
 
         @if (!string.IsNullOrEmpty(errorMessage))
@@ -124,7 +124,7 @@
         catch (Exception ex)
         {
             Console.WriteLine($"Error en login: {ex.Message}");
-            errorMessage = "No hay conexión con el servidor. Probá de nuevo en un rato.";
+            errorMessage = ApiErrores.SinConexion;
         }
         finally
         {

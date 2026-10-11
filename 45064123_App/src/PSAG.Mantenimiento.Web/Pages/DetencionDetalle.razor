@@ -433,7 +433,7 @@
                                 <textarea class="form-control" @bind="cerrarRequest.ResolucionDescripcion" @bind:event="oninput" rows="3"></textarea>
                                 @if (string.IsNullOrWhiteSpace(cerrarRequest.ResolucionDescripcion))
                                 {
-                                    <div class="form-text">Escribí la resolución para poder cerrar.</div>
+                                    <div class="form-text">@FaltaResolucion</div>
                                 }
                             </div>
                         </div>
@@ -458,6 +458,7 @@
 @code {
     private const int LargoSolucion = 4000;
     private const int LargoCausaYPlan = 2000;
+    private const string FaltaResolucion = "Escribí la resolución para poder cerrar.";
 
     [Parameter]
     public long Id { get; set; }
@@ -486,7 +487,6 @@
 
     private bool puedeCerrarDetencion;
     private bool esAdministrador;
-    private string? usuarioId;
     private ClaimsPrincipal? usuario;
 
     private bool AnalisisCerrado => detencion?.EstadoActual == "CERRADA";
@@ -498,7 +498,6 @@
     protected override async Task OnInitializedAsync()
     {
         usuario = (await AuthStateProvider.GetAuthenticationStateAsync()).User;
-        usuarioId = usuario.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         esAdministrador = usuario.IsInRole("ADMINISTRADOR");
         // Misma política que la API (CanCloseDetenciones).
         puedeCerrarDetencion = esAdministrador || usuario.IsInRole("MANTENIMIENTO");
@@ -640,7 +639,7 @@
         errorCerrar = null;
         if (string.IsNullOrWhiteSpace(cerrarRequest.ResolucionDescripcion))
         {
-            errorCerrar = "Escribí la resolución para poder cerrar.";
+            errorCerrar = FaltaResolucion;
             return;
         }
 
@@ -728,14 +727,10 @@
             return $"Lo completa {responsable}.";
         }
 
-        return esAdministrador && !EsResponsable(dato)
+        return esAdministrador && !usuario.EsResponsable(dato.ResponsableUsuarioId, dato.ResponsableRol)
             ? $"Lo completa {responsable}. Como administrador también lo podés completar."
             : $"Te toca completarlo a vos ({responsable}).";
     }
-
-    private bool EsResponsable(AnalisisDetencionDto dato) =>
-        (!string.IsNullOrEmpty(usuarioId) && dato.ResponsableUsuarioId == usuarioId)
-        || (!string.IsNullOrEmpty(dato.ResponsableRol) && usuario?.IsInRole(dato.ResponsableRol) == true);
 
     private string UrlBaseSoluciones()
     {

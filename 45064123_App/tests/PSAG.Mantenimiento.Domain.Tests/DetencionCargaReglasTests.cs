@@ -4,31 +4,15 @@ namespace PSAG.Mantenimiento.Domain.Tests;
 
 public class DetencionCargaReglasTests
 {
-    [Fact]
-    public void ConHoras_ElTurnoSaleDeLaHoraAunqueElMaquinistaNoTengaTurno()
+    // Con horas manda la hora; si no, el turno del maquinista; un maquinista elegido sin turno ni horas no se resuelve.
+    [Theory]
+    [InlineData(true, true, false, FuenteTurno.HoraInicio)]
+    [InlineData(false, true, false, null)]
+    [InlineData(false, true, true, FuenteTurno.Maquinista)]
+    [InlineData(false, false, false, FuenteTurno.HoraActual)]
+    public void ElegirFuenteTurno_SegunHorasYMaquinista(bool conHoras, bool maquinistaElegido, bool maquinistaTieneTurno, FuenteTurno? esperado)
     {
-        Assert.Equal(FuenteTurno.HoraInicio,
-            DetencionCargaReglas.ElegirFuenteTurno(conHoras: true, maquinistaElegido: true, maquinistaTieneTurno: false));
-    }
-
-    [Fact]
-    public void MaquinistaElegidoSinTurnoNiHoras_NoSePuedeResolver()
-    {
-        Assert.Null(DetencionCargaReglas.ElegirFuenteTurno(conHoras: false, maquinistaElegido: true, maquinistaTieneTurno: false));
-    }
-
-    [Fact]
-    public void MaquinistaConTurno_UsaSuTurno()
-    {
-        Assert.Equal(FuenteTurno.Maquinista,
-            DetencionCargaReglas.ElegirFuenteTurno(conHoras: false, maquinistaElegido: true, maquinistaTieneTurno: true));
-    }
-
-    [Fact]
-    public void SinMaquinistaNiHoras_UsaLaHoraActual()
-    {
-        Assert.Equal(FuenteTurno.HoraActual,
-            DetencionCargaReglas.ElegirFuenteTurno(conHoras: false, maquinistaElegido: false, maquinistaTieneTurno: false));
+        Assert.Equal(esperado, DetencionCargaReglas.ElegirFuenteTurno(conHoras, maquinistaElegido, maquinistaTieneTurno));
     }
 
     [Fact]

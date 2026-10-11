@@ -187,15 +187,9 @@ public class DetencionesController : ApiControllerBase
             return Unauthorized();
         }
 
-        var hoyPlanta = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, _zonaPlanta).DateTime);
-        if (DetencionCargaReglas.EsFechaFutura(request.Fecha, hoyPlanta))
+        if (FechaFutura(request.Fecha) is { } fechaFutura)
         {
-            return BadRequest(new ProblemDetails
-            {
-                Title = "Fecha no válida",
-                Detail = DetencionCargaReglas.MensajeFechaFutura,
-                Status = StatusCodes.Status400BadRequest
-            });
+            return fechaFutura;
         }
 
         // La restricción por línea asignada se valida acá, no sólo en la pantalla.
@@ -531,15 +525,9 @@ public class DetencionesController : ApiControllerBase
             return LineaNoAsignada();
         }
 
-        var hoyPlanta = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, _zonaPlanta).DateTime);
-        if (request.Fecha is { } fechaNueva && DetencionCargaReglas.EsFechaFutura(fechaNueva, hoyPlanta))
+        if (FechaFutura(request.Fecha) is { } fechaFutura)
         {
-            return BadRequest(new ProblemDetails
-            {
-                Title = "Fecha no válida",
-                Detail = DetencionCargaReglas.MensajeFechaFutura,
-                Status = StatusCodes.Status400BadRequest
-            });
+            return fechaFutura;
         }
 
         var fecha = request.Fecha ?? detencion.Fecha;
@@ -1007,6 +995,22 @@ public class DetencionesController : ApiControllerBase
             }
             item.EliminadaPorUsuarioNombre = nombre;
         }
+    }
+
+    /// <summary>
+    /// "Hoy" es el de la planta, no el del servidor. Null si no hay fecha o no es futura.
+    /// </summary>
+    private BadRequestObjectResult? FechaFutura(DateOnly? fecha)
+    {
+        var hoyPlanta = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, _zonaPlanta).DateTime);
+        return fecha is { } f && DetencionCargaReglas.EsFechaFutura(f, hoyPlanta)
+            ? BadRequest(new ProblemDetails
+            {
+                Title = "Fecha no válida",
+                Detail = DetencionCargaReglas.MensajeFechaFutura,
+                Status = StatusCodes.Status400BadRequest
+            })
+            : null;
     }
 
     private ObjectResult LineaNoAsignada() => StatusCode(StatusCodes.Status403Forbidden, new ProblemDetails

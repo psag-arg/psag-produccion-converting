@@ -1,0 +1,12 @@
+@if (!string.IsNullOrEmpty(Mensaje))
+{
+    <div class="alert alert-warning alert-dismissible">
+        @Mensaje
+        <button type="button" class="btn-close" @onclick="() => MensajeChanged.InvokeAsync(null)"></button>
+    </div>
+}
+
+@code {
+    [Parameter] public string? Mensaje { get; set; }
+    [Parameter] public EventCallback<string?> MensajeChanged { get; set; }
+}
