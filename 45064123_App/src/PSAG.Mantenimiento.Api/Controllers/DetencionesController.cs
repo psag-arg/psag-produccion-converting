@@ -520,7 +520,7 @@ public class DetencionesController : ApiControllerBase
             return Conflict(new ProblemDetails
             {
                 Title = "Conflicto de concurrencia",
-                Detail = "La detención fue modificada por otro usuario. Por favor, recargue los datos e intente nuevamente.",
+                Detail = "Alguien guardó cambios en esta detención mientras la editabas. Cerrá esta ventana, recargá la página y volvé a cargar tu cambio.",
                 Status = StatusCodes.Status409Conflict
             });
         }

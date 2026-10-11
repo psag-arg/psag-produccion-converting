@@ -1,4 +1,4 @@
-using System.Net.Http.Json;
+using System.Net;
 using System.Text.Json;
 
 namespace PSAG.Mantenimiento.Web.Services;
@@ -8,6 +8,10 @@ namespace PSAG.Mantenimiento.Web.Services;
 /// </summary>
 public static class ApiErrores
 {
+    public const string SinPermiso = "Tu usuario no tiene permiso para hacer esto. Si lo necesitás, pedíselo al administrador.";
+    public const string SesionVencida = "Tu sesión venció. Volvé a entrar para seguir.";
+    public const string DatosInvalidos = "Hay datos con un formato que no se puede leer. Revisalos e intentá de nuevo.";
+
     /// <summary>
     /// Lanza HttpRequestException con el detalle del error si la respuesta no fue exitosa.
     /// </summary>
@@ -18,26 +22,8 @@ public static class ApiErrores
             return;
         }
 
-        var content = await response.Content.ReadAsStringAsync();
-        string errorMessage;
-
-        try
-        {
-            using var doc = JsonDocument.Parse(content);
-            errorMessage = doc.RootElement.TryGetProperty("detail", out var detail)
-                ? detail.GetString() ?? response.ReasonPhrase ?? "Error desconocido"
-                : doc.RootElement.TryGetProperty("title", out var title)
-                    ? title.GetString() ?? response.ReasonPhrase ?? "Error desconocido"
-                    : response.ReasonPhrase ?? "Error desconocido";
-        }
-        catch
-        {
-            errorMessage = string.IsNullOrEmpty(content)
-                ? response.ReasonPhrase ?? "Error desconocido"
-                : content;
-        }
-
-        throw new HttpRequestException(errorMessage, null, response.StatusCode);
+        var mensaje = await MensajeAsync(response, "No se pudo completar la operación. Intentá de nuevo.");
+        throw new HttpRequestException(mensaje, null, response.StatusCode);
     }
 
     /// <summary>
@@ -50,14 +36,42 @@ public static class ApiErrores
             return (true, null);
         }
 
+        return (false, await MensajeAsync(response, mensajeGenerico));
+    }
+
+    /// <summary>
+    /// Texto para el usuario: el detail de la API (siempre en castellano) o, si no viene, uno según el código.
+    /// El title por defecto de ASP.NET está en inglés, así que no se muestra.
+    /// </summary>
+    private static async Task<string> MensajeAsync(HttpResponseMessage response, string mensajeGenerico)
+    {
+        var contenido = await response.Content.ReadAsStringAsync();
+        var esValidacionDeFormato = false;
         try
         {
-            var problem = await response.Content.ReadFromJsonAsync<ProblemDetailsDto>();
-            return (false, problem?.Detail ?? mensajeGenerico);
+            using var doc = JsonDocument.Parse(contenido);
+            if (doc.RootElement.ValueKind == JsonValueKind.Object)
+            {
+                if (doc.RootElement.TryGetProperty("detail", out var detail)
+                    && detail.ValueKind == JsonValueKind.String
+                    && !string.IsNullOrWhiteSpace(detail.GetString()))
+                {
+                    return detail.GetString()!;
+                }
+                esValidacionDeFormato = doc.RootElement.TryGetProperty("errors", out _);
+            }
         }
-        catch
+        catch (JsonException)
         {
-            return (false, $"{mensajeGenerico} (error {(int)response.StatusCode})");
+            // Sin cuerpo JSON: se decide por el código.
         }
+
+        return response.StatusCode switch
+        {
+            HttpStatusCode.Forbidden => SinPermiso,
+            HttpStatusCode.Unauthorized => SesionVencida,
+            HttpStatusCode.BadRequest when esValidacionDeFormato => DatosInvalidos,
+            _ => $"{mensajeGenerico} (error {(int)response.StatusCode})"
+        };
     }
 }

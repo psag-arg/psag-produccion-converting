@@ -1020,7 +1020,7 @@
         {
             if (editando && editandoDetencion != null)
             {
-                var actualizada = await DetencionesService.ActualizarDetencionAsync(
+                var (actualizada, error) = await DetencionesService.ActualizarDetencionAsync(
                     editandoDetencion.DetencionId, ConstruirActualizacion(editandoDetencion));
                 if (actualizada)
                 {
@@ -1029,20 +1029,20 @@
                 }
                 else
                 {
-                    errorMessage = "No se pudo guardar. Si otra persona cambió la detención, recargá la página.";
+                    errorMessage = error;
                 }
             }
             else
             {
-                var result = await DetencionesService.CrearDetencionAsync(model);
-                if (result != null)
+                var (creada, error) = await DetencionesService.CrearDetencionAsync(model);
+                if (creada != null)
                 {
                     showModal = false;
                     await CargarDetenciones();
                 }
                 else
                 {
-                    errorMessage = "Error al guardar la detencion";
+                    errorMessage = error;
                 }
             }
         }
