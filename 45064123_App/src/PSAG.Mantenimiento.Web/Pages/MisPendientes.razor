@@ -235,7 +235,7 @@
             .Select(c => c.Value)
             .Distinct()
             .OrderBy(r => r)
-            .Select(Capitalizar);
+            .Select(ResponsableAnalisis.NombreRol);
         esOperario = authState.User.IsInRole("OPERARIO");
 
         await CargarPendientes();
@@ -381,7 +381,4 @@
             ? $"{inicio} → {item.FechaHoraArranque.Value:HH:mm}"
             : inicio;
     }
-
-    private static string Capitalizar(string texto) =>
-        texto.Length == 0 ? texto : char.ToUpperInvariant(texto[0]) + texto[1..].ToLowerInvariant();
 }

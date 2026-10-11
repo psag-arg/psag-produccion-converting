@@ -1355,16 +1355,12 @@
     /// </summary>
     private string TituloAnalisis(DetencionDto det)
     {
-        var esResponsable = (det.ResponsableUsuarioId != null && det.ResponsableUsuarioId == usuario?.FindFirst(ClaimTypes.NameIdentifier)?.Value)
-            || (det.ResponsableRol != null && usuario?.IsInRole(det.ResponsableRol) == true);
-        if (esAdministrador || esResponsable)
+        if (esAdministrador || usuario.EsResponsable(det.ResponsableUsuarioId, det.ResponsableRol))
         {
             return "Completar análisis";
         }
 
-        var quien = det.ResponsableRol is { Length: > 0 } rol
-            ? char.ToUpperInvariant(rol[0]) + rol[1..].ToLowerInvariant()
-            : "el responsable";
+        var quien = string.IsNullOrEmpty(det.ResponsableRol) ? "el responsable" : ResponsableAnalisis.NombreRol(det.ResponsableRol);
         return $"Ver análisis (lo completa {quien})";
     }
 }
