@@ -985,7 +985,8 @@ public class DetencionesController : ApiControllerBase
             fechaHasta: filtro.FechaHasta,
             busqueda: filtro.Busqueda,
             analisisPendiente: filtro.AnalisisPendiente,
-            incluirEliminadas: verEliminadas);
+            incluirEliminadas: verEliminadas,
+            minutosMinimos: filtro.DuracionMinimaMinutos);
     }
 
     /// <summary>

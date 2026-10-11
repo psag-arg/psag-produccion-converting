@@ -71,5 +71,6 @@ public interface IDetencionRepository : IRepository<Detencion>
         bool incluirEliminadas = false,
         string? ordenarPor = null,
         bool ordenDescendente = true,
+        int? minutosMinimos = null,
         CancellationToken cancellationToken = default);
 }

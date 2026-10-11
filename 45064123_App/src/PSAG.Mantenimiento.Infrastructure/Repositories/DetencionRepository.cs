@@ -270,6 +270,7 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
         bool incluirEliminadas = false,
         string? ordenarPor = null,
         bool ordenDescendente = true,
+        int? minutosMinimos = null,
         CancellationToken cancellationToken = default)
     {
         IQueryable<Detencion> query = incluirEliminadas ? _dbSet.IgnoreQueryFilters() : _dbSet;
@@ -304,6 +305,9 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
 
         if (fechaHasta.HasValue)
             query = query.Where(d => d.Fecha <= fechaHasta.Value);
+
+        if (minutosMinimos.HasValue)
+            query = query.Where(d => d.MinutosEfectivos >= minutosMinimos.Value);
 
         if (analisisPendiente.HasValue)
         {
