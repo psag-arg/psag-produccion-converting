@@ -27,9 +27,24 @@
                 </AutocompleteSelect>
             </div>
             <button class="btn btn-primary" @onclick="NuevaFalla">
-                <i class="bi bi-plus-circle me-2"></i>Nueva Falla
+                <i class="bi bi-plus-circle me-2"></i>Nueva falla
             </button>
         </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(mensajeLista))
+    {
+        <div class="alert alert-warning alert-dismissible">
+            @mensajeLista
+            <button type="button" class="btn-close" @onclick="() => mensajeLista = null"></button>
+        </div>
+    }
+
+    <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" role="switch" id="mostrarInactivos"
+               @bind="mostrarInactivos" @bind:after="@(async () => await CargarFallas())" />
+        <label class="form-check-label" for="mostrarInactivos">Mostrar inactivos</label>
+        <div class="form-text mt-0">Los desactivados no aparecen al cargar detenciones. Para reactivar uno, mostralo y editalo.</div>
     </div>
 
     @if (isLoading)
@@ -50,7 +65,7 @@
                             <th>ID</th>
                             <th>Tipo de Falla</th>
                             <th>Nombre</th>
-                            <th>Descripcion</th>
+                            <th>Descripción</th>
                             <th class="text-center">Activo</th>
                             <th class="text-end">Acciones</th>
                         </tr>
@@ -62,7 +77,16 @@
                             {
                                 <tr>
                                     <td>@falla.DetalleFallaId</td>
-                                    <td><span class="badge bg-warning text-dark">@falla.TipoFallaNombre</span></td>
+                                    <td>
+                                        @if (falla.TipoFallaNombre != null)
+                                        {
+                                            <span class="badge bg-warning text-dark">@falla.TipoFallaNombre</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted" title="Falla genérica: se ofrece con cualquier tipo de falla">Todos los tipos</span>
+                                        }
+                                    </td>
                                     <td><strong>@falla.Nombre</strong></td>
                                     <td>@falla.Descripcion</td>
                                     <td class="text-center">
@@ -79,9 +103,12 @@
                                         <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => EditarFalla(falla)">
                                             <i class="bi bi-pencil"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmarDesactivar(falla)">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
+                                        @if (falla.Activo)
+                                        {
+                                            <button class="btn btn-sm btn-outline-danger" title="Desactivar" @onclick="() => ConfirmarDesactivar(falla)">
+                                                <i class="bi bi-pause-circle"></i>
+                                            </button>
+                                        }
                                     </td>
                                 </tr>
                             }
@@ -106,7 +133,7 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">@(editando ? "Editar" : "Nueva") Falla</h5>
+                    <h5 class="modal-title">@(editando ? "Editar falla" : "Nueva falla")</h5>
                     <button type="button" class="btn-close" @onclick="CerrarModal"></button>
                 </div>
                 <div class="modal-body">
@@ -129,7 +156,7 @@
                         <input type="text" class="form-control" @bind="fallaActual.Nombre" />
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Descripcion</label>
+                        <label class="form-label">Descripción</label>
                         <textarea class="form-control" rows="3" @bind="fallaActual.Descripcion"></textarea>
                     </div>
                     <div class="form-check">
@@ -166,6 +193,8 @@
     private bool editando = false;
     private bool isSaving = false;
     private string? errorMessage;
+    private string? mensajeLista;
+    private bool mostrarInactivos;
 
     private IEnumerable<DetalleFallaDto> fallasFiltradas => filtroTipoFallaId > 0
         ? fallas.Where(f => f.TipoFallaId == filtroTipoFallaId)
@@ -182,7 +211,7 @@
         isLoading = true;
         try
         {
-            fallas = await CatalogosService.GetDetallesFallaAsync();
+            fallas = await CatalogosService.GetDetallesFallaAsync(incluirInactivos: mostrarInactivos);
         }
         catch (Exception ex)
         {
@@ -227,12 +256,12 @@
     {
         if (!fallaActual.TipoFallaId.HasValue || fallaActual.TipoFallaId == 0)
         {
-            errorMessage = "Debe seleccionar un tipo de falla";
+            errorMessage = "Elegí un tipo de falla.";
             return;
         }
         if (string.IsNullOrWhiteSpace(fallaActual.Nombre))
         {
-            errorMessage = "El nombre es requerido";
+            errorMessage = "Completá el nombre.";
             return;
         }
 
@@ -265,12 +294,23 @@
 
     private async Task ConfirmarDesactivar(DetalleFallaDto falla)
     {
-        var confirmed = await JS.InvokeAsync<bool>("confirm", $"¿Desea desactivar la falla '{falla.Nombre}'?");
-        if (confirmed)
+        var confirmed = await JS.InvokeAsync<bool>("confirm",
+            $"¿Desactivar la falla '{falla.Nombre}'? Deja de aparecer al cargar detenciones. Se puede reactivar con \"Mostrar inactivos\" y Editar.");
+        if (!confirmed) return;
+
+        mensajeLista = null;
+        falla.Activo = false;
+        try
         {
-            falla.Activo = false;
             await CatalogosService.UpdateDetalleFallaAsync(falla);
-            await CargarFallas();
         }
+        catch (Exception ex)
+        {
+            // La API explica por qué no se pudo (por ejemplo, tiene elementos activos que dependen).
+            falla.Activo = true;
+            mensajeLista = ex.Message;
+            return;
+        }
+        await CargarFallas();
     }
 }

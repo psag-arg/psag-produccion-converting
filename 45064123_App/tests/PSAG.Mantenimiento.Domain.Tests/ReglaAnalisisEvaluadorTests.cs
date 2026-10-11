@@ -144,4 +144,27 @@ public class ReglaAnalisisEvaluadorTests
 
         Assert.Same(activa, ReglaAnalisisEvaluador.Evaluar([inactiva, activa], Linea, Equipo, TipoFalla, 90));
     }
+
+    [Fact]
+    public void BuscarDuplicada_EncuentraLaReglaActivaIgual()
+    {
+        var existente = new ReglaAnalisis { ReglaAnalisisId = 1, LineaId = 7, TipoFallaId = 3, MinutosMinimos = 60, Activo = true };
+
+        Assert.Same(existente, ReglaAnalisisEvaluador.BuscarDuplicada([existente], 7, null, 3, 60));
+    }
+
+    [Fact]
+    public void BuscarDuplicada_IgnoraLaQueSeEditaLasInactivasYLasDistintas()
+    {
+        var reglas = new[]
+        {
+            new ReglaAnalisis { ReglaAnalisisId = 1, LineaId = 7, TipoFallaId = 3, MinutosMinimos = 60, Activo = true },
+            new ReglaAnalisis { ReglaAnalisisId = 2, LineaId = 7, TipoFallaId = 3, MinutosMinimos = 60, Activo = false },
+            new ReglaAnalisis { ReglaAnalisisId = 3, LineaId = null, TipoFallaId = 3, MinutosMinimos = 60, Activo = true },
+        };
+
+        Assert.Null(ReglaAnalisisEvaluador.BuscarDuplicada(reglas, 7, null, 3, 60, reglaAnalisisIdExcluida: 1));
+        Assert.Null(ReglaAnalisisEvaluador.BuscarDuplicada(reglas, 7, 5, 3, 60));
+        Assert.Null(ReglaAnalisisEvaluador.BuscarDuplicada(reglas, 7, null, 3, 90));
+    }
 }

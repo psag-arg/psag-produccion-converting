@@ -5,6 +5,8 @@ namespace PSAG.Mantenimiento.Domain.Interfaces;
 public interface IDetalleFallaRepository : IRepository<DetalleFalla>
 {
     Task<IEnumerable<DetalleFalla>> GetActivosAsync(CancellationToken cancellationToken = default);
+    /// <summary>Activos e inactivos, con tipo y equipo. Para el ABM.</summary>
+    Task<IEnumerable<DetalleFalla>> GetTodosAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Obtiene detalles de falla filtrados por equipo y/o tipo de falla.

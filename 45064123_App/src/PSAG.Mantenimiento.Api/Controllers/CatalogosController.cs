@@ -139,7 +139,7 @@ public class CatalogosController : ApiControllerBase
                 return BadRequest(new ProblemDetails
                 {
                     Title = "No se puede desactivar la linea",
-                    Detail = $"La linea tiene {equiposActivos} equipo(s) activo(s). Desactive primero los equipos asociados.",
+                    Detail = $"No se puede desactivar la línea: tiene {Cantidad(equiposActivos, "equipo activo", "equipos activos")}. Desactivalos primero en Maestros → Equipos.",
                     Status = StatusCodes.Status400BadRequest
                 });
             }
@@ -185,7 +185,7 @@ public class CatalogosController : ApiControllerBase
         {
             equipos = soloActivos == true
                 ? await _unitOfWork.Equipos.GetActivosAsync()
-                : await _unitOfWork.Equipos.GetAllAsync();
+                : await _unitOfWork.Equipos.GetTodosAsync();
         }
 
         var items = equipos.Select(e => new EquipoDto
@@ -288,7 +288,7 @@ public class CatalogosController : ApiControllerBase
                 return BadRequest(new ProblemDetails
                 {
                     Title = "No se puede desactivar el equipo",
-                    Detail = $"El equipo tiene {detallesActivos} detalle(s) de falla activo(s). Desactive primero los detalles asociados.",
+                    Detail = $"No se puede desactivar el equipo: tiene {Cantidad(detallesActivos, "detalle de falla activo", "detalles de falla activos")}. Desactivalos primero en Maestros → Fallas.",
                     Status = StatusCodes.Status400BadRequest
                 });
             }
@@ -445,7 +445,7 @@ public class CatalogosController : ApiControllerBase
                 return BadRequest(new ProblemDetails
                 {
                     Title = "No se puede desactivar el tipo de falla",
-                    Detail = $"El tipo de falla tiene {detallesActivos} detalle(s) de falla activo(s). Desactive primero los detalles asociados.",
+                    Detail = $"No se puede desactivar el tipo de falla: tiene {Cantidad(detallesActivos, "detalle de falla activo", "detalles de falla activos")}. Desactivalos primero en Maestros → Fallas.",
                     Status = StatusCodes.Status400BadRequest
                 });
             }
@@ -498,7 +498,7 @@ public class CatalogosController : ApiControllerBase
         {
             detalles = soloActivos == true
                 ? await _unitOfWork.DetallesFalla.GetActivosAsync()
-                : await _unitOfWork.DetallesFalla.GetAllAsync();
+                : await _unitOfWork.DetallesFalla.GetTodosAsync();
         }
 
         var items = detalles.Select(d => new DetalleFallaDto
@@ -685,7 +685,7 @@ public class CatalogosController : ApiControllerBase
             return NotFound(new ProblemDetails
             {
                 Title = "Turno no encontrado",
-                Detail = "No hay un turno configurado para la hora actual",
+                Detail = "No hay un turno configurado para la hora actual.",
                 Status = StatusCodes.Status404NotFound
             });
 
@@ -814,7 +814,7 @@ public class CatalogosController : ApiControllerBase
             return Unauthorized();
 
         var datos = NormalizarRegla(request);
-        var error = await ValidarReglaAnalisisAsync(datos);
+        var error = await ValidarReglaAnalisisAsync(datos, reglaIdEditada: null, quedaActiva: true);
         if (error != null)
             return BadRequest(new ProblemDetails
             {
@@ -854,7 +854,7 @@ public class CatalogosController : ApiControllerBase
             return NotFound();
 
         var datos = NormalizarRegla(request);
-        var error = await ValidarReglaAnalisisAsync(datos);
+        var error = await ValidarReglaAnalisisAsync(datos, reglaIdEditada: id, quedaActiva: request.Activo);
         if (error != null)
             return BadRequest(new ProblemDetails
             {
@@ -899,13 +899,13 @@ public class CatalogosController : ApiControllerBase
     /// Valida una regla contra la base. Devuelve el motivo del rechazo o null si es válida.
     /// Exactamente un responsable: un rol de análisis o un usuario activo.
     /// </summary>
-    private async Task<string?> ValidarReglaAnalisisAsync(CrearReglaAnalisisRequest datos)
+    private async Task<string?> ValidarReglaAnalisisAsync(CrearReglaAnalisisRequest datos, int? reglaIdEditada, bool quedaActiva)
     {
         if (datos.MinutosMinimos <= 0)
             return "Los minutos deben ser mayores que cero.";
 
         if (await _unitOfWork.TiposFalla.GetByIdAsync(datos.TipoFallaId) == null)
-            return "Debe seleccionar un tipo de falla válido.";
+            return "Elegí un tipo de falla válido.";
 
         if (datos.LineaId.HasValue && await _unitOfWork.Lineas.GetByIdAsync(datos.LineaId.Value) == null)
             return "La línea seleccionada no existe.";
@@ -930,6 +930,20 @@ public class CatalogosController : ApiControllerBase
             var usuario = await _userManager.FindByIdAsync(datos.ResponsableUsuarioId);
             if (usuario == null || !usuario.Activo)
                 return "El usuario responsable no existe o está inactivo.";
+        }
+
+        if (quedaActiva)
+        {
+            var duplicada = ReglaAnalisisEvaluador.BuscarDuplicada(
+                await _unitOfWork.ReglasAnalisis.GetAllAsync(),
+                datos.LineaId, datos.EquipoId, datos.TipoFallaId, datos.MinutosMinimos, reglaIdEditada);
+            if (duplicada != null)
+            {
+                var regla = await MapearReglaAnalisisAsync(duplicada);
+                var donde = regla.LineaNombre ?? "todas las líneas";
+                var equipo = regla.EquipoNombre != null ? $", {regla.EquipoNombre}" : "";
+                return $"Ya existe una regla activa igual ({donde}{equipo}, {regla.TipoFallaNombre}, ≥ {regla.MinutosMinimos} min). Editá esa en lugar de crear otra.";
+            }
         }
 
         return null;
@@ -1079,7 +1093,7 @@ public class CatalogosController : ApiControllerBase
             return BadRequest(new ProblemDetails
             {
                 Title = "Línea inválida",
-                Detail = "Debe seleccionar una línea válida.",
+                Detail = "Elegí una línea válida.",
                 Status = StatusCodes.Status400BadRequest
             });
 
@@ -1293,7 +1307,7 @@ public class CatalogosController : ApiControllerBase
             return BadRequest(new ProblemDetails
             {
                 Title = "Asignacion duplicada",
-                Detail = "El usuario ya esta asignado a esta linea.",
+                Detail = "El usuario ya está asignado a esta línea.",
                 Status = StatusCodes.Status400BadRequest
             });
         }
@@ -1352,7 +1366,7 @@ public class CatalogosController : ApiControllerBase
                 return BadRequest(new ProblemDetails
                 {
                     Title = "Asignacion duplicada",
-                    Detail = "El usuario ya esta asignado a esta linea.",
+                    Detail = "El usuario ya está asignado a esta línea.",
                     Status = StatusCodes.Status400BadRequest
                 });
             }
@@ -1405,7 +1419,7 @@ public class CatalogosController : ApiControllerBase
             return BadRequest(new ProblemDetails
             {
                 Title = "No se puede eliminar",
-                Detail = "El maquinista tiene detenciones asociadas. Puede reasignarlo a otra linea en lugar de eliminarlo.",
+                Detail = "El maquinista tiene detenciones asociadas. Podés reasignarlo a otra línea en lugar de eliminarlo.",
                 Status = StatusCodes.Status400BadRequest
             });
         }
@@ -1473,4 +1487,6 @@ public class CatalogosController : ApiControllerBase
     }
 
     #endregion
+
+    private static string Cantidad(int n, string singular, string plural) => n == 1 ? $"1 {singular}" : $"{n} {plural}";
 }

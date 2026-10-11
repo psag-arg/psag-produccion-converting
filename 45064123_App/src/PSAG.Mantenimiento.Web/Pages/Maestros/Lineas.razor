@@ -6,14 +6,29 @@
 @inject ICatalogosService CatalogosService
 @inject IJSRuntime JS
 
-<PageTitle>Lineas - PSAG Produccion</PageTitle>
+<PageTitle>Líneas - PSAG Produccion</PageTitle>
 
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3>Lineas</h3>
+        <h3>Líneas</h3>
         <button class="btn btn-primary" @onclick="NuevaLinea">
-            <i class="bi bi-plus-circle me-2"></i>Nueva Linea
+            <i class="bi bi-plus-circle me-2"></i>Nueva línea
         </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(mensajeLista))
+    {
+        <div class="alert alert-warning alert-dismissible">
+            @mensajeLista
+            <button type="button" class="btn-close" @onclick="() => mensajeLista = null"></button>
+        </div>
+    }
+
+    <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" role="switch" id="mostrarInactivos"
+               @bind="mostrarInactivos" @bind:after="@(async () => await CargarLineas())" />
+        <label class="form-check-label" for="mostrarInactivos">Mostrar inactivos</label>
+        <div class="form-text mt-0">Los desactivados no aparecen al cargar detenciones. Para reactivar uno, mostralo y editalo.</div>
     </div>
 
     @if (isLoading)
@@ -33,7 +48,7 @@
                         <tr>
                             <th>ID</th>
                             <th>Nombre</th>
-                            <th>Descripcion</th>
+                            <th>Descripción</th>
                             <th class="text-center">Activo</th>
                             <th class="text-end">Acciones</th>
                         </tr>
@@ -61,9 +76,12 @@
                                         <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => EditarLinea(linea)">
                                             <i class="bi bi-pencil"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmarDesactivar(linea)">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
+                                        @if (linea.Activo)
+                                        {
+                                            <button class="btn btn-sm btn-outline-danger" title="Desactivar" @onclick="() => ConfirmarDesactivar(linea)">
+                                                <i class="bi bi-pause-circle"></i>
+                                            </button>
+                                        }
                                     </td>
                                 </tr>
                             }
@@ -71,7 +89,7 @@
                         else
                         {
                             <tr>
-                                <td colspan="5" class="text-center text-muted py-4">No hay lineas registradas</td>
+                                <td colspan="5" class="text-center text-muted py-4">No hay líneas cargadas.</td>
                             </tr>
                         }
                     </tbody>
@@ -88,7 +106,7 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">@(editando ? "Editar" : "Nueva") Linea</h5>
+                    <h5 class="modal-title">@(editando ? "Editar línea" : "Nueva línea")</h5>
                     <button type="button" class="btn-close" @onclick="CerrarModal"></button>
                 </div>
                 <div class="modal-body">
@@ -97,7 +115,7 @@
                         <input type="text" class="form-control" @bind="lineaActual.Nombre" />
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Descripcion</label>
+                        <label class="form-label">Descripción</label>
                         <textarea class="form-control" rows="3" @bind="lineaActual.Descripcion"></textarea>
                     </div>
                     <div class="form-check">
@@ -132,6 +150,8 @@
     private bool editando = false;
     private bool isSaving = false;
     private string? errorMessage;
+    private string? mensajeLista;
+    private bool mostrarInactivos;
 
     protected override async Task OnInitializedAsync()
     {
@@ -143,7 +163,7 @@
         isLoading = true;
         try
         {
-            lineas = await CatalogosService.GetLineasAsync();
+            lineas = await CatalogosService.GetLineasAsync(incluirInactivas: mostrarInactivos);
         }
         catch (Exception ex)
         {
@@ -187,7 +207,7 @@
     {
         if (string.IsNullOrWhiteSpace(lineaActual.Nombre))
         {
-            errorMessage = "El nombre es requerido";
+            errorMessage = "Completá el nombre.";
             return;
         }
 
@@ -220,12 +240,23 @@
 
     private async Task ConfirmarDesactivar(LineaDto linea)
     {
-        var confirmed = await JS.InvokeAsync<bool>("confirm", $"¿Desea desactivar la linea '{linea.Nombre}'?");
-        if (confirmed)
+        var confirmed = await JS.InvokeAsync<bool>("confirm",
+            $"¿Desactivar la línea '{linea.Nombre}'? Deja de aparecer al cargar detenciones. Se puede reactivar con \"Mostrar inactivos\" y Editar.");
+        if (!confirmed) return;
+
+        mensajeLista = null;
+        linea.Activo = false;
+        try
         {
-            linea.Activo = false;
             await CatalogosService.UpdateLineaAsync(linea);
-            await CargarLineas();
         }
+        catch (Exception ex)
+        {
+            // La API explica por qué no se pudo (por ejemplo, tiene elementos activos que dependen).
+            linea.Activo = true;
+            mensajeLista = ex.Message;
+            return;
+        }
+        await CargarLineas();
     }
 }
