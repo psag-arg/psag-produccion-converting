@@ -380,7 +380,9 @@
                                                         OnValueChanged="OnEquipoChanged"
                                                         ValueSelector="@(e => (int?)e.EquipoId)"
                                                         TextSelector="@(e => e.Nombre)"
-                                                        Placeholder="Buscar equipo...">
+                                                        Disabled="@(selectedLineaId == 0)"
+                                                        EmptyText="Esta línea no tiene equipos cargados. Podés dejar el equipo vacío."
+                                                        Placeholder="@(selectedLineaId == 0 ? "Elegí primero la línea" : "Buscar equipo...")">
                                         <ItemTemplate Context="equipo">
                                             @equipo.Nombre
                                         </ItemTemplate>
@@ -412,7 +414,9 @@
                                                         @bind-SelectedValue="model.DetalleFallaId"
                                                         ValueSelector="@(d => (int?)d.DetalleFallaId)"
                                                         TextSelector="@(d => d.Nombre)"
-                                                        Placeholder="Buscar detalle...">
+                                                        Disabled="@(!model.TipoFallaId.HasValue)"
+                                                        EmptyText="No hay detalles cargados para este tipo de falla. Podés dejar el detalle vacío."
+                                                        Placeholder="@(model.TipoFallaId.HasValue ? "Buscar detalle..." : "Elegí primero el tipo de falla")">
                                         <ItemTemplate Context="detalle">
                                             @detalle.Nombre
                                         </ItemTemplate>

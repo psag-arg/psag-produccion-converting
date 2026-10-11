@@ -4,24 +4,33 @@
 <div class="autocomplete-container position-relative" @onfocusout="OnFocusOut">
     <div class="input-group">
         <input type="text"
+               @ref="inputRef"
                class="form-control @(IsOpen ? "border-primary" : "")"
                placeholder="@Placeholder"
+               disabled="@Disabled"
                @bind="searchText"
                @bind:event="oninput"
+               @bind:after="AlEscribir"
                @onfocus="OnFocus"
                @onkeydown="OnKeyDown" />
-        @if (!string.IsNullOrEmpty(searchText) || SelectedValue != null)
+        @if (!Disabled && (!string.IsNullOrEmpty(searchText) || SelectedValue != null))
         {
             <button type="button" class="btn btn-outline-secondary" @onclick="Clear" tabindex="-1">
                 <i class="bi bi-x"></i>
             </button>
         }
-        <button type="button" class="btn btn-outline-secondary" @onclick="ToggleDropdown" tabindex="-1">
+        <button type="button" class="btn btn-outline-secondary" @onclick="ToggleDropdown" tabindex="-1" disabled="@Disabled">
             <i class="bi bi-chevron-down"></i>
         </button>
     </div>
 
-    @if (IsOpen && filteredItems.Any())
+    @if (IsOpen && !Items.Any())
+    {
+        <div class="autocomplete-dropdown position-absolute w-100 border rounded shadow-sm mt-1" style="z-index: 1050;">
+            <div class="px-3 py-2 text-muted">@EmptyText</div>
+        </div>
+    }
+    else if (IsOpen && filteredItems.Any())
     {
         <div class="autocomplete-dropdown position-absolute w-100 border rounded shadow-sm mt-1" style="z-index: 1050; max-height: 250px; overflow-y: auto;">
             @foreach (var (item, index) in filteredItems.Select((x, i) => (x, i)))
@@ -38,7 +47,7 @@
     else if (IsOpen && !string.IsNullOrEmpty(searchText) && !filteredItems.Any())
     {
         <div class="autocomplete-dropdown position-absolute w-100 border rounded shadow-sm mt-1" style="z-index: 1050;">
-            <div class="px-3 py-2 text-muted">Sin resultados</div>
+            <div class="px-3 py-2 text-muted">Ninguna opción contiene “@searchText”. Borrá el texto para ver todas.</div>
         </div>
     }
 </div>
@@ -54,15 +63,20 @@
     [Parameter] public RenderFragment<TItem> ItemTemplate { get; set; } = default!;
     [Parameter] public string Placeholder { get; set; } = "Buscar...";
     [Parameter] public bool Disabled { get; set; }
+    /// <summary>Qué mostrar al abrir la lista sin opciones (por ejemplo, de qué campo depende).</summary>
+    [Parameter] public string EmptyText { get; set; } = "No hay opciones para elegir.";
 
     private string searchText = "";
     private bool IsOpen = false;
     private int highlightedIndex = 0;
     private List<TItem> filteredItems = new();
-    private bool skipFocusOut = false;
+    private ElementReference inputRef;
+    // Cada foco o pérdida de foco cambia la versión: un cierre demorado sólo se aplica si nada pasó después.
+    private int versionFoco;
 
     protected override void OnParametersSet()
     {
+        if (Disabled) IsOpen = false;
         if (SelectedValue != null && !IsOpen)
         {
             var selectedItem = Items.FirstOrDefault(i =>
@@ -100,18 +114,23 @@
 
     private void OnFocus()
     {
+        versionFoco++;
+        IsOpen = true;
+        FilterItems();
+    }
+
+    private void AlEscribir()
+    {
         IsOpen = true;
         FilterItems();
     }
 
     private async Task OnFocusOut()
     {
-        if (skipFocusOut)
-        {
-            skipFocusOut = false;
-            return;
-        }
+        var version = ++versionFoco;
+        // Espera para que el clic en una opción se procese antes de cerrar.
         await Task.Delay(200);
+        if (version != versionFoco) return;
         IsOpen = false;
 
         // Restaurar el texto si hay valor seleccionado
@@ -130,11 +149,18 @@
         }
     }
 
-    private void ToggleDropdown()
+    private async Task ToggleDropdown()
     {
-        skipFocusOut = true;
-        IsOpen = !IsOpen;
-        if (IsOpen) FilterItems();
+        if (Disabled) return;
+        if (IsOpen)
+        {
+            IsOpen = false;
+            return;
+        }
+        // Abrir con el foco en el input: así un clic afuera la cierra igual que al escribir.
+        IsOpen = true;
+        FilterItems();
+        await inputRef.FocusAsync();
     }
 
     private async Task SelectItem(TItem item)
@@ -188,11 +214,6 @@
 
             case "Escape":
                 IsOpen = false;
-                break;
-
-            default:
-                IsOpen = true;
-                FilterItems();
                 break;
         }
     }
