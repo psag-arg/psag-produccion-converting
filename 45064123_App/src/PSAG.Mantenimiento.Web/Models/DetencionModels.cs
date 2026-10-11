@@ -35,6 +35,9 @@ public class DetencionDto
     public DateTimeOffset? FechaHoraModificacion { get; set; }
 
     public bool Eliminada { get; set; }
+    public DateTimeOffset? FechaHoraEliminacion { get; set; }
+    public string? EliminadaPorUsuarioNombre { get; set; }
+    public string? MotivoEliminacion { get; set; }
     public bool RequiereAnalisis { get; set; }
     public bool AnalisisPendiente { get; set; }
     public string? EstadoAnalisisDescripcion { get; set; }

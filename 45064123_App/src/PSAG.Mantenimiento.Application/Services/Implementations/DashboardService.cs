@@ -4,6 +4,7 @@ using PSAG.Mantenimiento.Application.Services.Interfaces;
 using PSAG.Mantenimiento.Domain.Entities;
 using PSAG.Mantenimiento.Domain.Enums;
 using PSAG.Mantenimiento.Domain.Interfaces;
+using PSAG.Mantenimiento.Domain.Services;
 
 namespace PSAG.Mantenimiento.Application.Services.Implementations;
 
@@ -44,8 +45,9 @@ public class DashboardService : IDashboardService
         if (topDetallesResult.IsSuccess)
             dashboard.TopDetallesFalla = topDetallesResult.Value!;
 
-        // Detenciones abiertas
-        dashboard.DetencionesAbiertas = await ObtenerDetencionesAbiertasAsync(lineasPermitidas, cancellationToken);
+        // Detenciones con análisis pendiente (REGISTRADA sola es un dato completo, no un pendiente)
+        (dashboard.DetencionesAbiertas, dashboard.TotalPendientesAnalisis) =
+            await ObtenerPendientesAnalisisAsync(filtro.LineaId, lineasPermitidas, cancellationToken);
 
         // Top equipos con mayor parada
         dashboard.TopEquiposConMayorParada = await ObtenerTopEquiposConMayorParadaAsync(filtro, lineasPermitidas, 5, cancellationToken);
@@ -256,7 +258,8 @@ public class DashboardService : IDashboardService
         return Result<IReadOnlyList<TendenciaDetencionesDto>>.Success(resultado);
     }
 
-    private async Task<IReadOnlyList<DetencionAbiertaDto>> ObtenerDetencionesAbiertasAsync(
+    private async Task<(IReadOnlyList<DetencionAbiertaDto> Lista, int Total)> ObtenerPendientesAnalisisAsync(
+        int? lineaId,
         IEnumerable<int>? lineasPermitidas,
         CancellationToken cancellationToken)
     {
@@ -265,12 +268,17 @@ public class DashboardService : IDashboardService
         var equipos = await _unitOfWork.Equipos.GetAllAsync(cancellationToken);
         var tiposFalla = await _unitOfWork.TiposFalla.GetAllAsync(cancellationToken);
 
-        var query = detenciones.AsEnumerable();
+        var query = detenciones.Where(AnalisisFallaReglas.EstaAbierto);
 
         if (lineasPermitidas != null)
             query = query.Where(d => lineasPermitidas.Contains(d.LineaId));
 
-        return query
+        if (lineaId.HasValue)
+            query = query.Where(d => d.LineaId == lineaId.Value);
+
+        var pendientes = query.ToList();
+
+        var lista = pendientes
             .OrderByDescending(d => d.MinutosEfectivos)
             .Take(10)
             .Select(d => new DetencionAbiertaDto
@@ -284,12 +292,14 @@ public class DashboardService : IDashboardService
                 TipoFallaNombre = d.TipoFallaId.HasValue
                     ? tiposFalla.FirstOrDefault(t => t.TipoFallaId == d.TipoFallaId.Value)?.Nombre
                     : null,
-                Estado = d.EstadoActual.ToString(),
+                Estado = d.ObtenerDescripcionAnalisis() ?? d.EstadoActual.ObtenerDescripcion(),
                 Fecha = d.Fecha,
                 MinutosEfectivos = d.MinutosEfectivos,
                 Prioridad = d.MinutosEfectivos > 60 ? "Alta" : d.MinutosEfectivos > 30 ? "Media" : "Baja"
             })
             .ToList();
+
+        return (lista, pendientes.Count);
     }
 
     private async Task<IReadOnlyList<DetencionesPorEquipoDto>> ObtenerTopEquiposConMayorParadaAsync(
@@ -560,7 +570,10 @@ public class DashboardService : IDashboardService
         CancellationToken cancellationToken)
     {
         var desde = new DateOnly(anio, 1, 1);
-        var hasta = new DateOnly(anio, 12, 31);
+        // El tiempo que todavía no pasó no se programó: el mes en curso se mide hasta hoy.
+        var hasta = TiempoProgramadoReporte.HastaHoy(anio, DateOnly.FromDateTime(DateTime.Today));
+        if (hasta < desde)
+            return Array.Empty<TiempoProgramadoDiaDto>();
         var excepcionesPorLinea = (await _unitOfWork.TiemposProgramadosDia.GetPorRangoAsync(desde, hasta, lineaId, cancellationToken))
             .ToLookup(e => e.LineaId);
 
@@ -636,8 +649,12 @@ public class DashboardService : IDashboardService
             Anio = anio
         };
 
+        var meses = TiempoProgramadoReporte.MesesDelReporte(
+            anio, mesDesde, mesHasta, detencionesLista.Select(d => d.Fecha.Month),
+            minutosProgramadosPorMes, DateOnly.FromDateTime(DateTime.Today));
+
         // Agrupar por mes
-        for (int mes = mesDesde; mes <= mesHasta; mes++)
+        foreach (var mes in meses)
         {
             var detencionesDelMes = detencionesLista.Where(d => d.Fecha.Month == mes).ToList();
             var minutosProgramados = minutosProgramadosPorMes.GetValueOrDefault(mes);
@@ -689,9 +706,7 @@ public class DashboardService : IDashboardService
             }
 
             mensual.PorTipoFalla = porTipo;
-
-            if (detencionesDelMes.Any())
-                reporte.Meses.Add(mensual);
+            reporte.Meses.Add(mensual);
         }
 
         // Calcular promedio
@@ -744,15 +759,15 @@ public class DashboardService : IDashboardService
         var lineas = await _unitOfWork.Lineas.GetAllAsync(cancellationToken);
         var turnos = await _unitOfWork.Turnos.GetAllAsync(cancellationToken);
 
-        // Filtrar por linea y anio, y solo fallos mayores
-        var query = detenciones.AsEnumerable()
-            .Where(d => d.MinutosEfectivos >= umbralMinutos)
+        // Filtrar por linea y anio; los meses salen de todas las detenciones y los eventos, de los fallos mayores
+        var delAnio = detenciones.AsEnumerable()
             .Where(d => d.Fecha.Year == anio && d.Fecha.Month >= mesDesde && d.Fecha.Month <= mesHasta);
 
         if (filtro.LineaId.HasValue)
-            query = query.Where(d => d.LineaId == filtro.LineaId.Value);
+            delAnio = delAnio.Where(d => d.LineaId == filtro.LineaId.Value);
 
-        var fallosMayores = query.ToList();
+        var detencionesDelAnio = delAnio.ToList();
+        var fallosMayores = detencionesDelAnio.Where(d => d.MinutosEfectivos >= umbralMinutos).ToList();
 
         var minutosProgramadosPorMes = TiempoProgramadoReporte.MinutosPorMes(
             await CargarTiempoProgramadoAsync(lineas, turnos, anio, filtro.LineaId, cancellationToken));
@@ -767,8 +782,12 @@ public class DashboardService : IDashboardService
             UmbralMinutos = umbralMinutos
         };
 
+        var meses = TiempoProgramadoReporte.MesesDelReporte(
+            anio, mesDesde, mesHasta, detencionesDelAnio.Select(d => d.Fecha.Month),
+            minutosProgramadosPorMes, DateOnly.FromDateTime(DateTime.Today));
+
         // Agrupar por mes
-        for (int mes = mesDesde; mes <= mesHasta; mes++)
+        foreach (var mes in meses)
         {
             var fallosDelMes = fallosMayores.Where(d => d.Fecha.Month == mes).ToList();
             var minutosProgramados = minutosProgramadosPorMes.GetValueOrDefault(mes);
@@ -807,9 +826,7 @@ public class DashboardService : IDashboardService
                 .ToList();
 
             mensual.PorTipoFalla = porTipo;
-
-            if (fallosDelMes.Any())
-                reporte.Meses.Add(mensual);
+            reporte.Meses.Add(mensual);
         }
 
         // Calcular promedio
@@ -822,7 +839,8 @@ public class DashboardService : IDashboardService
             reporte.Promedio = new FallosMayoresMensualDto
             {
                 MesNombre = $"PROM {anio % 100}",
-                TotalEventos = totalEventos / reporte.Meses.Count,
+                // Con un decimal: la división entera hacía que los renglones no sumaran el total.
+                TotalEventos = Math.Round(totalEventos / reporte.Meses.Count, 1),
                 MinutosTotalesParada = totalMinutosParada / reporte.Meses.Count,
                 MinutosProgramados = totalMinutosProgramados / reporte.Meses.Count,
                 HorasProgramadas = TiempoProgramadoReporte.Horas(totalMinutosProgramados / reporte.Meses.Count),
@@ -838,7 +856,7 @@ public class DashboardService : IDashboardService
                     TipoFallaId = g.Key,
                     TipoFallaNombre = g.First().TipoFallaNombre,
                     Color = g.First().Color,
-                    CantidadEventos = g.Sum(x => x.CantidadEventos) / reporte.Meses.Count,
+                    CantidadEventos = Math.Round(g.Sum(x => x.CantidadEventos) / reporte.Meses.Count, 1),
                     MinutosTotales = g.Sum(x => x.MinutosTotales) / reporte.Meses.Count
                 })
                 .OrderByDescending(x => x.CantidadEventos)
@@ -888,7 +906,7 @@ public class DashboardService : IDashboardService
             TurnoId = filtro.TurnoId,
             TurnoNombre = filtro.TurnoId.HasValue
                 ? turnos.FirstOrDefault(t => t.TurnoId == filtro.TurnoId.Value)?.Nombre
-                : "(Todas)",
+                : "Todos los turnos",
             TotalMinutos = totalMinutos,
             TotalDetenciones = lista.Count
         };
@@ -914,12 +932,14 @@ public class DashboardService : IDashboardService
             .OrderByDescending(x => x.MinutosTotales)
             .ToList();
 
-        // Calcular % acumulado
-        double acumulado = 0;
+        // % acumulado sobre minutos (sumar porcentajes ya redondeados podía cerrar en 99%)
+        var minutosAcumulados = 0;
         foreach (var item in porTipoFalla)
         {
-            acumulado += item.PorcentajeDelTotal;
-            item.PorcentajeAcumulado = Math.Round(acumulado, 0);
+            minutosAcumulados += item.MinutosTotales;
+            item.PorcentajeAcumulado = totalMinutos > 0
+                ? Math.Round((double)minutosAcumulados / totalMinutos * 100, 0)
+                : 0;
         }
 
         reporte.ResumenPorTipoFalla = porTipoFalla;
@@ -945,7 +965,7 @@ public class DashboardService : IDashboardService
                             DetalleFallaId = detalleGrupo.Key,
                             DetalleFallaNombre = detalleGrupo.Key.HasValue
                                 ? detallesFalla.FirstOrDefault(df => df.DetalleFallaId == detalleGrupo.Key.Value)?.Nombre ?? detalleGrupo.First().Descripcion
-                                : detalleGrupo.First().Descripcion,
+                                : string.Empty, // agrupa varias detenciones sin detalle: la pantalla muestra "(Sin detalle)"
                             MinutosTotales = minutosDetalle,
                             PorcentajeDelTotal = totalMinutos > 0
                                 ? Math.Round((double)minutosDetalle / totalMinutos * 100, 0)

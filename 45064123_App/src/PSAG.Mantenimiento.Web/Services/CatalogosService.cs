@@ -6,27 +6,27 @@ namespace PSAG.Mantenimiento.Web.Services;
 public interface ICatalogosService
 {
     // Lineas
-    Task<List<LineaDto>> GetLineasAsync();
+    Task<List<LineaDto>> GetLineasAsync(bool incluirInactivas = false);
     Task CreateLineaAsync(LineaDto linea);
     Task UpdateLineaAsync(LineaDto linea);
 
     // Equipos
-    Task<List<EquipoDto>> GetEquiposAsync(int? lineaId = null);
+    Task<List<EquipoDto>> GetEquiposAsync(int? lineaId = null, bool incluirInactivos = false);
     Task CreateEquipoAsync(EquipoDto equipo);
     Task UpdateEquipoAsync(EquipoDto equipo);
 
     // Tipos de Falla
-    Task<List<TipoFallaDto>> GetTiposFallaAsync();
+    Task<List<TipoFallaDto>> GetTiposFallaAsync(bool incluirInactivos = false);
     Task CreateTipoFallaAsync(TipoFallaDto tipoFalla);
     Task UpdateTipoFallaAsync(TipoFallaDto tipoFalla);
 
     // Detalles de Falla
-    Task<List<DetalleFallaDto>> GetDetallesFallaAsync(int? tipoFallaId = null, int? equipoId = null);
+    Task<List<DetalleFallaDto>> GetDetallesFallaAsync(int? tipoFallaId = null, int? equipoId = null, bool incluirInactivos = false);
     Task CreateDetalleFallaAsync(DetalleFallaDto detalleFalla);
     Task UpdateDetalleFallaAsync(DetalleFallaDto detalleFalla);
 
     // Turnos
-    Task<List<TurnoDto>> GetTurnosAsync();
+    Task<List<TurnoDto>> GetTurnosAsync(bool incluirInactivos = false);
     Task CreateTurnoAsync(TurnoDto turno);
     Task UpdateTurnoAsync(TurnoDto turno);
 
@@ -60,9 +60,10 @@ public class CatalogosService : ICatalogosService
         _httpClient = httpClient;
     }
 
-    public async Task<List<LineaDto>> GetLineasAsync()
+    public async Task<List<LineaDto>> GetLineasAsync(bool incluirInactivas = false)
     {
-        var result = await _httpClient.GetFromJsonAsync<List<LineaDto>>("api/catalogos/lineas");
+        var url = incluirInactivas ? "api/catalogos/lineas?soloActivas=false" : "api/catalogos/lineas";
+        var result = await _httpClient.GetFromJsonAsync<List<LineaDto>>(url);
         return result ?? new List<LineaDto>();
     }
 
@@ -78,10 +79,12 @@ public class CatalogosService : ICatalogosService
         await ApiErrores.AsegurarExitoAsync(response);
     }
 
-    public async Task<List<EquipoDto>> GetEquiposAsync(int? lineaId = null)
+    public async Task<List<EquipoDto>> GetEquiposAsync(int? lineaId = null, bool incluirInactivos = false)
     {
-        var url = "api/catalogos/equipos";
-        if (lineaId.HasValue) url += $"?lineaId={lineaId}";
+        var queryParams = new List<string>();
+        if (lineaId.HasValue) queryParams.Add($"lineaId={lineaId}");
+        if (incluirInactivos) queryParams.Add("soloActivos=false");
+        var url = "api/catalogos/equipos" + (queryParams.Any() ? "?" + string.Join("&", queryParams) : "");
 
         var result = await _httpClient.GetFromJsonAsync<List<EquipoDto>>(url);
         return result ?? new List<EquipoDto>();
@@ -99,9 +102,10 @@ public class CatalogosService : ICatalogosService
         await ApiErrores.AsegurarExitoAsync(response);
     }
 
-    public async Task<List<TipoFallaDto>> GetTiposFallaAsync()
+    public async Task<List<TipoFallaDto>> GetTiposFallaAsync(bool incluirInactivos = false)
     {
-        var result = await _httpClient.GetFromJsonAsync<List<TipoFallaDto>>("api/catalogos/tipos-falla");
+        var url = incluirInactivos ? "api/catalogos/tipos-falla?soloActivos=false" : "api/catalogos/tipos-falla";
+        var result = await _httpClient.GetFromJsonAsync<List<TipoFallaDto>>(url);
         return result ?? new List<TipoFallaDto>();
     }
 
@@ -117,12 +121,13 @@ public class CatalogosService : ICatalogosService
         await ApiErrores.AsegurarExitoAsync(response);
     }
 
-    public async Task<List<DetalleFallaDto>> GetDetallesFallaAsync(int? tipoFallaId = null, int? equipoId = null)
+    public async Task<List<DetalleFallaDto>> GetDetallesFallaAsync(int? tipoFallaId = null, int? equipoId = null, bool incluirInactivos = false)
     {
         var url = "api/catalogos/detalles-falla";
         var queryParams = new List<string>();
         if (tipoFallaId.HasValue) queryParams.Add($"tipoFallaId={tipoFallaId}");
         if (equipoId.HasValue) queryParams.Add($"equipoId={equipoId}");
+        if (incluirInactivos) queryParams.Add("soloActivos=false");
         if (queryParams.Any()) url += "?" + string.Join("&", queryParams);
 
         var result = await _httpClient.GetFromJsonAsync<List<DetalleFallaDto>>(url);
@@ -141,9 +146,10 @@ public class CatalogosService : ICatalogosService
         await ApiErrores.AsegurarExitoAsync(response);
     }
 
-    public async Task<List<TurnoDto>> GetTurnosAsync()
+    public async Task<List<TurnoDto>> GetTurnosAsync(bool incluirInactivos = false)
     {
-        var result = await _httpClient.GetFromJsonAsync<List<TurnoDto>>("api/catalogos/turnos");
+        var url = incluirInactivos ? "api/catalogos/turnos?soloActivos=false" : "api/catalogos/turnos";
+        var result = await _httpClient.GetFromJsonAsync<List<TurnoDto>>(url);
         return result ?? new List<TurnoDto>();
     }
 

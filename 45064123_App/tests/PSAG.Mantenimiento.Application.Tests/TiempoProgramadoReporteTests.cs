@@ -95,4 +95,50 @@ public class TiempoProgramadoReporteTests
         Assert.Equal(6.17, TiempoProgramadoReporte.Horas(370));
         Assert.Equal(0, TiempoProgramadoReporte.Horas(0));
     }
+
+    private static readonly Dictionary<int, int> ProgramadoTodoElAnio =
+        Enumerable.Range(1, 12).ToDictionary(m => m, _ => 1000);
+
+    [Fact]
+    public void MesSinDetencionesEnElMedio_AparecePara_NoSubirElPromedio()
+    {
+        var meses = TiempoProgramadoReporte.MesesDelReporte(
+            2026, 1, 12, [3, 4, 6, 7, 8], ProgramadoTodoElAnio, new DateOnly(2026, 10, 11));
+
+        Assert.Equal([3, 4, 5, 6, 7, 8, 9, 10], meses);
+    }
+
+    [Fact]
+    public void MesesFuturos_NoAparecen_SalvoQueTenganDatos()
+    {
+        var hoy = new DateOnly(2026, 10, 11);
+
+        Assert.Equal([3, 4, 5, 6, 7, 8, 9, 10],
+            TiempoProgramadoReporte.MesesDelReporte(2026, 1, 12, [3], ProgramadoTodoElAnio, hoy));
+        Assert.Equal([3, 4, 5, 6, 7, 8, 9, 10, 11],
+            TiempoProgramadoReporte.MesesDelReporte(2026, 1, 12, [3, 11], ProgramadoTodoElAnio, hoy));
+    }
+
+    [Fact]
+    public void SinDatos_NoHayMeses()
+    {
+        Assert.Empty(TiempoProgramadoReporte.MesesDelReporte(2025, 1, 12, [], ProgramadoTodoElAnio, new DateOnly(2026, 10, 11)));
+    }
+
+    [Fact]
+    public void AnioPasado_LlegaHastaDiciembre()
+    {
+        var meses = TiempoProgramadoReporte.MesesDelReporte(2025, 1, 12, [10], ProgramadoTodoElAnio, new DateOnly(2026, 10, 11));
+
+        Assert.Equal([10, 11, 12], meses);
+    }
+
+    [Fact]
+    public void HastaHoy_CortaElAnioEnCurso()
+    {
+        var hoy = new DateOnly(2026, 10, 11);
+
+        Assert.Equal(hoy, TiempoProgramadoReporte.HastaHoy(2026, hoy));
+        Assert.Equal(new DateOnly(2025, 12, 31), TiempoProgramadoReporte.HastaHoy(2025, hoy));
+    }
 }

@@ -7,6 +7,11 @@ namespace PSAG.Mantenimiento.Application.DTOs.Detenciones;
 public abstract class DatosAnalisisDetencion
 {
     public bool Eliminada { get; set; }
+    public DateTimeOffset? FechaHoraEliminacion { get; set; }
+    public string? EliminadaPorUsuarioId { get; set; }
+    /// <summary>Lo completa el controller (requiere buscar el usuario).</summary>
+    public string? EliminadaPorUsuarioNombre { get; set; }
+    public string? MotivoEliminacion { get; set; }
     public bool RequiereAnalisis { get; set; }
     public string? ResponsableRol { get; set; }
     public string? ResponsableUsuarioId { get; set; }

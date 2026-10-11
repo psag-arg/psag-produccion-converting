@@ -9,12 +9,12 @@ public interface IDetencionesService
     Task<PagedResult<DetencionDto>> GetDetencionesConFiltrosAsync(DetencionFiltroRequest filtro);
     Task<byte[]?> ExportarExcelAsync(DetencionFiltroRequest filtro);
     Task<DetencionDetalleDto?> GetDetencionAsync(long id);
-    Task<CrearDetencionResponse?> CrearDetencionAsync(CrearDetencionRequest request);
-    Task<bool> ActualizarDetencionAsync(long id, ActualizarDetencionRequest request);
+    Task<(CrearDetencionResponse? Detencion, string? Error)> CrearDetencionAsync(CrearDetencionRequest request);
+    Task<(bool Success, string? Error)> ActualizarDetencionAsync(long id, ActualizarDetencionRequest request);
     Task<bool> PrevisualizarAnalisisAsync(CrearDetencionRequest request);
     Task<bool> EliminarDetencionAsync(long id, string motivo);
     Task<bool> RestaurarDetencionAsync(long id);
-    Task<bool> CerrarDetencionAsync(long id, CerrarDetencionRequest request);
+    Task<(bool Success, string? Error)> CerrarDetencionAsync(long id, CerrarDetencionRequest request);
     Task<List<DetencionDto>> GetDetencionesAbiertasAsync(int? lineaId = null);
     Task<ResumenTurnoResponse> GetResumenTurnoAsync(int? lineaId = null);
 }
@@ -74,20 +74,23 @@ public class DetencionesService : IDetencionesService
         return await _httpClient.GetFromJsonAsync<DetencionDetalleDto>($"api/detenciones/{id}");
     }
 
-    public async Task<CrearDetencionResponse?> CrearDetencionAsync(CrearDetencionRequest request)
+    private const string ErrorGuardar = "No se pudo guardar la detención. Revisá los datos e intentá de nuevo.";
+
+    public async Task<(CrearDetencionResponse? Detencion, string? Error)> CrearDetencionAsync(CrearDetencionRequest request)
     {
         var response = await _httpClient.PostAsJsonAsync("api/detenciones", request);
         if (response.IsSuccessStatusCode)
         {
-            return await response.Content.ReadFromJsonAsync<CrearDetencionResponse>();
+            return (await response.Content.ReadFromJsonAsync<CrearDetencionResponse>(), null);
         }
-        return null;
+        var (_, error) = await ApiErrores.ResultadoAsync(response, ErrorGuardar);
+        return (null, error);
     }
 
-    public async Task<bool> ActualizarDetencionAsync(long id, ActualizarDetencionRequest request)
+    public async Task<(bool Success, string? Error)> ActualizarDetencionAsync(long id, ActualizarDetencionRequest request)
     {
         var response = await _httpClient.PutAsJsonAsync($"api/detenciones/{id}", request);
-        return response.IsSuccessStatusCode;
+        return await ApiErrores.ResultadoAsync(response, ErrorGuardar);
     }
 
     public async Task<bool> PrevisualizarAnalisisAsync(CrearDetencionRequest request)
@@ -111,10 +114,14 @@ public class DetencionesService : IDetencionesService
         return response.IsSuccessStatusCode;
     }
 
-    public async Task<bool> CerrarDetencionAsync(long id, CerrarDetencionRequest request)
+    public async Task<(bool Success, string? Error)> CerrarDetencionAsync(long id, CerrarDetencionRequest request)
     {
         var response = await _httpClient.PostAsJsonAsync($"api/detenciones/{id}/cerrar", request);
-        return response.IsSuccessStatusCode;
+        if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            return (false, "No se pudo cerrar la detención: sólo Mantenimiento o un administrador pueden cerrarla.");
+        }
+        return await ApiErrores.ResultadoAsync(response, "No se pudo cerrar la detención. Probá de nuevo.");
     }
 
     public async Task<List<DetencionDto>> GetDetencionesAbiertasAsync(int? lineaId = null)
@@ -148,6 +155,7 @@ public class DetencionesService : IDetencionesService
         if (filtro.TipoFallaId.HasValue) queryParams.Add($"tipoFallaId={filtro.TipoFallaId}");
         if (filtro.DetalleFallaId.HasValue) queryParams.Add($"detalleFallaId={filtro.DetalleFallaId}");
         if (filtro.TurnoId.HasValue) queryParams.Add($"turnoId={filtro.TurnoId}");
+        if (filtro.MinutosMinimo.HasValue) queryParams.Add($"duracionMinimaMinutos={filtro.MinutosMinimo}");
         if (filtro.FechaDesde.HasValue) queryParams.Add($"fechaDesde={filtro.FechaDesde.Value:yyyy-MM-dd}");
         if (filtro.FechaHasta.HasValue) queryParams.Add($"fechaHasta={filtro.FechaHasta.Value:yyyy-MM-dd}");
         if (!string.IsNullOrEmpty(filtro.Estado)) queryParams.Add($"estado={filtro.Estado}");

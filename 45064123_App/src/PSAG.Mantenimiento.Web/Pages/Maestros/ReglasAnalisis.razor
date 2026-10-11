@@ -46,7 +46,7 @@
                 <table class="table table-hover mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th>Linea</th>
+                            <th>Línea</th>
                             <th>Tipo de falla</th>
                             <th>Minutos</th>
                             <th>Analiza</th>
@@ -137,13 +137,13 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">@(editando ? "Editar" : "Nueva") regla de análisis</h5>
+                    <h5 class="modal-title">@(editando ? "Editar regla de análisis" : "Nueva regla de análisis")</h5>
                     <button type="button" class="btn-close" @onclick="CerrarModal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Linea</label>
+                            <label class="form-label">Línea</label>
                             <select class="form-select" @onchange="CambiarLinea">
                                 <option value="0" selected="@(reglaActual.LineaId == null)">Todas las líneas</option>
                                 @foreach (var linea in lineas)
@@ -158,9 +158,13 @@
                                 <option value="0" selected="@(reglaActual.EquipoId == null)">Cualquier equipo</option>
                                 @foreach (var equipo in EquiposDeLineaSeleccionada)
                                 {
-                                    <option value="@equipo.EquipoId" selected="@(reglaActual.EquipoId == equipo.EquipoId)">@equipo.Nombre</option>
+                                    <option value="@equipo.EquipoId" selected="@(reglaActual.EquipoId == equipo.EquipoId)">@(reglaActual.LineaId.HasValue ? equipo.Nombre : $"{equipo.Nombre} ({equipo.LineaNombre})")</option>
                                 }
                             </select>
+                            @if (!reglaActual.LineaId.HasValue)
+                            {
+                                <div class="form-text">Elegí una línea para ver sólo sus equipos.</div>
+                            }
                         </div>
                     </div>
                     <div class="row">
@@ -364,7 +368,7 @@
     {
         if (reglaActual.TipoFallaId == 0)
         {
-            errorMessage = "Debe seleccionar un tipo de falla.";
+            errorMessage = "Elegí un tipo de falla.";
             return;
         }
         if (reglaActual.MinutosMinimos <= 0)
@@ -374,12 +378,12 @@
         }
         if (analizaPorUsuario && string.IsNullOrEmpty(reglaActual.ResponsableUsuarioId))
         {
-            errorMessage = "Debe seleccionar el usuario que analiza.";
+            errorMessage = "Elegí el usuario que analiza.";
             return;
         }
         if (!analizaPorUsuario && string.IsNullOrEmpty(reglaActual.ResponsableRol))
         {
-            errorMessage = "Debe seleccionar el rol que analiza.";
+            errorMessage = "Elegí el rol que analiza.";
             return;
         }
 

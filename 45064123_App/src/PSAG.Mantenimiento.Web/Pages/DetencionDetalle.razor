@@ -1,11 +1,14 @@
 @page "/detenciones/{Id:long}"
+@using System.Security.Claims
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
 @attribute [Authorize]
 @inject IDetencionesService DetencionesService
 @inject IAnalisisService AnalisisService
 @inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
 
 <PageTitle>Detención @(detencion?.Codigo ?? "") - PSAG Produccion</PageTitle>
 
@@ -35,12 +38,19 @@
                     @EstadoUi.Texto(detencion.EstadoActualDescripcion, detencion.EstadoAnalisisDescripcion)
                 </span>
             </div>
-            <div>
+            <div class="d-flex align-items-center">
                 @if (detencion.EstadoActual != "CERRADA" && !detencion.RequiereAnalisis)
                 {
-                    <button class="btn btn-success" @onclick="() => showCerrarModal = true">
-                        Cerrar Detención
-                    </button>
+                    @if (puedeCerrarDetencion)
+                    {
+                        <button class="btn btn-success" @onclick="AbrirCerrarModal">
+                            Cerrar detención
+                        </button>
+                    }
+                    else
+                    {
+                        <small class="text-muted">La cierra Mantenimiento.</small>
+                    }
                 }
                 <button class="btn btn-outline-secondary ms-2" @onclick="VolverAlListado">
                     Volver
@@ -187,45 +197,53 @@
                                     <div class="alert alert-@tipoMensaje py-2">@mensajeAnalisis</div>
                                 }
 
+                                @if (!AnalisisCerrado)
+                                {
+                                    <div class="small text-muted mb-3"><i class="bi bi-person me-1"></i>@ResponsableTexto(analisis)</div>
+                                }
+
                                 <div class="mb-4">
                                     <h6 class="mb-1">Solución (para resolver la falla) @if (analisis.PuedeEditar) { <span class="text-danger">*</span> }</h6>
-                                    <div class="small text-muted mb-2">@ResponsableTexto(analisis)</div>
                                     @if (analisis.PuedeEditar)
                                     {
-                                        <textarea class="form-control" rows="3" @bind="solucionTexto" @bind:event="oninput"
+                                        <textarea class="form-control @(faltaSolucion ? "is-invalid" : "")" rows="3" maxlength="@LargoSolucion"
+                                                  @bind="solucionTexto" @bind:event="oninput" @bind:after="LimpiarFaltantes"
                                                   placeholder="Qué se hizo para resolver la falla"></textarea>
+                                        <div class="form-text">@solucionTexto.Length de @LargoSolucion caracteres como máximo.</div>
                                     }
                                     else
                                     {
-                                        <div class="p-3 bg-light rounded">@(string.IsNullOrEmpty(analisis.AccionesRealizadas) ? "Sin completar" : analisis.AccionesRealizadas)</div>
+                                        <div class="p-3 bg-light rounded">@(string.IsNullOrEmpty(analisis.AccionesRealizadas) ? "Todavía sin completar." : analisis.AccionesRealizadas)</div>
                                     }
                                 </div>
 
                                 <div class="mb-4">
                                     <h6 class="mb-1">Causa de falla @if (analisis.PuedeEditar) { <span class="text-danger">*</span> }</h6>
-                                    <div class="small text-muted mb-2">@ResponsableTexto(analisis)</div>
                                     @if (analisis.PuedeEditar)
                                     {
-                                        <textarea class="form-control" rows="3" @bind="causaTexto" @bind:event="oninput"
+                                        <textarea class="form-control @(faltaCausa ? "is-invalid" : "")" rows="3" maxlength="@LargoCausaYPlan"
+                                                  @bind="causaTexto" @bind:event="oninput" @bind:after="LimpiarFaltantes"
                                                   placeholder="Causa raíz identificada"></textarea>
+                                        <div class="form-text">@causaTexto.Length de @LargoCausaYPlan caracteres como máximo.</div>
                                     }
                                     else
                                     {
-                                        <div class="p-3 bg-light rounded">@(string.IsNullOrEmpty(analisis.CausaFalla) ? "Sin completar" : analisis.CausaFalla)</div>
+                                        <div class="p-3 bg-light rounded">@(string.IsNullOrEmpty(analisis.CausaFalla) ? "Todavía sin completar." : analisis.CausaFalla)</div>
                                     }
                                 </div>
 
                                 <div class="mb-4">
-                                    <h6 class="mb-1">Plan de acción <span class="text-muted small fw-normal">(opcional)</span></h6>
-                                    <div class="small text-muted mb-2">@ResponsableTexto(analisis)</div>
+                                    <h6 class="mb-1">Plan de acción @if (!AnalisisCerrado) { <span class="text-muted small fw-normal">(opcional)</span> }</h6>
                                     @if (analisis.PuedeEditar)
                                     {
-                                        <textarea class="form-control" rows="3" @bind="planTexto" @bind:event="oninput"
+                                        <textarea class="form-control" rows="3" maxlength="@LargoCausaYPlan"
+                                                  @bind="planTexto" @bind:event="oninput"
                                                   placeholder="Qué se hace para que no vuelva a pasar"></textarea>
+                                        <div class="form-text">@planTexto.Length de @LargoCausaYPlan caracteres como máximo.</div>
                                     }
                                     else
                                     {
-                                        <div class="p-3 bg-light rounded">@(string.IsNullOrEmpty(analisis.PlanAccion) ? "Sin completar" : analisis.PlanAccion)</div>
+                                        <div class="p-3 bg-light rounded">@(string.IsNullOrEmpty(analisis.PlanAccion) ? (AnalisisCerrado ? "No se cargó plan de acción." : "Todavía sin completar.") : analisis.PlanAccion)</div>
                                     }
                                 </div>
 
@@ -242,22 +260,40 @@
                                             <span>Firma: queda con usuario y fecha al cerrar el análisis</span>
                                         }
                                     </small>
-                                    @if (analisis.PuedeEditar)
+                                    @if (analisis.PuedeEditar && !confirmandoCierre)
                                     {
-                                        <div>
-                                            <button class="btn btn-outline-primary me-2" @onclick="GuardarBorrador" disabled="@guardandoAnalisis">
+                                        <div class="text-end">
+                                            <button class="btn btn-outline-primary me-2" @onclick="GuardarBorrador" disabled="@(guardandoAnalisis || FormularioVacio)">
                                                 Guardar borrador
                                             </button>
                                             <button class="btn btn-success" @onclick="CerrarAnalisis" disabled="@guardandoAnalisis">
+                                                Cerrar análisis
+                                            </button>
+                                            <div class="form-text">
+                                                @(FormularioVacio ? "Escribí algo antes de guardar el borrador. " : "")Una vez cerrado, el análisis no se puede editar.
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+
+                                @if (confirmandoCierre)
+                                {
+                                    <div class="alert alert-warning mt-3 mb-0 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                        <span><strong>Al cerrar el análisis ya no se puede modificar.</strong> ¿Lo cerrás?</span>
+                                        <div>
+                                            <button class="btn btn-outline-secondary btn-sm me-2" @onclick="() => confirmandoCierre = false" disabled="@guardandoAnalisis">
+                                                Volver
+                                            </button>
+                                            <button class="btn btn-success btn-sm" @onclick="ConfirmarCierreAnalisis" disabled="@guardandoAnalisis">
                                                 @if (guardandoAnalisis)
                                                 {
                                                     <span class="spinner-border spinner-border-sm me-2"></span>
                                                 }
-                                                Cerrar análisis
+                                                Sí, cerrar análisis
                                             </button>
                                         </div>
-                                    }
-                                </div>
+                                    </div>
+                                }
                             }
                         </div>
                     </div>
@@ -307,7 +343,7 @@
                             }
                             else
                             {
-                                <div class="p-3 text-muted">No hay fallas parecidas cerradas.</div>
+                                <div class="p-3 text-muted">Todavía no hay fallas cerradas de @(detencion.EquipoNombre ?? detencion.TipoFallaNombre ?? "este tipo") con solución cargada.</div>
                             }
                             <div class="p-3 border-top">
                                 <a href="@UrlBaseSoluciones()">Buscar en base de soluciones</a>
@@ -380,27 +416,36 @@
                 <div class="modal-dialog">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">Cerrar Detención</h5>
+                            <h5 class="modal-title">Cerrar detención</h5>
                             <button type="button" class="btn-close" @onclick="() => showCerrarModal = false"></button>
                         </div>
                         <div class="modal-body">
+                            @if (errorCerrar != null)
+                            {
+                                <div class="alert alert-danger py-2">@errorCerrar</div>
+                            }
                             <div class="mb-3">
-                                <label class="form-label">Acciones Realizadas</label>
+                                <label class="form-label">Acciones realizadas</label>
                                 <textarea class="form-control" @bind="cerrarRequest.AccionesRealizadas" rows="3"></textarea>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Resolución *</label>
-                                <textarea class="form-control" @bind="cerrarRequest.ResolucionDescripcion" rows="3" required></textarea>
+                                <textarea class="form-control" @bind="cerrarRequest.ResolucionDescripcion" @bind:event="oninput" rows="3"></textarea>
+                                @if (string.IsNullOrWhiteSpace(cerrarRequest.ResolucionDescripcion))
+                                {
+                                    <div class="form-text">@FaltaResolucion</div>
+                                }
                             </div>
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" @onclick="() => showCerrarModal = false">Cancelar</button>
-                            <button type="button" class="btn btn-success" @onclick="CerrarDetencion" disabled="@isCerrando">
+                            <button type="button" class="btn btn-success" @onclick="CerrarDetencion"
+                                    disabled="@(isCerrando || string.IsNullOrWhiteSpace(cerrarRequest.ResolucionDescripcion))">
                                 @if (isCerrando)
                                 {
                                     <span class="spinner-border spinner-border-sm me-2"></span>
                                 }
-                                Cerrar Detención
+                                Cerrar detención
                             </button>
                         </div>
                     </div>
@@ -411,8 +456,16 @@
 </div>
 
 @code {
+    private const int LargoSolucion = 4000;
+    private const int LargoCausaYPlan = 2000;
+    private const string FaltaResolucion = "Escribí la resolución para poder cerrar.";
+
     [Parameter]
     public long Id { get; set; }
+
+    /// <summary>Pantalla desde la que se abrió el detalle (por ejemplo, /detenciones/pendientes).</summary>
+    [SupplyParameterFromQuery(Name = "volver")]
+    public string? Volver { get; set; }
 
     private DetencionDetalleDto? detencion;
     private AnalisisDetencionDto? analisis;
@@ -427,11 +480,27 @@
     private bool guardandoAnalisis = false;
     private string? mensajeAnalisis;
     private string tipoMensaje = "success";
+    private bool faltaSolucion;
+    private bool faltaCausa;
+    private bool confirmandoCierre;
+    private string? errorCerrar;
+
+    private bool puedeCerrarDetencion;
+    private bool esAdministrador;
+    private ClaimsPrincipal? usuario;
+
+    private bool AnalisisCerrado => detencion?.EstadoActual == "CERRADA";
+    private bool FormularioVacio =>
+        string.IsNullOrWhiteSpace(solucionTexto) && string.IsNullOrWhiteSpace(causaTexto) && string.IsNullOrWhiteSpace(planTexto);
 
     private record PasoEstado(string Titulo, string? Detalle, bool Hecho, bool Actual);
 
     protected override async Task OnInitializedAsync()
     {
+        usuario = (await AuthStateProvider.GetAuthenticationStateAsync()).User;
+        esAdministrador = usuario.IsInRole("ADMINISTRADOR");
+        // Misma política que la API (CanCloseDetenciones).
+        puedeCerrarDetencion = esAdministrador || usuario.IsInRole("MANTENIMIENTO");
         await CargarDetencion();
     }
 
@@ -487,16 +556,36 @@
         await GuardarAnalisis(cerrar: false);
     }
 
-    private async Task CerrarAnalisis()
+    private void CerrarAnalisis()
     {
-        if (string.IsNullOrWhiteSpace(solucionTexto) || string.IsNullOrWhiteSpace(causaTexto))
+        faltaSolucion = string.IsNullOrWhiteSpace(solucionTexto);
+        faltaCausa = string.IsNullOrWhiteSpace(causaTexto);
+        if (faltaSolucion || faltaCausa)
         {
-            mensajeAnalisis = "Para cerrar el análisis completá la solución y la causa de la falla.";
+            mensajeAnalisis = (faltaSolucion, faltaCausa) switch
+            {
+                (true, true) => "Para cerrar el análisis faltan la solución y la causa de la falla.",
+                (true, false) => "Para cerrar el análisis falta la solución.",
+                _ => "Para cerrar el análisis falta la causa de la falla."
+            };
             tipoMensaje = "warning";
             return;
         }
 
+        mensajeAnalisis = null;
+        confirmandoCierre = true;
+    }
+
+    private async Task ConfirmarCierreAnalisis()
+    {
         await GuardarAnalisis(cerrar: true);
+        confirmandoCierre = false;
+    }
+
+    private void LimpiarFaltantes()
+    {
+        if (faltaSolucion && !string.IsNullOrWhiteSpace(solucionTexto)) faltaSolucion = false;
+        if (faltaCausa && !string.IsNullOrWhiteSpace(causaTexto)) faltaCausa = false;
     }
 
     private async Task GuardarAnalisis(bool cerrar)
@@ -539,21 +628,33 @@
         }
     }
 
+    private void AbrirCerrarModal()
+    {
+        errorCerrar = null;
+        showCerrarModal = true;
+    }
+
     private async Task CerrarDetencion()
     {
+        errorCerrar = null;
         if (string.IsNullOrWhiteSpace(cerrarRequest.ResolucionDescripcion))
         {
+            errorCerrar = FaltaResolucion;
             return;
         }
 
         isCerrando = true;
         try
         {
-            var success = await DetencionesService.CerrarDetencionAsync(Id, cerrarRequest);
+            var (success, error) = await DetencionesService.CerrarDetencionAsync(Id, cerrarRequest);
             if (success)
             {
                 showCerrarModal = false;
                 await CargarDetencion();
+            }
+            else
+            {
+                errorCerrar = error;
             }
         }
         finally
@@ -564,7 +665,11 @@
 
     private void VolverAlListado()
     {
-        Navigation.NavigateTo("/detenciones");
+        // Sólo rutas internas de detenciones: el parámetro viene en la URL y no se confía en él.
+        var destino = Volver is { } v && v.StartsWith("/detenciones", StringComparison.Ordinal) && !v.StartsWith("//")
+            ? v
+            : "/detenciones";
+        Navigation.NavigateTo(destino);
     }
 
     /// <summary>
@@ -575,17 +680,29 @@
         var estado = detencion!.EstadoActual;
         var pasos = new List<PasoEstado>
         {
-            new("Registrada", detencion.Fecha.ToString("dd/MM/yyyy"), Hecho: true,
+            new("Registrada",
+                detencion.RequiereAnalisis
+                    ? detencion.Fecha.ToString("dd/MM/yyyy")
+                    : $"{detencion.Fecha:dd/MM/yyyy} · No requiere análisis",
+                Hecho: true,
                 Actual: estado == "REGISTRADA" && !detencion.RequiereAnalisis)
         };
 
-        if (detencion.RequiereAnalisis)
+        if (!detencion.RequiereAnalisis)
         {
-            var regla = analisis?.MinutosMinimosRegla.HasValue == true
-                ? $"Regla {analisis.TipoFallaNombre ?? ""} ≥ {analisis.MinutosMinimosRegla} min"
-                : "Regla de análisis";
-            pasos.Add(new("Requiere análisis", regla, Hecho: true, Actual: estado == "REGISTRADA"));
+            pasos.Add(new("Cerrada",
+                estado == "CERRADA" && detencion.FechaHoraCierre.HasValue
+                    ? detencion.FechaHoraCierre.Value.ToLocalTime().ToString("dd/MM/yyyy")
+                    : null,
+                Hecho: estado == "CERRADA",
+                Actual: estado == "CERRADA"));
+            return pasos;
         }
+
+        var regla = analisis?.MinutosMinimosRegla.HasValue == true
+            ? $"Regla {analisis.TipoFallaNombre ?? ""} ≥ {analisis.MinutosMinimosRegla} min"
+            : "Regla de análisis";
+        pasos.Add(new("Requiere análisis", regla, Hecho: true, Actual: estado == "REGISTRADA"));
 
         pasos.Add(new("En análisis",
             analisis != null && estado != "CERRADA" ? $"Responsable: {analisis.ResponsableNombre ?? "sin asignar"}" : null,
@@ -602,10 +719,17 @@
         return pasos;
     }
 
-    private static string ResponsableTexto(AnalisisDetencionDto dato)
+    private string ResponsableTexto(AnalisisDetencionDto dato)
     {
         var responsable = dato.ResponsableNombre ?? "sin asignar";
-        return dato.PuedeEditar ? $"Completa {responsable}" : $"Lo completa {responsable}";
+        if (!dato.PuedeEditar)
+        {
+            return $"Lo completa {responsable}.";
+        }
+
+        return esAdministrador && !usuario.EsResponsable(dato.ResponsableUsuarioId, dato.ResponsableRol)
+            ? $"Lo completa {responsable}. Como administrador también lo podés completar."
+            : $"Te toca completarlo a vos ({responsable}).";
     }
 
     private string UrlBaseSoluciones()

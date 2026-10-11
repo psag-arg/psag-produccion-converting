@@ -22,6 +22,16 @@ public class EquipoRepository : RepositoryBase<Equipo>, IEquipoRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IEnumerable<Equipo>> GetTodosAsync(CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .Include(e => e.Linea)
+            .OrderBy(e => e.Linea.Orden)
+            .ThenBy(e => e.Orden)
+            .ThenBy(e => e.Nombre)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IEnumerable<Equipo>> GetByLineaAsync(int lineaId, CancellationToken cancellationToken = default)
     {
         return await _dbSet

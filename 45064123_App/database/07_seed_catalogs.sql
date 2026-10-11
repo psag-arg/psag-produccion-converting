@@ -67,7 +67,7 @@ DECLARE @AdminUserId NVARCHAR(450) = 'SYSTEM-SEED'
 IF NOT EXISTS (SELECT 1 FROM [mnt].[Turnos] WHERE [Codigo] = N'T1')
 BEGIN
     INSERT INTO [mnt].[Turnos] ([Codigo], [Nombre], [HoraInicio], [HoraFin], [Orden], [Activo], [CreadoPorUsuarioId], [ModificadoPorUsuarioId])
-    VALUES (N'T1', N'Turno 1 (Manana)', '06:00:00', '14:00:00', 1, 1, @AdminUserId, @AdminUserId)
+    VALUES (N'T1', N'Turno 1 (Mañana)', '06:00:00', '14:00:00', 1, 1, @AdminUserId, @AdminUserId)
     PRINT '  - Turno 1 insertado'
 END
 

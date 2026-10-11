@@ -50,12 +50,12 @@ public class AuthService : IAuthService
                 }
             }
 
-            var error = await response.Content.ReadAsStringAsync();
+            var (_, error) = await ApiErrores.ResultadoAsync(response, "Usuario o contraseña incorrectos.");
             return new LoginResult { Success = false, Error = error };
         }
-        catch (Exception ex)
+        catch (HttpRequestException)
         {
-            return new LoginResult { Success = false, Error = ex.Message };
+            return new LoginResult { Success = false, Error = ApiErrores.SinConexion };
         }
     }
 

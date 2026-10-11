@@ -81,7 +81,9 @@ public class DashboardCompletoDto
     public IReadOnlyList<DetencionesPorTipoFallaDto> DetencionesPorTipoFalla { get; set; } = Array.Empty<DetencionesPorTipoFallaDto>();
     public IReadOnlyList<DetencionesPorDetalleFallaDto> TopDetallesFalla { get; set; } = Array.Empty<DetencionesPorDetalleFallaDto>();
     public IReadOnlyList<TendenciaDetencionesDto> TendenciaDiaria { get; set; } = Array.Empty<TendenciaDetencionesDto>();
+    /// <summary>Las 10 detenciones con análisis pendiente más largas.</summary>
     public IReadOnlyList<DetencionAbiertaDto> DetencionesAbiertas { get; set; } = Array.Empty<DetencionAbiertaDto>();
+    public int TotalPendientesAnalisis { get; set; }
 
     // Eje 2: Variables de Proceso
     public ResumenProcesoDto ResumenProceso { get; set; } = new();
@@ -200,7 +202,8 @@ public class FalloMayorTipoItem
     public int TipoFallaId { get; set; }
     public string TipoFallaNombre { get; set; } = string.Empty;
     public string? Color { get; set; }
-    public int CantidadEventos { get; set; }
+    /// <summary>Entero por mes; en el promedio, con un decimal.</summary>
+    public double CantidadEventos { get; set; }
     public int MinutosTotales { get; set; }
 }
 
@@ -212,7 +215,8 @@ public class FallosMayoresMensualDto
     public int Anio { get; set; }
     public int Mes { get; set; }
     public string MesNombre { get; set; } = string.Empty;
-    public int TotalEventos { get; set; }
+    /// <summary>Entero por mes; en el promedio, con un decimal.</summary>
+    public double TotalEventos { get; set; }
     public int MinutosTotalesParada { get; set; }
     public int MinutosProgramados { get; set; }
     public double HorasProgramadas { get; set; }

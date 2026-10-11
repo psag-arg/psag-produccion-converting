@@ -21,7 +21,7 @@
                                     OnValueChanged="@(async () => await CargarMaquinistas())"
                                     ValueSelector="@(l => l.LineaId)"
                                     TextSelector="@(l => l.Nombre)"
-                                    Placeholder="Filtrar por linea...">
+                                    Placeholder="Filtrar por línea...">
                     <ItemTemplate Context="linea">
                         @linea.Nombre
                     </ItemTemplate>
@@ -50,9 +50,9 @@
                         <tr>
                             <th>ID</th>
                             <th>Usuario</th>
-                            <th>Linea</th>
+                            <th>Línea</th>
                             <th>Turno</th>
-                            <th>Fecha Asignacion</th>
+                            <th>Fecha de asignación</th>
                             <th class="text-end">Acciones</th>
                         </tr>
                     </thead>
@@ -142,14 +142,14 @@
                         </div>
                     }
                     <div class="mb-3">
-                        <label class="form-label">Linea *</label>
+                        <label class="form-label">Línea *</label>
                         <AutocompleteSelect TItem="LineaDto"
                                             TValue="int"
                                             Items="lineas"
                                             @bind-SelectedValue="maquinistaActual.LineaId"
                                             ValueSelector="@(l => l.LineaId)"
                                             TextSelector="@(l => l.Nombre)"
-                                            Placeholder="Buscar linea...">
+                                            Placeholder="Buscar línea...">
                             <ItemTemplate Context="linea">
                                 @linea.Nombre
                             </ItemTemplate>
@@ -305,12 +305,12 @@
     {
         if (string.IsNullOrWhiteSpace(maquinistaActual.UsuarioId) && !editando)
         {
-            errorMessage = "Debe seleccionar un usuario";
+            errorMessage = "Elegí un usuario.";
             return;
         }
         if (maquinistaActual.LineaId == 0)
         {
-            errorMessage = "Debe seleccionar una linea";
+            errorMessage = "Elegí una línea.";
             return;
         }
 

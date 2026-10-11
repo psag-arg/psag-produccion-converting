@@ -139,7 +139,7 @@ public class CatalogosController : ApiControllerBase
                 return BadRequest(new ProblemDetails
                 {
                     Title = "No se puede desactivar la linea",
-                    Detail = $"La linea tiene {equiposActivos} equipo(s) activo(s). Desactive primero los equipos asociados.",
+                    Detail = $"No se puede desactivar la línea: tiene {Cantidad(equiposActivos, "equipo activo", "equipos activos")}. Desactivalos primero en Maestros → Equipos.",
                     Status = StatusCodes.Status400BadRequest
                 });
             }
@@ -185,7 +185,7 @@ public class CatalogosController : ApiControllerBase
         {
             equipos = soloActivos == true
                 ? await _unitOfWork.Equipos.GetActivosAsync()
-                : await _unitOfWork.Equipos.GetAllAsync();
+                : await _unitOfWork.Equipos.GetTodosAsync();
         }
 
         var items = equipos.Select(e => new EquipoDto
@@ -288,7 +288,7 @@ public class CatalogosController : ApiControllerBase
                 return BadRequest(new ProblemDetails
                 {
                     Title = "No se puede desactivar el equipo",
-                    Detail = $"El equipo tiene {detallesActivos} detalle(s) de falla activo(s). Desactive primero los detalles asociados.",
+                    Detail = $"No se puede desactivar el equipo: tiene {Cantidad(detallesActivos, "detalle de falla activo", "detalles de falla activos")}. Desactivalos primero en Maestros → Fallas.",
                     Status = StatusCodes.Status400BadRequest
                 });
             }
@@ -445,7 +445,7 @@ public class CatalogosController : ApiControllerBase
                 return BadRequest(new ProblemDetails
                 {
                     Title = "No se puede desactivar el tipo de falla",
-                    Detail = $"El tipo de falla tiene {detallesActivos} detalle(s) de falla activo(s). Desactive primero los detalles asociados.",
+                    Detail = $"No se puede desactivar el tipo de falla: tiene {Cantidad(detallesActivos, "detalle de falla activo", "detalles de falla activos")}. Desactivalos primero en Maestros → Fallas.",
                     Status = StatusCodes.Status400BadRequest
                 });
             }
@@ -498,7 +498,7 @@ public class CatalogosController : ApiControllerBase
         {
             detalles = soloActivos == true
                 ? await _unitOfWork.DetallesFalla.GetActivosAsync()
-                : await _unitOfWork.DetallesFalla.GetAllAsync();
+                : await _unitOfWork.DetallesFalla.GetTodosAsync();
         }
 
         var items = detalles.Select(d => new DetalleFallaDto
@@ -685,7 +685,7 @@ public class CatalogosController : ApiControllerBase
             return NotFound(new ProblemDetails
             {
                 Title = "Turno no encontrado",
-                Detail = "No hay un turno configurado para la hora actual",
+                Detail = "No hay un turno configurado para la hora actual.",
                 Status = StatusCodes.Status404NotFound
             });
 
@@ -712,8 +712,8 @@ public class CatalogosController : ApiControllerBase
 
         var turno = new Domain.Entities.Turno
         {
-            Codigo = request.Codigo,
-            Nombre = request.Nombre,
+            Codigo = request.Codigo?.Trim() ?? string.Empty,
+            Nombre = request.Nombre?.Trim() ?? string.Empty,
             HoraInicio = request.HoraInicio,
             HoraFin = request.HoraFin,
             Orden = request.Orden,
@@ -721,6 +721,10 @@ public class CatalogosController : ApiControllerBase
             CreadoPorUsuarioId = CurrentUserId,
             ModificadoPorUsuarioId = CurrentUserId
         };
+
+        var error = await ValidarTurnoAsync(turno);
+        if (error != null)
+            return BadRequest(error);
 
         await _unitOfWork.Turnos.AddAsync(turno);
         await _unitOfWork.SaveChangesAsync();
@@ -753,8 +757,22 @@ public class CatalogosController : ApiControllerBase
         if (turno == null)
             return NotFound();
 
-        turno.Codigo = request.Codigo;
-        turno.Nombre = request.Nombre;
+        // Validar sobre una copia: si se rechaza, la entidad rastreada no queda modificada.
+        var propuesto = new Domain.Entities.Turno
+        {
+            TurnoId = turno.TurnoId,
+            Codigo = request.Codigo?.Trim() ?? string.Empty,
+            Nombre = request.Nombre?.Trim() ?? string.Empty,
+            HoraInicio = request.HoraInicio,
+            HoraFin = request.HoraFin,
+            Activo = request.Activo
+        };
+        var error = await ValidarTurnoAsync(propuesto);
+        if (error != null)
+            return BadRequest(error);
+
+        turno.Codigo = propuesto.Codigo;
+        turno.Nombre = propuesto.Nombre;
         turno.HoraInicio = request.HoraInicio;
         turno.HoraFin = request.HoraFin;
         turno.Orden = request.Orden;
@@ -778,6 +796,24 @@ public class CatalogosController : ApiControllerBase
             Activo = turno.Activo,
             DuracionMinutos = turno.DuracionMinutos()
         });
+    }
+
+    /// <summary>
+    /// Código y nombre obligatorios; un turno activo no se superpone con otro ni hace pasar el día de 24 h.
+    /// </summary>
+    private async Task<ProblemDetails?> ValidarTurnoAsync(Domain.Entities.Turno turno)
+    {
+        string? motivo = null;
+        if (string.IsNullOrWhiteSpace(turno.Codigo))
+            motivo = "Completá el código del turno.";
+        else if (string.IsNullOrWhiteSpace(turno.Nombre))
+            motivo = "Completá el nombre del turno.";
+        else if (turno.Activo)
+            motivo = TurnoReglas.MotivoHorarioInvalido(turno, await _unitOfWork.Turnos.GetActivosAsync());
+
+        return motivo == null
+            ? null
+            : new ProblemDetails { Title = "Turno inválido", Detail = motivo, Status = StatusCodes.Status400BadRequest };
     }
 
     #endregion
@@ -814,7 +850,7 @@ public class CatalogosController : ApiControllerBase
             return Unauthorized();
 
         var datos = NormalizarRegla(request);
-        var error = await ValidarReglaAnalisisAsync(datos);
+        var error = await ValidarReglaAnalisisAsync(datos, reglaIdEditada: null, quedaActiva: true);
         if (error != null)
             return BadRequest(new ProblemDetails
             {
@@ -854,7 +890,7 @@ public class CatalogosController : ApiControllerBase
             return NotFound();
 
         var datos = NormalizarRegla(request);
-        var error = await ValidarReglaAnalisisAsync(datos);
+        var error = await ValidarReglaAnalisisAsync(datos, reglaIdEditada: id, quedaActiva: request.Activo);
         if (error != null)
             return BadRequest(new ProblemDetails
             {
@@ -899,13 +935,13 @@ public class CatalogosController : ApiControllerBase
     /// Valida una regla contra la base. Devuelve el motivo del rechazo o null si es válida.
     /// Exactamente un responsable: un rol de análisis o un usuario activo.
     /// </summary>
-    private async Task<string?> ValidarReglaAnalisisAsync(CrearReglaAnalisisRequest datos)
+    private async Task<string?> ValidarReglaAnalisisAsync(CrearReglaAnalisisRequest datos, int? reglaIdEditada, bool quedaActiva)
     {
         if (datos.MinutosMinimos <= 0)
             return "Los minutos deben ser mayores que cero.";
 
         if (await _unitOfWork.TiposFalla.GetByIdAsync(datos.TipoFallaId) == null)
-            return "Debe seleccionar un tipo de falla válido.";
+            return "Elegí un tipo de falla válido.";
 
         if (datos.LineaId.HasValue && await _unitOfWork.Lineas.GetByIdAsync(datos.LineaId.Value) == null)
             return "La línea seleccionada no existe.";
@@ -930,6 +966,20 @@ public class CatalogosController : ApiControllerBase
             var usuario = await _userManager.FindByIdAsync(datos.ResponsableUsuarioId);
             if (usuario == null || !usuario.Activo)
                 return "El usuario responsable no existe o está inactivo.";
+        }
+
+        if (quedaActiva)
+        {
+            var duplicada = ReglaAnalisisEvaluador.BuscarDuplicada(
+                await _unitOfWork.ReglasAnalisis.GetAllAsync(),
+                datos.LineaId, datos.EquipoId, datos.TipoFallaId, datos.MinutosMinimos, reglaIdEditada);
+            if (duplicada != null)
+            {
+                var regla = await MapearReglaAnalisisAsync(duplicada);
+                var donde = regla.LineaNombre ?? "todas las líneas";
+                var equipo = regla.EquipoNombre != null ? $", {regla.EquipoNombre}" : "";
+                return $"Ya existe una regla activa igual ({donde}{equipo}, {regla.TipoFallaNombre}, ≥ {regla.MinutosMinimos} min). Editá esa en lugar de crear otra.";
+            }
         }
 
         return null;
@@ -1079,13 +1129,32 @@ public class CatalogosController : ApiControllerBase
             return BadRequest(new ProblemDetails
             {
                 Title = "Línea inválida",
-                Detail = "Debe seleccionar una línea válida.",
+                Detail = "Elegí una línea válida.",
                 Status = StatusCodes.Status400BadRequest
             });
 
         var fila = (await _unitOfWork.TiemposProgramadosDia.FindAsync(
             t => t.LineaId == request.LineaId && t.Fecha == request.Fecha)).FirstOrDefault();
         var esNueva = fila == null;
+
+        // Guardar un histórico sin cambios lo deja como estaba (no lo convierte en excepción).
+        if (fila != null && TurnoReglas.HistoricoSinCambios(fila, request.Horas, motivo))
+        {
+            return Ok(new DiaProgramadoDto
+            {
+                Fecha = fila.Fecha,
+                Horas = fila.Horas,
+                Origen = fila.Origen,
+                Motivo = fila.Motivo,
+                TiempoProgramadoDiaId = fila.TiempoProgramadoDiaId
+            });
+        }
+
+        // Al reemplazar un histórico, el valor anterior queda en el motivo para no perderlo.
+        if (fila is { Activo: true, Origen: "HISTORICO" })
+        {
+            motivo = TurnoReglas.MotivoReemplazandoHistorico(fila.Horas, motivo);
+        }
 
         fila ??= new Domain.Entities.TiempoProgramadoDia
         {
@@ -1293,7 +1362,7 @@ public class CatalogosController : ApiControllerBase
             return BadRequest(new ProblemDetails
             {
                 Title = "Asignacion duplicada",
-                Detail = "El usuario ya esta asignado a esta linea.",
+                Detail = "El usuario ya está asignado a esta línea.",
                 Status = StatusCodes.Status400BadRequest
             });
         }
@@ -1352,7 +1421,7 @@ public class CatalogosController : ApiControllerBase
                 return BadRequest(new ProblemDetails
                 {
                     Title = "Asignacion duplicada",
-                    Detail = "El usuario ya esta asignado a esta linea.",
+                    Detail = "El usuario ya está asignado a esta línea.",
                     Status = StatusCodes.Status400BadRequest
                 });
             }
@@ -1405,7 +1474,7 @@ public class CatalogosController : ApiControllerBase
             return BadRequest(new ProblemDetails
             {
                 Title = "No se puede eliminar",
-                Detail = "El maquinista tiene detenciones asociadas. Puede reasignarlo a otra linea en lugar de eliminarlo.",
+                Detail = "El maquinista tiene detenciones asociadas. Podés reasignarlo a otra línea en lugar de eliminarlo.",
                 Status = StatusCodes.Status400BadRequest
             });
         }
@@ -1473,4 +1542,6 @@ public class CatalogosController : ApiControllerBase
     }
 
     #endregion
+
+    private static string Cantidad(int n, string singular, string plural) => n == 1 ? $"1 {singular}" : $"{n} {plural}";
 }

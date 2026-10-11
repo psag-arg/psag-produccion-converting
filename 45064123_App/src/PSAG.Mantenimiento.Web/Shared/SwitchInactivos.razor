@@ -1,0 +1,12 @@
+<div class="form-check form-switch mb-2">
+    <input class="form-check-input" type="checkbox" role="switch" id="mostrarInactivos"
+           checked="@Mostrar" @onchange="e => MostrarChanged.InvokeAsync((bool)e.Value!)" />
+    <label class="form-check-label" for="mostrarInactivos">Mostrar inactivos</label>
+    <div class="form-text mt-0">@Ayuda</div>
+</div>
+
+@code {
+    [Parameter] public bool Mostrar { get; set; }
+    [Parameter] public EventCallback<bool> MostrarChanged { get; set; }
+    [Parameter] public string Ayuda { get; set; } = "Los desactivados no aparecen al cargar detenciones. Para reactivar uno, mostralo y editalo.";
+}

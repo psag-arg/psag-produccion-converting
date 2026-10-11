@@ -361,7 +361,7 @@
 
         try
         {
-            var result = await DetencionesService.CrearDetencionAsync(model);
+            var (result, error) = await DetencionesService.CrearDetencionAsync(model);
 
             if (result != null)
             {
@@ -371,7 +371,7 @@
             }
             else
             {
-                errorMessage = "Error al crear la detención. Verifique los datos e intente nuevamente.";
+                errorMessage = error;
             }
         }
         catch (Exception ex)

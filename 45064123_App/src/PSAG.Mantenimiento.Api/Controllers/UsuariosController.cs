@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PSAG.Mantenimiento.Application.DTOs.Auth;
 using PSAG.Mantenimiento.Domain.Interfaces;
+using PSAG.Mantenimiento.Domain.Services;
 using PSAG.Mantenimiento.Infrastructure.Identity;
 
 namespace PSAG.Mantenimiento.Api.Controllers;
@@ -133,6 +134,11 @@ public class UsuariosController : ApiControllerBase
             });
         }
 
+        if (DetencionCargaReglas.OperarioSinLineas(request.Roles, request.LineasAsignadas.Count))
+        {
+            return OperarioSinLinea();
+        }
+
         var user = new ApplicationUser
         {
             UserName = request.UserName,
@@ -150,7 +156,7 @@ public class UsuariosController : ApiControllerBase
             return BadRequest(new ProblemDetails
             {
                 Title = "Error al crear usuario",
-                Detail = string.Join(", ", result.Errors.Select(e => e.Description)),
+                Detail = string.Join(" ", result.Errors.Select(e => e.Description)),
                 Status = StatusCodes.Status400BadRequest
             });
         }
@@ -231,6 +237,12 @@ public class UsuariosController : ApiControllerBase
         if (user == null)
             return NotFound();
 
+        // Un usuario inactivo se puede guardar igual (por ejemplo, para darlo de baja).
+        if (request.Activo && DetencionCargaReglas.OperarioSinLineas(request.Roles, request.LineasAsignadas.Count))
+        {
+            return OperarioSinLinea();
+        }
+
         user.Email = request.Email;
         user.NombreCompleto = request.NombreCompleto;
         user.Activo = request.Activo;
@@ -241,7 +253,7 @@ public class UsuariosController : ApiControllerBase
             return BadRequest(new ProblemDetails
             {
                 Title = "Error al actualizar usuario",
-                Detail = string.Join(", ", updateResult.Errors.Select(e => e.Description)),
+                Detail = string.Join(" ", updateResult.Errors.Select(e => e.Description)),
                 Status = StatusCodes.Status400BadRequest
             });
         }
@@ -402,7 +414,7 @@ public class UsuariosController : ApiControllerBase
                 return BadRequest(new ProblemDetails
                 {
                     Title = "Error al eliminar usuario",
-                    Detail = string.Join(", ", result.Errors.Select(e => e.Description)),
+                    Detail = string.Join(" ", result.Errors.Select(e => e.Description)),
                     Status = StatusCodes.Status400BadRequest
                 });
             }
@@ -439,7 +451,7 @@ public class UsuariosController : ApiControllerBase
             return BadRequest(new ProblemDetails
             {
                 Title = "Error al restablecer password",
-                Detail = string.Join(", ", result.Errors.Select(e => e.Description)),
+                Detail = string.Join(" ", result.Errors.Select(e => e.Description)),
                 Status = StatusCodes.Status400BadRequest
             });
         }
@@ -451,6 +463,13 @@ public class UsuariosController : ApiControllerBase
 
         return NoContent();
     }
+
+    private BadRequestObjectResult OperarioSinLinea() => BadRequest(new ProblemDetails
+    {
+        Title = "Operario sin línea",
+        Detail = DetencionCargaReglas.MensajeOperarioSinLinea,
+        Status = StatusCodes.Status400BadRequest
+    });
 }
 
 public class ResetPasswordRequest

@@ -29,4 +29,24 @@ public static class ReglaAnalisisEvaluador
             .ThenBy(r => r.ReglaAnalisisId)
             .FirstOrDefault();
     }
+
+    /// <summary>
+    /// Regla activa con las mismas condiciones (línea, equipo, tipo y minutos), sin contar la que se edita.
+    /// Dos reglas así son ambiguas: sólo una puede ganar.
+    /// </summary>
+    public static ReglaAnalisis? BuscarDuplicada(
+        IEnumerable<ReglaAnalisis> reglas,
+        int? lineaId,
+        int? equipoId,
+        int tipoFallaId,
+        int minutosMinimos,
+        int? reglaAnalisisIdExcluida = null)
+    {
+        return reglas.FirstOrDefault(r => r.Activo
+            && r.ReglaAnalisisId != reglaAnalisisIdExcluida
+            && r.LineaId == lineaId
+            && r.EquipoId == equipoId
+            && r.TipoFallaId == tipoFallaId
+            && r.MinutosMinimos == minutosMinimos);
+    }
 }

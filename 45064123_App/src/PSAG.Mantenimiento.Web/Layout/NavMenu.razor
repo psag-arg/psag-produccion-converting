@@ -43,7 +43,8 @@
             }
         </div>
 
-        @* MAESTROS *@
+        @* MAESTROS: sólo administrador (las páginas lo exigen) *@
+        <AuthorizeView Roles="ADMINISTRADOR">
         <div class="nav-section">
             <div class="nav-section-header" @onclick="() => ToggleSection(1)">
                 <span class="bi bi-gear me-2"></span>
@@ -57,13 +58,13 @@
             {
                 <div class="nav-section-items">
                     <NavLink class="nav-link" href="maestros/lineas">
-                        <span class="bi bi-building me-2"></span> Lineas
+                        <span class="bi bi-building me-2"></span> Líneas
                     </NavLink>
                     <NavLink class="nav-link" href="maestros/equipos">
                         <span class="bi bi-cpu me-2"></span> Equipos
                     </NavLink>
                     <NavLink class="nav-link" href="maestros/tipos-falla">
-                        <span class="bi bi-exclamation-triangle me-2"></span> Tipos de Falla
+                        <span class="bi bi-exclamation-triangle me-2"></span> Tipos de falla
                     </NavLink>
                     <NavLink class="nav-link" href="maestros/fallas">
                         <span class="bi bi-x-circle me-2"></span> Fallas
@@ -74,6 +75,7 @@
                 </div>
             }
         </div>
+        </AuthorizeView>
 
         @* DETENCIONES *@
         <div class="nav-section">
@@ -89,7 +91,7 @@
             {
                 <div class="nav-section-items">
                     <NavLink class="nav-link" href="detenciones" Match="NavLinkMatch.All">
-                        <span class="bi bi-list-ul me-2"></span> Ver Detenciones
+                        <span class="bi bi-list-ul me-2"></span> Ver detenciones
                     </NavLink>
                     <NavLink class="nav-link" href="detenciones/pendientes">
                         <span class="bi bi-inbox me-2"></span> Mis pendientes
@@ -151,13 +153,14 @@
             }
         </div>
 
-        @* CONFIGURACION *@
+        @* CONFIGURACION: sólo administrador *@
+        <AuthorizeView Roles="ADMINISTRADOR">
         <div class="nav-section">
             <div class="nav-section-header" @onclick="() => ToggleSection(5)">
                 <span class="bi bi-gear-fill me-2"></span>
                 @if (!sidebarCollapsed)
                 {
-                    <span>Configuracion</span>
+                    <span>Configuración</span>
                     <span class="bi @(IsExpanded(5) ? "bi-chevron-up" : "bi-chevron-down") ms-auto"></span>
                 }
             </div>
@@ -170,18 +173,17 @@
                     <NavLink class="nav-link" href="configuracion/maquinistas">
                         <span class="bi bi-people me-2"></span> Maquinistas
                     </NavLink>
-                    <AuthorizeView Roles="ADMINISTRADOR">
-                        <NavLink class="nav-link" href="configuracion/usuarios">
-                            <span class="bi bi-person-gear me-2"></span> Usuarios
-                        </NavLink>
-                    </AuthorizeView>
+                    <NavLink class="nav-link" href="configuracion/usuarios">
+                        <span class="bi bi-person-gear me-2"></span> Usuarios
+                    </NavLink>
                 </div>
             }
         </div>
+        </AuthorizeView>
     </nav>
 </div>
 
-<button class="collapse-btn" @onclick="ToggleSidebar" title="@(sidebarCollapsed ? "Expandir menu" : "Colapsar menu")">
+<button class="collapse-btn" @onclick="ToggleSidebar" title="@(sidebarCollapsed ? "Expandir menú" : "Colapsar menú")">
     <span class="bi @(sidebarCollapsed ? "bi-chevron-right" : "bi-chevron-left")"></span>
 </button>
 </div>

@@ -246,4 +246,23 @@ public class AnalisisFallaReglasTests
 
         Assert.Null(motivo);
     }
+
+    [Fact]
+    public void BorradorVacio_NoSeGuardaSiElAnalisisNoEmpezo()
+    {
+        Assert.Equal("Escribí algo antes de guardar el borrador.",
+            AnalisisFallaReglas.MotivoBorradorNoGuardable(EstadoDetencion.REGISTRADA, " ", null, ""));
+    }
+
+    [Fact]
+    public void BorradorConAlgunTexto_SeGuarda()
+    {
+        Assert.Null(AnalisisFallaReglas.MotivoBorradorNoGuardable(EstadoDetencion.REGISTRADA, null, null, "Revisar rodamiento"));
+    }
+
+    [Fact]
+    public void BorradorVacio_SePermiteSiYaEstabaEnAnalisis()
+    {
+        Assert.Null(AnalisisFallaReglas.MotivoBorradorNoGuardable(EstadoDetencion.EN_SEGUIMIENTO, null, null, null));
+    }
 }

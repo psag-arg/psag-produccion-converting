@@ -52,9 +52,11 @@ public class AnalisisService : IAnalisisService
             return Propagar<AnalisisDetencionDto>(cargada);
 
         var detencion = cargada.Value!;
-        var largo = ValidarLargos(request);
-        if (largo != null)
-            return Result<AnalisisDetencionDto>.Failure("VALIDATION", largo);
+        var motivo = AnalisisFallaReglas.MotivoBorradorNoGuardable(
+                detencion.EstadoActual, request.AccionesRealizadas, request.CausaFalla, request.PlanAccion)
+            ?? ValidarLargos(request);
+        if (motivo != null)
+            return Result<AnalisisDetencionDto>.Failure("VALIDATION", motivo);
 
         if (detencion.EstadoActual == EstadoDetencion.REGISTRADA)
             detencion.CambiarEstado(EstadoDetencion.EN_SEGUIMIENTO, usuarioId, "Análisis iniciado");
@@ -217,7 +219,7 @@ public class AnalisisService : IAnalisisService
             return Result<Detencion>.Failure("VALIDATION", "El análisis solo se puede completar mientras la detención está registrada o en análisis.");
 
         if (!detencion.RowVersion.SequenceEqual(rowVersion))
-            return Result<Detencion>.Failure("CONCURRENCY", "El análisis fue modificado por otro usuario. Recargue los datos e intente nuevamente.");
+            return Result<Detencion>.Failure("CONCURRENCY", "Alguien guardó este análisis mientras lo editabas. Copiá tu texto, recargá la página y volvé a guardar.");
 
         return Result<Detencion>.Success(detencion);
     }

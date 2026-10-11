@@ -27,10 +27,14 @@
                 </AutocompleteSelect>
             </div>
             <button class="btn btn-primary" @onclick="NuevaFalla">
-                <i class="bi bi-plus-circle me-2"></i>Nueva Falla
+                <i class="bi bi-plus-circle me-2"></i>Nueva falla
             </button>
         </div>
     </div>
+
+    <AvisoDescartable @bind-Mensaje="mensajeLista" />
+
+    <SwitchInactivos @bind-Mostrar="mostrarInactivos" @bind-Mostrar:after="CargarFallas" />
 
     @if (isLoading)
     {
@@ -50,7 +54,7 @@
                             <th>ID</th>
                             <th>Tipo de Falla</th>
                             <th>Nombre</th>
-                            <th>Descripcion</th>
+                            <th>Descripción</th>
                             <th class="text-center">Activo</th>
                             <th class="text-end">Acciones</th>
                         </tr>
@@ -62,7 +66,16 @@
                             {
                                 <tr>
                                     <td>@falla.DetalleFallaId</td>
-                                    <td><span class="badge bg-warning text-dark">@falla.TipoFallaNombre</span></td>
+                                    <td>
+                                        @if (falla.TipoFallaNombre != null)
+                                        {
+                                            <span class="badge bg-warning text-dark">@falla.TipoFallaNombre</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted" title="Falla genérica: se ofrece con cualquier tipo de falla">Todos los tipos</span>
+                                        }
+                                    </td>
                                     <td><strong>@falla.Nombre</strong></td>
                                     <td>@falla.Descripcion</td>
                                     <td class="text-center">
@@ -79,9 +92,12 @@
                                         <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => EditarFalla(falla)">
                                             <i class="bi bi-pencil"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmarDesactivar(falla)">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
+                                        @if (falla.Activo)
+                                        {
+                                            <button class="btn btn-sm btn-outline-danger" title="Desactivar" @onclick="() => ConfirmarDesactivar(falla)">
+                                                <i class="bi bi-pause-circle"></i>
+                                            </button>
+                                        }
                                     </td>
                                 </tr>
                             }
@@ -106,7 +122,7 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">@(editando ? "Editar" : "Nueva") Falla</h5>
+                    <h5 class="modal-title">@(editando ? "Editar falla" : "Nueva falla")</h5>
                     <button type="button" class="btn-close" @onclick="CerrarModal"></button>
                 </div>
                 <div class="modal-body">
@@ -129,7 +145,7 @@
                         <input type="text" class="form-control" @bind="fallaActual.Nombre" />
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Descripcion</label>
+                        <label class="form-label">Descripción</label>
                         <textarea class="form-control" rows="3" @bind="fallaActual.Descripcion"></textarea>
                     </div>
                     <div class="form-check">
@@ -166,6 +182,8 @@
     private bool editando = false;
     private bool isSaving = false;
     private string? errorMessage;
+    private string? mensajeLista;
+    private bool mostrarInactivos;
 
     private IEnumerable<DetalleFallaDto> fallasFiltradas => filtroTipoFallaId > 0
         ? fallas.Where(f => f.TipoFallaId == filtroTipoFallaId)
@@ -182,7 +200,7 @@
         isLoading = true;
         try
         {
-            fallas = await CatalogosService.GetDetallesFallaAsync();
+            fallas = await CatalogosService.GetDetallesFallaAsync(incluirInactivos: mostrarInactivos);
         }
         catch (Exception ex)
         {
@@ -227,12 +245,12 @@
     {
         if (!fallaActual.TipoFallaId.HasValue || fallaActual.TipoFallaId == 0)
         {
-            errorMessage = "Debe seleccionar un tipo de falla";
+            errorMessage = "Elegí un tipo de falla.";
             return;
         }
         if (string.IsNullOrWhiteSpace(fallaActual.Nombre))
         {
-            errorMessage = "El nombre es requerido";
+            errorMessage = "Completá el nombre.";
             return;
         }
 
@@ -263,14 +281,7 @@
         }
     }
 
-    private async Task ConfirmarDesactivar(DetalleFallaDto falla)
-    {
-        var confirmed = await JS.InvokeAsync<bool>("confirm", $"¿Desea desactivar la falla '{falla.Nombre}'?");
-        if (confirmed)
-        {
-            falla.Activo = false;
-            await CatalogosService.UpdateDetalleFallaAsync(falla);
-            await CargarFallas();
-        }
-    }
+    private Task ConfirmarDesactivar(DetalleFallaDto falla) =>
+        JS.ConfirmarYDesactivarAsync($"la falla '{falla.Nombre}'", Desactivacion.EfectoEnCarga,
+            activo => falla.Activo = activo, () => CatalogosService.UpdateDetalleFallaAsync(falla), CargarFallas, m => mensajeLista = m);
 }

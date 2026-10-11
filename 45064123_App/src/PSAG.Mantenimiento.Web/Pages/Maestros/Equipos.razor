@@ -20,17 +20,21 @@
                                     OnValueChanged="CargarEquipos"
                                     ValueSelector="@(l => l.LineaId)"
                                     TextSelector="@(l => l.Nombre)"
-                                    Placeholder="Filtrar por linea...">
+                                    Placeholder="Filtrar por línea...">
                     <ItemTemplate Context="linea">
                         @linea.Nombre
                     </ItemTemplate>
                 </AutocompleteSelect>
             </div>
             <button class="btn btn-primary" @onclick="NuevoEquipo">
-                <i class="bi bi-plus-circle me-2"></i>Nuevo Equipo
+                <i class="bi bi-plus-circle me-2"></i>Nuevo equipo
             </button>
         </div>
     </div>
+
+    <AvisoDescartable @bind-Mensaje="mensajeLista" />
+
+    <SwitchInactivos @bind-Mostrar="mostrarInactivos" @bind-Mostrar:after="CargarEquipos" />
 
     @if (isLoading)
     {
@@ -48,9 +52,9 @@
                     <thead class="table-light">
                         <tr>
                             <th>ID</th>
-                            <th>Linea</th>
+                            <th>Línea</th>
                             <th>Nombre</th>
-                            <th>Descripcion</th>
+                            <th>Descripción</th>
                             <th class="text-center">Crítico</th>
                             <th class="text-center">Activo</th>
                             <th class="text-end">Acciones</th>
@@ -90,9 +94,12 @@
                                         <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => EditarEquipo(equipo)">
                                             <i class="bi bi-pencil"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmarDesactivar(equipo)">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
+                                        @if (equipo.Activo)
+                                        {
+                                            <button class="btn btn-sm btn-outline-danger" title="Desactivar" @onclick="() => ConfirmarDesactivar(equipo)">
+                                                <i class="bi bi-pause-circle"></i>
+                                            </button>
+                                        }
                                     </td>
                                 </tr>
                             }
@@ -117,35 +124,35 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">@(editando ? "Editar" : "Nuevo") Equipo</h5>
+                    <h5 class="modal-title">@(editando ? "Editar equipo" : "Nuevo equipo")</h5>
                     <button type="button" class="btn-close" @onclick="CerrarModal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">Linea *</label>
+                        <label class="form-label">Línea *</label>
                         <AutocompleteSelect TItem="LineaDto"
                                             TValue="int"
                                             Items="lineas"
                                             @bind-SelectedValue="equipoActual.LineaId"
                                             ValueSelector="@(l => l.LineaId)"
                                             TextSelector="@(l => l.Nombre)"
-                                            Placeholder="Buscar linea...">
+                                            Placeholder="Buscar línea...">
                             <ItemTemplate Context="linea">
                                 @linea.Nombre
                             </ItemTemplate>
                         </AutocompleteSelect>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Codigo *</label>
+                        <label class="form-label">Código *</label>
                         <input type="text" class="form-control" @bind="equipoActual.Codigo" placeholder="Ej: REB-1, GOF-1" />
-                        <small class="text-muted">Codigo unico por linea</small>
+                        <small class="text-muted">Código único por línea</small>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Nombre *</label>
                         <input type="text" class="form-control" @bind="equipoActual.Nombre" />
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Descripcion</label>
+                        <label class="form-label">Descripción</label>
                         <textarea class="form-control" rows="3" @bind="equipoActual.Descripcion"></textarea>
                     </div>
                     <div class="form-check">
@@ -187,6 +194,8 @@
     private bool editando = false;
     private bool isSaving = false;
     private string? errorMessage;
+    private string? mensajeLista;
+    private bool mostrarInactivos;
 
     private IEnumerable<EquipoDto> equiposFiltrados => filtroLineaId > 0
         ? equipos.Where(e => e.LineaId == filtroLineaId)
@@ -203,7 +212,7 @@
         isLoading = true;
         try
         {
-            equipos = await CatalogosService.GetEquiposAsync();
+            equipos = await CatalogosService.GetEquiposAsync(incluirInactivos: mostrarInactivos);
         }
         catch (Exception ex)
         {
@@ -251,17 +260,17 @@
     {
         if (equipoActual.LineaId == 0)
         {
-            errorMessage = "Debe seleccionar una linea";
+            errorMessage = "Elegí una línea.";
             return;
         }
         if (string.IsNullOrWhiteSpace(equipoActual.Codigo))
         {
-            errorMessage = "El codigo es requerido";
+            errorMessage = "Completá el código.";
             return;
         }
         if (string.IsNullOrWhiteSpace(equipoActual.Nombre))
         {
-            errorMessage = "El nombre es requerido";
+            errorMessage = "Completá el nombre.";
             return;
         }
 
@@ -292,14 +301,7 @@
         }
     }
 
-    private async Task ConfirmarDesactivar(EquipoDto equipo)
-    {
-        var confirmed = await JS.InvokeAsync<bool>("confirm", $"¿Desea desactivar el equipo '{equipo.Nombre}'?");
-        if (confirmed)
-        {
-            equipo.Activo = false;
-            await CatalogosService.UpdateEquipoAsync(equipo);
-            await CargarEquipos();
-        }
-    }
+    private Task ConfirmarDesactivar(EquipoDto equipo) =>
+        JS.ConfirmarYDesactivarAsync($"el equipo '{equipo.Nombre}'", Desactivacion.EfectoEnCarga,
+            activo => equipo.Activo = activo, () => CatalogosService.UpdateEquipoAsync(equipo), CargarEquipos, m => mensajeLista = m);
 }

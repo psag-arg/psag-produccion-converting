@@ -3,7 +3,19 @@
         <Found Context="routeData">
             <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
                 <NotAuthorized>
-                    <RedirectToLogin />
+                    @if (context.User.Identity?.IsAuthenticated == true)
+                    {
+                        @* Logueado pero sin permiso: explicar en vez de mandar al login *@
+                        <div class="alert alert-warning m-4">
+                            <h4>Esta pantalla es sólo para administradores.</h4>
+                            <p>Si necesitás cambiar algo de acá, pedíselo al administrador.</p>
+                            <a href="/detenciones" class="btn btn-primary">Volver a Detenciones</a>
+                        </div>
+                    }
+                    else
+                    {
+                        <RedirectToLogin />
+                    }
                 </NotAuthorized>
                 <Authorizing>
                     <div class="d-flex justify-content-center align-items-center" style="height: 100vh;">
@@ -20,7 +32,7 @@
             <LayoutView Layout="@typeof(MainLayout)">
                 <div class="alert alert-warning m-4">
                     <h4>Página no encontrada</h4>
-                    <p>La página que busca no existe.</p>
+                    <p>La página que buscás no existe.</p>
                     <a href="/detenciones" class="btn btn-primary">Ir a Detenciones</a>
                 </div>
             </LayoutView>

@@ -28,8 +28,6 @@ public class AnalisisController : ApiControllerBase
         _userManager = userManager;
     }
 
-    private IReadOnlyCollection<string> Roles => User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
-
     /// <summary>
     /// Obtener el análisis de una detención. Todos los usuarios pueden leerlo.
     /// </summary>

@@ -13,6 +13,9 @@ public static class DatosAnalisisMapper
     public static T ConDatosAnalisis<T>(T dto, Detencion detencion) where T : DatosAnalisisDetencion
     {
         dto.Eliminada = detencion.Eliminada;
+        dto.FechaHoraEliminacion = detencion.FechaHoraEliminacion;
+        dto.EliminadaPorUsuarioId = detencion.EliminadaPorUsuarioId;
+        dto.MotivoEliminacion = detencion.MotivoEliminacion;
         dto.RequiereAnalisis = detencion.RequiereAnalisis;
         dto.ResponsableRol = detencion.ResponsableRol;
         dto.ResponsableUsuarioId = detencion.ResponsableUsuarioId;

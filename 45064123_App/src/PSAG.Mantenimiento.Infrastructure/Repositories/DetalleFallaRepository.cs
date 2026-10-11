@@ -22,6 +22,16 @@ public class DetalleFallaRepository : RepositoryBase<DetalleFalla>, IDetalleFall
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IEnumerable<DetalleFalla>> GetTodosAsync(CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .Include(d => d.TipoFalla)
+            .Include(d => d.Equipo)
+            .OrderBy(d => d.Orden)
+            .ThenBy(d => d.Nombre)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IEnumerable<DetalleFalla>> GetByFiltroAsync(
         int? equipoId,
         int? tipoFallaId,

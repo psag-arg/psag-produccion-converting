@@ -15,7 +15,7 @@
         <h2>Dashboard de Control</h2>
         <div class="d-flex gap-2">
             <select class="form-select form-select-sm" style="width: auto;" @bind="filtroLineaId" @bind:after="@(async () => await CargarDashboard())">
-                <option value="0">Todas las Lineas</option>
+                <option value="0">Todas las líneas</option>
                 @foreach (var linea in lineas)
                 {
                     <option value="@linea.LineaId">@linea.Nombre</option>
@@ -26,6 +26,11 @@
             </button>
         </div>
     </div>
+
+    @if (errorLineas)
+    {
+        <div class="text-danger small text-end mb-2">No se pudo cargar la lista de líneas. Tocá Actualizar o recargá la página.</div>
+    }
 
     @if (isLoading)
     {
@@ -43,7 +48,7 @@
             <div class="col-lg-4 mb-3">
                 <div class="card h-100 border-danger">
                     <div class="card-header bg-danger text-white">
-                        <h6 class="mb-0"><i class="bi bi-pause-circle me-2"></i>Detenciones (30 dias)</h6>
+                        <h6 class="mb-0"><i class="bi bi-pause-circle me-2"></i>Detenciones (últimos 30 días)</h6>
                     </div>
                     <div class="card-body">
                         <div class="row text-center">
@@ -53,7 +58,7 @@
                             </div>
                             <div class="col-6">
                                 <h3 class="mb-0 text-warning">@dashboard.Resumen.DetencionesAbiertas</h3>
-                                <small class="text-muted">Abiertas</small>
+                                <small class="text-muted" title="Registradas o en análisis, de los últimos 30 días">Sin cerrar (30 días)</small>
                             </div>
                         </div>
                         <hr />
@@ -154,7 +159,7 @@
             <div class="col-lg-6 mb-3">
                 <div class="card h-100">
                     <div class="card-header">
-                        <h6 class="mb-0">Detenciones por Linea</h6>
+                        <h6 class="mb-0">Detenciones por línea (30 días)</h6>
                     </div>
                     <div class="card-body p-0">
                         @if (dashboard.DetencionesPorLinea.Any())
@@ -162,7 +167,7 @@
                             <table class="table table-sm mb-0">
                                 <thead class="table-light">
                                     <tr>
-                                        <th>Linea</th>
+                                        <th>Línea</th>
                                         <th class="text-center">Cantidad</th>
                                         <th class="text-end">Tiempo</th>
                                     </tr>
@@ -181,7 +186,7 @@
                         }
                         else
                         {
-                            <p class="text-muted text-center py-3">Sin datos</p>
+                            <p class="text-muted text-center py-3">Sin detenciones en los últimos 30 días.</p>
                         }
                     </div>
                 </div>
@@ -217,7 +222,7 @@
                         }
                         else
                         {
-                            <p class="text-muted text-center py-3">Sin datos</p>
+                            <p class="text-muted text-center py-3">Sin detenciones en los últimos 30 días.</p>
                         }
                     </div>
                 </div>
@@ -229,14 +234,14 @@
             <div class="col-lg-6 mb-3">
                 <div class="card h-100">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <h6 class="mb-0">Detenciones Abiertas</h6>
-                        <span class="badge bg-warning text-dark">@dashboard.DetencionesAbiertas.Count</span>
+                        <h6 class="mb-0">Pendientes de análisis</h6>
+                        <span class="badge bg-warning text-dark" title="Total de detenciones con análisis pendiente">@dashboard.TotalPendientesAnalisis</span>
                     </div>
                     <div class="card-body p-0">
                         @if (dashboard.DetencionesAbiertas.Any())
                         {
                             <div class="list-group list-group-flush">
-                                @foreach (var det in dashboard.DetencionesAbiertas.Take(5))
+                                @foreach (var det in dashboard.DetencionesAbiertas.Take(MostrarPendientes))
                                 {
                                     <a href="/detenciones/@det.DetencionId" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
                                         <div>
@@ -252,11 +257,18 @@
                                     </a>
                                 }
                             </div>
+                            @if (dashboard.TotalPendientesAnalisis > MostrarPendientes)
+                            {
+                                <div class="small text-muted px-3 py-2 border-top">
+                                    Se muestran las @MostrarPendientes más largas de @dashboard.TotalPendientesAnalisis.
+                                    <a href="/detenciones/pendientes">Ver todas en Mis pendientes</a>.
+                                </div>
+                            }
                         }
                         else
                         {
                             <p class="text-success text-center py-3">
-                                <i class="bi bi-check-circle me-2"></i>Sin detenciones abiertas
+                                <i class="bi bi-check-circle me-2"></i>No hay detenciones esperando análisis.
                             </p>
                         }
                     </div>
@@ -325,7 +337,7 @@
                                 <thead class="table-light">
                                     <tr>
                                         <th>Parametro</th>
-                                        <th>Linea</th>
+                                        <th>Línea</th>
                                         <th>Producto</th>
                                         <th class="text-center">Valor</th>
                                         <th class="text-center">Estandar</th>
@@ -354,9 +366,9 @@
     }
     else
     {
-        <div class="alert alert-warning">
+        <div class="alert alert-danger">
             <i class="bi bi-exclamation-triangle me-2"></i>
-            No se pudieron cargar los datos del dashboard.
+            No se pudieron cargar los datos del inicio. Revisá la conexión y tocá Actualizar; si sigue, avisá a sistemas.
         </div>
     }
 </div>
@@ -366,6 +378,8 @@
     private DashboardCompletoDto? dashboard;
     private int filtroLineaId;
     private bool isLoading = true;
+    private const int MostrarPendientes = 5;
+    private bool errorLineas;
 
     protected override async Task OnInitializedAsync()
     {
@@ -373,7 +387,11 @@
         {
             lineas = await CatalogosService.GetLineasAsync();
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error cargando líneas: {ex.Message}");
+            errorLineas = true;
+        }
 
         await CargarDashboard();
     }
