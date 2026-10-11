@@ -155,6 +155,7 @@ public class DetencionesService : IDetencionesService
         if (filtro.TipoFallaId.HasValue) queryParams.Add($"tipoFallaId={filtro.TipoFallaId}");
         if (filtro.DetalleFallaId.HasValue) queryParams.Add($"detalleFallaId={filtro.DetalleFallaId}");
         if (filtro.TurnoId.HasValue) queryParams.Add($"turnoId={filtro.TurnoId}");
+        if (filtro.MinutosMinimo.HasValue) queryParams.Add($"duracionMinimaMinutos={filtro.MinutosMinimo}");
         if (filtro.FechaDesde.HasValue) queryParams.Add($"fechaDesde={filtro.FechaDesde.Value:yyyy-MM-dd}");
         if (filtro.FechaHasta.HasValue) queryParams.Add($"fechaHasta={filtro.FechaHasta.Value:yyyy-MM-dd}");
         if (!string.IsNullOrEmpty(filtro.Estado)) queryParams.Add($"estado={filtro.Estado}");

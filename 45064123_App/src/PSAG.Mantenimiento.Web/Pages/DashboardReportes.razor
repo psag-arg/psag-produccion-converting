@@ -13,15 +13,15 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2>Reportes de Detenciones</h2>
         <div class="d-flex gap-2 align-items-center">
-            <label class="form-label mb-0 me-2">Linea:</label>
+            <label class="form-label mb-0 me-2">Línea:</label>
             <select class="form-select form-select-sm" style="width: auto;" @bind="filtroLineaId" @bind:after="@(async () => await CargarReportes())">
-                <option value="0">Todas las Lineas</option>
+                <option value="0">Todas las líneas</option>
                 @foreach (var linea in lineas)
                 {
                     <option value="@linea.LineaId">@linea.Nombre</option>
                 }
             </select>
-            <label class="form-label mb-0 ms-3 me-2">Anio:</label>
+            <label class="form-label mb-0 ms-3 me-2">Año:</label>
             <select class="form-select form-select-sm" style="width: auto;" @bind="filtroAnio" @bind:after="@(async () => await CargarReportes())">
                 @for (int i = DateTime.Today.Year; i >= DateTime.Today.Year - 3; i--)
                 {
@@ -44,6 +44,16 @@
             </button>
         </div>
     </div>
+
+    @if (errorLineas)
+    {
+        <div class="text-danger small text-end mb-2">No se pudo cargar la lista de líneas. Tocá Actualizar o recargá la página.</div>
+    }
+
+    @if (errorReportes != null)
+    {
+        <div class="alert alert-danger">@errorReportes</div>
+    }
 
     @if (isLoading)
     {
@@ -82,7 +92,7 @@
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                         <h5 class="mb-0">
-                            INDISPONIBILIDAD @(indisponibilidad?.LineaNombre ?? "Todas las lineas")
+                            INDISPONIBILIDAD @(indisponibilidad?.LineaNombre ?? "Todas las líneas")
                         </h5>
                         @if (indisponibilidad != null && indisponibilidad.Meses.Any())
                         {
@@ -97,11 +107,12 @@
                         {
                             <div class="alert alert-info py-2 small">
                                 <strong>Indisponibilidad = minutos de detención ÷ tiempo programado.</strong>
-                                El tiempo programado sale de los turnos de la línea más las excepciones del calendario.
+                                El tiempo programado sale de los turnos de la planta más las excepciones del calendario.
+                                El mes en curso se mide hasta hoy.
                             </div>
 
                             <!-- Leyenda -->
-                            <div class="d-flex flex-wrap gap-3 mb-4">
+                            <div class="d-flex flex-wrap gap-3 mb-1">
                                 @foreach (var tipo in UnicosPorTipo(indisponibilidad.Meses.Select(m => m.PorTipoFalla), t => t.TipoFallaId, t => t.TipoFallaNombre))
                                 {
                                     <div class="d-flex align-items-center">
@@ -110,31 +121,34 @@
                                     </div>
                                 }
                             </div>
+                            <div class="small text-muted mb-4">Los colores se cambian en Maestros → Tipos de falla.</div>
 
-                            <!-- Grafico de barras apiladas -->
-                            <div class="chart-container" style="display: flex; align-items: flex-end; height: 300px; gap: 10px; border-bottom: 1px solid #ccc; position: relative;">
-                                <!-- Eje Y -->
-                                <div style="position: absolute; left: -50px; height: 100%; display: flex; flex-direction: column-reverse; justify-content: space-between; padding: 5px 0;">
-                                    <span class="small text-muted">0%</span>
-                                    <span class="small text-muted">5%</span>
-                                    <span class="small text-muted">10%</span>
-                                    <span class="small text-muted">15%</span>
-                                    <span class="small text-muted">20%</span>
-                                    <span class="small text-muted">25%</span>
+                            <!-- Grafico de barras apiladas: la escala va de 0 al máximo del año -->
+                            var topeIndisp = TopeEscala(indisponibilidad.Meses.Select(m => m.IndisponibilidadTotal)
+                                .Append(indisponibilidad.Promedio?.IndisponibilidadTotal ?? 0).Max(), 5);
+                            <div class="chart-container" style="display: flex; align-items: flex-start; gap: 10px; position: relative;">
+                                <!-- Eje Y: cada marca a la altura exacta de su valor -->
+                                <div style="position: absolute; left: 10px; top: 0; height: @(AlturaGrafico)px; width: 45px;">
+                                    @foreach (var marca in Marcas(topeIndisp))
+                                    {
+                                        <span class="small text-muted position-absolute end-0" style="bottom: @Px(marca / topeIndisp * AlturaGrafico); transform: translateY(50%);">@marca.ToString("0.#")%</span>
+                                    }
                                 </div>
 
                                 @foreach (var mes in indisponibilidad.Meses)
                                 {
                                     <div class="d-flex flex-column align-items-center" style="flex: 1; max-width: 80px;">
-                                        <!-- Barra apilada -->
-                                        <div class="stacked-bar d-flex flex-column-reverse" style="width: 100%; max-width: 50px; height: @Px(mes.IndisponibilidadTotal * 12); max-height: 300px;">
-                                            @foreach (var tipo in mes.PorTipoFalla.OrderBy(t => t.TipoFallaNombre))
-                                            {
-                                                <div class="clickable"
-                                                     style="width: 100%; height: @Px(tipo.Porcentaje * 12); background-color: @GetColorTipoFalla(tipo);"
-                                                     title="@tipo.TipoFallaNombre: @tipo.Porcentaje% - Click para ver detalle"
-                                                     @onclick="@(async () => await MostrarDetallePorMesYTipo(mes.Mes, tipo.TipoFallaId, tipo.TipoFallaNombre, mes.MesNombre))"></div>
-                                            }
+                                        <div class="d-flex align-items-end justify-content-center w-100 border-bottom" style="height: @(AlturaGrafico)px;">
+                                            <!-- Barra apilada -->
+                                            <div class="stacked-bar d-flex flex-column-reverse" style="width: 100%; max-width: 50px; height: @Px(mes.IndisponibilidadTotal / topeIndisp * AlturaGrafico);">
+                                                @foreach (var tipo in mes.PorTipoFalla.OrderBy(t => t.TipoFallaNombre))
+                                                {
+                                                    <div class="clickable"
+                                                         style="width: 100%; height: @Px(tipo.Porcentaje / topeIndisp * AlturaGrafico); background-color: @GetColorTipoFalla(tipo);"
+                                                         title="@tipo.TipoFallaNombre: @tipo.Porcentaje% - Click para ver detalle"
+                                                         @onclick="@(async () => await MostrarDetallePorMesYTipo(mes.Mes, tipo.TipoFallaId, tipo.TipoFallaNombre))"></div>
+                                                }
+                                            </div>
                                         </div>
                                         <!-- Label total -->
                                         <small class="fw-bold mt-1">@mes.IndisponibilidadTotal.ToString("0.0")%</small>
@@ -146,12 +160,14 @@
                                 @if (indisponibilidad.Promedio != null && indisponibilidad.Promedio.PorTipoFalla.Any())
                                 {
                                     <div class="d-flex flex-column align-items-center ms-4" style="flex: 1; max-width: 80px;">
-                                        <div class="stacked-bar d-flex flex-column-reverse" style="width: 100%; max-width: 50px; height: @Px(indisponibilidad.Promedio.IndisponibilidadTotal * 12); max-height: 300px;">
-                                            @foreach (var tipo in indisponibilidad.Promedio.PorTipoFalla.OrderBy(t => t.TipoFallaNombre))
-                                            {
-                                                <div style="width: 100%; height: @Px(tipo.Porcentaje * 12); background-color: @GetColorTipoFalla(tipo);"
-                                                     title="@tipo.TipoFallaNombre: @tipo.Porcentaje%"></div>
-                                            }
+                                        <div class="d-flex align-items-end justify-content-center w-100 border-bottom" style="height: @(AlturaGrafico)px;">
+                                            <div class="stacked-bar d-flex flex-column-reverse" style="width: 100%; max-width: 50px; height: @Px(indisponibilidad.Promedio.IndisponibilidadTotal / topeIndisp * AlturaGrafico);">
+                                                @foreach (var tipo in indisponibilidad.Promedio.PorTipoFalla.OrderBy(t => t.TipoFallaNombre))
+                                                {
+                                                    <div style="width: 100%; height: @Px(tipo.Porcentaje / topeIndisp * AlturaGrafico); background-color: @GetColorTipoFalla(tipo);"
+                                                         title="@tipo.TipoFallaNombre: @tipo.Porcentaje%"></div>
+                                                }
+                                            </div>
                                         </div>
                                         <small class="fw-bold mt-1">@indisponibilidad.Promedio.IndisponibilidadTotal.ToString("0.0")%</small>
                                         <small class="text-muted">@indisponibilidad.Promedio.MesNombre</small>
@@ -164,10 +180,16 @@
                                 <table class="table table-sm table-bordered">
                                     <thead class="table-light">
                                         <tr>
-                                            <th>Tipo Falla</th>
+                                            <th>Tipo de falla</th>
                                             @foreach (var mes in indisponibilidad.Meses)
                                             {
-                                                <th class="text-center">@mes.MesNombre</th>
+                                                <th class="text-center">
+                                                    @mes.MesNombre
+                                                    @if (EsMesEnCurso(mes.Mes))
+                                                    {
+                                                        <div class="small fw-normal text-muted" title="Mes en curso: cuenta el tiempo programado hasta hoy.">hasta hoy</div>
+                                                    }
+                                                </th>
                                             }
                                             <th class="text-center">PROM</th>
                                         </tr>
@@ -182,7 +204,7 @@
                                                     var item = mes.PorTipoFalla.FirstOrDefault(t => t.TipoFallaId == tipo.TipoFallaId);
                                                     <td class="text-center clickable"
                                                         title="Click para ver detalle"
-                                                        @onclick="@(async () => await MostrarDetallePorMesYTipo(mes.Mes, tipo.TipoFallaId, tipo.TipoFallaNombre, mes.MesNombre))">
+                                                        @onclick="@(async () => await MostrarDetallePorMesYTipo(mes.Mes, tipo.TipoFallaId, tipo.TipoFallaNombre))">
                                                         @((item?.Porcentaje ?? 0).ToString("0.0"))%
                                                     </td>
                                                 }
@@ -224,9 +246,9 @@
                                 </table>
                             </div>
                         }
-                        else
+                        else if (errorReportes == null)
                         {
-                            <p class="text-muted text-center py-4">No hay datos para mostrar en el periodo seleccionado.</p>
+                            <p class="text-muted text-center py-4">@TextoVacio("detenciones", incluirTurno: false)</p>
                         }
                     </div>
                 </div>
@@ -238,14 +260,19 @@
                 <div class="card">
                     <div class="card-header">
                         <h5 class="mb-0">
-                            FALLOS MAYORES (>= 60 min) @(fallosMayores?.LineaNombre ?? "Todas las lineas")
+                            FALLOS MAYORES (≥ @(fallosMayores?.UmbralMinutos ?? 60) min) @(fallosMayores?.LineaNombre ?? "Todas las líneas")
                         </h5>
                     </div>
                     <div class="card-body">
                         @if (fallosMayores != null && fallosMayores.Meses.Any())
                         {
+                            <div class="alert alert-info py-2 small">
+                                <strong>Indicador = minutos de las detenciones de @fallosMayores.UmbralMinutos min o más ÷ tiempo programado.</strong>
+                                Las barras cuentan cuántas hubo en el mes.
+                            </div>
+
                             <!-- Leyenda -->
-                            <div class="d-flex flex-wrap gap-3 mb-4">
+                            <div class="d-flex flex-wrap gap-3 mb-1">
                                 @foreach (var tipo in UnicosPorTipo(fallosMayores.Meses.Select(m => m.PorTipoFalla), t => t.TipoFallaId, t => t.TipoFallaNombre))
                                 {
                                     <div class="d-flex align-items-center">
@@ -254,56 +281,59 @@
                                     </div>
                                 }
                             </div>
+                            <div class="small text-muted mb-4">Los colores se cambian en Maestros → Tipos de falla.</div>
 
-                            <!-- Grafico combinado -->
-                            <div class="chart-container" style="display: flex; align-items: flex-end; height: 300px; gap: 10px; border-bottom: 1px solid #ccc; position: relative;">
-                                <!-- Eje Y izquierdo (eventos) -->
-                                <div style="position: absolute; left: -40px; height: 100%; display: flex; flex-direction: column-reverse; justify-content: space-between; padding: 5px 0;">
-                                    <span class="small text-muted">0</span>
-                                    <span class="small text-muted">5</span>
-                                    <span class="small text-muted">10</span>
-                                    <span class="small text-muted">15</span>
-                                    <span class="small text-muted">20</span>
+                            <!-- Grafico de eventos: la escala va de 0 al máximo del año -->
+                            var topeEventos = TopeEscala(fallosMayores.Meses.Select(m => m.TotalEventos)
+                                .Append(fallosMayores.Promedio?.TotalEventos ?? 0).Max(), 5);
+                            <div class="chart-container" style="display: flex; align-items: flex-start; gap: 10px; position: relative;">
+                                <div style="position: absolute; left: 10px; top: 0; height: @(AlturaGrafico)px; width: 45px;">
+                                    @foreach (var marca in Marcas(topeEventos))
+                                    {
+                                        <span class="small text-muted position-absolute end-0" style="bottom: @Px(marca / topeEventos * AlturaGrafico); transform: translateY(50%);">@marca.ToString("0.#")</span>
+                                    }
                                 </div>
 
                                 @foreach (var mes in fallosMayores.Meses)
                                 {
-                                    <div class="d-flex flex-column align-items-center" style="flex: 1; max-width: 80px; position: relative;">
-                                        <!-- Barra apilada de eventos -->
-                                        <div class="stacked-bar d-flex flex-column-reverse" style="width: 100%; max-width: 50px; height: @(mes.TotalEventos * 15)px; max-height: 280px;">
-                                            @foreach (var tipo in mes.PorTipoFalla.OrderBy(t => t.TipoFallaNombre))
-                                            {
-                                                <div class="clickable"
-                                                     style="width: 100%; height: @(tipo.CantidadEventos * 15)px; background-color: @GetColorFalloMayor(tipo); display: flex; align-items: center; justify-content: center;"
-                                                     title="@tipo.TipoFallaNombre: @tipo.CantidadEventos eventos - Click para ver detalle"
-                                                     @onclick="@(async () => await MostrarDetalleFallosMayores(mes.Mes, tipo.TipoFallaId, tipo.TipoFallaNombre, mes.MesNombre))">
-                                                    @if (tipo.CantidadEventos > 0)
-                                                    {
-                                                        <small class="text-white fw-bold">@tipo.CantidadEventos</small>
-                                                    }
-                                                </div>
-                                            }
+                                    <div class="d-flex flex-column align-items-center" style="flex: 1; max-width: 80px;">
+                                        <div class="d-flex align-items-end justify-content-center w-100 border-bottom" style="height: @(AlturaGrafico)px;">
+                                            <div class="stacked-bar d-flex flex-column-reverse" style="width: 100%; max-width: 50px; height: @Px(mes.TotalEventos / topeEventos * AlturaGrafico);">
+                                                @foreach (var tipo in mes.PorTipoFalla.OrderBy(t => t.TipoFallaNombre))
+                                                {
+                                                    <div class="clickable"
+                                                         style="width: 100%; height: @Px(tipo.CantidadEventos / topeEventos * AlturaGrafico); background-color: @GetColorFalloMayor(tipo); display: flex; align-items: center; justify-content: center;"
+                                                         title="@tipo.TipoFallaNombre: @tipo.CantidadEventos eventos - Click para ver detalle"
+                                                         @onclick="@(async () => await MostrarDetalleFallosMayores(mes.Mes, tipo.TipoFallaId, tipo.TipoFallaNombre))">
+                                                        @if (tipo.CantidadEventos > 0)
+                                                        {
+                                                            <small class="text-white fw-bold">@tipo.CantidadEventos.ToString("0.#")</small>
+                                                        }
+                                                    </div>
+                                                }
+                                            </div>
                                         </div>
-                                        <!-- Label indicador -->
                                         <small class="fw-bold mt-1">@mes.IndicadorPorcentaje.ToString("0.0")%</small>
-                                        <!-- Label mes -->
                                         <small class="text-muted">@mes.MesNombre</small>
                                     </div>
                                 }
 
                                 @if (fallosMayores.Promedio != null && fallosMayores.Promedio.TotalEventos > 0)
                                 {
-                                    <div class="d-flex flex-column align-items-center ms-4" style="flex: 1; max-width: 80px; position: relative;">
-                                        <div class="stacked-bar d-flex flex-column-reverse" style="width: 100%; max-width: 50px; height: @(fallosMayores.Promedio.TotalEventos * 15)px; max-height: 280px;">
-                                            @foreach (var tipo in fallosMayores.Promedio.PorTipoFalla.OrderBy(t => t.TipoFallaNombre))
-                                            {
-                                                <div style="width: 100%; height: @(tipo.CantidadEventos * 15)px; background-color: @GetColorFalloMayor(tipo); display: flex; align-items: center; justify-content: center;">
-                                                    @if (tipo.CantidadEventos > 0)
-                                                    {
-                                                        <small class="text-white fw-bold">@tipo.CantidadEventos</small>
-                                                    }
-                                                </div>
-                                            }
+                                    <div class="d-flex flex-column align-items-center ms-4" style="flex: 1; max-width: 80px;">
+                                        <div class="d-flex align-items-end justify-content-center w-100 border-bottom" style="height: @(AlturaGrafico)px;">
+                                            <div class="stacked-bar d-flex flex-column-reverse" style="width: 100%; max-width: 50px; height: @Px(fallosMayores.Promedio.TotalEventos / topeEventos * AlturaGrafico);">
+                                                @foreach (var tipo in fallosMayores.Promedio.PorTipoFalla.OrderBy(t => t.TipoFallaNombre))
+                                                {
+                                                    <div style="width: 100%; height: @Px(tipo.CantidadEventos / topeEventos * AlturaGrafico); background-color: @GetColorFalloMayor(tipo); display: flex; align-items: center; justify-content: center;"
+                                                         title="@tipo.TipoFallaNombre: @tipo.CantidadEventos.ToString("0.#") eventos por mes">
+                                                        @if (tipo.CantidadEventos >= 1)
+                                                        {
+                                                            <small class="text-white fw-bold">@tipo.CantidadEventos.ToString("0.#")</small>
+                                                        }
+                                                    </div>
+                                                }
+                                            </div>
                                         </div>
                                         <small class="fw-bold mt-1">@fallosMayores.Promedio.IndicadorPorcentaje.ToString("0.0")%</small>
                                         <small class="text-muted">@fallosMayores.Promedio.MesNombre</small>
@@ -332,21 +362,21 @@
                                                 @foreach (var mes in fallosMayores.Meses)
                                                 {
                                                     var item = mes.PorTipoFalla.FirstOrDefault(t => t.TipoFallaId == tipo.TipoFallaId);
-                                                    <td class="text-center">@(item?.CantidadEventos ?? 0)</td>
+                                                    <td class="text-center">@((item?.CantidadEventos ?? 0).ToString("0.#"))</td>
                                                 }
                                                 @{
                                                     var promItem = fallosMayores.Promedio?.PorTipoFalla.FirstOrDefault(t => t.TipoFallaId == tipo.TipoFallaId);
                                                 }
-                                                <td class="text-center fw-bold">@(promItem?.CantidadEventos ?? 0)</td>
+                                                <td class="text-center fw-bold">@((promItem?.CantidadEventos ?? 0).ToString("0.#"))</td>
                                             </tr>
                                         }
                                         <tr class="table-secondary">
-                                            <td class="fw-bold">Total Eventos</td>
+                                            <td class="fw-bold">Total eventos</td>
                                             @foreach (var mes in fallosMayores.Meses)
                                             {
                                                 <td class="text-center fw-bold">@mes.TotalEventos</td>
                                             }
-                                            <td class="text-center fw-bold">@(fallosMayores.Promedio?.TotalEventos ?? 0)</td>
+                                            <td class="text-center fw-bold">@((fallosMayores.Promedio?.TotalEventos ?? 0).ToString("0.#"))</td>
                                         </tr>
                                         <tr class="table-warning">
                                             <td class="fw-bold">Indicador %</td>
@@ -362,7 +392,7 @@
                         }
                         else
                         {
-                            <p class="text-muted text-center py-4">No hay fallos mayores en el periodo seleccionado.</p>
+                            <p class="text-muted text-center py-4">@(errorReportes == null ? TextoVacio("fallos mayores", incluirTurno: false) : "")</p>
                         }
                     </div>
                 </div>
@@ -374,12 +404,12 @@
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">
-                            Pareto de detenciones · @TextoPeriodoPareto() · @(pareto?.LineaNombre ?? "Todas las lineas")
+                            Pareto de detenciones · @TextoPeriodoPareto() · @(pareto?.LineaNombre ?? "Todas las líneas")
                         </h5>
                         <div class="d-flex gap-2 align-items-center">
                             <label class="form-label mb-0 me-1 small">Turno:</label>
                             <select class="form-select form-select-sm" style="width: auto;" @bind="filtroTurnoId" @bind:after="@(async () => await CargarPareto())">
-                                <option value="0">(Todas)</option>
+                                <option value="0">Todos los turnos</option>
                                 @foreach (var turno in turnos)
                                 {
                                     <option value="@turno.TurnoId">@turno.Nombre</option>
@@ -393,12 +423,12 @@
                             <div class="row">
                                 <!-- Resumen por Tipo de Falla -->
                                 <div class="col-md-4">
-                                    <h6 class="text-muted mb-3">Resumen por Tipo de Falla</h6>
+                                    <h6 class="text-muted mb-3">Resumen por tipo de falla</h6>
                                     <table class="table table-sm table-bordered">
                                         <thead class="table-dark">
                                             <tr>
-                                                <th>Etiquetas de fila</th>
-                                                <th class="text-end">Suma TIEMPO (min)</th>
+                                                <th>Tipo de falla</th>
+                                                <th class="text-end">Minutos</th>
                                                 <th class="text-end">% Acumulado</th>
                                             </tr>
                                         </thead>
@@ -424,14 +454,14 @@
 
                                 <!-- Detalle por Equipo -->
                                 <div class="col-md-8">
-                                    <h6 class="text-muted mb-3">Detalle por Equipo y Falla</h6>
+                                    <h6 class="text-muted mb-3">Detalle por equipo y falla</h6>
                                     <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
                                         <table class="table table-sm table-bordered">
                                             <thead class="table-light sticky-top">
                                                 <tr>
-                                                    <th>EQUIPO</th>
-                                                    <th>DETALLE</th>
-                                                    <th class="text-end">Suma TIEMPO</th>
+                                                    <th>Equipo</th>
+                                                    <th>Detalle</th>
+                                                    <th class="text-end">Minutos</th>
                                                     <th class="text-end">% Total</th>
                                                 </tr>
                                             </thead>
@@ -440,13 +470,16 @@
                                                 {
                                                     @foreach (var (detalle, index) in equipo.Detalles.Select((d, i) => (d, i)))
                                                     {
-                                                        <tr class="clickable @(detalle.PorcentajeDelTotal >= 5 ? "table-warning" : "")"
-                                                            title="Click para ver detalle"
-                                                            @onclick="@(async () => await MostrarDetallePorEquipoYDetalle(equipo.EquipoId, equipo.EquipoNombre, detalle.DetalleFallaId, string.IsNullOrEmpty(detalle.DetalleFallaNombre) ? "(Sin detalle)" : detalle.DetalleFallaNombre))">
+                                                        @* Sin equipo o sin detalle no hay filtro que los aísle: abrirlos traería todo *@
+                                                        var detalleFiltrable = equipo.EquipoId.HasValue && detalle.DetalleFallaId.HasValue;
+                                                        <tr class="@(detalleFiltrable ? "clickable" : "") @(detalle.PorcentajeDelTotal >= 5 ? "table-warning" : "")"
+                                                            title="@(detalleFiltrable ? "Click para ver detalle" : SinFiltroTexto)"
+                                                            @onclick="@(async () => { if (detalleFiltrable) await MostrarDetallePorEquipoYDetalle(equipo.EquipoId, equipo.EquipoNombre, detalle.DetalleFallaId, detalle.DetalleFallaNombre ?? ""); })">
                                                             @if (index == 0)
                                                             {
-                                                                <td rowspan="@equipo.Detalles.Count" class="fw-bold align-middle"
-                                                                    @onclick="@(async () => await MostrarDetallePorEquipo(equipo.EquipoId, equipo.EquipoNombre))"
+                                                                <td rowspan="@equipo.Detalles.Count" class="fw-bold align-middle @(equipo.EquipoId.HasValue ? "clickable" : "")"
+                                                                    title="@(equipo.EquipoId.HasValue ? "Click para ver las detenciones del equipo" : SinFiltroTexto)"
+                                                                    @onclick="@(async () => { if (equipo.EquipoId.HasValue) await MostrarDetallePorEquipo(equipo.EquipoId, equipo.EquipoNombre); })"
                                                                     @onclick:stopPropagation="true">
                                                                     @equipo.EquipoNombre
                                                                 </td>
@@ -468,9 +501,9 @@
                                 </div>
                             </div>
                         }
-                        else
+                        else if (errorReportes == null)
                         {
-                            <p class="text-muted text-center py-4">No hay datos para mostrar en el periodo seleccionado.</p>
+                            <p class="text-muted text-center py-4">@TextoVacio("detenciones", incluirTurno: true)</p>
                         }
                     </div>
                 </div>
@@ -511,21 +544,31 @@
                     else if (detencionesDetalle != null && detencionesDetalle.Items.Any())
                     {
                         <div class="mb-2 text-muted small">
-                            Mostrando @detencionesDetalle.Items.Count de @detencionesDetalle.TotalCount detenciones
-                            | Total minutos: <strong>@detencionesDetalle.Items.Sum(d => d.MinutosEfectivos).ToString("N0")</strong>
+                            @if (detencionesDetalle.TotalCount > detencionesDetalle.Items.Count)
+                            {
+                                <span>
+                                    Mostrando las primeras @detencionesDetalle.Items.Count de @detencionesDetalle.TotalCount detenciones ·
+                                    minutos de estas @detencionesDetalle.Items.Count: <strong>@detencionesDetalle.Items.Sum(d => d.MinutosEfectivos).ToString("N0")</strong>.
+                                    Para ver todas, usá Detenciones con el mismo filtro.
+                                </span>
+                            }
+                            else
+                            {
+                                <span>@detencionesDetalle.TotalCount detenciones · Total minutos: <strong>@detencionesDetalle.Items.Sum(d => d.MinutosEfectivos).ToString("N0")</strong></span>
+                            }
                         </div>
                         <div class="table-responsive" style="max-height: 500px;">
                             <table class="table table-sm table-striped table-hover">
                                 <thead class="table-dark sticky-top">
                                     <tr>
-                                        <th>Codigo</th>
+                                        <th>Código</th>
                                         <th>Fecha</th>
                                         <th>Equipo</th>
-                                        <th>Tipo Falla</th>
+                                        <th>Tipo de falla</th>
                                         <th>Detalle</th>
                                         <th class="text-end">Min.</th>
                                         <th>Turno</th>
-                                        <th>Descripcion</th>
+                                        <th>Descripción</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -548,7 +591,7 @@
                     }
                     else
                     {
-                        <p class="text-muted text-center py-4">No se encontraron detenciones con los filtros seleccionados.</p>
+                        <p class="text-muted text-center py-4">@(errorDetalle ?? "No se encontraron detenciones con los filtros seleccionados.")</p>
                     }
                 </div>
                 <div class="modal-footer">
@@ -630,6 +673,10 @@
                                 </tfoot>
                             </table>
                         </div>
+                        <p class="small text-muted mt-2 mb-0">
+                            Estándar = suma de los turnos activos. Si ese día no se trabajó o se trabajó menos,
+                            cargá una excepción en Configuración → Turnos.
+                        </p>
                     }
                 </div>
                 <div class="modal-footer">
@@ -685,6 +732,13 @@
     private int filtroMes = 0;
     private int activeTab = 0;
     private bool isLoading = true;
+    private string? errorReportes;
+    private bool errorLineas;
+    private string? errorDetalle;
+
+    private const int AlturaGrafico = 240;
+    private const string ErrorReportes = "No se pudieron cargar los reportes. Revisá la conexión y tocá Actualizar; si sigue, avisá a sistemas.";
+    private const string SinFiltroTexto = "Detenciones cargadas sin equipo o sin detalle: abrilas desde Detenciones filtrando por línea y fecha.";
 
     private IndisponibilidadReporteDto? indisponibilidad;
     private FallosMayoresReporteDto? fallosMayores;
@@ -750,7 +804,11 @@
             lineas = await CatalogosService.GetLineasAsync();
             turnos = await CatalogosService.GetTurnosAsync();
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error cargando líneas y turnos: {ex.Message}");
+            errorLineas = true;
+        }
 
         await CargarReportes();
     }
@@ -758,6 +816,7 @@
     private async Task CargarReportes()
     {
         isLoading = true;
+        errorReportes = null;
         StateHasChanged();
 
         try
@@ -783,6 +842,11 @@
         catch (Exception ex)
         {
             Console.WriteLine($"Error cargando reportes: {ex.Message}");
+            // Sin datos a la vista: si no, un error parece "no hay detenciones".
+            indisponibilidad = null;
+            fallosMayores = null;
+            pareto = null;
+            errorReportes = ErrorReportes;
         }
         finally
         {
@@ -792,6 +856,7 @@
 
     private async Task CargarPareto()
     {
+        errorReportes = null;
         try
         {
             var lineaId = filtroLineaId > 0 ? filtroLineaId : (int?)null;
@@ -805,6 +870,8 @@
         catch (Exception ex)
         {
             Console.WriteLine($"Error cargando pareto: {ex.Message}");
+            pareto = null;
+            errorReportes = ErrorReportes;
         }
     }
 
@@ -902,12 +969,12 @@
         modalTitulo = "";
     }
 
-    private async Task MostrarDetallePorMesYTipo(int mes, int? tipoFallaId, string tipoFallaNombre, string mesNombre)
+    private async Task MostrarDetallePorMesYTipo(int mes, int? tipoFallaId, string tipoFallaNombre)
     {
         var lineaId = filtroLineaId > 0 ? filtroLineaId : (int?)null;
         var (fechaDesde, fechaHasta) = RangoMes(mes);
 
-        modalTitulo = $"{mesNombre} {filtroAnio} - {tipoFallaNombre}";
+        modalTitulo = $"{NombresMeses[mes]} {filtroAnio} - {tipoFallaNombre}";
         if (lineaId.HasValue)
         {
             var linea = lineas.FirstOrDefault(l => l.LineaId == lineaId);
@@ -924,25 +991,26 @@
         });
     }
 
-    private async Task MostrarDetalleFallosMayores(int mes, int? tipoFallaId, string tipoFallaNombre, string mesNombre)
+    private async Task MostrarDetalleFallosMayores(int mes, int? tipoFallaId, string tipoFallaNombre)
     {
         var lineaId = filtroLineaId > 0 ? filtroLineaId : (int?)null;
         var (fechaDesde, fechaHasta) = RangoMes(mes);
+        var umbral = fallosMayores?.UmbralMinutos ?? 60;
 
-        modalTitulo = $"Fallos Mayores (>=60 min) - {mesNombre} {filtroAnio} - {tipoFallaNombre}";
+        modalTitulo = $"Fallos mayores (≥ {umbral} min) - {NombresMeses[mes]} {filtroAnio} - {tipoFallaNombre}";
         if (lineaId.HasValue)
         {
             var linea = lineas.FirstOrDefault(l => l.LineaId == lineaId);
             modalTitulo += $" - {linea?.Nombre ?? "Linea"}";
         }
 
-        // Nota: MinutosMinimo no esta implementado en el backend aun, pero mostramos el titulo
         await CargarDetalle(new DetencionFiltroRequest
         {
             LineaId = lineaId,
             TipoFallaId = tipoFallaId,
             FechaDesde = fechaDesde,
             FechaHasta = fechaHasta,
+            MinutosMinimo = umbral,
             PageSize = 100
         });
     }
@@ -1021,6 +1089,7 @@
     {
         mostrarModal = true;
         cargandoDetalle = true;
+        errorDetalle = null;
         StateHasChanged();
 
         try
@@ -1031,12 +1100,44 @@
         {
             Console.WriteLine($"Error cargando detalle: {ex.Message}");
             detencionesDetalle = new PagedResult<DetencionDto>();
+            errorDetalle = "No se pudo cargar el detalle. Revisá la conexión y probá de nuevo.";
         }
         finally
         {
             cargandoDetalle = false;
             StateHasChanged();
         }
+    }
+
+    private bool EsMesEnCurso(int mes) => filtroAnio == DateTime.Today.Year && mes == DateTime.Today.Month;
+
+    /// <summary>
+    /// Tope del eje: 4 marcas parejas que cubren el máximo real (antes era fijo y recortaba barras).
+    /// </summary>
+    private static double TopeEscala(double maximo, double minimo)
+    {
+        foreach (var paso in new double[] { 1, 2, 3, 4, 5, 10, 15, 20, 25, 50, 100, 250, 500, 1000 })
+        {
+            if (paso * 4 >= Math.Max(maximo, minimo))
+                return paso * 4;
+        }
+        return Math.Ceiling(maximo / 4) * 4;
+    }
+
+    private static IEnumerable<double> Marcas(double tope) => Enumerable.Range(0, 5).Select(i => tope * i / 4);
+
+    /// <summary>
+    /// Estado vacío que dice qué filtro lo dejó vacío y qué probar.
+    /// </summary>
+    private string TextoVacio(string que, bool incluirTurno)
+    {
+        var linea = lineas.FirstOrDefault(l => l.LineaId == filtroLineaId)?.Nombre ?? "ninguna línea";
+        var periodo = activeTab == 2 ? TextoPeriodoPareto() : filtroAnio.ToString();
+        var turno = incluirTurno && filtroTurnoId > 0
+            ? $" · {turnos.FirstOrDefault(t => t.TurnoId == filtroTurnoId)?.Nombre}"
+            : "";
+        var sugerencia = activeTab == 2 ? "Probá con otra línea, otro año o Mes: Todos." : "Probá con otra línea u otro año.";
+        return $"No hay {que} de {linea} en {periodo}{turno}. {sugerencia}";
     }
 
     // CSS necesita punto decimal: con la cultura es-AR "61,2px" es inválido y el navegador lo ignora.
