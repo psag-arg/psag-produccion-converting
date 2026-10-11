@@ -1,8 +1,12 @@
+@using PSAG.Mantenimiento.Web.Services
 @inject NavigationManager Navigation
+@inject CustomAuthStateProvider AuthStateProvider
 
 @code {
     protected override void OnInitialized()
     {
-        Navigation.NavigateTo("/login", true);
+        var actual = "/" + Navigation.ToBaseRelativePath(Navigation.Uri);
+        var destino = AuthStateProvider.SesionVencida ? RutasLogin.SesionVencida(actual) : RutasLogin.ConVolver(actual);
+        Navigation.NavigateTo(destino, true);
     }
 }

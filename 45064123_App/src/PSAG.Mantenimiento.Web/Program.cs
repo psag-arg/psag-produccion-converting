@@ -17,7 +17,11 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 
 // Configurar HttpClient con la URL de la API
 var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "http://localhost:5000/";
-builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(apiBaseUrl) });
+// Un 401 de la API cierra la sesión y lleva al login avisando que venció.
+builder.Services.AddScoped(sp => new HttpClient(new SesionVencidaHandler(sp) { InnerHandler = new HttpClientHandler() })
+{
+    BaseAddress = new Uri(apiBaseUrl)
+});
 
 // Servicios de almacenamiento local
 builder.Services.AddBlazoredLocalStorage();

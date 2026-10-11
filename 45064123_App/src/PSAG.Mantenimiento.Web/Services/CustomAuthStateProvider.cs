@@ -10,6 +10,12 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
     private readonly ILocalStorageService _localStorage;
     private readonly HttpClient _httpClient;
     private const string TokenKey = "authToken";
+    private const string UserKey = "authUser";
+
+    /// <summary>
+    /// La sesión terminó porque venció el token (no porque el usuario salió). El login lo avisa.
+    /// </summary>
+    public bool SesionVencida { get; private set; }
 
     public CustomAuthStateProvider(ILocalStorageService localStorage, HttpClient httpClient)
     {
@@ -35,6 +41,7 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
             if (jwtToken.ValidTo < DateTime.UtcNow)
             {
                 await _localStorage.RemoveItemAsync(TokenKey);
+                SesionVencida = true;
                 return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()));
             }
 
@@ -57,6 +64,7 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
 
     public void NotifyUserAuthentication(string token)
     {
+        SesionVencida = false;
         _httpClient.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
@@ -72,6 +80,17 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
         _httpClient.DefaultRequestHeaders.Authorization = null;
         var anonymous = new ClaimsPrincipal(new ClaimsIdentity());
         NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(anonymous)));
+    }
+
+    /// <summary>
+    /// La API rechazó el token: se borra y la app pasa a anónima.
+    /// </summary>
+    public async Task CerrarSesionVencidaAsync()
+    {
+        await _localStorage.RemoveItemAsync(TokenKey);
+        await _localStorage.RemoveItemAsync(UserKey);
+        SesionVencida = true;
+        NotifyUserLogout();
     }
 
     private static IEnumerable<Claim> ParseClaimsFromJwt(string jwt)
