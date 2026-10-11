@@ -296,7 +296,7 @@
                                                             OnValueChanged="OnLineaChanged"
                                                             ValueSelector="@(l => l.LineaId)"
                                                             TextSelector="@(l => l.Nombre)"
-                                                            EmptyText="No tenés líneas asignadas. Pedile al administrador que te asigne una."
+                                                            EmptyText="@SinLineasAsignadas"
                                                             Placeholder="Buscar línea...">
                                             <ItemTemplate Context="linea">
                                                 @linea.Nombre
@@ -309,7 +309,7 @@
                                     }
                                     else if (!editando && !lineasDisponibles.Any())
                                     {
-                                        <div class="form-text text-danger">No tenés líneas asignadas. Pedile al administrador que te asigne una.</div>
+                                        <div class="form-text text-danger">@SinLineasAsignadas</div>
                                     }
                                 </div>
                                 <div class="col-md-6">
@@ -704,6 +704,8 @@
     private IJSObjectReference? moduloDescargas;
 
     private bool HorasCargadas => ParsearHora(horaInicioTexto).HasValue && ParsearHora(horaFinTexto).HasValue;
+
+    private const string SinLineasAsignadas = "No tenés líneas asignadas. Pedile al administrador que te asigne una.";
 
     private static string HoyIso => DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
@@ -1277,7 +1279,6 @@
 
     private async Task CambiarHoraInicio(ChangeEventArgs e)
     {
-        errorMessage = null;
         horaInicioTexto = e.Value?.ToString();
         horasEditadas = true;
         await ActualizarAvisoAnalisisAsync();
@@ -1285,7 +1286,6 @@
 
     private async Task CambiarHoraFin(ChangeEventArgs e)
     {
-        errorMessage = null;
         horaFinTexto = e.Value?.ToString();
         horasEditadas = true;
         await ActualizarAvisoAnalisisAsync();

@@ -433,7 +433,7 @@
                                 <textarea class="form-control" @bind="cerrarRequest.ResolucionDescripcion" @bind:event="oninput" rows="3"></textarea>
                                 @if (string.IsNullOrWhiteSpace(cerrarRequest.ResolucionDescripcion))
                                 {
-                                    <div class="form-text">Escribí la resolución para poder cerrar.</div>
+                                    <div class="form-text">@FaltaResolucion</div>
                                 }
                             </div>
                         </div>
@@ -458,6 +458,7 @@
 @code {
     private const int LargoSolucion = 4000;
     private const int LargoCausaYPlan = 2000;
+    private const string FaltaResolucion = "Escribí la resolución para poder cerrar.";
 
     [Parameter]
     public long Id { get; set; }
@@ -638,7 +639,7 @@
         errorCerrar = null;
         if (string.IsNullOrWhiteSpace(cerrarRequest.ResolucionDescripcion))
         {
-            errorCerrar = "Escribí la resolución para poder cerrar.";
+            errorCerrar = FaltaResolucion;
             return;
         }
 

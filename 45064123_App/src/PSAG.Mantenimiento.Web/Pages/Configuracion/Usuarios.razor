@@ -165,7 +165,7 @@
                         </div>
                         <div class="form-text">
                             @(SoloOperario
-                                ? "Un operario necesita al menos una línea asignada para poder cargar detenciones."
+                                ? OperarioSinLinea
                                 : "El operario sólo carga detenciones en sus líneas. Para elegir su turno, usá Configuración → Maquinistas.")
                         </div>
                     </div>
@@ -243,6 +243,8 @@
 
     // Debe coincidir con options.Password en el Program.cs de la API.
     private const string AyudaPassword = "Mínimo 8 caracteres, con una mayúscula, una minúscula, un número y un símbolo (ej.: Clave123!).";
+
+    private const string OperarioSinLinea = "Un operario necesita al menos una línea asignada para poder cargar detenciones.";
 
     private bool SoloOperario => rolesSeleccionados.Contains("OPERARIO")
         && !rolesSeleccionados.Any(r => r is "ADMINISTRADOR" or "SUPERVISOR" or "MANTENIMIENTO");
@@ -390,7 +392,7 @@
         }
         if (SoloOperario && !lineasSeleccionadas.Any() && (!editando || usuarioActual.Activo))
         {
-            errorMessage = "Un operario necesita al menos una línea asignada para poder cargar detenciones.";
+            errorMessage = OperarioSinLinea;
             return;
         }
 
