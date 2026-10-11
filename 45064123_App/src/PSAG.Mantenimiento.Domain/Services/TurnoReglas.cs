@@ -9,6 +9,7 @@ namespace PSAG.Mantenimiento.Domain.Services;
 public static class TurnoReglas
 {
     private const int MinutosDia = 24 * 60;
+    private const int LargoMotivo = 200; // largo de la columna Motivo
 
     /// <summary>
     /// Motivo por el que el horario no se puede guardar como turno activo, o null si es válido.
@@ -30,7 +31,7 @@ public static class TurnoReglas
         return null;
     }
 
-    public static bool SeSuperponen(Turno a, Turno b) =>
+    private static bool SeSuperponen(Turno a, Turno b) =>
         Tramos(a).Any(x => Tramos(b).Any(y => x.Desde < y.Hasta && y.Desde < x.Hasta));
 
     /// <summary>
@@ -63,10 +64,10 @@ public static class TurnoReglas
     /// <summary>
     /// Al reemplazar un día histórico, el valor anterior queda escrito en el motivo para no perderlo.
     /// </summary>
-    public static string MotivoReemplazandoHistorico(decimal horasHistoricas, string? motivo, int largoMaximo = 200)
+    public static string MotivoReemplazandoHistorico(decimal horasHistoricas, string? motivo)
     {
         var nota = $"antes {horasHistoricas:0.##} h históricas (HS PROG)";
         var texto = string.IsNullOrWhiteSpace(motivo) ? nota : $"{motivo.Trim()} · {nota}";
-        return texto.Length <= largoMaximo ? texto : texto[..largoMaximo];
+        return texto.Length <= LargoMotivo ? texto : texto[..LargoMotivo];
     }
 }

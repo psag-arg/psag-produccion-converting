@@ -1101,7 +1101,7 @@
     private bool EsMesEnCurso(int mes) => filtroAnio == DateTime.Today.Year && mes == DateTime.Today.Month;
 
     /// <summary>
-    /// Tope del eje: 4 marcas parejas que cubren el máximo real (antes era fijo y recortaba barras).
+    /// Tope del eje: 4 marcas parejas que cubren el máximo real, para no recortar barras.
     /// </summary>
     private static double TopeEscala(double maximo, double minimo)
     {
