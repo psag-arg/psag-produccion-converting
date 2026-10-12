@@ -7,6 +7,7 @@
 @attribute [Authorize]
 @inject IDetencionesService DetencionesService
 @inject IAnalisisService AnalisisService
+@inject ICatalogosService CatalogosService
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
 
@@ -51,6 +52,12 @@
                     {
                         <small class="text-muted">La cierra Mantenimiento.</small>
                     }
+                }
+                @if (puedeEditar)
+                {
+                    <button class="btn btn-outline-primary ms-2" @onclick="EditarDetencion">
+                        <i class="bi bi-pencil me-1"></i>Editar
+                    </button>
                 }
                 <button class="btn btn-outline-secondary ms-2" @onclick="VolverAlListado">
                     Volver
@@ -486,6 +493,7 @@
     private string? errorCerrar;
 
     private bool puedeCerrarDetencion;
+    private bool puedeEditar;
     private bool esAdministrador;
     private ClaimsPrincipal? usuario;
 
@@ -516,6 +524,7 @@
             detencion = await tareaDetencion;
             if (detencion != null)
             {
+                puedeEditar = await PuedeEditarAsync(detencion);
                 cerrarRequest.RowVersion = detencion.RowVersion;
                 analisis = detencion.RequiereAnalisis ? await tareaAnalisis : null;
                 CargarFormulario();
@@ -662,6 +671,18 @@
             isCerrando = false;
         }
     }
+
+    /// <summary>Misma regla que el lápiz de la lista.</summary>
+    private async Task<bool> PuedeEditarAsync(DetencionDto det)
+    {
+        if (usuario == null) return false;
+        var lineas = RolesCarga.SoloOperario(usuario.IsInRole)
+            ? (await CatalogosService.GetMisAsignacionesAsync()).Select(a => a.LineaId)
+            : [];
+        return RolesCarga.PuedeEditar(det, usuario.IsInRole, lineas);
+    }
+
+    private void EditarDetencion() => Navigation.NavigateTo($"/detenciones?editar={Id}");
 
     private void VolverAlListado()
     {

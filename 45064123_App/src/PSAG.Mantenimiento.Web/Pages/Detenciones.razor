@@ -205,7 +205,7 @@
                                                 <i class="bi bi-tools"></i>
                                             </button>
                                         }
-                                        @if (det.EstadoActual != "CERRADA" && puedeCargar)
+                                        @if (PuedeEditar(det))
                                         {
                                             <button class="btn btn-sm btn-outline-secondary me-1" title="Editar" @onclick="() => EditarDetencion(det)">
                                                 <i class="bi bi-pencil"></i>
@@ -648,6 +648,12 @@
 }
 
 @code {
+    /// <summary>Detención a editar al abrir la página (botón Editar del detalle).</summary>
+    [SupplyParameterFromQuery(Name = "editar")]
+    public long? Editar { get; set; }
+
+    private long? volverADetalleId;
+
     private PagedResult<DetencionDto> detenciones = new();
     private List<LineaDto> lineas = new();
     private List<LineaDto> lineasDisponibles = new();
@@ -746,11 +752,50 @@
         puedeSeleccionarMaquinista = user.IsInRole("ADMINISTRADOR") ||
                                       user.IsInRole("SUPERVISOR");
         esAdministrador = user.IsInRole("ADMINISTRADOR");
-        puedeCargar = new[] { "ADMINISTRADOR", "MANTENIMIENTO", "SUPERVISOR", "OPERARIO" }.Any(user.IsInRole);
+        puedeCargar = RolesCarga.PuedeCargar(user.IsInRole);
         esSoloOperario = RolesCarga.SoloOperario(user.IsInRole);
 
         await CargarLineas();
         await CargarDetenciones();
+        await AbrirEdicionPedidaAsync();
+    }
+
+    /// <summary>
+    /// /detenciones?editar={id}: el botón Editar del detalle abre este mismo modal y, al guardar o cancelar, vuelve al detalle.
+    /// </summary>
+    private async Task AbrirEdicionPedidaAsync()
+    {
+        if (Editar is not { } id) return;
+
+        DetencionDetalleDto? det = null;
+        try
+        {
+            det = await DetencionesService.GetDetencionAsync(id);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error cargando la detención a editar: {ex.Message}");
+        }
+
+        if (det == null || !PuedeEditar(det))
+        {
+            mensajeAviso = "No se puede editar esa detención: está cerrada, no existe o no es de tus líneas.";
+            return;
+        }
+
+        volverADetalleId = id;
+        await EditarDetencion(det);
+    }
+
+    private bool PuedeEditar(DetencionDto det) =>
+        usuario != null && RolesCarga.PuedeEditar(det, usuario.IsInRole, misAsignaciones.Select(a => a.LineaId));
+
+    private void VolverAlDetalleSiCorresponde()
+    {
+        if (volverADetalleId is { } id)
+        {
+            Navigation.NavigateTo($"/detenciones/{id}");
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -992,6 +1037,7 @@
         editandoDetencion = null;
         requiereAnalisisPrevio = false;
         model = new();
+        VolverAlDetalleSiCorresponde();
     }
 
     private async Task OnLineaChanged()
@@ -1166,6 +1212,11 @@
                 if (actualizada)
                 {
                     showModal = false;
+                    if (volverADetalleId.HasValue)
+                    {
+                        VolverAlDetalleSiCorresponde();
+                        return;
+                    }
                     await CargarDetenciones();
                 }
                 else
