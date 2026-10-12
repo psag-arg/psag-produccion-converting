@@ -54,6 +54,7 @@ public class DetencionDto
 
 public class DetencionDetalleDto : DetencionDto
 {
+    public string? MotivoSinAnalisis { get; set; }
     public List<DetencionNotaDto> Notas { get; set; } = new();
     public List<DetencionHistorialDto> HistorialEstados { get; set; } = new();
 }

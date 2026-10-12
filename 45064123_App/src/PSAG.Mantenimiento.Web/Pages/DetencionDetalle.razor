@@ -683,7 +683,7 @@
             new("Registrada",
                 detencion.RequiereAnalisis
                     ? detencion.Fecha.ToString("dd/MM/yyyy")
-                    : $"{detencion.Fecha:dd/MM/yyyy} · No requiere análisis",
+                    : $"{detencion.Fecha:dd/MM/yyyy} · {detencion.MotivoSinAnalisis ?? "No requiere análisis"}",
                 Hecho: true,
                 Actual: estado == "REGISTRADA" && !detencion.RequiereAnalisis)
         };

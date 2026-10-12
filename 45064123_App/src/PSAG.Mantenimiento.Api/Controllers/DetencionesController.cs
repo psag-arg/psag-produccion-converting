@@ -169,6 +169,16 @@ public class DetencionesController : ApiControllerBase
         }, detencion);
 
         dto.CreadoPorUsuarioNombre = await NombreMaquinistaAsync(detencion);
+        if (!detencion.RequiereAnalisis)
+        {
+            dto.MotivoSinAnalisis = ReglaAnalisisEvaluador.MotivoSinAnalisis(
+                await _unitOfWork.ReglasAnalisis.GetActivasAsync(),
+                detencion.LineaId,
+                detencion.EquipoId,
+                detencion.TipoFallaId,
+                detencion.TipoFalla?.Nombre,
+                detencion.MinutosEfectivos);
+        }
 
         return Ok(dto);
     }
