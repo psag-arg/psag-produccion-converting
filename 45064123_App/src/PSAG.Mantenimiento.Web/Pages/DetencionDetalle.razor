@@ -7,6 +7,7 @@
 @attribute [Authorize]
 @inject IDetencionesService DetencionesService
 @inject IAnalisisService AnalisisService
+@inject ICatalogosService CatalogosService
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
 
@@ -51,6 +52,12 @@
                     {
                         <small class="text-muted">La cierra Mantenimiento.</small>
                     }
+                }
+                @if (puedeEditar)
+                {
+                    <button class="btn btn-outline-primary ms-2" @onclick="EditarDetencion">
+                        <i class="bi bi-pencil me-1"></i>Editar
+                    </button>
                 }
                 <button class="btn btn-outline-secondary ms-2" @onclick="VolverAlListado">
                     Volver
@@ -105,7 +112,7 @@
                             {
                                 <div class="col-md-6 mb-3">
                                     <label class="text-muted small">Hora de parada</label>
-                                    <div><strong>@horaParada.ToLocalTime().ToString("HH:mm")</strong></div>
+                                    <div><strong>@horaParada.ToString("HH:mm")</strong></div>
                                 </div>
                             }
                             <div class="col-md-6 mb-3">
@@ -486,6 +493,7 @@
     private string? errorCerrar;
 
     private bool puedeCerrarDetencion;
+    private bool puedeEditar;
     private bool esAdministrador;
     private ClaimsPrincipal? usuario;
 
@@ -516,6 +524,7 @@
             detencion = await tareaDetencion;
             if (detencion != null)
             {
+                puedeEditar = await PuedeEditarAsync(detencion);
                 cerrarRequest.RowVersion = detencion.RowVersion;
                 analisis = detencion.RequiereAnalisis ? await tareaAnalisis : null;
                 CargarFormulario();
@@ -663,6 +672,18 @@
         }
     }
 
+    /// <summary>Misma regla que el lápiz de la lista.</summary>
+    private async Task<bool> PuedeEditarAsync(DetencionDto det)
+    {
+        if (usuario == null) return false;
+        var lineas = RolesCarga.SoloOperario(usuario.IsInRole)
+            ? (await CatalogosService.GetMisAsignacionesAsync()).Select(a => a.LineaId)
+            : [];
+        return RolesCarga.PuedeEditar(det, usuario.IsInRole, lineas);
+    }
+
+    private void EditarDetencion() => Navigation.NavigateTo($"/detenciones?editar={Id}");
+
     private void VolverAlListado()
     {
         // Sólo rutas internas de detenciones: el parámetro viene en la URL y no se confía en él.
@@ -683,7 +704,7 @@
             new("Registrada",
                 detencion.RequiereAnalisis
                     ? detencion.Fecha.ToString("dd/MM/yyyy")
-                    : $"{detencion.Fecha:dd/MM/yyyy} · No requiere análisis",
+                    : $"{detencion.Fecha:dd/MM/yyyy} · {detencion.MotivoSinAnalisis ?? "No requiere análisis"}",
                 Hecho: true,
                 Actual: estado == "REGISTRADA" && !detencion.RequiereAnalisis)
         };
@@ -692,7 +713,7 @@
         {
             pasos.Add(new("Cerrada",
                 estado == "CERRADA" && detencion.FechaHoraCierre.HasValue
-                    ? detencion.FechaHoraCierre.Value.ToLocalTime().ToString("dd/MM/yyyy")
+                    ? detencion.FechaHoraCierre.Value.ToString("dd/MM/yyyy")
                     : null,
                 Hecho: estado == "CERRADA",
                 Actual: estado == "CERRADA"));

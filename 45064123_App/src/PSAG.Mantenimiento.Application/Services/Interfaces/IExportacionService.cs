@@ -14,5 +14,5 @@ public interface IExportacionService
     /// <summary>
     /// Genera un libro .xlsx con las detenciones recibidas, una fila por detención.
     /// </summary>
-    byte[] GenerarDetencionesXlsx(IEnumerable<Domain.Entities.Detencion> detenciones);
+    byte[] GenerarDetencionesXlsx(IEnumerable<Domain.Entities.Detencion> detenciones, TimeZoneInfo zonaPlanta);
 }

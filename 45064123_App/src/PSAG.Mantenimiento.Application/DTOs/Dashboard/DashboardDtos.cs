@@ -205,6 +205,8 @@ public class FalloMayorTipoItem
     /// <summary>Entero por mes; en el promedio, con un decimal.</summary>
     public double CantidadEventos { get; set; }
     public int MinutosTotales { get; set; }
+    /// <summary>MinutosTotales ÷ minutos programados del mes, con un decimal.</summary>
+    public double Porcentaje { get; set; }
 }
 
 /// <summary>

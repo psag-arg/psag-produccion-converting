@@ -169,6 +169,16 @@ public class DetencionesController : ApiControllerBase
         }, detencion);
 
         dto.CreadoPorUsuarioNombre = await NombreMaquinistaAsync(detencion);
+        if (!detencion.RequiereAnalisis)
+        {
+            dto.MotivoSinAnalisis = ReglaAnalisisEvaluador.MotivoSinAnalisis(
+                await _unitOfWork.ReglasAnalisis.GetActivasAsync(),
+                detencion.LineaId,
+                detencion.EquipoId,
+                detencion.TipoFallaId,
+                detencion.TipoFalla?.Nombre,
+                detencion.MinutosEfectivos);
+        }
 
         return Ok(dto);
     }
@@ -763,7 +773,7 @@ public class DetencionesController : ApiControllerBase
         }
 
         var (detenciones, _) = await BuscarDetencionesAsync(filtro, page: 1, pageSize: MaxRegistrosExportacion);
-        var xlsx = _exportacionService.GenerarDetencionesXlsx(detenciones);
+        var xlsx = _exportacionService.GenerarDetencionesXlsx(detenciones, _zonaPlanta);
 
         _logger.LogInformation("Usuario {UserId} exportó {Count} detenciones a Excel", CurrentUserId, detenciones.Count());
 
@@ -937,7 +947,7 @@ public class DetencionesController : ApiControllerBase
             busqueda: filtro.Busqueda);
 
         // Generar CSV
-        var csv = GenerarCsv(detenciones);
+        var csv = GenerarCsv(detenciones, _zonaPlanta);
 
         var fileName = $"detenciones_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
 
@@ -1074,7 +1084,7 @@ public class DetencionesController : ApiControllerBase
     private static OrigenTiempo? ParsearOrigen(string? texto) =>
         Enum.TryParse<OrigenTiempo>(texto, true, out var origen) ? origen : null;
 
-    private static byte[] GenerarCsv(IEnumerable<Domain.Entities.Detencion> detenciones)
+    private static byte[] GenerarCsv(IEnumerable<Domain.Entities.Detencion> detenciones, TimeZoneInfo zona)
     {
         var sb = new System.Text.StringBuilder();
 
@@ -1092,16 +1102,16 @@ public class DetencionesController : ApiControllerBase
                 EscapeCsv(d.DetalleFalla?.Nombre ?? ""),
                 EscapeCsv(d.Turno?.Nombre ?? ""),
                 d.MinutosDeclarados?.ToString() ?? "",
-                d.FechaHoraParada?.ToString("yyyy-MM-dd HH:mm:ss") ?? "",
-                d.FechaHoraArranque?.ToString("yyyy-MM-dd HH:mm:ss") ?? "",
+                HoraPlanta.En(d.FechaHoraParada, zona)?.ToString("yyyy-MM-dd HH:mm:ss") ?? "",
+                HoraPlanta.En(d.FechaHoraArranque, zona)?.ToString("yyyy-MM-dd HH:mm:ss") ?? "",
                 d.OrigenTiempo.ToString(),
                 d.MinutosEfectivos.ToString(),
                 EscapeCsv(d.Descripcion),
                 EscapeCsv(d.EstadoActual.ObtenerDescripcion()),
                 EscapeCsv(d.AccionesRealizadas ?? ""),
                 EscapeCsv(d.ResolucionDescripcion ?? ""),
-                d.FechaHoraCierre?.ToString("yyyy-MM-dd HH:mm:ss") ?? "",
-                d.FechaHoraCreacion.ToString("yyyy-MM-dd HH:mm:ss")
+                HoraPlanta.En(d.FechaHoraCierre, zona)?.ToString("yyyy-MM-dd HH:mm:ss") ?? "",
+                HoraPlanta.En(d.FechaHoraCreacion, zona)!.Value.ToString("yyyy-MM-dd HH:mm:ss")
             ));
         }
 

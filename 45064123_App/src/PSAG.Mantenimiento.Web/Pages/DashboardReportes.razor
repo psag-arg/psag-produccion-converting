@@ -139,8 +139,8 @@
                                                 {
                                                     <div class="clickable"
                                                          style="width: 100%; height: @Px(tipo.Porcentaje / topeIndisp * AlturaGrafico); background-color: @GetColorTipoFalla(tipo);"
-                                                         title="@tipo.TipoFallaNombre: @tipo.Porcentaje% - Click para ver detalle"
-                                                         @onclick="@(async () => await MostrarDetallePorMesYTipo(mes.Mes, tipo.TipoFallaId, tipo.TipoFallaNombre))"></div>
+                                                         title="@tipo.TipoFallaNombre: @Cuenta(tipo.MinutosTotales, mes.MinutosProgramados, tipo.Porcentaje). Tocá para ver la cuenta y las paradas."
+                                                         @onclick="@(async () => await MostrarDetallePorMesYTipo(mes, tipo.TipoFallaId, tipo.TipoFallaNombre))"></div>
                                                 }
                                             </div>
                                         </div>
@@ -197,8 +197,8 @@
                                                 {
                                                     var item = mes.PorTipoFalla.FirstOrDefault(t => t.TipoFallaId == tipo.TipoFallaId);
                                                     <td class="text-center clickable"
-                                                        title="Click para ver detalle"
-                                                        @onclick="@(async () => await MostrarDetallePorMesYTipo(mes.Mes, tipo.TipoFallaId, tipo.TipoFallaNombre))">
+                                                        title="@Cuenta(item?.MinutosTotales ?? 0, mes.MinutosProgramados, item?.Porcentaje ?? 0)"
+                                                        @onclick="@(async () => await MostrarDetallePorMesYTipo(mes, tipo.TipoFallaId, tipo.TipoFallaNombre))">
                                                         @((item?.Porcentaje ?? 0).ToString("0.0"))%
                                                     </td>
                                                 }
@@ -232,13 +232,16 @@
                                             <td>Indisponibilidad</td>
                                             @foreach (var mes in indisponibilidad.Meses)
                                             {
-                                                <td class="text-center">@mes.IndisponibilidadTotal.ToString("0.0")%</td>
+                                                <td class="text-center clickable"
+                                                    title="@Cuenta(mes.MinutosTotalesParada, mes.MinutosProgramados, mes.IndisponibilidadTotal)"
+                                                    @onclick="@(async () => await MostrarDetallePorMesYTipo(mes, null, "Todas las fallas"))">@mes.IndisponibilidadTotal.ToString("0.0")%</td>
                                             }
                                             <td class="text-center">@(indisponibilidad.Promedio?.IndisponibilidadTotal.ToString("0.0") ?? "0.0")%</td>
                                         </tr>
                                     </tbody>
                                 </table>
                             </div>
+                            <p class="small text-muted mb-0">Cada porcentaje = minutos de parada ÷ minutos disponibles del mes. Tocá un porcentaje para ver la cuenta y las paradas.</p>
                         }
                         else if (errorReportes == null)
                         {
@@ -292,8 +295,8 @@
                                                 {
                                                     <div class="clickable"
                                                          style="width: 100%; height: @Px(tipo.CantidadEventos / topeEventos * AlturaGrafico); background-color: @GetColorFalloMayor(tipo); display: flex; align-items: center; justify-content: center;"
-                                                         title="@tipo.TipoFallaNombre: @tipo.CantidadEventos eventos - Click para ver detalle"
-                                                         @onclick="@(async () => await MostrarDetalleFallosMayores(mes.Mes, tipo.TipoFallaId, tipo.TipoFallaNombre))">
+                                                         title="@tipo.TipoFallaNombre: @tipo.CantidadEventos eventos, @Cuenta(tipo.MinutosTotales, mes.MinutosProgramados, tipo.Porcentaje). Tocá para ver la cuenta y las paradas."
+                                                         @onclick="@(async () => await MostrarDetalleFallosMayores(mes, tipo.TipoFallaId, tipo.TipoFallaNombre))">
                                                         @if (tipo.CantidadEventos > 0)
                                                         {
                                                             <small class="text-white fw-bold">@tipo.CantidadEventos.ToString("0.#")</small>
@@ -351,7 +354,9 @@
                                                 @foreach (var mes in fallosMayores.Meses)
                                                 {
                                                     var item = mes.PorTipoFalla.FirstOrDefault(t => t.TipoFallaId == tipo.TipoFallaId);
-                                                    <td class="text-center">@((item?.CantidadEventos ?? 0).ToString("0.#"))</td>
+                                                    <td class="text-center clickable"
+                                                        title="@((item?.CantidadEventos ?? 0).ToString("0.#")) eventos, @Cuenta(item?.MinutosTotales ?? 0, mes.MinutosProgramados, item?.Porcentaje ?? 0)"
+                                                        @onclick="@(async () => await MostrarDetalleFallosMayores(mes, tipo.TipoFallaId, tipo.TipoFallaNombre))">@((item?.CantidadEventos ?? 0).ToString("0.#"))</td>
                                                 }
                                                 @{
                                                     var promItem = fallosMayores.Promedio?.PorTipoFalla.FirstOrDefault(t => t.TipoFallaId == tipo.TipoFallaId);
@@ -371,13 +376,16 @@
                                             <td class="fw-bold">Indicador %</td>
                                             @foreach (var mes in fallosMayores.Meses)
                                             {
-                                                <td class="text-center fw-bold">@mes.IndicadorPorcentaje.ToString("0.0")%</td>
+                                                <td class="text-center fw-bold clickable"
+                                                    title="@Cuenta(mes.MinutosTotalesParada, mes.MinutosProgramados, mes.IndicadorPorcentaje)"
+                                                    @onclick="@(async () => await MostrarDetalleFallosMayores(mes, null, "todas las fallas"))">@mes.IndicadorPorcentaje.ToString("0.0")%</td>
                                             }
                                             <td class="text-center fw-bold">@(fallosMayores.Promedio?.IndicadorPorcentaje.ToString("0.0") ?? "0.0")%</td>
                                         </tr>
                                     </tbody>
                                 </table>
                             </div>
+                            <p class="small text-muted mb-0">Indicador % = minutos de las paradas de @fallosMayores.UmbralMinutos min o más ÷ minutos disponibles del mes. Tocá un número para ver la cuenta y las paradas.</p>
                         }
                         else
                         {
@@ -515,6 +523,16 @@
                     <button type="button" class="btn-close" @onclick="CerrarModal"></button>
                 </div>
                 <div class="modal-body">
+                    @if (cuentaModal != null)
+                    {
+                        <div class="alert alert-primary py-2" data-cuenta>
+                            <div class="fs-5"><strong>@cuentaModal.Que:</strong> @TextoCuenta(cuentaModal)</div>
+                            <div class="small">
+                                Minutos disponibles = tiempo programado del mes (turnos más excepciones del calendario).
+                                Abajo, cada parada con cuánto suma a ese porcentaje.
+                            </div>
+                        </div>
+                    }
                     @if (!string.IsNullOrEmpty(modalTitulo))
                     {
                         <div class="alert alert-info py-2">
@@ -555,7 +573,11 @@
                                         <th>Equipo</th>
                                         <th>Tipo de falla</th>
                                         <th>Detalle</th>
-                                        <th class="text-end">Min.</th>
+                                        <th class="text-end">Minutos</th>
+                                        @if (cuentaModal != null)
+                                        {
+                                            <th class="text-end">% del tiempo disponible</th>
+                                        }
                                         <th>Turno</th>
                                         <th>Descripción</th>
                                     </tr>
@@ -570,13 +592,37 @@
                                             <td>@(det.TipoFallaNombre ?? "-")</td>
                                             <td>@(det.DetalleFallaNombre ?? "-")</td>
                                             <td class="text-end fw-bold">@det.MinutosEfectivos</td>
+                                            @if (cuentaModal != null)
+                                            {
+                                                <td class="text-end">@PorcentajeFila(det.MinutosEfectivos, cuentaModal.MinutosDisponibles)</td>
+                                            }
                                             <td><small>@det.TurnoNombre</small></td>
                                             <td><small class="text-muted">@(det.Descripcion?.Length > 50 ? det.Descripcion.Substring(0, 50) + "..." : det.Descripcion)</small></td>
                                         </tr>
                                     }
                                 </tbody>
+                                @if (cuentaModal != null)
+                                {
+                                    var minutosListados = detencionesDetalle.Items.Sum(d => d.MinutosEfectivos);
+                                    <tfoot class="table-secondary fw-bold">
+                                        <tr data-total>
+                                            <td colspan="5">Total</td>
+                                            <td class="text-end">@FormatoMinutos(minutosListados)</td>
+                                            <td class="text-end">@Porcentaje(minutosListados, cuentaModal.MinutosDisponibles).ToString("0.0")%</td>
+                                            <td colspan="2"></td>
+                                        </tr>
+                                    </tfoot>
+                                }
                             </table>
                         </div>
+                        @if (cuentaModal != null && detencionesDetalle.Items.Sum(d => d.MinutosEfectivos) != cuentaModal.MinutosParada)
+                        {
+                            <p class="small text-danger mt-2 mb-0">
+                                Las paradas de esta lista suman @FormatoMinutos(detencionesDetalle.Items.Sum(d => d.MinutosEfectivos)) min y el reporte cuenta
+                                @FormatoMinutos(cuentaModal.MinutosParada) min. Las que faltan no se pueden abrir desde acá
+                                (por ejemplo, las cargadas sin tipo de falla): buscalas en Detenciones.
+                            </p>
+                        }
                     }
                     else
                     {
@@ -738,6 +784,13 @@
     private bool cargandoDetalle = false;
     private string modalTitulo = "";
     private PagedResult<DetencionDto>? detencionesDetalle;
+    private CuentaIndicador? cuentaModal;
+
+    /// <summary>La cuenta detrás de un porcentaje del reporte: minutos de parada ÷ minutos disponibles.</summary>
+    private sealed record CuentaIndicador(string Que, int MinutosParada, int MinutosDisponibles, double Porcentaje);
+
+    // Para que la lista sume lo mismo que la celda: un mes de un tipo puede tener más de 100 paradas.
+    private const int TopeDetalleIndicador = 1000;
 
     private bool mostrarModalProgramado = false;
     private bool cargandoProgramado = false;
@@ -955,13 +1008,37 @@
     {
         mostrarModal = false;
         detencionesDetalle = null;
+        cuentaModal = null;
         modalTitulo = "";
     }
 
-    private async Task MostrarDetallePorMesYTipo(int mes, int? tipoFallaId, string tipoFallaNombre)
+    /// <summary>Mismo redondeo que el reporte (DashboardService.Porcentaje): un decimal.</summary>
+    private static double Porcentaje(int minutos, int disponibles) =>
+        disponibles > 0 ? Math.Round((double)minutos / disponibles * 100, 1) : 0;
+
+    // Una parada sola suele ser menos de 0,1%: con dos decimales no queda en 0,0.
+    private static string PorcentajeFila(int minutos, int disponibles) =>
+        disponibles > 0 ? ((double)minutos / disponibles * 100).ToString("0.00") + "%" : "-";
+
+    private static string Cuenta(int minutos, int disponibles, double porcentaje) =>
+        $"{FormatoMinutos(minutos)} min ÷ {FormatoMinutos(disponibles)} min disponibles = {porcentaje:0.0}%";
+
+    private static string TextoCuenta(CuentaIndicador cuenta) =>
+        $"{FormatoMinutos(cuenta.MinutosParada)} min de parada ÷ {FormatoMinutos(cuenta.MinutosDisponibles)} min disponibles " +
+        $"({FormatoHoras(cuenta.MinutosDisponibles / 60.0)} h programadas) = {cuenta.Porcentaje:0.0}%";
+
+    private string NombreMes(int mes) => NombresMeses[mes].ToLowerInvariant();
+
+    private async Task MostrarDetallePorMesYTipo(IndisponibilidadMensualDto datosMes, int? tipoFallaId, string tipoFallaNombre)
     {
+        var mes = datosMes.Mes;
         var lineaId = filtroLineaId > 0 ? filtroLineaId : (int?)null;
         var (fechaDesde, fechaHasta) = RangoMes(mes);
+
+        var item = datosMes.PorTipoFalla.FirstOrDefault(t => t.TipoFallaId == tipoFallaId);
+        var cuenta = tipoFallaId.HasValue
+            ? new CuentaIndicador($"{tipoFallaNombre} en {NombreMes(mes)}", item?.MinutosTotales ?? 0, datosMes.MinutosProgramados, item?.Porcentaje ?? 0)
+            : new CuentaIndicador($"Indisponibilidad de {NombreMes(mes)}", datosMes.MinutosTotalesParada, datosMes.MinutosProgramados, datosMes.IndisponibilidadTotal);
 
         modalTitulo = $"{NombresMeses[mes]} {filtroAnio} - {tipoFallaNombre}";
         if (lineaId.HasValue)
@@ -976,15 +1053,21 @@
             TipoFallaId = tipoFallaId,
             FechaDesde = fechaDesde,
             FechaHasta = fechaHasta,
-            PageSize = 100
-        });
+            PageSize = TopeDetalleIndicador
+        }, cuenta);
     }
 
-    private async Task MostrarDetalleFallosMayores(int mes, int? tipoFallaId, string tipoFallaNombre)
+    private async Task MostrarDetalleFallosMayores(FallosMayoresMensualDto datosMes, int? tipoFallaId, string tipoFallaNombre)
     {
+        var mes = datosMes.Mes;
         var lineaId = filtroLineaId > 0 ? filtroLineaId : (int?)null;
         var (fechaDesde, fechaHasta) = RangoMes(mes);
         var umbral = fallosMayores?.UmbralMinutos ?? 60;
+
+        var item = datosMes.PorTipoFalla.FirstOrDefault(t => t.TipoFallaId == tipoFallaId);
+        var cuenta = tipoFallaId.HasValue
+            ? new CuentaIndicador($"Fallos mayores de {tipoFallaNombre} en {NombreMes(mes)}", item?.MinutosTotales ?? 0, datosMes.MinutosProgramados, item?.Porcentaje ?? 0)
+            : new CuentaIndicador($"Fallos mayores de {NombreMes(mes)}", datosMes.MinutosTotalesParada, datosMes.MinutosProgramados, datosMes.IndicadorPorcentaje);
 
         modalTitulo = $"Fallos mayores (≥ {umbral} min) - {NombresMeses[mes]} {filtroAnio} - {tipoFallaNombre}";
         if (lineaId.HasValue)
@@ -1000,8 +1083,8 @@
             FechaDesde = fechaDesde,
             FechaHasta = fechaHasta,
             MinutosMinimo = umbral,
-            PageSize = 100
-        });
+            PageSize = TopeDetalleIndicador
+        }, cuenta);
     }
 
     private async Task MostrarDetallePorTipoFalla(int? tipoFallaId, string tipoFallaNombre)
@@ -1074,8 +1157,9 @@
         });
     }
 
-    private async Task CargarDetalle(DetencionFiltroRequest filtro)
+    private async Task CargarDetalle(DetencionFiltroRequest filtro, CuentaIndicador? cuenta = null)
     {
+        cuentaModal = cuenta;
         mostrarModal = true;
         cargandoDetalle = true;
         errorDetalle = null;

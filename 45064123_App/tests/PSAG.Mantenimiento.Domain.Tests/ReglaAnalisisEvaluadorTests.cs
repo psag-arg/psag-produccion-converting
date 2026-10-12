@@ -167,4 +167,40 @@ public class ReglaAnalisisEvaluadorTests
         Assert.Null(ReglaAnalisisEvaluador.BuscarDuplicada(reglas, 7, 5, 3, 60));
         Assert.Null(ReglaAnalisisEvaluador.BuscarDuplicada(reglas, 7, null, 3, 90));
     }
+
+    [Fact]
+    public void Motivo_SinTipoDeFalla()
+    {
+        var motivo = ReglaAnalisisEvaluador.MotivoSinAnalisis([Regla(1)], Linea, Equipo, null, null, 500);
+
+        Assert.Equal("No requiere análisis: no tiene tipo de falla", motivo);
+    }
+
+    [Fact]
+    public void Motivo_TipoSinReglaActivaParaSuLinea()
+    {
+        var reglas = new[] { Regla(1, activo: false), Regla(2, lineaId: 99), Regla(3, tipoFallaId: 7) };
+
+        var motivo = ReglaAnalisisEvaluador.MotivoSinAnalisis(reglas, Linea, Equipo, TipoFalla, "CAMBIO DE FTO.", 500);
+
+        Assert.Equal("No requiere análisis: «CAMBIO DE FTO.» no tiene regla de análisis", motivo);
+    }
+
+    [Fact]
+    public void Motivo_DuraMenosQueLaReglaMasBaja()
+    {
+        var reglas = new[] { Regla(1, minutosMinimos: 120), Regla(2, minutosMinimos: 60, equipoId: null) };
+
+        var motivo = ReglaAnalisisEvaluador.MotivoSinAnalisis(reglas, Linea, Equipo, TipoFalla, "FALLA EQUIPO", 25);
+
+        Assert.Equal("No requiere análisis: dura 25 min y la regla de FALLA EQUIPO pide 60 o más", motivo);
+    }
+
+    [Fact]
+    public void Motivo_ReglaQueHoyAplica_DiceQueNoExistiaAlCargarla()
+    {
+        var motivo = ReglaAnalisisEvaluador.MotivoSinAnalisis([Regla(1, minutosMinimos: 30)], Linea, Equipo, TipoFalla, "FALLA EQUIPO", 45);
+
+        Assert.Equal("No requiere análisis: cuando se cargó no había una regla de FALLA EQUIPO que le aplicara", motivo);
+    }
 }

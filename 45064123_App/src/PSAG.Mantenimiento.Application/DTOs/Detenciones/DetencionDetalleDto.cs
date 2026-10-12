@@ -19,6 +19,11 @@ public class DetencionDetalleDto : DatosAnalisisDetencion
     public string TurnoNombre { get; set; } = string.Empty;
     public DateOnly Fecha { get; set; }
 
+    /// <summary>
+    /// Si no requiere análisis, por qué (sin tipo de falla, sin regla o por debajo de los minutos de la regla).
+    /// </summary>
+    public string? MotivoSinAnalisis { get; set; }
+
     // Modelo de tiempo
     public int? MinutosDeclarados { get; set; }
     public DateTimeOffset? FechaHoraParada { get; set; }

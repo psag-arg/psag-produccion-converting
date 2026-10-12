@@ -30,7 +30,8 @@ var jwtSettings = configuration.GetSection("JwtSettings");
 // Agregar servicios de capas
 builder.Services.AddInfrastructure(configuration);
 builder.Services.AddApplication();
-builder.Services.AddSingleton(ZonaHorariaPlanta.Resolver(configuration));
+var zonaPlanta = ZonaHorariaPlanta.Resolver(configuration);
+builder.Services.AddSingleton(zonaPlanta);
 
 // Configurar Identity
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
@@ -137,6 +138,7 @@ builder.Services.AddControllers()
     {
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
         options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
+        options.JsonSerializerOptions.Converters.Add(new FechaHoraPlantaJsonConverter(zonaPlanta));
     });
 
 // Configurar Swagger
