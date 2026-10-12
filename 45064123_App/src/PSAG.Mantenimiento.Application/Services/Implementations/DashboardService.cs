@@ -813,13 +813,15 @@ public class DashboardService : IDashboardService
                 .Select(g =>
                 {
                     var tipo = tiposFalla.FirstOrDefault(t => t.TipoFallaId == g.Key);
+                    var minutos = g.Sum(d => d.MinutosEfectivos);
                     return new FalloMayorTipoItem
                     {
                         TipoFallaId = g.Key,
                         TipoFallaNombre = tipo?.Nombre ?? "Otro",
                         Color = tipo?.Color,
                         CantidadEventos = g.Count(),
-                        MinutosTotales = g.Sum(d => d.MinutosEfectivos)
+                        MinutosTotales = minutos,
+                        Porcentaje = Porcentaje(minutos, minutosProgramados)
                     };
                 })
                 .OrderByDescending(x => x.CantidadEventos)
@@ -857,7 +859,8 @@ public class DashboardService : IDashboardService
                     TipoFallaNombre = g.First().TipoFallaNombre,
                     Color = g.First().Color,
                     CantidadEventos = Math.Round(g.Sum(x => x.CantidadEventos) / reporte.Meses.Count, 1),
-                    MinutosTotales = g.Sum(x => x.MinutosTotales) / reporte.Meses.Count
+                    MinutosTotales = g.Sum(x => x.MinutosTotales) / reporte.Meses.Count,
+                    Porcentaje = Math.Round(g.Sum(x => x.Porcentaje) / reporte.Meses.Count, 1)
                 })
                 .OrderByDescending(x => x.CantidadEventos)
                 .ToList();
