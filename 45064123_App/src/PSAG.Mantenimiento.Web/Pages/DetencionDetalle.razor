@@ -713,7 +713,7 @@
         {
             pasos.Add(new("Cerrada",
                 estado == "CERRADA" && detencion.FechaHoraCierre.HasValue
-                    ? detencion.FechaHoraCierre.Value.ToLocalTime().ToString("dd/MM/yyyy")
+                    ? detencion.FechaHoraCierre.Value.ToString("dd/MM/yyyy")
                     : null,
                 Hecho: estado == "CERRADA",
                 Actual: estado == "CERRADA"));

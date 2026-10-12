@@ -6,7 +6,6 @@ using Microsoft.EntityFrameworkCore;
 using PSAG.Mantenimiento.Application.Common;
 using PSAG.Mantenimiento.Application.DTOs.Analisis;
 using PSAG.Mantenimiento.Application.Services.Interfaces;
-using PSAG.Mantenimiento.Domain.Services;
 using PSAG.Mantenimiento.Infrastructure.Identity;
 
 namespace PSAG.Mantenimiento.Api.Controllers;
@@ -22,13 +21,11 @@ public class AnalisisController : ApiControllerBase
 {
     private readonly IAnalisisService _analisisService;
     private readonly UserManager<ApplicationUser> _userManager;
-    private readonly TimeZoneInfo _zonaPlanta;
 
-    public AnalisisController(IAnalisisService analisisService, UserManager<ApplicationUser> userManager, TimeZoneInfo zonaPlanta)
+    public AnalisisController(IAnalisisService analisisService, UserManager<ApplicationUser> userManager)
     {
         _analisisService = analisisService;
         _userManager = userManager;
-        _zonaPlanta = zonaPlanta;
     }
 
     /// <summary>
@@ -128,12 +125,6 @@ public class AnalisisController : ApiControllerBase
             pendiente.AnalisisPorUsuarioNombre = NombreDe(nombres, pendiente.AnalisisPorUsuarioId);
             pendiente.ResponsableNombre = NombreDelResponsable(
                 pendiente.ResponsableUsuarioId, pendiente.ResponsableUsuarioNombre, pendiente.ResponsableNombre);
-        }
-
-        foreach (var pendiente in dto.ParaDeclarar)
-        {
-            pendiente.FechaHoraParada = HoraPlanta.En(pendiente.FechaHoraParada, _zonaPlanta);
-            pendiente.FechaHoraArranque = HoraPlanta.En(pendiente.FechaHoraArranque, _zonaPlanta);
         }
 
         foreach (var responsable in dto.Responsables.Where(r => r.UsuarioId != null))

@@ -70,8 +70,8 @@ public class DetencionesController : ApiControllerBase
             TurnoNombre = d.Turno?.Nombre ?? string.Empty,
             Fecha = d.Fecha,
             MinutosDeclarados = d.MinutosDeclarados,
-            FechaHoraParada = HoraPlanta.En(d.FechaHoraParada, _zonaPlanta),
-            FechaHoraArranque = HoraPlanta.En(d.FechaHoraArranque, _zonaPlanta),
+            FechaHoraParada = d.FechaHoraParada,
+            FechaHoraArranque = d.FechaHoraArranque,
             OrigenTiempo = d.OrigenTiempo.ToString(),
             MinutosEfectivos = d.MinutosEfectivos,
             Descripcion = d.Descripcion,
@@ -133,8 +133,8 @@ public class DetencionesController : ApiControllerBase
             TurnoNombre = detencion.Turno?.Nombre ?? string.Empty,
             Fecha = detencion.Fecha,
             MinutosDeclarados = detencion.MinutosDeclarados,
-            FechaHoraParada = HoraPlanta.En(detencion.FechaHoraParada, _zonaPlanta),
-            FechaHoraArranque = HoraPlanta.En(detencion.FechaHoraArranque, _zonaPlanta),
+            FechaHoraParada = detencion.FechaHoraParada,
+            FechaHoraArranque = detencion.FechaHoraArranque,
             OrigenTiempo = detencion.OrigenTiempo.ToString(),
             MinutosEfectivos = detencion.MinutosEfectivos,
             Descripcion = detencion.Descripcion,
@@ -621,8 +621,8 @@ public class DetencionesController : ApiControllerBase
             TurnoNombre = detencion.Turno?.Nombre ?? string.Empty,
             Fecha = detencion.Fecha,
             MinutosDeclarados = detencion.MinutosDeclarados,
-            FechaHoraParada = HoraPlanta.En(detencion.FechaHoraParada, _zonaPlanta),
-            FechaHoraArranque = HoraPlanta.En(detencion.FechaHoraArranque, _zonaPlanta),
+            FechaHoraParada = detencion.FechaHoraParada,
+            FechaHoraArranque = detencion.FechaHoraArranque,
             OrigenTiempo = detencion.OrigenTiempo.ToString(),
             MinutosEfectivos = detencion.MinutosEfectivos,
             Descripcion = detencion.Descripcion,
@@ -1110,8 +1110,8 @@ public class DetencionesController : ApiControllerBase
                 EscapeCsv(d.EstadoActual.ObtenerDescripcion()),
                 EscapeCsv(d.AccionesRealizadas ?? ""),
                 EscapeCsv(d.ResolucionDescripcion ?? ""),
-                d.FechaHoraCierre?.ToString("yyyy-MM-dd HH:mm:ss") ?? "",
-                d.FechaHoraCreacion.ToString("yyyy-MM-dd HH:mm:ss")
+                HoraPlanta.En(d.FechaHoraCierre, zona)?.ToString("yyyy-MM-dd HH:mm:ss") ?? "",
+                HoraPlanta.En(d.FechaHoraCreacion, zona)!.Value.ToString("yyyy-MM-dd HH:mm:ss")
             ));
         }
 

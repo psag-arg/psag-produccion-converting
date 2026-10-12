@@ -1395,7 +1395,7 @@
     private static string TextoEliminada(DetencionDto det)
     {
         var quien = string.IsNullOrWhiteSpace(det.EliminadaPorUsuarioNombre) ? "" : $" por {det.EliminadaPorUsuarioNombre}";
-        var cuando = det.FechaHoraEliminacion is { } fecha ? $" el {fecha.ToLocalTime():dd/MM/yyyy}" : "";
+        var cuando = det.FechaHoraEliminacion is { } fecha ? $" el {fecha:dd/MM/yyyy}" : "";
         var motivo = string.IsNullOrWhiteSpace(det.MotivoEliminacion) ? "" : $": {det.MotivoEliminacion}";
         return $"Eliminada{quien}{cuando}{motivo}";
     }
