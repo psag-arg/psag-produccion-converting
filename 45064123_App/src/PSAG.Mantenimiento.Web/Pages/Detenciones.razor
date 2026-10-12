@@ -162,7 +162,7 @@
                                     @det.Fecha.ToString("dd/MM/yyyy")
                                     @if (HoraReal(det) is { } horaParada)
                                     {
-                                        <span class="text-muted ms-1">@horaParada.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture)</span>
+                                        <span class="text-muted ms-1">@horaParada.ToString("HH:mm", CultureInfo.InvariantCulture)</span>
                                     }
                                 </td>
                                 <td>@det.LineaNombre</td>
@@ -955,8 +955,8 @@
 
         // Si la detención tiene horas reales (cargadas o del PLC), las mostramos. Sólo se reenvían si el usuario las cambia.
         var conHoras = det.OrigenTiempo is "CALCULADO" or "PLC" && det.FechaHoraParada.HasValue && det.FechaHoraArranque.HasValue;
-        horaInicioTexto = conHoras ? det.FechaHoraParada!.Value.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture) : null;
-        horaFinTexto = conHoras ? det.FechaHoraArranque!.Value.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture) : null;
+        horaInicioTexto = conHoras ? det.FechaHoraParada!.Value.ToString("HH:mm", CultureInfo.InvariantCulture) : null;
+        horaFinTexto = conHoras ? det.FechaHoraArranque!.Value.ToString("HH:mm", CultureInfo.InvariantCulture) : null;
         horasEditadas = false;
 
         if (model.LineaId > 0)

@@ -6,6 +6,7 @@ using PSAG.Mantenimiento.Application.Services.Interfaces;
 using PSAG.Mantenimiento.Domain.Entities;
 using PSAG.Mantenimiento.Domain.Enums;
 using PSAG.Mantenimiento.Domain.Interfaces;
+using PSAG.Mantenimiento.Domain.Services;
 using System.Globalization;
 using System.Text;
 
@@ -117,7 +118,7 @@ public class ExportacionService : IExportacionService
         }
     }
 
-    public byte[] GenerarDetencionesXlsx(IEnumerable<Detencion> detenciones)
+    public byte[] GenerarDetencionesXlsx(IEnumerable<Detencion> detenciones, TimeZoneInfo zonaPlanta)
     {
         string[] encabezados =
         [
@@ -141,7 +142,7 @@ public class ExportacionService : IExportacionService
             hoja.Cell(fila, 2).Value = d.Fecha.ToDateTime(TimeOnly.MinValue);
             hoja.Cell(fila, 2).Style.DateFormat.Format = "dd/MM/yyyy";
             hoja.Cell(fila, 3).Value = d.OrigenTiempo != OrigenTiempo.DECLARADO
-                ? d.FechaHoraParada?.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture) ?? string.Empty
+                ? HoraPlanta.En(d.FechaHoraParada, zonaPlanta)?.ToString("HH:mm", CultureInfo.InvariantCulture) ?? string.Empty
                 : string.Empty;
             hoja.Cell(fila, 4).Value = d.Linea?.Nombre ?? string.Empty;
             hoja.Cell(fila, 5).Value = d.Equipo?.Nombre ?? string.Empty;
