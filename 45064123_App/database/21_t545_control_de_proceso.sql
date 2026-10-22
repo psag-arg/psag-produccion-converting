@@ -5,6 +5,7 @@
 --              unidad y frecuencia) administrable desde Maestros, producto opcional
 --              en la carga y corrección del nombre del Turno 1 (Mañana).
 -- Versión: 1.0 - T-545
+-- Requiere: 11_create_tables_proceso.sql
 -- Idempotente: se puede ejecutar más de una vez.
 -- No borra ni migra datos: los registros de proceso ya cargados siguen igual.
 -- ==============================================================================
@@ -138,7 +139,8 @@ GO
 -- ============================================================================
 UPDATE [mnt].[Turnos]
 SET [Nombre] = N'Turno 1 (Ma' + NCHAR(241) + N'ana)',
-    [FechaHoraModificacion] = SYSDATETIMEOFFSET()
+    [FechaHoraModificacion] = SYSDATETIMEOFFSET(),
+    [ModificadoPorUsuarioId] = N'SCRIPT-21'
 WHERE [Nombre] = N'Turno 1 (Manana)';
 
 PRINT CONCAT(N'Turnos corregidos a Mañana: ', @@ROWCOUNT, N'.');
@@ -167,7 +169,7 @@ GO
 -- ============================================================================
 /*
 DECLARE @Linea NVARCHAR(100) = N'Tango 2';
-DECLARE @Usuario NVARCHAR(450) = N'SYSTEM';
+DECLARE @Usuario NVARCHAR(450) = N'SCRIPT-21';
 DECLARE @LineaId INT = (SELECT TOP (1) [LineaId] FROM [mnt].[Lineas] WHERE [Nombre] = @Linea);
 
 IF @LineaId IS NULL

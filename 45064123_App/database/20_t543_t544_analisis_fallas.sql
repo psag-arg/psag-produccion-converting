@@ -75,15 +75,6 @@ BEGIN
 END
 GO
 
--- Máximo 10 MB por foto (10 * 1024 * 1024)
-IF NOT EXISTS (SELECT * FROM sys.check_constraints WHERE name = N'CK_AnalisisAdjuntos_TamanoBytes')
-BEGIN
-    ALTER TABLE [mnt].[AnalisisAdjuntos]
-    ADD CONSTRAINT [CK_AnalisisAdjuntos_TamanoBytes] CHECK ([TamanoBytes] > 0 AND [TamanoBytes] <= 10485760)
-    PRINT 'Check Constraint CK_AnalisisAdjuntos_TamanoBytes creado.'
-END
-GO
-
 -- ============================================================================
 -- FOREIGN KEYS
 -- ============================================================================

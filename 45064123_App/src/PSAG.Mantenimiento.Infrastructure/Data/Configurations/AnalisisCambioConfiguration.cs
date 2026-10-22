@@ -8,7 +8,9 @@ public class AnalisisCambioConfiguration : IEntityTypeConfiguration<AnalisisCamb
 {
     public void Configure(EntityTypeBuilder<AnalisisCambio> builder)
     {
-        builder.ToTable("AnalisisCambios", "mnt");
+        // Mismo CHECK que database/20.
+        builder.ToTable("AnalisisCambios", "mnt", t =>
+            t.HasCheckConstraint("CK_AnalisisCambios_Campo", "[Campo] IN ('SOLUCION', 'CAUSA', 'PLAN_ACCION', 'FOTO')"));
 
         builder.HasKey(x => x.AnalisisCambioId);
 

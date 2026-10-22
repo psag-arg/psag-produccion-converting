@@ -9,7 +9,9 @@ public class ParametroConfiguration : IEntityTypeConfiguration<Parametro>
 {
     public void Configure(EntityTypeBuilder<Parametro> builder)
     {
-        builder.ToTable("Parametros", "mnt");
+        // Mismo CHECK que database/21 (con OK_NOOK).
+        builder.ToTable("Parametros", "mnt", t =>
+            t.HasCheckConstraint("CK_Parametros_TipoDato", "[TipoDato] IN ('NUMERICO', 'RANGO', 'TEXTO', 'OK_NOOK')"));
 
         builder.HasKey(x => x.ParametroId);
 
