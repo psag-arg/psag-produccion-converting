@@ -99,6 +99,27 @@ Start-WebSite -Name "PSAGMantenimientoWeb"
 }
 ```
 
+### Fotos del análisis de falla (T-544)
+
+Las fotos se guardan en disco, en la carpeta de `Adjuntos:Carpeta` (appsettings de la API),
+con nombre generado por la aplicación. No se sirven como archivos estáticos: solo salen por
+`GET api/analisis/{id}/adjuntos/{adjuntoId}`, con sesión iniciada.
+
+```json
+"Adjuntos": {
+  "Carpeta": "C:\\PSAG\\Mantenimiento\\Adjuntos"
+}
+```
+
+- Usar una ruta **absoluta y fuera de la carpeta `Api`**: `02-Publicar-Aplicacion.ps1` borra
+  `Api\*` en cada publicación (el script ya genera este valor en `appsettings.Production.json`).
+- Dar permiso de **modificar** sobre esa carpeta al usuario del app pool
+  (`IIS AppPool\<nombre del pool>`). La carpeta se crea sola con la primera foto si el permiso alcanza.
+- Incluirla en el backup del servidor junto con la base: la tabla `mnt.AnalisisAdjuntos` solo guarda el nombre.
+- Sin configurar, el default es `App_Data/AdjuntosAnalisis` dentro de la carpeta de la API (sirve para desarrollo).
+- Límites: JPG o PNG reales (se valida el contenido), hasta 10 MB por foto y 5 por análisis.
+  Cada foto se sube en un pedido aparte, así que alcanza el límite por defecto de IIS (30 MB).
+
 ### web.config (API)
 ```xml
 <?xml version="1.0" encoding="utf-8"?>

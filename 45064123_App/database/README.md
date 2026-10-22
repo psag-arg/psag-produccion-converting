@@ -20,6 +20,7 @@ Ejecutar los scripts en orden numérico:
 | 10 | `10_permissions_example.sql` | Ejemplo de configuración de permisos |
 | 17 | `17_t76_ajustes.sql` | Ajustes T-76 (idempotente): eliminación lógica y análisis de detenciones, reglas de análisis, criticidad de equipos, color de tipos de falla, tiempo programado por día, estados con PENDIENTE_JUSTIFICACION y vistas sin eliminadas |
 | 18 | `18_t76_tiempo_programado_historico.sql` | Horas programadas históricas de Tango 2 (marzo a agosto 2026, columna HS PROG del Excel del cliente). Idempotente; generado con `tools/generar_18_tiempo_programado.py` |
+| 20 | `20_t543_t544_analisis_fallas.sql` | T-543/T-544 (idempotente): tablas `mnt.AnalisisCambios` (historial de ediciones de análisis cerrados: quién, cuándo, valor anterior y nuevo) y `mnt.AnalisisAdjuntos` (fotos JPG/PNG del análisis, hasta 10 MB c/u y 5 por análisis). Los archivos van a disco, a la carpeta `Adjuntos:Carpeta` del appsettings de la API (en producción, `C:\PSAG\Mantenimiento\Adjuntos`, con permiso de escritura para el usuario del app pool) |
 | 99 | `99_drop_objects_development_only.sql` | **SOLO DESARROLLO** - Limpieza total |
 
 ## Requisitos
