@@ -1,0 +1,592 @@
+@page "/tareas-mantenimiento"
+@using System.Globalization
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize]
+@inject ITareasMantenimientoService TareasService
+@inject ICatalogosService CatalogosService
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Tareas de mantenimiento - PSAG Produccion</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h2 class="mb-0">Tareas de mantenimiento</h2>
+            <small class="text-muted">Pendientes y programadas. Las cerradas están en el historial.</small>
+        </div>
+        <div class="d-flex gap-2">
+            <a class="btn btn-outline-secondary" href="tareas-mantenimiento/historial">
+                <i class="bi bi-clock-history me-2"></i>Historial
+            </a>
+            <a class="btn btn-outline-secondary" href="@UrlImprimir">
+                <i class="bi bi-printer me-2"></i>Hoja de programadas
+            </a>
+            @if (puedeCargar)
+            {
+                <button class="btn btn-primary" @onclick="@(async () => await AbrirModalNueva())">
+                    <i class="bi bi-plus-lg me-2"></i>Nueva tarea
+                </button>
+            }
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(mensajeError))
+    {
+        <div class="alert alert-danger">@mensajeError</div>
+    }
+    @if (!string.IsNullOrEmpty(mensajeExito))
+    {
+        <div class="alert alert-success">@mensajeExito</div>
+    }
+
+    <!-- Filtros -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">Línea</label>
+                    <select class="form-select" @bind="filtroLineaId" @bind:after="@(async () => await CargarTareas())">
+                        <option value="">Todas</option>
+                        @foreach (var linea in lineas)
+                        {
+                            <option value="@linea.LineaId">@linea.Nombre</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Criticidad</label>
+                    <select class="form-select" @bind="filtroCriticidad" @bind:after="@(async () => await CargarTareas())">
+                        <option value="">Todas</option>
+                        @foreach (var (valor, texto) in TareaMantenimientoOpciones.Criticidades)
+                        {
+                            <option value="@valor">@texto</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Estado</label>
+                    <select class="form-select" @bind="filtroEstado" @bind:after="@(async () => await CargarTareas())">
+                        <option value="">Pendientes y programadas</option>
+                        <option value="PENDIENTE">Pendientes</option>
+                        <option value="PROGRAMADA">Programadas</option>
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex justify-content-end">
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="@(async () => await LimpiarFiltros())">
+                        <i class="bi bi-x-circle me-1"></i>Limpiar filtros
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (puedeGestionar && seleccionadas.Count > 0)
+    {
+        <div class="alert alert-info d-flex justify-content-between align-items-center">
+            <span>@seleccionadas.Count @(seleccionadas.Count == 1 ? "tarea tildada" : "tareas tildadas")</span>
+            <button class="btn btn-primary btn-sm" disabled="@procesando" @onclick="@(async () => await ProgramarSeleccionadas())">
+                <i class="bi bi-calendar-check me-1"></i>Programar
+            </button>
+        </div>
+    }
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+        </div>
+    }
+    else if (errorCarga != null)
+    {
+        <div class="alert alert-danger">@errorCarga</div>
+    }
+    else if (tareas.Any())
+    {
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            @if (puedeGestionar)
+                            {
+                                <th style="width: 2.5rem;">
+                                    <input type="checkbox" class="form-check-input" title="Tildar todas las pendientes"
+                                           checked="@TodasPendientesTildadas" disabled="@(!Pendientes.Any())"
+                                           @onchange="TildarTodas" />
+                                </th>
+                            }
+                            <th role="button" class="text-nowrap" @onclick="InvertirOrden" title="Ordenar por criticidad">
+                                Criticidad <i class="bi @(ordenMasCriticaPrimero ? "bi-sort-down" : "bi-sort-up")"></i>
+                            </th>
+                            <th>Línea</th>
+                            <th>Cuerpo</th>
+                            <th>Parte</th>
+                            <th>Detalle</th>
+                            <th>Tipo</th>
+                            <th>Estado</th>
+                            <th>Cargada</th>
+                            @if (puedeGestionar)
+                            {
+                                <th class="text-end">Acciones</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var tarea in TareasOrdenadas)
+                        {
+                            <tr>
+                                @if (puedeGestionar)
+                                {
+                                    <td>
+                                        @if (tarea.Estado == "PENDIENTE")
+                                        {
+                                            <input type="checkbox" class="form-check-input" title="Tildar para programar"
+                                                   checked="@seleccionadas.Contains(tarea.TareaMantenimientoId)"
+                                                   @onchange="@(e => Tildar(tarea.TareaMantenimientoId, e))" />
+                                        }
+                                    </td>
+                                }
+                                <td><span class="@TareaMantenimientoOpciones.BadgeCriticidad(tarea.Criticidad)">@tarea.CriticidadDescripcion</span></td>
+                                <td>@tarea.LineaNombre</td>
+                                <td>@tarea.EquipoNombre</td>
+                                <td>@(tarea.ParteEquipo ?? "-")</td>
+                                <td style="white-space: pre-line;">@tarea.Detalle</td>
+                                <td>@tarea.TipoTareaDescripcion</td>
+                                <td>
+                                    <span class="@TareaMantenimientoOpciones.BadgeEstado(tarea.Estado)">@tarea.EstadoDescripcion</span>
+                                    @if (tarea.FechaHoraProgramacion is { } programada)
+                                    {
+                                        <div class="small text-muted">@programada.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) · @(tarea.ProgramadaPorUsuarioNombre ?? "-")</div>
+                                    }
+                                </td>
+                                <td class="text-nowrap">
+                                    @tarea.FechaHoraCreacion.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture)
+                                    <div class="small text-muted">@(tarea.CreadoPorUsuarioNombre ?? "-")</div>
+                                </td>
+                                @if (puedeGestionar)
+                                {
+                                    <td class="text-end text-nowrap">
+                                        @if (tarea.Estado == "PENDIENTE")
+                                        {
+                                            <button class="btn btn-sm btn-outline-primary" title="Programar" disabled="@procesando"
+                                                    @onclick="@(async () => await Programar(new[] { tarea.TareaMantenimientoId }))">
+                                                <i class="bi bi-calendar-check"></i>
+                                            </button>
+                                        }
+                                        else if (tarea.Estado == "PROGRAMADA")
+                                        {
+                                            <button class="btn btn-sm btn-outline-success" title="Cerrar" disabled="@procesando"
+                                                    @onclick="() => tareaACerrar = tarea">
+                                                <i class="bi bi-check2-circle me-1"></i>Cerrar
+                                            </button>
+                                        }
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <p class="text-muted text-center mt-2">@tareas.Count @(tareas.Count == 1 ? "tarea activa" : "tareas activas")</p>
+    }
+    else
+    {
+        <div class="alert alert-info">No hay tareas pendientes ni programadas con estos filtros.</div>
+    }
+</div>
+
+@* Modal Nueva tarea *@
+@if (showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Nueva tarea de mantenimiento</h5>
+                    <button type="button" class="btn-close" @onclick="CerrarModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger">@errorMessage</div>
+                    }
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Línea *</label>
+                            <AutocompleteSelect TItem="LineaDto"
+                                                TValue="int"
+                                                Items="lineasDisponibles"
+                                                @bind-SelectedValue="model.LineaId"
+                                                OnValueChanged="OnLineaChanged"
+                                                ValueSelector="@(l => l.LineaId)"
+                                                TextSelector="@(l => l.Nombre)"
+                                                EmptyText="@SinLineasAsignadas"
+                                                Placeholder="Buscar línea...">
+                                <ItemTemplate Context="linea">
+                                    @linea.Nombre
+                                </ItemTemplate>
+                            </AutocompleteSelect>
+                            @if (!lineasDisponibles.Any())
+                            {
+                                <div class="form-text text-danger">@SinLineasAsignadas</div>
+                            }
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Cuerpo *</label>
+                            <AutocompleteSelect TItem="EquipoDto"
+                                                TValue="int"
+                                                Items="equipos"
+                                                @bind-SelectedValue="model.EquipoId"
+                                                ValueSelector="@(e => e.EquipoId)"
+                                                TextSelector="@(e => e.Nombre)"
+                                                Disabled="@(model.LineaId == 0)"
+                                                EmptyText="Esta línea no tiene cuerpos cargados. Pedile al administrador que los cargue en Maestros → Equipos."
+                                                Placeholder="@(model.LineaId == 0 ? "Elegí primero la línea" : "Buscar cuerpo...")">
+                                <ItemTemplate Context="equipo">
+                                    @equipo.Nombre
+                                </ItemTemplate>
+                            </AutocompleteSelect>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Parte específica del cuerpo</label>
+                        <input type="text" class="form-control" maxlength="200" @bind="model.ParteEquipo"
+                               placeholder="Ej.: rodillo superior, motor del ventilador..." />
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Tipo de tarea *</label>
+                            <select class="form-select" @bind="model.TipoTarea">
+                                <option value="">-- Elegí el tipo --</option>
+                                @foreach (var (valor, texto) in TareaMantenimientoOpciones.Tipos)
+                                {
+                                    <option value="@valor">@texto</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Criticidad *</label>
+                            <select class="form-select" @bind="model.Criticidad">
+                                <option value="">-- Elegí la criticidad --</option>
+                                @foreach (var (valor, texto) in TareaMantenimientoOpciones.Criticidades)
+                                {
+                                    <option value="@valor">@texto</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Detalle de la tarea a realizar *</label>
+                        <textarea class="form-control" rows="4" maxlength="2000" @bind="model.Detalle"
+                                  placeholder="Describí qué hay que hacer..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CerrarModal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" disabled="@isSubmitting" @onclick="@(async () => await GuardarTarea())">
+                        @if (isSubmitting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                            <span>Guardando...</span>
+                        }
+                        else
+                        {
+                            <span>Guardar tarea</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* Confirmación de cierre *@
+@if (tareaACerrar != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Cerrar tarea</h5>
+                    <button type="button" class="btn-close" @onclick="() => tareaACerrar = null"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2">¿Confirmás que la tarea está hecha?</p>
+                    <p class="mb-0"><strong>@tareaACerrar.EquipoNombre</strong>@(string.IsNullOrEmpty(tareaACerrar.ParteEquipo) ? "" : $" · {tareaACerrar.ParteEquipo}")</p>
+                    <p class="text-muted small mb-0" style="white-space: pre-line;">@tareaACerrar.Detalle</p>
+                    <div class="form-text mt-2">Queda en el historial con tu usuario y la fecha de hoy.</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="() => tareaACerrar = null">Cancelar</button>
+                    <button type="button" class="btn btn-success" disabled="@procesando" @onclick="@(async () => await ConfirmarCierre())">
+                        <i class="bi bi-check2-circle me-1"></i>Cerrar tarea
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private const string SinLineasAsignadas = "No tenés líneas asignadas. Pedile al administrador que te asigne una.";
+
+    private List<TareaMantenimientoDto> tareas = new();
+    private List<LineaDto> lineas = new();
+    private List<LineaDto> lineasDisponibles = new();
+    private List<EquipoDto> equipos = new();
+    private HashSet<long> seleccionadas = new();
+
+    private bool puedeCargar;
+    private bool puedeGestionar;
+    private bool isLoading = true;
+    private bool showModal;
+    private bool isSubmitting;
+    private bool procesando;
+    private bool ordenMasCriticaPrimero = true;
+    private string? errorCarga;
+    private string? errorMessage;
+    private string? mensajeError;
+    private string? mensajeExito;
+
+    private int? filtroLineaId;
+    private string? filtroCriticidad;
+    private string? filtroEstado;
+
+    private CrearTareaMantenimientoRequest model = new();
+    private TareaMantenimientoDto? tareaACerrar;
+
+    private IEnumerable<TareaMantenimientoDto> Pendientes => tareas.Where(t => t.Estado == "PENDIENTE");
+
+    private bool TodasPendientesTildadas => Pendientes.Any() && Pendientes.All(t => seleccionadas.Contains(t.TareaMantenimientoId));
+
+    /// <summary>
+    /// La API ya devuelve de más a menos crítica; el encabezado sólo invierte el orden.
+    /// </summary>
+    private IEnumerable<TareaMantenimientoDto> TareasOrdenadas =>
+        ordenMasCriticaPrimero ? tareas : tareas.OrderBy(t => RangoCriticidad(t.Criticidad)).ThenBy(t => t.TareaMantenimientoId);
+
+    private string UrlImprimir => filtroLineaId.HasValue
+        ? $"tareas-mantenimiento/imprimir?lineaId={filtroLineaId}"
+        : "tareas-mantenimiento/imprimir";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        puedeCargar = TareaMantenimientoOpciones.PuedeCargar(user.IsInRole);
+        puedeGestionar = TareaMantenimientoOpciones.PuedeGestionar(user.IsInRole);
+        var esSoloOperario = RolesCarga.SoloOperario(user.IsInRole);
+
+        try
+        {
+            var lineasTask = CatalogosService.GetLineasAsync();
+            var asignacionesTask = CatalogosService.GetMisAsignacionesAsync();
+            await Task.WhenAll(lineasTask, asignacionesTask);
+
+            lineas = await lineasTask;
+            var asignaciones = await asignacionesTask;
+            if (asignaciones.Any())
+            {
+                var ids = asignaciones.Select(a => a.LineaId).ToHashSet();
+                lineasDisponibles = lineas.Where(l => ids.Contains(l.LineaId)).ToList();
+            }
+            else
+            {
+                // Sin asignaciones: el operario no puede cargar (la API lo rechaza); el resto ve todas.
+                lineasDisponibles = esSoloOperario ? new() : lineas;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error cargando catálogos: {ex.Message}");
+        }
+
+        await CargarTareas();
+    }
+
+    private async Task CargarTareas()
+    {
+        isLoading = true;
+        errorCarga = null;
+        try
+        {
+            tareas = await TareasService.GetActivasAsync(filtroLineaId, filtroCriticidad, filtroEstado);
+            // Sólo quedan tildadas las que siguen pendientes y visibles.
+            seleccionadas.IntersectWith(Pendientes.Select(t => t.TareaMantenimientoId));
+        }
+        catch (Exception ex)
+        {
+            errorCarga = $"No se pudieron cargar las tareas: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LimpiarFiltros()
+    {
+        filtroLineaId = null;
+        filtroCriticidad = null;
+        filtroEstado = null;
+        await CargarTareas();
+    }
+
+    private void InvertirOrden() => ordenMasCriticaPrimero = !ordenMasCriticaPrimero;
+
+    private static int RangoCriticidad(string criticidad) => criticidad switch
+    {
+        "ALTA" => 3,
+        "MEDIA" => 2,
+        "BAJA" => 1,
+        _ => 0
+    };
+
+    private void Tildar(long id, ChangeEventArgs e)
+    {
+        if (e.Value is true)
+            seleccionadas.Add(id);
+        else
+            seleccionadas.Remove(id);
+    }
+
+    private void TildarTodas(ChangeEventArgs e)
+    {
+        if (e.Value is true)
+            seleccionadas.UnionWith(Pendientes.Select(t => t.TareaMantenimientoId));
+        else
+            seleccionadas.Clear();
+    }
+
+    private async Task ProgramarSeleccionadas() => await Programar(seleccionadas.ToList());
+
+    private async Task Programar(IReadOnlyCollection<long> ids)
+    {
+        mensajeError = null;
+        mensajeExito = null;
+        procesando = true;
+        try
+        {
+            var (ok, error) = await TareasService.ProgramarAsync(ids);
+            if (ok)
+            {
+                mensajeExito = ids.Count == 1 ? "Tarea programada." : $"{ids.Count} tareas programadas.";
+                seleccionadas.ExceptWith(ids);
+                await CargarTareas();
+            }
+            else
+            {
+                mensajeError = error;
+            }
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+
+    private async Task ConfirmarCierre()
+    {
+        if (tareaACerrar == null) return;
+
+        mensajeError = null;
+        mensajeExito = null;
+        procesando = true;
+        try
+        {
+            var (ok, error) = await TareasService.CerrarAsync(tareaACerrar.TareaMantenimientoId);
+            if (ok)
+            {
+                mensajeExito = "Tarea cerrada. Quedó en el historial.";
+                tareaACerrar = null;
+                await CargarTareas();
+            }
+            else
+            {
+                mensajeError = error;
+                tareaACerrar = null;
+            }
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+
+    private async Task AbrirModalNueva()
+    {
+        // Con una sola línea disponible (el operario de una línea) ya queda elegida.
+        model = new CrearTareaMantenimientoRequest
+        {
+            LineaId = lineasDisponibles.Count == 1 ? lineasDisponibles[0].LineaId : 0
+        };
+        errorMessage = null;
+        showModal = true;
+        await OnLineaChanged();
+    }
+
+    private void CerrarModal()
+    {
+        showModal = false;
+    }
+
+    private async Task OnLineaChanged()
+    {
+        errorMessage = null;
+        model.EquipoId = 0;
+        equipos = model.LineaId > 0 ? await CatalogosService.GetEquiposAsync(model.LineaId) : new();
+    }
+
+    private async Task GuardarTarea()
+    {
+        errorMessage = null;
+
+        // Lo que falta, todo junto, para no descubrir los errores de a uno.
+        var faltan = new List<string>();
+        if (model.LineaId == 0) faltan.Add("línea");
+        if (model.EquipoId == 0) faltan.Add("cuerpo");
+        if (string.IsNullOrEmpty(model.TipoTarea)) faltan.Add("tipo de tarea");
+        if (string.IsNullOrEmpty(model.Criticidad)) faltan.Add("criticidad");
+        if (string.IsNullOrWhiteSpace(model.Detalle)) faltan.Add("detalle de la tarea");
+        if (faltan.Any())
+        {
+            errorMessage = "Falta completar: " + string.Join(", ", faltan) + ".";
+            return;
+        }
+
+        isSubmitting = true;
+        try
+        {
+            var (creada, error) = await TareasService.CrearAsync(model);
+            if (creada != null)
+            {
+                showModal = false;
+                mensajeError = null;
+                mensajeExito = "Tarea cargada. Queda pendiente hasta que mantenimiento la programe.";
+                await CargarTareas();
+            }
+            else
+            {
+                errorMessage = error;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+}

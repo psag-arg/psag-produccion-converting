@@ -1,0 +1,237 @@
+@page "/tareas-mantenimiento/historial"
+@using System.Globalization
+@using Microsoft.AspNetCore.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize]
+@inject ITareasMantenimientoService TareasService
+@inject ICatalogosService CatalogosService
+
+<PageTitle>Historial de tareas de mantenimiento - PSAG Produccion</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h2 class="mb-0">Historial de tareas de mantenimiento</h2>
+            <small class="text-muted">Tareas cerradas. No se borran.</small>
+        </div>
+        <a class="btn btn-outline-secondary" href="tareas-mantenimiento">
+            <i class="bi bi-arrow-left me-2"></i>Tareas activas
+        </a>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-2">
+                    <label class="form-label">Línea</label>
+                    <select class="form-select" @bind="filtro.LineaId" @bind:after="@(async () => await OnLineaChanged())">
+                        <option value="">Todas</option>
+                        @foreach (var linea in lineas)
+                        {
+                            <option value="@linea.LineaId">@linea.Nombre</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Cuerpo</label>
+                    <select class="form-select" @bind="filtro.EquipoId" @bind:after="@(async () => await AplicarFiltros())" disabled="@(!filtro.LineaId.HasValue)">
+                        <option value="">Todos</option>
+                        @foreach (var equipo in equipos)
+                        {
+                            <option value="@equipo.EquipoId">@equipo.Nombre</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Criticidad</label>
+                    <select class="form-select" @bind="filtro.Criticidad" @bind:after="@(async () => await AplicarFiltros())">
+                        <option value="">Todas</option>
+                        @foreach (var (valor, texto) in TareaMantenimientoOpciones.Criticidades)
+                        {
+                            <option value="@valor">@texto</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Tipo</label>
+                    <select class="form-select" @bind="filtro.TipoTarea" @bind:after="@(async () => await AplicarFiltros())">
+                        <option value="">Todos</option>
+                        @foreach (var (valor, texto) in TareaMantenimientoOpciones.Tipos)
+                        {
+                            <option value="@valor">@texto</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Cerrada desde</label>
+                    <input type="date" class="form-control" @bind="fechaDesde" @bind:after="@(async () => await AplicarFiltros())" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Cerrada hasta</label>
+                    <input type="date" class="form-control" @bind="fechaHasta" @bind:after="@(async () => await AplicarFiltros())" />
+                </div>
+            </div>
+            <div class="d-flex justify-content-end mt-3">
+                <button class="btn btn-outline-secondary btn-sm" @onclick="@(async () => await LimpiarFiltros())">
+                    <i class="bi bi-x-circle me-1"></i>Limpiar filtros
+                </button>
+            </div>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+        </div>
+    }
+    else if (errorCarga != null)
+    {
+        <div class="alert alert-danger">@errorCarga</div>
+    }
+    else if (pagina.Items.Any())
+    {
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Criticidad</th>
+                            <th>Línea</th>
+                            <th>Cuerpo</th>
+                            <th>Parte</th>
+                            <th>Detalle</th>
+                            <th>Tipo</th>
+                            <th>Cargada</th>
+                            <th>Programada</th>
+                            <th>Cerrada</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var tarea in pagina.Items)
+                        {
+                            <tr>
+                                <td><span class="@TareaMantenimientoOpciones.BadgeCriticidad(tarea.Criticidad)">@tarea.CriticidadDescripcion</span></td>
+                                <td>@tarea.LineaNombre</td>
+                                <td>@tarea.EquipoNombre</td>
+                                <td>@(tarea.ParteEquipo ?? "-")</td>
+                                <td style="white-space: pre-line;">@tarea.Detalle</td>
+                                <td>@tarea.TipoTareaDescripcion</td>
+                                <td class="text-nowrap">
+                                    @tarea.FechaHoraCreacion.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture)
+                                    <div class="small text-muted">@(tarea.CreadoPorUsuarioNombre ?? "-")</div>
+                                </td>
+                                <td class="text-nowrap">
+                                    @(tarea.FechaHoraProgramacion?.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture) ?? "-")
+                                    <div class="small text-muted">@(tarea.ProgramadaPorUsuarioNombre ?? "-")</div>
+                                </td>
+                                <td class="text-nowrap">
+                                    @(tarea.FechaHoraCierre?.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture) ?? "-")
+                                    <div class="small text-muted">@(tarea.CerradaPorUsuarioNombre ?? "-")</div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        @if (pagina.TotalPages > 1)
+        {
+            <nav class="mt-3">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item @(filtro.Page == 1 ? "disabled" : "")">
+                        <button class="page-link" @onclick="@(async () => await CambiarPagina(filtro.Page - 1))">Anterior</button>
+                    </li>
+                    <li class="page-item disabled"><span class="page-link">@filtro.Page de @pagina.TotalPages</span></li>
+                    <li class="page-item @(filtro.Page >= pagina.TotalPages ? "disabled" : "")">
+                        <button class="page-link" @onclick="@(async () => await CambiarPagina(filtro.Page + 1))">Siguiente</button>
+                    </li>
+                </ul>
+            </nav>
+        }
+
+        <p class="text-muted text-center mt-2">@pagina.TotalCount @(pagina.TotalCount == 1 ? "tarea cerrada" : "tareas cerradas")</p>
+    }
+    else
+    {
+        <div class="alert alert-info">No hay tareas cerradas con estos filtros.</div>
+    }
+</div>
+
+@code {
+    private TareasHistorialFiltro filtro = new();
+    private PagedResult<TareaMantenimientoDto> pagina = new();
+    private List<LineaDto> lineas = new();
+    private List<EquipoDto> equipos = new();
+    private DateTime? fechaDesde;
+    private DateTime? fechaHasta;
+    private bool isLoading = true;
+    private string? errorCarga;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            lineas = await CatalogosService.GetLineasAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error cargando líneas: {ex.Message}");
+        }
+
+        await Cargar();
+    }
+
+    private async Task Cargar()
+    {
+        isLoading = true;
+        errorCarga = null;
+        try
+        {
+            filtro.FechaDesde = fechaDesde.HasValue ? DateOnly.FromDateTime(fechaDesde.Value) : null;
+            filtro.FechaHasta = fechaHasta.HasValue ? DateOnly.FromDateTime(fechaHasta.Value) : null;
+            pagina = await TareasService.GetHistorialAsync(filtro);
+        }
+        catch (Exception ex)
+        {
+            errorCarga = $"No se pudo cargar el historial: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OnLineaChanged()
+    {
+        filtro.EquipoId = null;
+        equipos = filtro.LineaId.HasValue ? await CatalogosService.GetEquiposAsync(filtro.LineaId.Value, incluirInactivos: true) : new();
+        await AplicarFiltros();
+    }
+
+    private async Task AplicarFiltros()
+    {
+        filtro.Page = 1;
+        await Cargar();
+    }
+
+    private async Task CambiarPagina(int page)
+    {
+        filtro.Page = page;
+        await Cargar();
+    }
+
+    private async Task LimpiarFiltros()
+    {
+        filtro = new TareasHistorialFiltro();
+        equipos.Clear();
+        fechaDesde = null;
+        fechaHasta = null;
+        await Cargar();
+    }
+}

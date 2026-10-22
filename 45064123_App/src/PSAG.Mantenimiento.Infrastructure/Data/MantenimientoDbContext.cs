@@ -45,6 +45,9 @@ public class MantenimientoDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<EjecucionInspeccionDetalle> EjecucionesInspeccionDetalle => Set<EjecucionInspeccionDetalle>();
     public DbSet<HallazgoNoOk> HallazgosNoOk => Set<HallazgoNoOk>();
 
+    // Tareas de mantenimiento (T-546/T-547)
+    public DbSet<TareaMantenimiento> TareasMantenimiento => Set<TareaMantenimiento>();
+
     private bool EsSqlite => Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true;
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
