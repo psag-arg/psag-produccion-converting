@@ -43,6 +43,12 @@ public class ExceptionHandlingMiddleware
                 "No autorizado",
                 new List<string>()
             ),
+            // Dos usuarios guardaron lo mismo a la vez (RowVersion o índice único).
+            Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException => (
+                HttpStatusCode.Conflict,
+                "Otro usuario modificó este registro mientras lo editabas. Recargá la pantalla y volvé a intentar.",
+                new List<string>()
+            ),
             KeyNotFoundException => (
                 HttpStatusCode.NotFound,
                 "Recurso no encontrado",

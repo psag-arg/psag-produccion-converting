@@ -66,7 +66,7 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
     {
         return await _context.Set<AnalisisAdjunto>()
             .AsNoTracking()
-            .FirstOrDefaultAsync(a => a.AnalisisAdjuntoId == adjuntoId && a.DetencionId == detencionId, cancellationToken);
+            .FirstOrDefaultAsync(a => a.AnalisisAdjuntoId == adjuntoId && a.DetencionId == detencionId && !a.Detencion.Eliminada, cancellationToken);
     }
 
     public async Task<IEnumerable<Detencion>> GetByLineaAsync(int lineaId, CancellationToken cancellationToken = default)

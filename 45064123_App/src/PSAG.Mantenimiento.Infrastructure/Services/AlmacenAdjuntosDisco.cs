@@ -28,9 +28,19 @@ public class AlmacenAdjuntosDisco : IAlmacenAdjuntos
 
     public async Task GuardarAsync(string nombreArchivo, Stream contenido, CancellationToken cancellationToken = default)
     {
-        Directory.CreateDirectory(_carpeta);
-        await using var archivo = new FileStream(Ruta(nombreArchivo), FileMode.CreateNew, FileAccess.Write, FileShare.None);
-        await contenido.CopyToAsync(archivo, cancellationToken);
+        try
+        {
+            Directory.CreateDirectory(_carpeta);
+            await using var archivo = new FileStream(Ruta(nombreArchivo), FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            await contenido.CopyToAsync(archivo, cancellationToken);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            // Sin permiso de escritura es un problema del servidor, no de la sesión: como
+            // UnauthorizedAccessException el middleware respondería 401 y la Web cerraría
+            // la sesión del usuario.
+            throw new IOException($"Sin permiso para escribir en la carpeta de fotos {_carpeta}.", ex);
+        }
     }
 
     public Stream? Abrir(string nombreArchivo)
