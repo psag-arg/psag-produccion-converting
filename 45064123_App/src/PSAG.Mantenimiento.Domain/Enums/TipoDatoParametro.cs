@@ -22,7 +22,13 @@ public enum TipoDatoParametro
     /// Valor de texto libre.
     /// No se compara automáticamente.
     /// </summary>
-    TEXTO = 3
+    TEXTO = 3,
+
+    /// <summary>
+    /// Punto de control que se responde OK / NO OK (T-545).
+    /// NO OK es desvío y pide observación.
+    /// </summary>
+    OK_NOOK = 4
 }
 
 public static class TipoDatoParametroExtensions
@@ -34,7 +40,14 @@ public static class TipoDatoParametroExtensions
             TipoDatoParametro.NUMERICO => "Numérico",
             TipoDatoParametro.RANGO => "Rango",
             TipoDatoParametro.TEXTO => "Texto",
+            TipoDatoParametro.OK_NOOK => "OK / No OK",
             _ => tipo.ToString()
         };
     }
+
+    /// <summary>
+    /// NUMERICO y RANGO se cargan como número y se comparan contra mín/máx.
+    /// </summary>
+    public static bool EsNumerico(this TipoDatoParametro tipo) =>
+        tipo is TipoDatoParametro.NUMERICO or TipoDatoParametro.RANGO;
 }

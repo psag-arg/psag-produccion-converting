@@ -7,7 +7,11 @@ namespace PSAG.Mantenimiento.Application.DTOs.Proceso;
 public class IniciarRegistroProcesoRequest
 {
     public int LineaId { get; set; }
-    public int ProductoId { get; set; }
+
+    /// <summary>
+    /// Opcional (T-545): sin producto se usa solo la plantilla de Control de Proceso de la línea.
+    /// </summary>
+    public int? ProductoId { get; set; }
 }
 
 /// <summary>

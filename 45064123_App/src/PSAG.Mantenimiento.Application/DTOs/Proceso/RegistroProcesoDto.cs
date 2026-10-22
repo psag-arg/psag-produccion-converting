@@ -5,7 +5,7 @@ public class RegistroProcesoDto
     public long RegistroProcesoId { get; set; }
     public int LineaId { get; set; }
     public string LineaNombre { get; set; } = string.Empty;
-    public int ProductoId { get; set; }
+    public int? ProductoId { get; set; }
     public string ProductoNombre { get; set; } = string.Empty;
     public int TurnoId { get; set; }
     public string TurnoNombre { get; set; } = string.Empty;
@@ -31,6 +31,22 @@ public class RegistroProcesoDetalleDto
     public string? Seccion { get; set; }
     public string? UnidadMedida { get; set; }
     public string TipoDato { get; set; } = "NUMERICO";
+    public string TipoDatoDescripcion { get; set; } = string.Empty;
+    public string Frecuencia { get; set; } = "POR_TURNO";
+    public string FrecuenciaDescripcion { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Rango vigente contra el que valida la API (plantilla de la línea o estándar del producto).
+    /// La UI lo usa solo para avisar; el desvío lo decide el backend.
+    /// </summary>
+    public decimal? ValorMin { get; set; }
+    public decimal? ValorMax { get; set; }
+    public int Orden { get; set; }
+
+    /// <summary>
+    /// El punto ya no está en la plantilla (se desactivó) pero tiene un valor cargado: se muestra solo lectura.
+    /// </summary>
+    public bool FueraDePlantilla { get; set; }
     public string? ValorEstandarSnapshot { get; set; }
     public decimal? ValorReal { get; set; }
     public string? ValorRealTexto { get; set; }

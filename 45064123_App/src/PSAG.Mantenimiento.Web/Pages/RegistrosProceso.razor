@@ -1,4 +1,4 @@
-@page "/registros-proceso"
+@page "/control-proceso"
 @using Microsoft.AspNetCore.Authorization
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
@@ -7,13 +7,13 @@
 @inject ICatalogosService CatalogosService
 @inject NavigationManager Navigation
 
-<PageTitle>Variables de Proceso - PSAG Produccion</PageTitle>
+<PageTitle>Control de Proceso - PSAG Produccion</PageTitle>
 
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>Variables de Proceso</h2>
+        <h2>Control de Proceso</h2>
         <button class="btn btn-primary" @onclick="NuevoRegistro">
-            <i class="bi bi-plus-lg"></i> Nuevo Registro
+            <i class="bi bi-plus-lg"></i> Nuevo control
         </button>
     </div>
 
@@ -22,7 +22,7 @@
         <div class="card-body">
             <div class="row g-3">
                 <div class="col-md-2">
-                    <label class="form-label">Linea</label>
+                    <label class="form-label">Línea</label>
                     <select class="form-select" @bind="filtroLineaId" @bind:after="OnLineaChanged">
                         <option value="">Todas</option>
                         @foreach (var linea in lineas)
@@ -84,11 +84,11 @@
                     <thead class="table-light">
                         <tr>
                             <th>Fecha</th>
-                            <th>Linea</th>
+                            <th>Línea</th>
                             <th>Producto</th>
                             <th>Turno</th>
                             <th>Completados</th>
-                            <th>Desvios</th>
+                            <th>Desvíos</th>
                             <th>Estado</th>
                             <th></th>
                         </tr>
@@ -154,13 +154,13 @@
         }
 
         <p class="text-muted text-center mt-2">
-            Mostrando @registros.Items.Count de @registros.TotalCount registros
+            Mostrando @registros.Items.Count de @registros.TotalCount controles
         </p>
     }
     else
     {
         <div class="alert alert-info">
-            No se encontraron registros con los filtros seleccionados.
+            No se encontraron controles de proceso con los filtros seleccionados.
         </div>
     }
 </div>
@@ -252,12 +252,12 @@
 
     private void NuevoRegistro()
     {
-        Navigation.NavigateTo("/registros-proceso/nuevo");
+        Navigation.NavigateTo("/control-proceso/nuevo");
     }
 
     private void VerRegistro(long id)
     {
-        Navigation.NavigateTo($"/registros-proceso/{id}");
+        Navigation.NavigateTo($"/control-proceso/{id}");
     }
 
     private string GetEstadoBadgeClass(string estado) => estado switch

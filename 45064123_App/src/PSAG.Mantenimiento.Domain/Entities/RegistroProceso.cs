@@ -9,12 +9,17 @@ namespace PSAG.Mantenimiento.Domain.Entities;
 /// con el estándar del producto que está corriendo.
 ///
 /// Un registro por línea + producto + turno + fecha. Si ya existe, se retoma.
+/// En la app se llama "Control de Proceso" (T-545). El producto es opcional:
+/// la plantilla de la línea alcanza para cargar los puntos de control.
 /// </summary>
 public class RegistroProceso : EntityBase
 {
     public long RegistroProcesoId { get; set; }
     public int LineaId { get; set; }
-    public int ProductoId { get; set; }
+    /// <summary>
+    /// Producto que corría. Null = control sin producto (solo plantilla de la línea).
+    /// </summary>
+    public int? ProductoId { get; set; }
     public int TurnoId { get; set; }
     public DateOnly Fecha { get; set; }
     public string UsuarioId { get; set; } = string.Empty;
@@ -31,7 +36,7 @@ public class RegistroProceso : EntityBase
 
     // Navegación
     public virtual Linea Linea { get; set; } = null!;
-    public virtual Producto Producto { get; set; } = null!;
+    public virtual Producto? Producto { get; set; }
     public virtual Turno Turno { get; set; } = null!;
     public virtual ICollection<RegistroProcesoDetalle> Detalles { get; set; } = new List<RegistroProcesoDetalle>();
 

@@ -28,6 +28,22 @@ public class Parametro : EntityBase
     /// </summary>
     public TipoDatoParametro TipoDato { get; set; } = TipoDatoParametro.NUMERICO;
 
+    /// <summary>
+    /// Mínimo aceptable del punto de control en la plantilla de la línea (T-545).
+    /// Solo para tipos numéricos. Si hay un estándar por producto, manda el estándar.
+    /// </summary>
+    public decimal? ValorMin { get; set; }
+
+    /// <summary>
+    /// Máximo aceptable del punto de control en la plantilla de la línea (T-545).
+    /// </summary>
+    public decimal? ValorMax { get; set; }
+
+    /// <summary>
+    /// Cada cuánto se toma el punto de control (T-545).
+    /// </summary>
+    public FrecuenciaControl Frecuencia { get; set; } = FrecuenciaControl.POR_TURNO;
+
     public int Orden { get; set; }
     public bool Activo { get; set; } = true;
 

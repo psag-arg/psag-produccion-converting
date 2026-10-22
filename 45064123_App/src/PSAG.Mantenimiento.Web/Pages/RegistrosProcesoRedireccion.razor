@@ -1,0 +1,22 @@
+@page "/registros-proceso"
+@page "/registros-proceso/nuevo"
+@page "/registros-proceso/{Id:long}"
+@inject NavigationManager Navigation
+
+@* T-545: "Registros" pasó a llamarse "Control de Proceso". Los links y favoritos viejos siguen andando. *@
+
+@code {
+    [Parameter]
+    public long? Id { get; set; }
+
+    protected override void OnInitialized()
+    {
+        var destino = Id.HasValue
+            ? $"/control-proceso/{Id}"
+            : Navigation.Uri.TrimEnd('/').EndsWith("/nuevo", StringComparison.OrdinalIgnoreCase)
+                ? "/control-proceso/nuevo"
+                : "/control-proceso";
+
+        Navigation.NavigateTo(destino, replace: true);
+    }
+}

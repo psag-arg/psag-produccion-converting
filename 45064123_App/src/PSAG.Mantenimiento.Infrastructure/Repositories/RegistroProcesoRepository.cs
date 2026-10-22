@@ -26,7 +26,7 @@ public class RegistroProcesoRepository : RepositoryBase<RegistroProceso>, IRegis
 
     public async Task<RegistroProceso?> GetByLineaProductoTurnoFechaAsync(
         int lineaId,
-        int productoId,
+        int? productoId,
         int turnoId,
         DateOnly fecha,
         CancellationToken cancellationToken = default)
@@ -116,7 +116,7 @@ public class RegistroProcesoRepository : RepositoryBase<RegistroProceso>, IRegis
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<IEnumerable<(int LineaId, int ProductoId, int ParametroId, int CantidadDesvios)>> GetConteoDesviosAsync(
+    public async Task<IEnumerable<(int LineaId, int? ProductoId, int ParametroId, int CantidadDesvios)>> GetConteoDesviosAsync(
         DateOnly? fechaDesde = null,
         DateOnly? fechaHasta = null,
         CancellationToken cancellationToken = default)

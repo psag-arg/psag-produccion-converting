@@ -77,6 +77,9 @@
                     <NavLink class="nav-link" href="maestros/reglas-analisis">
                         <span class="bi bi-sliders me-2"></span> Reglas de análisis
                     </NavLink>
+                    <NavLink class="nav-link" href="maestros/control-proceso">
+                        <span class="bi bi-ui-checks me-2"></span> Puntos de control de proceso
+                    </NavLink>
                 </div>
             }
         </div>
@@ -112,24 +115,24 @@
             }
         </div>
 
-        @* REGISTROS DE PROCESO *@
+        @* CONTROL DE PROCESO (ex "Registros", T-545) *@
         <div class="nav-section">
             <div class="nav-section-header" @onclick="() => ToggleSection(3)">
                 <span class="bi bi-clipboard-data me-2"></span>
                 @if (!sidebarCollapsed)
                 {
-                    <span>Registros</span>
+                    <span>Control de Proceso</span>
                     <span class="bi @(IsExpanded(3) ? "bi-chevron-up" : "bi-chevron-down") ms-auto"></span>
                 }
             </div>
             @if (IsExpanded(3) && !sidebarCollapsed)
             {
                 <div class="nav-section-items">
-                    <NavLink class="nav-link" href="registros-proceso" Match="NavLinkMatch.All">
-                        <span class="bi bi-list-ul me-2"></span> Ver Registros
+                    <NavLink class="nav-link" href="control-proceso" Match="NavLinkMatch.All">
+                        <span class="bi bi-list-ul me-2"></span> Ver controles
                     </NavLink>
-                    <NavLink class="nav-link" href="registros-proceso/nuevo">
-                        <span class="bi bi-plus-circle me-2"></span> Nuevo Registro
+                    <NavLink class="nav-link" href="control-proceso/nuevo">
+                        <span class="bi bi-plus-circle me-2"></span> Nuevo control
                     </NavLink>
                 </div>
             }
@@ -256,7 +259,7 @@
         if (sidebarCollapsed)
         {
             // Si está colapsado, navegar directamente a la primera opción de la sección
-            var routes = new[] { "", "maestros/lineas", "detenciones", "registros-proceso", "inspecciones", "configuracion/turnos" };
+            var routes = new[] { "", "maestros/lineas", "detenciones", "control-proceso", "inspecciones", "configuracion/turnos" };
             Navigation.NavigateTo(routes[index]);
             return;
         }

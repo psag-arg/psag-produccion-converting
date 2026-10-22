@@ -34,6 +34,20 @@ public class ParametroConfiguration : IEntityTypeConfiguration<Parametro>
                 v => v.ToString(),
                 v => Enum.Parse<TipoDatoParametro>(v));
 
+        // T-545: rango y frecuencia de la plantilla de Control de Proceso por línea
+        builder.Property(x => x.ValorMin)
+            .HasPrecision(18, 4);
+
+        builder.Property(x => x.ValorMax)
+            .HasPrecision(18, 4);
+
+        builder.Property(x => x.Frecuencia)
+            .IsRequired()
+            .HasMaxLength(30)
+            .HasConversion(
+                v => v.ToString(),
+                v => Enum.Parse<FrecuenciaControl>(v));
+
         builder.Property(x => x.CreadoPorUsuarioId)
             .IsRequired()
             .HasMaxLength(450);

@@ -7,7 +7,7 @@ using PSAG.Mantenimiento.Application.Services.Interfaces;
 namespace PSAG.Mantenimiento.Api.Controllers;
 
 /// <summary>
-/// Controller para registros de variables de proceso (Eje 2).
+/// Controller para registros de variables de proceso (Eje 2), "Control de Proceso" en la app (T-545).
 /// </summary>
 [Route("api/[controller]")]
 [ApiController]
@@ -158,9 +158,10 @@ public class RegistrosProcesoController : ApiControllerBase
     /// Obtiene los grupos de parámetros con estándares para línea+producto.
     /// Útil para mostrar el formulario de captura.
     /// </summary>
+    [HttpGet("grupos/{lineaId:int}")]
     [HttpGet("grupos/{lineaId:int}/{productoId:int}")]
     [ProducesResponseType(typeof(IReadOnlyList<GrupoParametroDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetGruposConEstandares(int lineaId, int productoId)
+    public async Task<IActionResult> GetGruposConEstandares(int lineaId, int? productoId = null)
     {
         var result = await _registroProcesoService.ObtenerGruposConEstandaresAsync(lineaId, productoId);
 

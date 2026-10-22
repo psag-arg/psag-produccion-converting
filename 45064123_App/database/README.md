@@ -22,6 +22,7 @@ Ejecutar los scripts en orden numérico:
 | 18 | `18_t76_tiempo_programado_historico.sql` | Horas programadas históricas de Tango 2 (marzo a agosto 2026, columna HS PROG del Excel del cliente). Idempotente; generado con `tools/generar_18_tiempo_programado.py` |
 | 19 | `19_t541_t542_horas_programadas.sql` | T-541/T-542 (idempotente): diagnóstico de los turnos activos (si suman más de 24 h) con corrección opcional (`@AplicarCorreccionTurnos = 1`), y tablas del calendario base de horas por línea (`mnt.CalendariosLinea`, `mnt.CalendariosLineaTurnos`) |
 | 20 | `20_t543_t544_analisis_fallas.sql` | T-543/T-544 (idempotente): tablas `mnt.AnalisisCambios` (historial de ediciones de análisis cerrados: quién, cuándo, valor anterior y nuevo) y `mnt.AnalisisAdjuntos` (fotos JPG/PNG del análisis, hasta 10 MB c/u y 5 por análisis). Los archivos van a disco, a la carpeta `Adjuntos:Carpeta` del appsettings de la API (en producción, `C:\PSAG\Mantenimiento\Adjuntos`, con permiso de escritura para el usuario del app pool) |
+| 21 | `21_t545_control_de_proceso.sql` | T-545 Control de Proceso (ex Registros), idempotente: rango mín/máx y frecuencia en `Parametros`, tipo `OK_NOOK`, `RegistrosProceso.ProductoId` opcional, corrige `Turno 1 (Manana)` → `Turno 1 (Mañana)`. Trae comentado el bloque para cargar los puntos de control de una línea cuando llegue la planilla del cliente |
 | 99 | `99_drop_objects_development_only.sql` | **SOLO DESARROLLO** - Limpieza total |
 
 ## Requisitos
