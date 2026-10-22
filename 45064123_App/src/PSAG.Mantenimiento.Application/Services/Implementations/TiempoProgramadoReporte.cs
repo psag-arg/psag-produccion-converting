@@ -10,17 +10,6 @@ namespace PSAG.Mantenimiento.Application.Services.Implementations;
 /// </summary>
 public static class TiempoProgramadoReporte
 {
-    public const string Estandar = OrigenTiempoProgramado.Estandar;
-
-    public static IReadOnlyList<TiempoProgramadoDiaDto> DiasDeLinea(
-        int lineaId,
-        string lineaNombre,
-        DateOnly desde,
-        DateOnly hasta,
-        IEnumerable<Turno> turnos,
-        IEnumerable<TiempoProgramadoDia> excepciones) =>
-        DiasDeLinea(lineaId, lineaNombre, desde, hasta, turnos, [], excepciones);
-
     /// <summary>
     /// Días de la línea con origen: excepción o histórico del día, calendario base de la línea,
     /// o estándar de planta (todos los turnos activos) si la línea no tiene calendario vigente.

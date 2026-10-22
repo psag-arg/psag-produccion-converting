@@ -78,21 +78,22 @@ public class TurnoReglasTests
     }
 
     [Fact]
-    public void MinutosCubiertos_TresTurnosDeOcho_Veinticuatro_Horas()
+    public void MinutosProgramados_TresTurnosDeOchoSinSolapamiento_Veinticuatro_Horas()
     {
-        Assert.Equal(24 * 60, TurnoReglas.MinutosCubiertos(Planta));
+        Assert.Equal(24 * 60, TurnoReglas.MinutosProgramados(Planta));
+        Assert.Equal(24 * 60, TurnoReglas.MinutosProgramados([T(1, "T1", 5, 13), T(2, "T2", 13, 21), T(3, "T3", 21, 5)]));
     }
 
     [Fact]
-    public void MinutosCubiertos_HoraCompartidaCuentaUnaVez()
+    public void MinutosProgramados_SumaLaDuracionDeCadaTurno()
     {
-        Assert.Equal(24 * 60, TurnoReglas.MinutosCubiertos([T(1, "Turno 1", 5, 14), T(2, "Turno 2", 14, 22), T(3, "Turno 3", 22, 6)]));
-        Assert.Equal(9 * 60, TurnoReglas.MinutosCubiertos([T(1, "Turno 1", 6, 14), T(9, "Extra", 13, 15)]));
+        // T1 05-13 más T3 21-06: 8 h + 9 h, aunque en el reloj de un día se pisen de 05 a 06.
+        Assert.Equal(17 * 60, TurnoReglas.MinutosProgramados([T(1, "T1", 5, 13), T(3, "T3", 21, 6)]));
     }
 
     [Fact]
-    public void MinutosCubiertos_SinTurnos_Cero()
+    public void MinutosProgramados_SinTurnos_Cero()
     {
-        Assert.Equal(0, TurnoReglas.MinutosCubiertos([]));
+        Assert.Equal(0, TurnoReglas.MinutosProgramados([]));
     }
 }

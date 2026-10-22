@@ -32,20 +32,12 @@ public static class TurnoReglas
     }
 
     /// <summary>
-    /// Minutos del día cubiertos por al menos uno de los turnos. Una hora que dos turnos comparten
-    /// cuenta una sola vez: el resultado nunca pasa de 24 h aunque los horarios cargados se superpongan.
+    /// Minutos programados de un día con esos turnos: la suma de la duración de cada uno (un turno
+    /// nocturno cuenta entero aunque cruce medianoche). Es la única regla del cálculo: la usan el
+    /// reporte, el calendario por línea y la pantalla de horas programadas.
+    /// MotivoHorarioInvalido impide guardar turnos activos que se superpongan o sumen más de 24 h.
     /// </summary>
-    public static int MinutosCubiertos(IEnumerable<Turno> turnos)
-    {
-        var cubierto = new bool[MinutosDia];
-        foreach (var (desde, hasta) in turnos.SelectMany(Tramos))
-        {
-            for (var minuto = desde; minuto < hasta; minuto++)
-                cubierto[minuto] = true;
-        }
-
-        return cubierto.Count(c => c);
-    }
+    public static int MinutosProgramados(IEnumerable<Turno> turnos) => turnos.Sum(t => t.DuracionMinutos());
 
     private static bool SeSuperponen(Turno a, Turno b) =>
         Tramos(a).Any(x => Tramos(b).Any(y => x.Desde < y.Hasta && y.Desde < x.Hasta));

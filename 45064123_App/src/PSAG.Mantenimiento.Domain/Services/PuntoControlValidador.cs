@@ -16,7 +16,7 @@ public readonly record struct RangoControl(decimal? Min, decimal? Max)
 
     /// <summary>
     /// Rango de un estándar por producto (Eje 2 original): rango, valor ± tolerancia o valor exacto.
-    /// Es lo mismo que EstandarParametro.EstaEnEstandar, expresado como mín/máx.
+    /// Rango: entre mín y máx; con tolerancia: valor ± tolerancia; si no, el valor exacto.
     /// </summary>
     public static RangoControl DesdeEstandar(EstandarParametro estandar)
     {

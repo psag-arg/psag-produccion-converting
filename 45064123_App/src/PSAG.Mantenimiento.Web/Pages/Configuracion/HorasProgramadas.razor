@@ -70,6 +70,7 @@
                     </p>
                 }
 
+                @{ var horasPorDia = DiasSemana.Select(HorasDelDia).ToArray(); }
                 <div class="table-responsive">
                     <table class="table table-sm table-bordered align-middle text-center mb-2">
                         <thead class="table-light">
@@ -95,7 +96,7 @@
                                         var t = turno.TurnoId;
                                         <td>
                                             <input type="checkbox" class="form-check-input" title="@turno.Codigo el @NombreDia(d)"
-                                                   checked="@grilla.Contains((d, t))" disabled="@(!calendario.PuedeEditar)"
+                                                   checked="@grilla.Contains((d, t))"
                                                    @onchange="e => Marcar(d, t, e.Value is true)" />
                                         </td>
                                     }
@@ -105,41 +106,38 @@
                         <tfoot class="table-secondary fw-semibold">
                             <tr>
                                 <td class="text-start">Horas del día</td>
-                                @foreach (var dia in DiasSemana)
+                                @foreach (var horas in horasPorDia)
                                 {
-                                    <td>@FormatearHoras(HorasDelDia(dia))</td>
+                                    <td>@FormatearHoras(horas)</td>
                                 }
                             </tr>
                         </tfoot>
                     </table>
                 </div>
                 <div class="small text-muted mb-3">
-                    Total semanal: <strong>@FormatearHoras(DiasSemana.Sum(HorasDelDia))</strong>.
+                    Total semanal: <strong>@FormatearHoras(horasPorDia.Sum())</strong>.
                     Un día sin turnos marcados suma 0 h. Un turno que cruza la medianoche cuenta en el día en que empieza.
                 </div>
 
-                @if (calendario.PuedeEditar)
-                {
-                    <div class="d-flex flex-wrap align-items-end gap-2">
-                        <div>
-                            <label class="form-label mb-1" for="vigenteDesde">Rige desde *</label>
-                            <input id="vigenteDesde" type="date" class="form-control" @bind="vigenteDesde" />
-                        </div>
-                        <button type="button" class="btn btn-outline-secondary" @onclick="MarcarTodo">Todos los turnos todos los días</button>
-                        <button type="button" class="btn btn-outline-secondary" @onclick="SinFinDeSemana">Sin sábado ni domingo</button>
-                        <button type="button" class="btn btn-primary" @onclick="Guardar" disabled="@guardando">
-                            @if (guardando)
-                            {
-                                <span class="spinner-border spinner-border-sm me-2"></span>
-                            }
-                            Guardar calendario
-                        </button>
+                <div class="d-flex flex-wrap align-items-end gap-2">
+                    <div>
+                        <label class="form-label mb-1" for="vigenteDesde">Rige desde *</label>
+                        <input id="vigenteDesde" type="date" class="form-control" @bind="vigenteDesde" />
                     </div>
-                    <div class="form-text">
-                        Rige desde esa fecha hasta el próximo calendario. Los días anteriores no cambian.
-                        Los días con excepción o con horas históricas siguen usando esas horas.
-                    </div>
-                }
+                    <button type="button" class="btn btn-outline-secondary" @onclick="MarcarTodo">Todos los turnos todos los días</button>
+                    <button type="button" class="btn btn-outline-secondary" @onclick="SinFinDeSemana">Sin sábado ni domingo</button>
+                    <button type="button" class="btn btn-primary" @onclick="Guardar" disabled="@guardando">
+                        @if (guardando)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        Guardar calendario
+                    </button>
+                </div>
+                <div class="form-text">
+                    Rige desde esa fecha hasta el próximo calendario. Los días anteriores no cambian.
+                    Los días con excepción o con horas históricas siguen usando esas horas.
+                </div>
 
                 @if (calendario.Versiones.Any())
                 {
@@ -171,12 +169,9 @@
                                             <button type="button" class="btn btn-sm btn-outline-primary me-1" title="Ver en la grilla" @onclick="() => VerVersion(version)">
                                                 <i class="bi bi-eye"></i>
                                             </button>
-                                            @if (calendario.PuedeEditar)
-                                            {
-                                                <button type="button" class="btn btn-sm btn-outline-danger" title="Quitar" @onclick="() => QuitarVersion(version)">
-                                                    <i class="bi bi-x-circle"></i>
-                                                </button>
-                                            }
+                                            <button type="button" class="btn btn-sm btn-outline-danger" title="Quitar" @onclick="() => QuitarVersion(version)">
+                                                <i class="bi bi-x-circle"></i>
+                                            </button>
                                         </td>
                                     </tr>
                                 }
@@ -238,37 +233,34 @@
                             <div class="border rounded p-3">
                                 <h6 class="mb-1">@diaSeleccionado.Fecha.ToString("dddd dd/MM/yyyy")</h6>
                                 <div class="small text-muted mb-3">Hoy: @FormatearHoras(diaSeleccionado.Horas) · @TextoOrigen(diaSeleccionado)</div>
-                                @if (calendario.PuedeEditar)
+                                <div class="mb-3">
+                                    <label class="form-label">Horas programadas *</label>
+                                    <input type="number" class="form-control" min="0" max="24" step="0.5" @bind="horasDia" />
+                                    <small class="text-muted">0 = la línea no trabaja ese día.</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Motivo</label>
+                                    <input type="text" class="form-control" maxlength="200" placeholder="Ej: Paro parcial" @bind="motivoDia" />
+                                </div>
+                                @if (diaSeleccionado.Origen == "HISTORICO")
                                 {
-                                    <div class="mb-3">
-                                        <label class="form-label">Horas programadas *</label>
-                                        <input type="number" class="form-control" min="0" max="24" step="0.5" @bind="horasDia" />
-                                        <small class="text-muted">0 = la línea no trabaja ese día.</small>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">Motivo</label>
-                                        <input type="text" class="form-control" maxlength="200" placeholder="Ej: Paro parcial" @bind="motivoDia" />
-                                    </div>
-                                    @if (diaSeleccionado.Origen == "HISTORICO")
-                                    {
-                                        <div class="alert alert-info small py-2 mb-3">
-                                            Este día tiene @FormatearHoras(diaSeleccionado.Horas) históricas (HS PROG).
-                                            Si guardás otro valor pasa a excepción y el dato histórico queda anotado en el motivo.
-                                        </div>
-                                    }
-                                    @if (!string.IsNullOrEmpty(errorDia))
-                                    {
-                                        <div class="alert alert-danger py-2">@errorDia</div>
-                                    }
-                                    <div class="d-flex flex-wrap gap-2">
-                                        <button type="button" class="btn btn-primary" @onclick="GuardarExcepcion" disabled="@guardandoDia">Guardar excepción</button>
-                                        @if (diaSeleccionado.Origen == "EXCEPCION")
-                                        {
-                                            <button type="button" class="btn btn-outline-danger" @onclick="QuitarExcepcion">Quitar excepción</button>
-                                        }
-                                        <button type="button" class="btn btn-link" @onclick="() => diaSeleccionado = null">Cancelar</button>
+                                    <div class="alert alert-info small py-2 mb-3">
+                                        Este día tiene @FormatearHoras(diaSeleccionado.Horas) históricas (HS PROG).
+                                        Si guardás otro valor pasa a excepción y el dato histórico queda anotado en el motivo.
                                     </div>
                                 }
+                                @if (!string.IsNullOrEmpty(errorDia))
+                                {
+                                    <div class="alert alert-danger py-2">@errorDia</div>
+                                }
+                                <div class="d-flex flex-wrap gap-2">
+                                    <button type="button" class="btn btn-primary" @onclick="GuardarExcepcion" disabled="@guardandoDia">Guardar excepción</button>
+                                    @if (diaSeleccionado.Origen == "EXCEPCION")
+                                    {
+                                        <button type="button" class="btn btn-outline-danger" @onclick="QuitarExcepcion">Quitar excepción</button>
+                                    }
+                                    <button type="button" class="btn btn-link" @onclick="() => diaSeleccionado = null">Cancelar</button>
+                                </div>
                             </div>
                         }
                         else
@@ -348,10 +340,11 @@
 
         try
         {
-            calendario = await CalendarioService.GetCalendarioAsync(lineaId);
+            var calendarioTask = CalendarioService.GetCalendarioAsync(lineaId);
+            await Task.WhenAll(calendarioTask, CargarMes());
+            calendario = await calendarioTask;
             CargarGrilla(VersionVigenteHoy);
             vigenteDesde = new DateOnly(Hoy.Year, Hoy.Month, 1);
-            await CargarMes();
         }
         catch (Exception ex)
         {
@@ -392,23 +385,11 @@
         grilla.RemoveWhere(g => g.Dia is DayOfWeek.Saturday or DayOfWeek.Sunday);
 
     /// <summary>
-    /// Sólo para mostrar: la API recalcula. Una hora en la que se pisan dos turnos cuenta una vez.
+    /// Sólo para mostrar (la API recalcula): misma regla que TurnoReglas.MinutosProgramados,
+    /// la suma de la duración que la API informa para cada turno marcado ese día.
     /// </summary>
-    private decimal HorasDelDia(DayOfWeek dia)
-    {
-        if (calendario == null)
-            return 0;
-
-        var cubierto = new bool[24 * 60];
-        foreach (var turno in calendario.Turnos.Where(t => grilla.Contains((dia, t.TurnoId))))
-        {
-            var inicio = (int)turno.HoraInicio.TotalMinutes;
-            for (var m = 0; m < turno.DuracionMinutos; m++)
-                cubierto[(inicio + m) % cubierto.Length] = true;
-        }
-
-        return cubierto.Count(c => c) / 60m;
-    }
+    private decimal HorasDelDia(DayOfWeek dia) =>
+        (calendario?.Turnos.Where(t => grilla.Contains((dia, t.TurnoId))).Sum(t => t.DuracionMinutos) ?? 0) / 60m;
 
     private async Task Guardar()
     {
@@ -433,8 +414,9 @@
             }).ToList();
 
             await CalendarioService.GuardarAsync(lineaId, desde, dias);
-            calendario = await CalendarioService.GetCalendarioAsync(lineaId);
-            await CargarMes();
+            var calendarioTask = CalendarioService.GetCalendarioAsync(lineaId);
+            await Task.WhenAll(calendarioTask, CargarMes());
+            calendario = await calendarioTask;
         }
         catch (Exception ex)
         {

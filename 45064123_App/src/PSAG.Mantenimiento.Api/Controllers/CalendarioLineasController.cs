@@ -81,7 +81,7 @@ public class CalendarioLineasController : ApiControllerBase
             LineaId = linea.LineaId,
             LineaNombre = linea.Nombre,
             PuedeEditar = CalendarioLineaReglas.PuedeEditar(Roles, asignadas, lineaId),
-            HorasEstandar = TurnoReglas.MinutosCubiertos(turnos) / 60m,
+            HorasEstandar = TurnoReglas.MinutosProgramados(turnos) / 60m,
             Turnos = turnos.Select(t => new TurnoDto
             {
                 TurnoId = t.TurnoId,
@@ -109,7 +109,7 @@ public class CalendarioLineasController : ApiControllerBase
                             {
                                 DiaSemana = (int)dia,
                                 TurnoIds = ids.OrderBy(i => i).ToList(),
-                                Horas = TurnoReglas.MinutosCubiertos(turnos.Where(t => ids.Contains(t.TurnoId))) / 60m
+                                Horas = TurnoReglas.MinutosProgramados(turnos.Where(t => ids.Contains(t.TurnoId))) / 60m
                             };
                         })
                         .ToList()

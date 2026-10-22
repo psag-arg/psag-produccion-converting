@@ -60,7 +60,7 @@ public class TiempoProgramadoReporteTests
     [Fact]
     public void DiaSinExcepcion_TomaElEstandarDeLosTurnosYOrigenEstandar()
     {
-        var dias = TiempoProgramadoReporte.DiasDeLinea(1, "Tango 2", new(2026, 3, 2), new(2026, 3, 2), TresTurnos, []);
+        var dias = TiempoProgramadoReporte.DiasDeLinea(1, "Tango 2", new(2026, 3, 2), new(2026, 3, 2), TresTurnos, [], []);
 
         var dia = Assert.Single(dias);
         Assert.Equal(24 * 60, dia.Minutos);
@@ -75,7 +75,7 @@ public class TiempoProgramadoReporteTests
     {
         var excepciones = new[] { Excepcion(new(2026, 3, 9), 6, motivo: "Paro parcial") };
 
-        var dia = TiempoProgramadoReporte.DiasDeLinea(1, "Tango 2", new(2026, 3, 9), new(2026, 3, 9), TresTurnos, excepciones).Single();
+        var dia = TiempoProgramadoReporte.DiasDeLinea(1, "Tango 2", new(2026, 3, 9), new(2026, 3, 9), TresTurnos, [], excepciones).Single();
 
         Assert.Equal(360, dia.Minutos);
         Assert.Equal(6, dia.Horas);
@@ -88,7 +88,7 @@ public class TiempoProgramadoReporteTests
     {
         var excepciones = new[] { Excepcion(new(2026, 3, 1), 0, origen: "HISTORICO") };
 
-        var dia = TiempoProgramadoReporte.DiasDeLinea(1, "Tango 2", new(2026, 3, 1), new(2026, 3, 1), TresTurnos, excepciones).Single();
+        var dia = TiempoProgramadoReporte.DiasDeLinea(1, "Tango 2", new(2026, 3, 1), new(2026, 3, 1), TresTurnos, [], excepciones).Single();
 
         Assert.Equal(0, dia.Minutos);
         Assert.Equal("HISTORICO", dia.Origen);
@@ -99,7 +99,7 @@ public class TiempoProgramadoReporteTests
     {
         var excepciones = new[] { Excepcion(new(2026, 3, 9), 0, activo: false) };
 
-        var dia = TiempoProgramadoReporte.DiasDeLinea(1, "Tango 2", new(2026, 3, 9), new(2026, 3, 9), TresTurnos, excepciones).Single();
+        var dia = TiempoProgramadoReporte.DiasDeLinea(1, "Tango 2", new(2026, 3, 9), new(2026, 3, 9), TresTurnos, [], excepciones).Single();
 
         Assert.Equal(24 * 60, dia.Minutos);
         Assert.Equal("ESTANDAR", dia.Origen);
@@ -109,7 +109,7 @@ public class TiempoProgramadoReporteTests
     public void MinutosPorMes_SumaLosDiasDeCadaMes()
     {
         var excepciones = new[] { Excepcion(new(2026, 3, 9), 6), Excepcion(new(2026, 4, 2), 0, origen: "HISTORICO") };
-        var dias = TiempoProgramadoReporte.DiasDeLinea(1, "Tango 2", Desde, Hasta, TresTurnos, excepciones);
+        var dias = TiempoProgramadoReporte.DiasDeLinea(1, "Tango 2", Desde, Hasta, TresTurnos, [], excepciones);
 
         var porMes = TiempoProgramadoReporte.MinutosPorMes(dias);
 

@@ -8,24 +8,14 @@ namespace PSAG.Mantenimiento.Domain.Services;
 public static class TiempoProgramadoCalculador
 {
     /// <summary>
-    /// Igual que la sobrecarga con calendarios, para una línea sin calendario base.
-    /// </summary>
-    public static IReadOnlyList<MinutosProgramadosDia> MinutosProgramadosPorDia(
-        DateOnly desde,
-        DateOnly hasta,
-        IEnumerable<Turno> turnos,
-        IEnumerable<TiempoProgramadoDia> excepciones) =>
-        MinutosProgramadosPorDia(desde, hasta, turnos, [], excepciones);
-
-    /// <summary>
     /// Para cada día del rango (ambos extremos incluidos) devuelve los minutos programados de una línea:
     /// <list type="number">
     /// <item>si hay una excepción activa (EXCEPCION o HISTORICO) para ese día, sus horas * 60;</item>
-    /// <item>si no, si hay una versión activa del calendario de la línea vigente ese día, los minutos que
-    /// cubren los turnos activos que la línea trabaja ese día de la semana (0 si no trabaja);</item>
-    /// <item>si no, los minutos que cubren todos los turnos activos (estándar de planta).</item>
+    /// <item>si no, si hay una versión activa del calendario de la línea vigente ese día, la suma de la
+    /// duración de los turnos activos que la línea trabaja ese día de la semana (0 si no trabaja);</item>
+    /// <item>si no, la suma de la duración de todos los turnos activos (estándar de planta).</item>
     /// </list>
-    /// Una hora en la que se superponen dos turnos cuenta una vez (máximo 24 h).
+    /// La suma por día sale de <see cref="TurnoReglas.MinutosProgramados"/>.
     /// Las filas, versiones o turnos inactivos se ignoran.
     /// </summary>
     public static IReadOnlyList<MinutosProgramadosDia> MinutosProgramadosPorDia(
@@ -36,7 +26,7 @@ public static class TiempoProgramadoCalculador
         IEnumerable<TiempoProgramadoDia> excepciones)
     {
         var activos = turnos.Where(t => t.Activo).OrderBy(t => t.Orden).ThenBy(t => t.HoraInicio).ToList();
-        var estandar = new Cuenta(TurnoReglas.MinutosCubiertos(activos), Codigos(activos));
+        var estandar = new Cuenta(TurnoReglas.MinutosProgramados(activos), Codigos(activos));
 
         // Una fila por fecha (índice único en base de datos).
         var excepcionPorFecha = excepciones
@@ -73,7 +63,7 @@ public static class TiempoProgramadoCalculador
             {
                 var ids = versiones[version].TurnosDelDia(dia.DayOfWeek).ToHashSet();
                 var delDia = activos.Where(t => ids.Contains(t.TurnoId)).ToList();
-                cuenta = new Cuenta(TurnoReglas.MinutosCubiertos(delDia), Codigos(delDia));
+                cuenta = new Cuenta(TurnoReglas.MinutosProgramados(delDia), Codigos(delDia));
                 cuentaBase[clave] = cuenta;
             }
 
