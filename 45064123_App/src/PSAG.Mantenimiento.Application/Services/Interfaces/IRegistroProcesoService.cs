@@ -49,6 +49,6 @@ public interface IRegistroProcesoService
     /// </summary>
     Task<Result<IReadOnlyList<GrupoParametroDto>>> ObtenerGruposConEstandaresAsync(
         int lineaId,
-        int productoId,
+        int? productoId,
         CancellationToken cancellationToken = default);
 }

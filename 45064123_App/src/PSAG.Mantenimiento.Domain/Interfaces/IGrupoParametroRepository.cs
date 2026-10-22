@@ -16,4 +16,9 @@ public interface IGrupoParametroRepository : IRepository<GrupoParametro>
     Task<GrupoParametro?> GetByIdWithParametrosAsync(int grupoParametroId, CancellationToken cancellationToken = default);
 
     Task<IEnumerable<GrupoParametro>> GetActivosAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Grupos de la plantilla de Control de Proceso de una línea, activos o no, con todos sus puntos (maestro, T-545).
+    /// </summary>
+    Task<IEnumerable<GrupoParametro>> GetPlantillaLineaConPuntosAsync(int lineaId, CancellationToken cancellationToken = default);
 }

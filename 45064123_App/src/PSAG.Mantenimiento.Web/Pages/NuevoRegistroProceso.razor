@@ -1,4 +1,4 @@
-@page "/registros-proceso/nuevo"
+@page "/control-proceso/nuevo"
 @using Microsoft.AspNetCore.Authorization
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
@@ -7,19 +7,19 @@
 @inject ICatalogosService CatalogosService
 @inject NavigationManager Navigation
 
-<PageTitle>Iniciar Registro de Proceso - PSAG Produccion</PageTitle>
+<PageTitle>Nuevo control de proceso - PSAG Produccion</PageTitle>
 
 <div class="container-fluid">
     <div class="row justify-content-center">
         <div class="col-lg-6">
             <div class="card">
                 <div class="card-header">
-                    <h4 class="mb-0">Iniciar Registro de Variables de Proceso</h4>
+                    <h4 class="mb-0">Nuevo control de proceso</h4>
                 </div>
                 <div class="card-body">
                     <p class="text-muted mb-4">
-                        Seleccione la linea y el producto para iniciar o retomar el registro del turno actual.
-                        Si ya existe un registro para esta combinacion en el turno actual, se retomara automaticamente.
+                        Elegí la línea (y el producto, si corresponde) para cargar los puntos de control del turno actual.
+                        Si ya hay un control empezado para esa combinación en este turno, se retoma.
                     </p>
 
                     @if (!string.IsNullOrEmpty(errorMessage))
@@ -33,9 +33,9 @@
                     }
 
                     <div class="mb-4">
-                        <label class="form-label fw-bold">Linea *</label>
+                        <label class="form-label fw-bold">Línea *</label>
                         <select class="form-select form-select-lg" @bind="selectedLineaId" @bind:after="OnLineaChanged">
-                            <option value="0">-- Seleccione una linea --</option>
+                            <option value="0">-- Elegí una línea --</option>
                             @foreach (var linea in lineas)
                             {
                                 <option value="@linea.LineaId">@linea.Nombre</option>
@@ -44,24 +44,21 @@
                     </div>
 
                     <div class="mb-4">
-                        <label class="form-label fw-bold">Producto *</label>
-                        <select class="form-select form-select-lg" @bind="selectedProductoId" @bind:after="CargarGrupos" disabled="@(selectedLineaId == 0)">
-                            <option value="0">-- Seleccione un producto --</option>
+                        <label class="form-label fw-bold">Producto</label>
+                        <select class="form-select form-select-lg" @bind="selectedProductoId" @bind:after="@(async () => await CargarGrupos())" disabled="@(selectedLineaId == 0)">
+                            <option value="0">-- Sin producto / no aplica --</option>
                             @foreach (var producto in productos)
                             {
                                 <option value="@producto.ProductoId">@producto.Nombre</option>
                             }
                         </select>
-                        @if (selectedLineaId > 0 && !productos.Any())
-                        {
-                            <small class="text-warning">No hay productos configurados para esta linea.</small>
-                        }
+                        <small class="text-muted">Opcional: si el producto tiene estándares propios, se controla contra esos.</small>
                     </div>
 
-                    @if (selectedLineaId > 0 && selectedProductoId > 0)
+                    @if (selectedLineaId > 0)
                     {
                         <div class="mb-4">
-                            <h6>Grupos de parametros a registrar:</h6>
+                            <h6>Puntos de control a cargar:</h6>
                             @if (isLoadingGrupos)
                             {
                                 <div class="spinner-border spinner-border-sm text-primary"></div>
@@ -73,7 +70,7 @@
                                     {
                                         <li class="list-group-item d-flex justify-content-between align-items-center">
                                             @grupo.Nombre
-                                            <span class="badge bg-primary rounded-pill">@grupo.Parametros.Count parametros</span>
+                                            <span class="badge bg-primary rounded-pill">@grupo.Parametros.Count puntos</span>
                                         </li>
                                     }
                                 </ul>
@@ -81,7 +78,8 @@
                             else
                             {
                                 <div class="alert alert-warning mb-0">
-                                    No hay parametros configurados para esta combinacion linea/producto.
+                                    Esta línea todavía no tiene puntos de control de proceso cargados.
+                                    Los carga un administrador desde Maestros &gt; Puntos de control de proceso.
                                 </div>
                             }
                         </div>
@@ -95,7 +93,7 @@
                         </button>
                         <button type="button" class="btn btn-primary btn-lg"
                                 @onclick="IniciarRegistro"
-                                disabled="@(isSubmitting || selectedLineaId == 0 || selectedProductoId == 0 || !grupos.Any())">
+                                disabled="@(isSubmitting || selectedLineaId == 0 || !grupos.Any())">
                             @if (isSubmitting)
                             {
                                 <span class="spinner-border spinner-border-sm me-2"></span>
@@ -104,7 +102,7 @@
                             else
                             {
                                 <i class="bi bi-play-fill me-2"></i>
-                                <span>Iniciar Registro</span>
+                                <span>Empezar control</span>
                             }
                         </button>
                     </div>
@@ -133,7 +131,7 @@
         }
         catch (Exception ex)
         {
-            errorMessage = $"Error al cargar lineas: {ex.Message}";
+            errorMessage = $"Error al cargar líneas: {ex.Message}";
         }
     }
 
@@ -153,6 +151,8 @@
             {
                 errorMessage = $"Error al cargar productos: {ex.Message}";
             }
+
+            await CargarGrupos();
         }
     }
 
@@ -163,7 +163,7 @@
 
     private async Task CargarGrupos()
     {
-        if (selectedLineaId == 0 || selectedProductoId == 0)
+        if (selectedLineaId == 0)
         {
             grupos.Clear();
             return;
@@ -174,7 +174,7 @@
 
         try
         {
-            grupos = await RegistroProcesoService.GetGruposConEstandaresAsync(selectedLineaId, selectedProductoId);
+            grupos = await RegistroProcesoService.GetGruposConEstandaresAsync(selectedLineaId, selectedProductoId > 0 ? selectedProductoId : null);
         }
         catch (Exception ex)
         {
@@ -187,23 +187,11 @@
         }
     }
 
-    protected override async Task OnParametersSetAsync()
-    {
-        // Recargar grupos cuando cambia el producto
-        await CargarGrupos();
-    }
-
     private async Task IniciarRegistro()
     {
         if (selectedLineaId == 0)
         {
-            errorMessage = "Debe seleccionar una linea";
-            return;
-        }
-
-        if (selectedProductoId == 0)
-        {
-            errorMessage = "Debe seleccionar un producto";
+            errorMessage = "Elegí una línea.";
             return;
         }
 
@@ -215,24 +203,24 @@
             var request = new IniciarRegistroProcesoRequest
             {
                 LineaId = selectedLineaId,
-                ProductoId = selectedProductoId
+                ProductoId = selectedProductoId > 0 ? selectedProductoId : null
             };
 
-            var result = await RegistroProcesoService.IniciarRegistroAsync(request);
+            var (result, error) = await RegistroProcesoService.IniciarRegistroAsync(request);
 
             if (result != null)
             {
                 if (!result.EsNuevo)
                 {
-                    infoMessage = $"Retomando registro existente del turno {result.TurnoNombre}...";
+                    infoMessage = $"Retomando el control del turno {result.TurnoNombre}...";
                 }
 
-                // Navegar a la pagina de captura
-                Navigation.NavigateTo($"/registros-proceso/{result.RegistroProcesoId}");
+                // Navegar a la pagina de carga
+                Navigation.NavigateTo($"/control-proceso/{result.RegistroProcesoId}");
             }
             else
             {
-                errorMessage = "Error al iniciar el registro. Verifique que haya un turno configurado para la hora actual.";
+                errorMessage = error ?? "No se pudo empezar el control. Verificá que haya un turno configurado para la hora actual.";
             }
         }
         catch (Exception ex)
@@ -247,6 +235,6 @@
 
     private void Cancelar()
     {
-        Navigation.NavigateTo("/registros-proceso");
+        Navigation.NavigateTo("/control-proceso");
     }
 }

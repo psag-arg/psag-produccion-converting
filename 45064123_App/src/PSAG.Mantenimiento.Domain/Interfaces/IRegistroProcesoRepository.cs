@@ -16,7 +16,7 @@ public interface IRegistroProcesoRepository : IRepository<RegistroProceso>
     /// </summary>
     Task<RegistroProceso?> GetByLineaProductoTurnoFechaAsync(
         int lineaId,
-        int productoId,
+        int? productoId,
         int turnoId,
         DateOnly fecha,
         CancellationToken cancellationToken = default);
@@ -52,7 +52,7 @@ public interface IRegistroProcesoRepository : IRepository<RegistroProceso>
     /// Cuenta los desvíos por línea, producto y parámetro.
     /// Para el dashboard.
     /// </summary>
-    Task<IEnumerable<(int LineaId, int ProductoId, int ParametroId, int CantidadDesvios)>> GetConteoDesviosAsync(
+    Task<IEnumerable<(int LineaId, int? ProductoId, int ParametroId, int CantidadDesvios)>> GetConteoDesviosAsync(
         DateOnly? fechaDesde = null,
         DateOnly? fechaHasta = null,
         CancellationToken cancellationToken = default);

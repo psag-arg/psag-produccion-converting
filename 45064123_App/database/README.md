@@ -20,6 +20,7 @@ Ejecutar los scripts en orden numérico:
 | 10 | `10_permissions_example.sql` | Ejemplo de configuración de permisos |
 | 17 | `17_t76_ajustes.sql` | Ajustes T-76 (idempotente): eliminación lógica y análisis de detenciones, reglas de análisis, criticidad de equipos, color de tipos de falla, tiempo programado por día, estados con PENDIENTE_JUSTIFICACION y vistas sin eliminadas |
 | 18 | `18_t76_tiempo_programado_historico.sql` | Horas programadas históricas de Tango 2 (marzo a agosto 2026, columna HS PROG del Excel del cliente). Idempotente; generado con `tools/generar_18_tiempo_programado.py` |
+| 21 | `21_t545_control_de_proceso.sql` | T-545 Control de Proceso (ex Registros), idempotente: rango mín/máx y frecuencia en `Parametros`, tipo `OK_NOOK`, `RegistrosProceso.ProductoId` opcional, corrige `Turno 1 (Manana)` → `Turno 1 (Mañana)`. Trae comentado el bloque para cargar los puntos de control de una línea cuando llegue la planilla del cliente |
 | 99 | `99_drop_objects_development_only.sql` | **SOLO DESARROLLO** - Limpieza total |
 
 ## Requisitos

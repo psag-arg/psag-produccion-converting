@@ -36,4 +36,14 @@ public class GrupoParametroRepository : RepositoryBase<GrupoParametro>, IGrupoPa
             .ThenBy(g => g.Nombre)
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<IEnumerable<GrupoParametro>> GetPlantillaLineaConPuntosAsync(int lineaId, CancellationToken cancellationToken = default)
+    {
+        return await _context.GruposParametro
+            .Include(g => g.Parametros)
+            .Where(g => g.LineaId == lineaId)
+            .OrderBy(g => g.Orden)
+            .ThenBy(g => g.Nombre)
+            .ToListAsync(cancellationToken);
+    }
 }

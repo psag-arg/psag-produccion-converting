@@ -9,6 +9,11 @@ public class ParametroDto
     public string Nombre { get; set; } = string.Empty;
     public string? UnidadMedida { get; set; }
     public string TipoDato { get; set; } = "NUMERICO";
+    public string TipoDatoDescripcion { get; set; } = string.Empty;
+    public decimal? ValorMin { get; set; }
+    public decimal? ValorMax { get; set; }
+    public string Frecuencia { get; set; } = "POR_TURNO";
+    public string FrecuenciaDescripcion { get; set; } = string.Empty;
     public int Orden { get; set; }
     public bool Activo { get; set; }
 }

@@ -1,0 +1,465 @@
+@page "/maestros/control-proceso"
+@using System.Globalization
+@using Microsoft.AspNetCore.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize(Roles = "ADMINISTRADOR")]
+@inject ICatalogosService CatalogosService
+@inject IControlProcesoPlantillaService PlantillaService
+
+<PageTitle>Puntos de control de proceso - PSAG Produccion</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3 class="mb-0">Puntos de control de proceso</h3>
+        <button class="btn btn-primary" @onclick="NuevoGrupo" disabled="@(lineaId == 0)">
+            <i class="bi bi-plus-circle me-2"></i>Nuevo grupo
+        </button>
+    </div>
+
+    <p class="text-muted">
+        Plantilla que el maquinista completa en <strong>Control de Proceso</strong>. Cada línea tiene la suya:
+        los puntos se agrupan (por ejemplo, por equipo) y cada uno tiene tipo de dato, rango y frecuencia.
+        Nada se borra: un punto que ya no se controla se desactiva y sus valores cargados se siguen viendo.
+    </p>
+
+    <AvisoDescartable @bind-Mensaje="mensajeLista" />
+
+    <div class="row g-3 mb-3">
+        <div class="col-md-4">
+            <label class="form-label">Línea</label>
+            <select class="form-select" @bind="lineaId" @bind:after="@(async () => await CargarPlantilla())">
+                <option value="0">-- Elegí una línea --</option>
+                @foreach (var linea in lineas)
+                {
+                    <option value="@linea.LineaId">@linea.Nombre</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+        </div>
+    }
+    else if (lineaId > 0 && !grupos.Any())
+    {
+        <div class="alert alert-info">
+            Esta línea todavía no tiene puntos de control. Creá un grupo y cargale los puntos.
+        </div>
+    }
+    else
+    {
+        @foreach (var grupo in grupos)
+        {
+            var grupoLocal = grupo;
+            <div class="card mb-3 @(grupo.Activo ? "" : "opacity-75")">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>@grupo.Nombre</strong>
+                        <small class="text-muted ms-2">orden @grupo.Orden</small>
+                        @if (!grupo.Activo)
+                        {
+                            <span class="badge bg-secondary ms-2">Inactivo</span>
+                        }
+                    </div>
+                    <div>
+                        <button class="btn btn-sm btn-outline-primary me-1" title="Editar grupo" @onclick="() => EditarGrupo(grupoLocal)">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-primary" @onclick="() => NuevoPunto(grupoLocal)">
+                            <i class="bi bi-plus-circle me-1"></i>Punto
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0 align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Orden</th>
+                                    <th>Sección</th>
+                                    <th>Punto de control</th>
+                                    <th>Tipo</th>
+                                    <th>Rango</th>
+                                    <th>Frecuencia</th>
+                                    <th class="text-center">Activo</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (!grupo.Parametros.Any())
+                                {
+                                    <tr><td colspan="8" class="text-center text-muted py-3">Sin puntos cargados.</td></tr>
+                                }
+                                @foreach (var punto in grupo.Parametros)
+                                {
+                                    var puntoLocal = punto;
+                                    <tr class="@(punto.Activo ? "" : "text-muted")">
+                                        <td>@punto.Orden</td>
+                                        <td>@punto.Seccion</td>
+                                        <td>
+                                            <strong>@punto.Nombre</strong>
+                                            <br /><small class="text-muted">@punto.Codigo</small>
+                                        </td>
+                                        <td>@punto.TipoDatoDescripcion</td>
+                                        <td>@Rango(punto)</td>
+                                        <td>@punto.FrecuenciaDescripcion</td>
+                                        <td class="text-center">
+                                            <span class="badge @(punto.Activo ? "bg-success" : "bg-secondary")">@(punto.Activo ? "Activo" : "Inactivo")</span>
+                                        </td>
+                                        <td class="text-end">
+                                            <button class="btn btn-sm btn-outline-primary" title="Editar punto" @onclick="() => EditarPunto(puntoLocal)">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@* Modal de grupo *@
+@if (grupoActual != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(grupoEditandoId > 0 ? "Editar grupo" : "Nuevo grupo")</h5>
+                    <button type="button" class="btn-close" @onclick="CerrarModales"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nombre *</label>
+                        <input type="text" class="form-control" maxlength="100" placeholder="Ej.: Rebobinadora" @bind="grupoActual.Nombre" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descripción</label>
+                        <input type="text" class="form-control" maxlength="500" @bind="grupoActual.Descripcion" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Orden</label>
+                        <input type="number" class="form-control" @bind="grupoActual.Orden" />
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="grupoActivo" @bind="grupoActual.Activo" />
+                        <label class="form-check-label" for="grupoActivo">Activo</label>
+                    </div>
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger mt-3 mb-0">@errorMessage</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CerrarModales">Cancelar</button>
+                    <button type="button" class="btn btn-primary" @onclick="GuardarGrupo" disabled="@isSaving">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* Modal de punto *@
+@if (puntoActual != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(puntoEditandoId > 0 ? "Editar punto de control" : "Nuevo punto de control")</h5>
+                    <button type="button" class="btn-close" @onclick="CerrarModales"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label">Nombre *</label>
+                            <input type="text" class="form-control" maxlength="200" @bind="puntoActual.Nombre" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Código</label>
+                            <input type="text" class="form-control" maxlength="50" placeholder="Se genera si queda vacío" @bind="puntoActual.Codigo" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Grupo</label>
+                            <select class="form-select" @bind="puntoActual.GrupoParametroId">
+                                @foreach (var g in grupos)
+                                {
+                                    <option value="@g.GrupoParametroId">@g.Nombre</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Sección (opcional)</label>
+                            <input type="text" class="form-control" maxlength="100" placeholder="Ej.: Precorte" @bind="puntoActual.Seccion" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Tipo de dato *</label>
+                            <select class="form-select" @bind="puntoActual.TipoDato">
+                                @foreach (var (codigo, nombre) in TiposDisponibles())
+                                {
+                                    <option value="@codigo">@nombre</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Frecuencia *</label>
+                            <select class="form-select" @bind="puntoActual.Frecuencia">
+                                @foreach (var (codigo, nombre) in ControlProcesoCatalogo.Frecuencias)
+                                {
+                                    <option value="@codigo">@nombre</option>
+                                }
+                            </select>
+                        </div>
+                        @if (ControlProcesoCatalogo.EsNumerico(puntoActual.TipoDato))
+                        {
+                            <div class="col-md-4">
+                                <label class="form-label">Mínimo</label>
+                                <input type="number" step="any" class="form-control" @bind="puntoActual.ValorMin" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Máximo</label>
+                                <input type="number" step="any" class="form-control" @bind="puntoActual.ValorMax" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Unidad</label>
+                                <input type="text" class="form-control" maxlength="50" placeholder="Ej.: bar" @bind="puntoActual.UnidadMedida" />
+                            </div>
+                            <div class="col-12">
+                                <small class="text-muted">Si el valor cargado queda fuera del rango, al maquinista se le pide observación. Sin mínimo ni máximo, no se controla rango.</small>
+                            </div>
+                        }
+                        else if (puntoActual.TipoDato == ControlProcesoCatalogo.OkNoOk)
+                        {
+                            <div class="col-12">
+                                <small class="text-muted">El maquinista elige OK o NO OK. NO OK cuenta como desvío y pide observación.</small>
+                            </div>
+                        }
+                        <div class="col-md-4">
+                            <label class="form-label">Orden</label>
+                            <input type="number" class="form-control" @bind="puntoActual.Orden" />
+                        </div>
+                        <div class="col-md-8 d-flex align-items-end">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="puntoActivo" @bind="puntoActual.Activo" />
+                                <label class="form-check-label" for="puntoActivo">Activo</label>
+                            </div>
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger mt-3 mb-0">@errorMessage</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CerrarModales">Cancelar</button>
+                    <button type="button" class="btn btn-primary" @onclick="GuardarPunto" disabled="@isSaving">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<LineaDto> lineas = new();
+    private List<GrupoParametroDto> grupos = new();
+    private int lineaId;
+    private bool isLoading;
+    private bool isSaving;
+    private string? errorMessage;
+    private string? mensajeLista;
+
+    private GuardarGrupoControlRequest? grupoActual;
+    private int grupoEditandoId;
+    private GuardarPuntoControlRequest? puntoActual;
+    private int puntoEditandoId;
+    private string? tipoOriginal;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            lineas = await CatalogosService.GetLineasAsync();
+        }
+        catch (Exception ex)
+        {
+            mensajeLista = $"No se pudieron cargar las líneas: {ex.Message}";
+        }
+    }
+
+    private async Task CargarPlantilla()
+    {
+        grupos.Clear();
+        if (lineaId == 0) return;
+
+        isLoading = true;
+        try
+        {
+            grupos = await PlantillaService.GetPlantillaAsync(lineaId);
+        }
+        catch (Exception ex)
+        {
+            mensajeLista = $"No se pudo cargar la plantilla: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private static string Rango(ParametroDto p)
+    {
+        if (!ControlProcesoCatalogo.EsNumerico(p.TipoDato)) return "-";
+        string F(decimal v) => v.ToString("0.####", CultureInfo.GetCultureInfo("es-AR"));
+        var texto = (p.ValorMin, p.ValorMax) switch
+        {
+            ({ } a, { } b) => $"{F(a)} - {F(b)}",
+            ({ } a, null) => $"≥ {F(a)}",
+            (null, { } b) => $"≤ {F(b)}",
+            _ => "sin rango"
+        };
+        return string.IsNullOrEmpty(p.UnidadMedida) ? texto : $"{texto} {p.UnidadMedida}";
+    }
+
+    // RANGO es el tipo viejo del Eje 2: se muestra solo si el punto ya lo tenía.
+    private IEnumerable<(string Codigo, string Nombre)> TiposDisponibles() =>
+        tipoOriginal == ControlProcesoCatalogo.Rango
+            ? ControlProcesoCatalogo.Tipos.Append((ControlProcesoCatalogo.Rango, "Rango (Eje 2)"))
+            : ControlProcesoCatalogo.Tipos;
+
+    private void NuevoGrupo()
+    {
+        grupoEditandoId = 0;
+        grupoActual = new GuardarGrupoControlRequest
+        {
+            LineaId = lineaId,
+            Orden = grupos.Count == 0 ? 1 : grupos.Max(g => g.Orden) + 1
+        };
+        errorMessage = null;
+    }
+
+    private void EditarGrupo(GrupoParametroDto g)
+    {
+        grupoEditandoId = g.GrupoParametroId;
+        grupoActual = new GuardarGrupoControlRequest
+        {
+            LineaId = lineaId, Nombre = g.Nombre, Descripcion = g.Descripcion, Orden = g.Orden, Activo = g.Activo
+        };
+        errorMessage = null;
+    }
+
+    private void NuevoPunto(GrupoParametroDto g)
+    {
+        puntoEditandoId = 0;
+        tipoOriginal = null;
+        puntoActual = new GuardarPuntoControlRequest
+        {
+            GrupoParametroId = g.GrupoParametroId,
+            Orden = g.Parametros.Count == 0 ? 1 : g.Parametros.Max(p => p.Orden) + 1
+        };
+        errorMessage = null;
+    }
+
+    private void EditarPunto(ParametroDto p)
+    {
+        puntoEditandoId = p.ParametroId;
+        tipoOriginal = p.TipoDato;
+        puntoActual = new GuardarPuntoControlRequest
+        {
+            GrupoParametroId = p.GrupoParametroId,
+            Seccion = p.Seccion,
+            Codigo = p.Codigo,
+            Nombre = p.Nombre,
+            TipoDato = p.TipoDato,
+            UnidadMedida = p.UnidadMedida,
+            ValorMin = p.ValorMin,
+            ValorMax = p.ValorMax,
+            Frecuencia = p.Frecuencia,
+            Orden = p.Orden,
+            Activo = p.Activo
+        };
+        errorMessage = null;
+    }
+
+    private void CerrarModales()
+    {
+        grupoActual = null;
+        puntoActual = null;
+        errorMessage = null;
+    }
+
+    private async Task GuardarGrupo()
+    {
+        if (grupoActual == null) return;
+        if (string.IsNullOrWhiteSpace(grupoActual.Nombre))
+        {
+            errorMessage = "Completá el nombre.";
+            return;
+        }
+
+        await Guardar(() => grupoEditandoId > 0
+            ? PlantillaService.ActualizarGrupoAsync(grupoEditandoId, grupoActual)
+            : PlantillaService.CrearGrupoAsync(grupoActual));
+    }
+
+    private async Task GuardarPunto()
+    {
+        if (puntoActual == null) return;
+        if (string.IsNullOrWhiteSpace(puntoActual.Nombre))
+        {
+            errorMessage = "Completá el nombre.";
+            return;
+        }
+
+        if (!ControlProcesoCatalogo.EsNumerico(puntoActual.TipoDato))
+        {
+            puntoActual.ValorMin = null;
+            puntoActual.ValorMax = null;
+            puntoActual.UnidadMedida = null;
+        }
+        else if (puntoActual.ValorMin > puntoActual.ValorMax)
+        {
+            errorMessage = "El mínimo no puede ser mayor que el máximo.";
+            return;
+        }
+
+        await Guardar(() => puntoEditandoId > 0
+            ? PlantillaService.ActualizarPuntoAsync(puntoEditandoId, puntoActual)
+            : PlantillaService.CrearPuntoAsync(puntoActual));
+    }
+
+    private async Task Guardar(Func<Task<(bool Success, string? Error)>> accion)
+    {
+        isSaving = true;
+        errorMessage = null;
+        try
+        {
+            var (ok, error) = await accion();
+            if (!ok)
+            {
+                errorMessage = error;
+                return;
+            }
+
+            CerrarModales();
+            await CargarPlantilla();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

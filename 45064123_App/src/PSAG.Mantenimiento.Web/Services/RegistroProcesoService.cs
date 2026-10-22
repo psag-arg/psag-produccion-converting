@@ -16,13 +16,13 @@ public interface IRegistroProcesoService
 
     Task<RegistroProcesoCompletoDto?> GetRegistroAsync(long id);
 
-    Task<IniciarRegistroProcesoResponse?> IniciarRegistroAsync(IniciarRegistroProcesoRequest request);
+    Task<(IniciarRegistroProcesoResponse? Resultado, string? Error)> IniciarRegistroAsync(IniciarRegistroProcesoRequest request);
 
     Task<(bool Success, string? Error)> GuardarValoresAsync(GuardarValoresRequest request);
 
     Task<(bool Success, string? Error)> CerrarRegistroAsync(long id, CerrarRegistroProcesoRequest request);
 
-    Task<List<GrupoParametroDto>> GetGruposConEstandaresAsync(int lineaId, int productoId);
+    Task<List<GrupoParametroDto>> GetGruposConEstandaresAsync(int lineaId, int? productoId);
 }
 
 public class RegistroProcesoService : IRegistroProcesoService
@@ -60,14 +60,23 @@ public class RegistroProcesoService : IRegistroProcesoService
         return await _httpClient.GetFromJsonAsync<RegistroProcesoCompletoDto>($"api/registrosproceso/{id}");
     }
 
-    public async Task<IniciarRegistroProcesoResponse?> IniciarRegistroAsync(IniciarRegistroProcesoRequest request)
+    public async Task<(IniciarRegistroProcesoResponse? Resultado, string? Error)> IniciarRegistroAsync(IniciarRegistroProcesoRequest request)
     {
         var response = await _httpClient.PostAsJsonAsync("api/registrosproceso/iniciar", request);
         if (response.IsSuccessStatusCode)
         {
-            return await response.Content.ReadFromJsonAsync<IniciarRegistroProcesoResponse>();
+            return (await response.Content.ReadFromJsonAsync<IniciarRegistroProcesoResponse>(), null);
         }
-        return null;
+
+        try
+        {
+            var problem = await response.Content.ReadFromJsonAsync<ProblemDetailsDto>();
+            return (null, problem?.Detail ?? "Error al iniciar el control de proceso.");
+        }
+        catch
+        {
+            return (null, $"Error {(int)response.StatusCode}: {response.ReasonPhrase}");
+        }
     }
 
     public async Task<(bool Success, string? Error)> GuardarValoresAsync(GuardarValoresRequest request)
@@ -110,10 +119,12 @@ public class RegistroProcesoService : IRegistroProcesoService
         }
     }
 
-    public async Task<List<GrupoParametroDto>> GetGruposConEstandaresAsync(int lineaId, int productoId)
+    public async Task<List<GrupoParametroDto>> GetGruposConEstandaresAsync(int lineaId, int? productoId)
     {
-        var result = await _httpClient.GetFromJsonAsync<List<GrupoParametroDto>>(
-            $"api/registrosproceso/grupos/{lineaId}/{productoId}");
+        var url = productoId.HasValue
+            ? $"api/registrosproceso/grupos/{lineaId}/{productoId}"
+            : $"api/registrosproceso/grupos/{lineaId}";
+        var result = await _httpClient.GetFromJsonAsync<List<GrupoParametroDto>>(url);
         return result ?? new List<GrupoParametroDto>();
     }
 }
