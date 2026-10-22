@@ -16,8 +16,43 @@ public class AnalisisDetencionDto
     public string? AnalisisPorUsuarioNombre { get; set; }
     public DateTimeOffset? FechaHoraAnalisis { get; set; }
     public bool PuedeEditar { get; set; }
+    public bool PuedeEditarCerrado { get; set; }
+    public bool PuedeAdjuntar { get; set; }
+    public List<AdjuntoAnalisisDto> Adjuntos { get; set; } = new();
+    public List<AnalisisCambioDto> Cambios { get; set; } = new();
     public List<SolucionDto> FallasParecidas { get; set; } = new();
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+}
+
+public class AdjuntoAnalisisDto
+{
+    public long AnalisisAdjuntoId { get; set; }
+    public long DetencionId { get; set; }
+    public string NombreOriginal { get; set; } = string.Empty;
+    public string ContentType { get; set; } = string.Empty;
+    public long TamanoBytes { get; set; }
+    public string UsuarioId { get; set; } = string.Empty;
+    public string? UsuarioNombre { get; set; }
+    public DateTimeOffset FechaHora { get; set; }
+}
+
+public class AnalisisCambioDto
+{
+    public string Campo { get; set; } = string.Empty;
+    public string CampoDescripcion { get; set; } = string.Empty;
+    public string? ValorAnterior { get; set; }
+    public string? ValorNuevo { get; set; }
+    public string UsuarioId { get; set; } = string.Empty;
+    public string? UsuarioNombre { get; set; }
+    public DateTimeOffset FechaHora { get; set; }
+}
+
+public class SolucionesResultadoDto
+{
+    public int Total { get; set; }
+    public int Limite { get; set; }
+    public List<SolucionDto> Items { get; set; } = new();
+    public bool PuedeEditar { get; set; }
 }
 
 public class SolucionDto
@@ -32,9 +67,12 @@ public class SolucionDto
     public string Descripcion { get; set; } = string.Empty;
     public string? AccionesRealizadas { get; set; }
     public string? CausaFalla { get; set; }
+    public string? PlanAccion { get; set; }
     public string? AnalisisPorUsuarioId { get; set; }
     public string? AnalisisPorUsuarioNombre { get; set; }
     public DateTimeOffset? FechaHoraAnalisis { get; set; }
+    public List<AdjuntoAnalisisDto> Adjuntos { get; set; } = new();
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }
 
 public class GuardarAnalisisRequest

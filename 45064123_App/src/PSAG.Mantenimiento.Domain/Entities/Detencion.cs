@@ -158,6 +158,8 @@ public class Detencion : EntityBase
     public virtual ReglaAnalisis? ReglaAnalisis { get; set; }
     public virtual ICollection<DetencionEstadoHistorial> HistorialEstados { get; set; } = new List<DetencionEstadoHistorial>();
     public virtual ICollection<DetencionNota> Notas { get; set; } = new List<DetencionNota>();
+    public virtual ICollection<AnalisisCambio> CambiosAnalisis { get; set; } = new List<AnalisisCambio>();
+    public virtual ICollection<AnalisisAdjunto> AdjuntosAnalisis { get; set; } = new List<AnalisisAdjunto>();
 
     /// <summary>
     /// Verifica si la detención puede transicionar al estado especificado.

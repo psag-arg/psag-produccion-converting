@@ -8,6 +8,7 @@ using PSAG.Mantenimiento.Application;
 using PSAG.Mantenimiento.Infrastructure;
 using PSAG.Mantenimiento.Infrastructure.Data;
 using PSAG.Mantenimiento.Infrastructure.Identity;
+using PSAG.Mantenimiento.Infrastructure.Services;
 using Serilog;
 using System.Text;
 
@@ -30,6 +31,7 @@ var jwtSettings = configuration.GetSection("JwtSettings");
 // Agregar servicios de capas
 builder.Services.AddInfrastructure(configuration);
 builder.Services.AddApplication();
+builder.Services.AddAlmacenAdjuntos(configuration, builder.Environment.ContentRootPath);
 var zonaPlanta = ZonaHorariaPlanta.Resolver(configuration);
 builder.Services.AddSingleton(zonaPlanta);
 

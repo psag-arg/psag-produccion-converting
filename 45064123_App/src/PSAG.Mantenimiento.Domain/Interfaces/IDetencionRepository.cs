@@ -45,7 +45,7 @@ public interface IDetencionRepository : IRepository<Detencion>
 
     /// <summary>
     /// Detenciones cerradas con solución o causa cargada, para la base de soluciones.
-    /// La búsqueda libre requiere que cada palabra aparezca en descripción, solución o causa.
+    /// La búsqueda libre requiere que cada palabra aparezca en código, descripción, solución, causa o plan.
     /// </summary>
     Task<IEnumerable<Detencion>> GetSolucionesAsync(
         string? busqueda = null,
@@ -55,6 +55,17 @@ public interface IDetencionRepository : IRepository<Detencion>
         long? excluirDetencionId = null,
         int limite = 50,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Total de la base de soluciones con los mismos filtros que GetSolucionesAsync (sin límite).
+    /// </summary>
+    Task<int> ContarSolucionesAsync(
+        string? busqueda = null,
+        int? lineaId = null,
+        int? equipoId = null,
+        int? tipoFallaId = null,
+        CancellationToken cancellationToken = default);
+
     Task<(IEnumerable<Detencion> Items, int TotalCount)> GetPaginadoAsync(
         int page,
         int pageSize,

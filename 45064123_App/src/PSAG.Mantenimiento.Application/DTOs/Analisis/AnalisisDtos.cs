@@ -33,8 +33,70 @@ public class AnalisisDetencionDto
     /// Puede completar Solución, Causa y Plan, y cerrar el análisis.
     /// </summary>
     public bool PuedeEditar { get; set; }
+
+    /// <summary>
+    /// Análisis cerrado que el usuario puede corregir (administración y supervisión).
+    /// </summary>
+    public bool PuedeEditarCerrado { get; set; }
+
+    /// <summary>
+    /// Puede adjuntar fotos: en borrador quien completa el análisis; cerrado, quien puede editarlo.
+    /// </summary>
+    public bool PuedeAdjuntar { get; set; }
+
+    public List<AdjuntoAnalisisDto> Adjuntos { get; set; } = new();
+
+    /// <summary>
+    /// Ediciones hechas después de cerrar, de la más reciente a la más vieja.
+    /// </summary>
+    public List<AnalisisCambioDto> Cambios { get; set; } = new();
+
     public List<SolucionDto> FallasParecidas { get; set; } = new();
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+}
+
+/// <summary>
+/// Foto del análisis. El archivo se baja por GET api/analisis/{detencionId}/adjuntos/{adjuntoId}.
+/// </summary>
+public class AdjuntoAnalisisDto
+{
+    public long AnalisisAdjuntoId { get; set; }
+    public long DetencionId { get; set; }
+    public string NombreOriginal { get; set; } = string.Empty;
+    public string ContentType { get; set; } = string.Empty;
+    public long TamanoBytes { get; set; }
+    public string UsuarioId { get; set; } = string.Empty;
+    public string? UsuarioNombre { get; set; }
+    public DateTimeOffset FechaHora { get; set; }
+}
+
+/// <summary>
+/// Un cambio del historial de un análisis cerrado.
+/// </summary>
+public class AnalisisCambioDto
+{
+    public string Campo { get; set; } = string.Empty;
+    public string CampoDescripcion { get; set; } = string.Empty;
+    public string? ValorAnterior { get; set; }
+    public string? ValorNuevo { get; set; }
+    public string UsuarioId { get; set; } = string.Empty;
+    public string? UsuarioNombre { get; set; }
+    public DateTimeOffset FechaHora { get; set; }
+}
+
+/// <summary>
+/// Resultado de la base de soluciones: Total cuenta todas las que coinciden; Items trae como máximo Limite.
+/// </summary>
+public class SolucionesResultadoDto
+{
+    public int Total { get; set; }
+    public int Limite { get; set; }
+    public List<SolucionDto> Items { get; set; } = new();
+
+    /// <summary>
+    /// El usuario puede editar los análisis cerrados (muestra el botón Editar en cada ficha).
+    /// </summary>
+    public bool PuedeEditar { get; set; }
 }
 
 /// <summary>
@@ -52,9 +114,12 @@ public class SolucionDto
     public string Descripcion { get; set; } = string.Empty;
     public string? AccionesRealizadas { get; set; }
     public string? CausaFalla { get; set; }
+    public string? PlanAccion { get; set; }
     public string? AnalisisPorUsuarioId { get; set; }
     public string? AnalisisPorUsuarioNombre { get; set; }
     public DateTimeOffset? FechaHoraAnalisis { get; set; }
+    public List<AdjuntoAnalisisDto> Adjuntos { get; set; } = new();
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }
 
 /// <summary>

@@ -42,6 +42,9 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
             .Include(d => d.Turno)
             .Include(d => d.HistorialEstados.OrderByDescending(h => h.FechaHora))
             .Include(d => d.Notas.OrderByDescending(n => n.FechaHora))
+            .Include(d => d.CambiosAnalisis.OrderByDescending(c => c.FechaHora))
+            .Include(d => d.AdjuntosAnalisis.OrderBy(a => a.AnalisisAdjuntoId))
+            .AsSplitQuery()
             .FirstOrDefaultAsync(d => d.DetencionId == detencionId, cancellationToken);
     }
 
@@ -219,10 +222,40 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
         int limite = 50,
         CancellationToken cancellationToken = default)
     {
-        var query = _dbSet
+        return await QuerySoluciones(busqueda, lineaId, equipoId, tipoFallaId, excluirDetencionId)
             .Include(d => d.Linea)
             .Include(d => d.Equipo)
             .Include(d => d.TipoFalla)
+            .Include(d => d.AdjuntosAnalisis.OrderBy(a => a.AnalisisAdjuntoId))
+            .AsSplitQuery()
+            .OrderByDescending(d => d.Fecha)
+            .ThenByDescending(d => d.DetencionId)
+            .Take(limite)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<int> ContarSolucionesAsync(
+        string? busqueda = null,
+        int? lineaId = null,
+        int? equipoId = null,
+        int? tipoFallaId = null,
+        CancellationToken cancellationToken = default)
+    {
+        return await QuerySoluciones(busqueda, lineaId, equipoId, tipoFallaId, null).CountAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Fallas cerradas con solución o causa que coinciden con los filtros. Lista y conteo de la
+    /// base de soluciones la usan juntos, así el contador no puede diferir de las fichas.
+    /// </summary>
+    private IQueryable<Detencion> QuerySoluciones(
+        string? busqueda,
+        int? lineaId,
+        int? equipoId,
+        int? tipoFallaId,
+        long? excluirDetencionId)
+    {
+        var query = _dbSet
             .Where(d => d.EstadoActual == EstadoDetencion.CERRADA
                 && ((d.AccionesRealizadas != null && d.AccionesRealizadas != "")
                     || (d.CausaFalla != null && d.CausaFalla != "")));
@@ -242,16 +275,14 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
         foreach (var palabra in (busqueda ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries))
         {
             var buscada = palabra.ToLower();
-            query = query.Where(d => d.Descripcion.ToLower().Contains(buscada)
+            query = query.Where(d => d.Codigo.ToLower().Contains(buscada)
+                || d.Descripcion.ToLower().Contains(buscada)
                 || (d.AccionesRealizadas != null && d.AccionesRealizadas.ToLower().Contains(buscada))
-                || (d.CausaFalla != null && d.CausaFalla.ToLower().Contains(buscada)));
+                || (d.CausaFalla != null && d.CausaFalla.ToLower().Contains(buscada))
+                || (d.PlanAccion != null && d.PlanAccion.ToLower().Contains(buscada)));
         }
 
-        return await query
-            .OrderByDescending(d => d.Fecha)
-            .ThenByDescending(d => d.DetencionId)
-            .Take(limite)
-            .ToListAsync(cancellationToken);
+        return query;
     }
 
     public async Task<(IEnumerable<Detencion> Items, int TotalCount)> GetPaginadoAsync(

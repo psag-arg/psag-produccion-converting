@@ -41,7 +41,8 @@ public interface IAnalisisService
         IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken = default);
 
-    Task<Result<IReadOnlyList<SolucionDto>>> BuscarSolucionesAsync(
+    Task<Result<SolucionesResultadoDto>> BuscarSolucionesAsync(
         BuscarSolucionesRequest filtro,
+        IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken = default);
 }
