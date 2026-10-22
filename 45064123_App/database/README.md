@@ -26,6 +26,8 @@ Ejecutar los scripts en orden numérico:
 | 22 | `22_t546_t547_tareas_mantenimiento.sql` | Tareas de mantenimiento T-546/T-547 (idempotente): tabla `mnt.TareasMantenimiento` con estados PENDIENTE → PROGRAMADA → CERRADA, checks, FKs a líneas y equipos e índices |
 | 99 | `99_drop_objects_development_only.sql` | **SOLO DESARROLLO** - Limpieza total |
 
+> **Producción (22/10/2026):** la base de producción se armó sin los scripts 11 y 12, así que no tenía las tablas de Registros/Control de Proceso ni de Inspecciones. Se crearon en el deploy de T-539 junto con 19 a 22. Al instalar en otro servidor, correr 11 y 12 antes que 21.
+
 ## Requisitos
 
 - SQL Server 2019 o superior

@@ -150,7 +150,7 @@ BEGIN
         [UsuarioReporteId] NVARCHAR(450) NOT NULL,
         [FechaHoraHallazgo] DATETIMEOFFSET NOT NULL,
         [Descripcion] NVARCHAR(1000) NOT NULL,
-        [NivelCriticidad] TINYINT NULL,  -- 1-5
+        [NivelCriticidad] INT NULL,  -- 1-5 (INT: la entidad es int?; TINYINT rompe la lectura con EF)
         [Resuelto] BIT NOT NULL DEFAULT 0,
         [UsuarioResolucionId] NVARCHAR(450) NULL,
         [FechaHoraResolucion] DATETIMEOFFSET NULL,
