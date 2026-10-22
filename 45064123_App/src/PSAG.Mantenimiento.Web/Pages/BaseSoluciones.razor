@@ -145,18 +145,18 @@
                             }
                             <div class="mb-3">
                                 <label class="form-label fw-semibold mb-1">Solución <span class="text-danger">*</span></label>
-                                <textarea class="form-control" rows="3" maxlength="@LargoSolucion" @bind="solucionTexto" @bind:event="oninput"></textarea>
-                                <div class="form-text">@solucionTexto.Length de @LargoSolucion caracteres como máximo.</div>
+                                <textarea class="form-control" rows="3" maxlength="@LargosAnalisis.Solucion" @bind="solucionTexto" @bind:event="oninput"></textarea>
+                                <div class="form-text">@solucionTexto.Length de @LargosAnalisis.Solucion caracteres como máximo.</div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label fw-semibold mb-1">Causa de falla <span class="text-danger">*</span></label>
-                                <textarea class="form-control" rows="3" maxlength="@LargoCausaYPlan" @bind="causaTexto" @bind:event="oninput"></textarea>
-                                <div class="form-text">@causaTexto.Length de @LargoCausaYPlan caracteres como máximo.</div>
+                                <textarea class="form-control" rows="3" maxlength="@LargosAnalisis.CausaYPlan" @bind="causaTexto" @bind:event="oninput"></textarea>
+                                <div class="form-text">@causaTexto.Length de @LargosAnalisis.CausaYPlan caracteres como máximo.</div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label fw-semibold mb-1">Plan de acción <span class="text-muted small fw-normal">(opcional)</span></label>
-                                <textarea class="form-control" rows="3" maxlength="@LargoCausaYPlan" @bind="planTexto" @bind:event="oninput"></textarea>
-                                <div class="form-text">@planTexto.Length de @LargoCausaYPlan caracteres como máximo.</div>
+                                <textarea class="form-control" rows="3" maxlength="@LargosAnalisis.CausaYPlan" @bind="planTexto" @bind:event="oninput"></textarea>
+                                <div class="form-text">@planTexto.Length de @LargosAnalisis.CausaYPlan caracteres como máximo.</div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label fw-semibold mb-1">Fotos</label>
@@ -223,9 +223,6 @@
 </div>
 
 @code {
-    private const int LargoSolucion = 4000;
-    private const int LargoCausaYPlan = 2000;
-
     [Parameter, SupplyParameterFromQuery]
     public string? Busqueda { get; set; }
 

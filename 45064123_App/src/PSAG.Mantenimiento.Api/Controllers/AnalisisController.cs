@@ -157,7 +157,7 @@ public class AnalisisController : ApiControllerBase
             return ErrorResult(resultado);
 
         var dto = resultado.Value!;
-        dto.UsuarioNombre = NombreDe(await NombresAsync([dto.UsuarioId]), dto.UsuarioId);
+        dto.UsuarioNombre = (await _userManager.NombresVisiblesAsync([dto.UsuarioId])).NombreDe(dto.UsuarioId);
         return Ok(dto);
     }
 
@@ -202,19 +202,19 @@ public class AnalisisController : ApiControllerBase
             .SelectMany(p => new[] { p.ResponsableUsuarioId, p.AnalisisPorUsuarioId })
             .Concat(dto.Responsables.Select(r => r.UsuarioId))
             .ToList();
-        var nombres = await NombresAsync(usuarios);
+        var nombres = await _userManager.NombresVisiblesAsync(usuarios);
 
         foreach (var pendiente in dto.ParaAnalizar.Concat(dto.EnAnalisis).Concat(dto.CerradasPorMi))
         {
-            pendiente.ResponsableUsuarioNombre = NombreDe(nombres, pendiente.ResponsableUsuarioId);
-            pendiente.AnalisisPorUsuarioNombre = NombreDe(nombres, pendiente.AnalisisPorUsuarioId);
+            pendiente.ResponsableUsuarioNombre = nombres.NombreDe(pendiente.ResponsableUsuarioId);
+            pendiente.AnalisisPorUsuarioNombre = nombres.NombreDe(pendiente.AnalisisPorUsuarioId);
             pendiente.ResponsableNombre = NombreDelResponsable(
                 pendiente.ResponsableUsuarioId, pendiente.ResponsableUsuarioNombre, pendiente.ResponsableNombre);
         }
 
         foreach (var responsable in dto.Responsables.Where(r => r.UsuarioId != null))
         {
-            responsable.Nombre = NombreDe(nombres, responsable.UsuarioId) ?? responsable.UsuarioId!;
+            responsable.Nombre = nombres.NombreDe(responsable.UsuarioId) ?? responsable.UsuarioId!;
         }
 
         return Ok(dto);
@@ -246,10 +246,10 @@ public class AnalisisController : ApiControllerBase
             return ErrorResult(resultado);
 
         var items = resultado.Value!.Items;
-        var nombres = await NombresAsync(items.Select(s => s.AnalisisPorUsuarioId));
+        var nombres = await _userManager.NombresVisiblesAsync(items.Select(s => s.AnalisisPorUsuarioId));
         foreach (var item in items)
         {
-            item.AnalisisPorUsuarioNombre = NombreDe(nombres, item.AnalisisPorUsuarioId);
+            item.AnalisisPorUsuarioNombre = nombres.NombreDe(item.AnalisisPorUsuarioId);
         }
 
         return Ok(resultado.Value);
@@ -266,50 +266,26 @@ public class AnalisisController : ApiControllerBase
         ids.AddRange(dto.Cambios.Select(c => c.UsuarioId));
         ids.AddRange(dto.Adjuntos.Select(a => a.UsuarioId));
 
-        var nombres = await NombresAsync(ids);
-        dto.ResponsableUsuarioNombre = NombreDe(nombres, dto.ResponsableUsuarioId);
-        dto.AnalisisPorUsuarioNombre = NombreDe(nombres, dto.AnalisisPorUsuarioId);
+        var nombres = await _userManager.NombresVisiblesAsync(ids);
+        dto.ResponsableUsuarioNombre = nombres.NombreDe(dto.ResponsableUsuarioId);
+        dto.AnalisisPorUsuarioNombre = nombres.NombreDe(dto.AnalisisPorUsuarioId);
         dto.ResponsableNombre = NombreDelResponsable(dto.ResponsableUsuarioId, dto.ResponsableUsuarioNombre, dto.ResponsableNombre);
 
         foreach (var parecida in dto.FallasParecidas)
         {
-            parecida.AnalisisPorUsuarioNombre = NombreDe(nombres, parecida.AnalisisPorUsuarioId);
+            parecida.AnalisisPorUsuarioNombre = nombres.NombreDe(parecida.AnalisisPorUsuarioId);
         }
 
         foreach (var cambio in dto.Cambios)
         {
-            cambio.UsuarioNombre = NombreDe(nombres, cambio.UsuarioId);
+            cambio.UsuarioNombre = nombres.NombreDe(cambio.UsuarioId);
         }
 
         foreach (var adjunto in dto.Adjuntos)
         {
-            adjunto.UsuarioNombre = NombreDe(nombres, adjunto.UsuarioId);
+            adjunto.UsuarioNombre = nombres.NombreDe(adjunto.UsuarioId);
         }
     }
-
-    private async Task<Dictionary<string, string>> NombresAsync(IEnumerable<string?> usuarioIds)
-    {
-        var ids = usuarioIds
-            .Where(id => !string.IsNullOrEmpty(id))
-            .Select(id => id!)
-            .Distinct()
-            .ToList();
-
-        if (ids.Count == 0)
-            return new Dictionary<string, string>();
-
-        var usuarios = await _userManager.Users
-            .Where(u => ids.Contains(u.Id))
-            .Select(u => new { u.Id, u.NombreCompleto, u.UserName })
-            .ToListAsync();
-
-        return usuarios.ToDictionary(
-            u => u.Id,
-            u => string.IsNullOrWhiteSpace(u.NombreCompleto) ? u.UserName ?? u.Id : u.NombreCompleto);
-    }
-
-    private static string? NombreDe(Dictionary<string, string> nombres, string? usuarioId) =>
-        usuarioId != null && nombres.TryGetValue(usuarioId, out var nombre) ? nombre : null;
 
     /// <summary>
     /// Responsable por usuario: su nombre. Por rol: el nombre que ya armó el servicio.
@@ -317,22 +293,9 @@ public class AnalisisController : ApiControllerBase
     private static string? NombreDelResponsable(string? usuarioId, string? usuarioNombre, string? nombreRol) =>
         usuarioId != null ? usuarioNombre ?? "Usuario asignado" : nombreRol;
 
-    private IActionResult ErrorResult(Result resultado)
-    {
-        var (status, titulo) = resultado.ErrorCode switch
-        {
-            "NOT_FOUND" => (StatusCodes.Status404NotFound, "Detención no encontrada"),
-            "FORBIDDEN" => (StatusCodes.Status403Forbidden, "Sin permiso para este análisis"),
-            "CONCURRENCY" => (StatusCodes.Status409Conflict, "Conflicto de concurrencia"),
-            _ => (StatusCodes.Status400BadRequest, "Error de validación")
-        };
-
-        return StatusCode(status, new ProblemDetails
-        {
-            Title = titulo,
-            Detail = resultado.ErrorMessage,
-            Status = status,
-            Instance = HttpContext.Request.Path
-        });
-    }
+    private IActionResult ErrorResult(Result resultado) =>
+        ProblemaDe(resultado, "Error de validación",
+            tituloNoEncontrado: "Detención no encontrada",
+            tituloSinPermiso: "Sin permiso para este análisis",
+            tituloConcurrencia: "Conflicto de concurrencia");
 }

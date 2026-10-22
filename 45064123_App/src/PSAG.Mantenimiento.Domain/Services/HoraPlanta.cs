@@ -8,4 +8,11 @@ public static class HoraPlanta
 {
     public static DateTimeOffset? En(DateTimeOffset? instante, TimeZoneInfo zona) =>
         instante is { } valor ? TimeZoneInfo.ConvertTime(valor, zona) : null;
+
+    /// <summary>
+    /// Instante de una hora de pared de la planta (fecha y hora sin zona): le aplica el offset que
+    /// <paramref name="zona"/> tiene en esa fecha, así no depende de la zona horaria del servidor.
+    /// </summary>
+    public static DateTimeOffset DesdeHoraDePared(DateTime horaDePared, TimeZoneInfo zona) =>
+        new(horaDePared, zona.GetUtcOffset(horaDePared));
 }

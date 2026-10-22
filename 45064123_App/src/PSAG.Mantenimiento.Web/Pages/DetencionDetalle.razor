@@ -239,10 +239,10 @@
                                     <h6 class="mb-1">Solución (para resolver la falla) @if (analisis.PuedeEditar) { <span class="text-danger">*</span> }</h6>
                                     @if (analisis.PuedeEditar)
                                     {
-                                        <textarea class="form-control @(faltaSolucion ? "is-invalid" : "")" rows="3" maxlength="@LargoSolucion"
+                                        <textarea class="form-control @(faltaSolucion ? "is-invalid" : "")" rows="3" maxlength="@LargosAnalisis.Solucion"
                                                   @bind="solucionTexto" @bind:event="oninput" @bind:after="LimpiarFaltantes"
                                                   placeholder="Qué se hizo para resolver la falla"></textarea>
-                                        <div class="form-text">@solucionTexto.Length de @LargoSolucion caracteres como máximo.</div>
+                                        <div class="form-text">@solucionTexto.Length de @LargosAnalisis.Solucion caracteres como máximo.</div>
                                     }
                                     else
                                     {
@@ -254,10 +254,10 @@
                                     <h6 class="mb-1">Causa de falla @if (analisis.PuedeEditar) { <span class="text-danger">*</span> }</h6>
                                     @if (analisis.PuedeEditar)
                                     {
-                                        <textarea class="form-control @(faltaCausa ? "is-invalid" : "")" rows="3" maxlength="@LargoCausaYPlan"
+                                        <textarea class="form-control @(faltaCausa ? "is-invalid" : "")" rows="3" maxlength="@LargosAnalisis.CausaYPlan"
                                                   @bind="causaTexto" @bind:event="oninput" @bind:after="LimpiarFaltantes"
                                                   placeholder="Causa raíz identificada"></textarea>
-                                        <div class="form-text">@causaTexto.Length de @LargoCausaYPlan caracteres como máximo.</div>
+                                        <div class="form-text">@causaTexto.Length de @LargosAnalisis.CausaYPlan caracteres como máximo.</div>
                                     }
                                     else
                                     {
@@ -269,10 +269,10 @@
                                     <h6 class="mb-1">Plan de acción @if (!AnalisisCerrado) { <span class="text-muted small fw-normal">(opcional)</span> }</h6>
                                     @if (analisis.PuedeEditar)
                                     {
-                                        <textarea class="form-control" rows="3" maxlength="@LargoCausaYPlan"
+                                        <textarea class="form-control" rows="3" maxlength="@LargosAnalisis.CausaYPlan"
                                                   @bind="planTexto" @bind:event="oninput"
                                                   placeholder="Qué se hace para que no vuelva a pasar"></textarea>
-                                        <div class="form-text">@planTexto.Length de @LargoCausaYPlan caracteres como máximo.</div>
+                                        <div class="form-text">@planTexto.Length de @LargosAnalisis.CausaYPlan caracteres como máximo.</div>
                                     }
                                     else
                                     {
@@ -510,8 +510,6 @@
 </div>
 
 @code {
-    private const int LargoSolucion = 4000;
-    private const int LargoCausaYPlan = 2000;
     private const string FaltaResolucion = "Escribí la resolución para poder cerrar.";
 
     [Parameter]

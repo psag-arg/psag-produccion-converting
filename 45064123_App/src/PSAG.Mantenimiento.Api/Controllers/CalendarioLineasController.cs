@@ -41,7 +41,7 @@ public class CalendarioLineasController : ApiControllerBase
     [ProducesResponseType(typeof(IEnumerable<LineaCalendarioDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetLineas()
     {
-        var asignadas = await LineasAsignadasAsync();
+        var asignadas = await LineasAsignadasAsync(_unitOfWork.UsuariosLineas);
         var lineas = (await _unitOfWork.Lineas.GetAllAsync())
             .Where(l => l.Activo)
             .OrderBy(l => l.Orden)
@@ -67,20 +67,14 @@ public class CalendarioLineasController : ApiControllerBase
 
         var turnos = (await _unitOfWork.Turnos.GetActivosAsync()).ToList();
         var versiones = await _unitOfWork.CalendariosLinea.GetActivosAsync(lineaId);
-        var asignadas = await LineasAsignadasAsync();
-
-        var nombres = new Dictionary<string, string>();
-        foreach (var id in versiones.Select(v => v.ModificadoPorUsuarioId).Distinct())
-        {
-            var usuario = await _userManager.FindByIdAsync(id);
-            nombres[id] = usuario == null ? id : (string.IsNullOrWhiteSpace(usuario.NombreCompleto) ? usuario.UserName ?? id : usuario.NombreCompleto);
-        }
+        var puedeEditar = await PuedeEditarCalendarioAsync(_unitOfWork.UsuariosLineas, lineaId);
+        var nombres = await _userManager.NombresVisiblesAsync(versiones.Select(v => v.ModificadoPorUsuarioId));
 
         var dto = new CalendarioLineaDto
         {
             LineaId = linea.LineaId,
             LineaNombre = linea.Nombre,
-            PuedeEditar = CalendarioLineaReglas.PuedeEditar(Roles, asignadas, lineaId),
+            PuedeEditar = puedeEditar,
             HorasEstandar = TurnoReglas.MinutosProgramados(turnos) / 60m,
             Turnos = turnos.Select(t => new TurnoDto
             {
@@ -138,7 +132,7 @@ public class CalendarioLineasController : ApiControllerBase
         if (linea == null)
             return BadRequest(Problema("Línea inválida", "Elegí una línea válida."));
 
-        if (!CalendarioLineaReglas.PuedeEditar(Roles, await LineasAsignadasAsync(), lineaId))
+        if (!await PuedeEditarCalendarioAsync(_unitOfWork.UsuariosLineas, lineaId))
             return Forbid();
 
         if (request.VigenteDesde == default)
@@ -209,7 +203,7 @@ public class CalendarioLineasController : ApiControllerBase
         if (version == null)
             return NotFound();
 
-        if (!CalendarioLineaReglas.PuedeEditar(Roles, await LineasAsignadasAsync(), version.LineaId))
+        if (!await PuedeEditarCalendarioAsync(_unitOfWork.UsuariosLineas, version.LineaId))
             return Forbid();
 
         version.Activo = false;
@@ -219,14 +213,6 @@ public class CalendarioLineasController : ApiControllerBase
 
         return NoContent();
     }
-
-    private async Task<int[]> LineasAsignadasAsync() =>
-        string.IsNullOrEmpty(CurrentUserId)
-            ? Array.Empty<int>()
-            : (await _unitOfWork.UsuariosLineas.FindAsync(ul => ul.UsuarioId == CurrentUserId))
-                .Select(ul => ul.LineaId)
-                .Distinct()
-                .ToArray();
 
     private static ProblemDetails Problema(string titulo, string detalle) =>
         new() { Title = titulo, Detail = detalle, Status = StatusCodes.Status400BadRequest };

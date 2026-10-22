@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.AspNetCore.Identity;
 using PSAG.Mantenimiento.Domain.Common;
 
@@ -15,6 +16,12 @@ public class ApplicationUser : IdentityUser
     public DateTimeOffset? UltimoAcceso { get; set; }
     public string? RefreshToken { get; set; }
     public DateTimeOffset? RefreshTokenExpiration { get; set; }
+
+    /// <summary>
+    /// Nombre para mostrar: el nombre completo o, si está vacío, el nombre de usuario. No se guarda.
+    /// </summary>
+    [NotMapped]
+    public string NombreVisible => string.IsNullOrWhiteSpace(NombreCompleto) ? UserName ?? Id : NombreCompleto;
 }
 
 /// <summary>

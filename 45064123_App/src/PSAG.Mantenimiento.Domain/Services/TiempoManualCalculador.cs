@@ -17,12 +17,9 @@ public static class TiempoManualCalculador
     {
         var fechaFin = horaFin < horaInicio ? fecha.AddDays(1) : fecha;
 
-        var parada = ConOffset(fecha.ToDateTime(horaInicio), zona);
-        var arranque = ConOffset(fechaFin.ToDateTime(horaFin), zona);
+        var parada = HoraPlanta.DesdeHoraDePared(fecha.ToDateTime(horaInicio), zona);
+        var arranque = HoraPlanta.DesdeHoraDePared(fechaFin.ToDateTime(horaFin), zona);
 
         return new TiempoManual(parada, arranque, (int)(arranque - parada).TotalMinutes);
     }
-
-    private static DateTimeOffset ConOffset(DateTime horaDePared, TimeZoneInfo zona) =>
-        new(horaDePared, zona.GetUtcOffset(horaDePared));
 }

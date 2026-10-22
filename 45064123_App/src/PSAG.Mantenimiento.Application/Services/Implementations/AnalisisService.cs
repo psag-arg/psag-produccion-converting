@@ -282,11 +282,8 @@ public class AnalisisService : IAnalisisService
             .ToList();
     }
 
-    private async Task<int[]> LineasDelUsuarioAsync(string usuarioId, CancellationToken cancellationToken) =>
-        (await _unitOfWork.UsuariosLineas.FindAsync(ul => ul.UsuarioId == usuarioId, cancellationToken))
-            .Select(ul => ul.LineaId)
-            .Distinct()
-            .ToArray();
+    private Task<int[]> LineasDelUsuarioAsync(string usuarioId, CancellationToken cancellationToken) =>
+        _unitOfWork.UsuariosLineas.GetLineaIdsAsync(usuarioId, cancellationToken);
 
     /// <summary>
     /// DTO del análisis a partir de una detención ya cargada con GetByIdConAnalisisAsync.

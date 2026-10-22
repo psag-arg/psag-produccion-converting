@@ -45,4 +45,14 @@ public class UsuarioLineaRepository : RepositoryBase<UsuarioLinea>, IUsuarioLine
             .OrderBy(ul => ul.UsuarioId)
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<int[]> GetLineaIdsAsync(string usuarioId, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .AsNoTracking()
+            .Where(ul => ul.UsuarioId == usuarioId)
+            .Select(ul => ul.LineaId)
+            .Distinct()
+            .ToArrayAsync(cancellationToken);
+    }
 }

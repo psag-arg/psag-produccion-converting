@@ -1,10 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using PSAG.Mantenimiento.Application.Common;
 using PSAG.Mantenimiento.Application.DTOs.TareasMantenimiento;
 using PSAG.Mantenimiento.Application.Services.Interfaces;
+using PSAG.Mantenimiento.Domain.Common;
 using PSAG.Mantenimiento.Infrastructure.Identity;
 
 namespace PSAG.Mantenimiento.Api.Controllers;
@@ -20,10 +20,10 @@ namespace PSAG.Mantenimiento.Api.Controllers;
 public class TareasMantenimientoController : ApiControllerBase
 {
     /// <summary>Mismos roles que TareaMantenimientoReglas.RolesCarga.</summary>
-    public const string RolesCarga = "OPERARIO,SUPERVISOR,ADMINISTRADOR";
+    public const string RolesCarga = RolesSistema.Operario + "," + RolesSistema.Supervisor + "," + RolesSistema.Administrador;
 
     /// <summary>Mismos roles que TareaMantenimientoReglas.RolesGestion.</summary>
-    public const string RolesGestion = "MANTENIMIENTO,SUPERVISOR,ADMINISTRADOR";
+    public const string RolesGestion = RolesSistema.Mantenimiento + "," + RolesSistema.Supervisor + "," + RolesSistema.Administrador;
 
     private readonly ITareaMantenimientoService _tareaService;
     private readonly UserManager<ApplicationUser> _userManager;
@@ -142,49 +142,19 @@ public class TareasMantenimientoController : ApiControllerBase
     private async Task CompletarNombresAsync(IEnumerable<TareaMantenimientoDto> tareas)
     {
         var lista = tareas.ToList();
-        var ids = lista
-            .SelectMany(t => new[] { t.CreadoPorUsuarioId, t.ProgramadaPorUsuarioId, t.CerradaPorUsuarioId })
-            .Where(id => !string.IsNullOrEmpty(id))
-            .Select(id => id!)
-            .Distinct()
-            .ToList();
-
-        if (ids.Count == 0)
-            return;
-
-        var nombres = (await _userManager.Users
-                .Where(u => ids.Contains(u.Id))
-                .Select(u => new { u.Id, u.NombreCompleto, u.UserName })
-                .ToListAsync())
-            .ToDictionary(
-                u => u.Id,
-                u => string.IsNullOrWhiteSpace(u.NombreCompleto) ? u.UserName ?? u.Id : u.NombreCompleto);
-
-        string? NombreDe(string? id) => id != null && nombres.TryGetValue(id, out var nombre) ? nombre : null;
+        var nombres = await _userManager.NombresVisiblesAsync(
+            lista.SelectMany(t => new[] { t.CreadoPorUsuarioId, t.ProgramadaPorUsuarioId, t.CerradaPorUsuarioId }));
 
         foreach (var tarea in lista)
         {
-            tarea.CreadoPorUsuarioNombre = NombreDe(tarea.CreadoPorUsuarioId);
-            tarea.ProgramadaPorUsuarioNombre = NombreDe(tarea.ProgramadaPorUsuarioId);
-            tarea.CerradaPorUsuarioNombre = NombreDe(tarea.CerradaPorUsuarioId);
+            tarea.CreadoPorUsuarioNombre = nombres.NombreDe(tarea.CreadoPorUsuarioId);
+            tarea.ProgramadaPorUsuarioNombre = nombres.NombreDe(tarea.ProgramadaPorUsuarioId);
+            tarea.CerradaPorUsuarioNombre = nombres.NombreDe(tarea.CerradaPorUsuarioId);
         }
     }
 
-    private IActionResult ErrorResult(Result resultado)
-    {
-        var (status, titulo) = resultado.ErrorCode switch
-        {
-            "NOT_FOUND" => (StatusCodes.Status404NotFound, "Tarea no encontrada"),
-            "FORBIDDEN" => (StatusCodes.Status403Forbidden, "Sin permiso"),
-            _ => (StatusCodes.Status400BadRequest, "Error de validación")
-        };
-
-        return StatusCode(status, new ProblemDetails
-        {
-            Title = titulo,
-            Detail = resultado.ErrorMessage,
-            Status = status,
-            Instance = HttpContext.Request.Path
-        });
-    }
+    private IActionResult ErrorResult(Result resultado) =>
+        ProblemaDe(resultado, "Error de validación",
+            tituloNoEncontrado: "Tarea no encontrada",
+            tituloSinPermiso: "Sin permiso");
 }

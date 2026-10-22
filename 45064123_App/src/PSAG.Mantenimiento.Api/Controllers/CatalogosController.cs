@@ -1002,7 +1002,7 @@ public class CatalogosController : ApiControllerBase
             linea?.Nombre,
             tipo?.Nombre,
             equipo?.Nombre,
-            usuario == null ? null : NombreVisible(usuario));
+            usuario?.NombreVisible);
     }
 
     /// <summary>
@@ -1015,9 +1015,7 @@ public class CatalogosController : ApiControllerBase
         var tipos = (await _unitOfWork.TiposFalla.GetAllAsync()).ToDictionary(t => t.TipoFallaId, t => t.Nombre);
         var equipos = (await _unitOfWork.Equipos.GetAllAsync()).ToDictionary(e => e.EquipoId, e => e.Nombre);
 
-        var usuarioIds = lista.Select(r => r.ResponsableUsuarioId).OfType<string>().Distinct().ToList();
-        var usuarios = (await _userManager.Users.Where(u => usuarioIds.Contains(u.Id)).ToListAsync())
-            .ToDictionary(u => u.Id, NombreVisible);
+        var usuarios = await _userManager.NombresVisiblesAsync(lista.Select(r => r.ResponsableUsuarioId));
 
         return lista.Select(r => ArmarReglaDto(r,
             r.LineaId is int lineaId ? lineas.GetValueOrDefault(lineaId) : null,
@@ -1046,9 +1044,6 @@ public class CatalogosController : ApiControllerBase
         ResponsableUsuarioNombre = usuarioNombre,
         Activo = regla.Activo
     };
-
-    private static string NombreVisible(ApplicationUser usuario) =>
-        string.IsNullOrWhiteSpace(usuario.NombreCompleto) ? usuario.UserName ?? usuario.Id : usuario.NombreCompleto;
 
     private static int? IdOpcional(int? id) => id is > 0 ? id : null;
 
@@ -1137,7 +1132,7 @@ public class CatalogosController : ApiControllerBase
             });
 
         // El supervisor carga las excepciones de sus líneas; el administrador, de todas.
-        if (!await PuedeEditarCalendarioAsync(request.LineaId))
+        if (!await PuedeEditarCalendarioAsync(_unitOfWork.UsuariosLineas, request.LineaId))
             return Forbid();
 
         var fila = (await _unitOfWork.TiemposProgramadosDia.FindAsync(
@@ -1211,7 +1206,7 @@ public class CatalogosController : ApiControllerBase
         if (fila == null)
             return NotFound();
 
-        if (!await PuedeEditarCalendarioAsync(fila.LineaId))
+        if (!await PuedeEditarCalendarioAsync(_unitOfWork.UsuariosLineas, fila.LineaId))
             return Forbid();
 
         fila.Activo = false;
@@ -1221,13 +1216,6 @@ public class CatalogosController : ApiControllerBase
         await _unitOfWork.SaveChangesAsync();
 
         return NoContent();
-    }
-
-    private async Task<bool> PuedeEditarCalendarioAsync(int lineaId)
-    {
-        var asignadas = (await _unitOfWork.UsuariosLineas.FindAsync(ul => ul.UsuarioId == CurrentUserId))
-            .Select(ul => ul.LineaId);
-        return CalendarioLineaReglas.PuedeEditar(Roles, asignadas, lineaId);
     }
 
     #endregion

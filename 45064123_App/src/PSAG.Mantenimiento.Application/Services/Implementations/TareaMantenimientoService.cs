@@ -233,11 +233,6 @@ public class TareaMantenimientoService : ITareaMantenimientoService
     /// <summary>
     /// Medianoche de la planta de esa fecha, como instante.
     /// </summary>
-    private static DateTimeOffset? InicioDelDia(DateOnly? fecha, TimeZoneInfo zonaPlanta)
-    {
-        if (fecha is not { } f)
-            return null;
-        var local = f.ToDateTime(TimeOnly.MinValue);
-        return new DateTimeOffset(local, zonaPlanta.GetUtcOffset(local));
-    }
+    private static DateTimeOffset? InicioDelDia(DateOnly? fecha, TimeZoneInfo zonaPlanta) =>
+        fecha is { } f ? HoraPlanta.DesdeHoraDePared(f.ToDateTime(TimeOnly.MinValue), zonaPlanta) : null;
 }
