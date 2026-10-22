@@ -29,6 +29,9 @@ public interface IUnitOfWork : IDisposable
     IEjecucionInspeccionRepository EjecucionesInspeccion { get; }
     IHallazgoNoOkRepository HallazgosNoOk { get; }
 
+    // Tareas de mantenimiento
+    ITareaMantenimientoRepository TareasMantenimiento { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     Task BeginTransactionAsync(CancellationToken cancellationToken = default);
     Task CommitTransactionAsync(CancellationToken cancellationToken = default);

@@ -1,0 +1,148 @@
+@page "/tareas-mantenimiento/imprimir"
+@using System.Globalization
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.JSInterop
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize]
+@inject ITareasMantenimientoService TareasService
+@inject ICatalogosService CatalogosService
+@inject IJSRuntime JS
+
+<PageTitle>Hoja de tareas programadas - PSAG Produccion</PageTitle>
+
+@* Al imprimir sólo sale la hoja: sin menú, barra superior ni botones. *@
+<style>
+    @@media print {
+        .sidebar, .top-row, .d-print-none { display: none !important; }
+        .page, main, article.content { display: block !important; padding: 0 !important; margin: 0 !important; }
+        .hoja-tareas table { font-size: 11pt; }
+        .hoja-tareas tr { break-inside: avoid; }
+    }
+</style>
+
+@* Hoja siempre en tema claro (se ve como sale impresa, también en modo oscuro). *@
+<div class="container-fluid hoja-tareas bg-body text-body py-3" data-bs-theme="light">
+    <div class="d-flex justify-content-between align-items-center mb-3 d-print-none flex-wrap gap-2">
+        <a class="btn btn-outline-secondary" href="tareas-mantenimiento">
+            <i class="bi bi-arrow-left me-2"></i>Volver
+        </a>
+        <div class="d-flex gap-2 align-items-center">
+            <select class="form-select" style="width: auto;" @bind="LineaId" @bind:after="@(async () => await Cargar())">
+                <option value="">Todas las líneas</option>
+                @foreach (var linea in lineas)
+                {
+                    <option value="@linea.LineaId">@linea.Nombre</option>
+                }
+            </select>
+            <button class="btn btn-primary" disabled="@(!tareas.Any())" @onclick="@(async () => await Imprimir())">
+                <i class="bi bi-printer me-2"></i>Imprimir
+            </button>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <h3 class="mb-0">Tareas de mantenimiento programadas</h3>
+        <div class="text-muted">
+            @(LineaId.HasValue ? lineas.FirstOrDefault(l => l.LineaId == LineaId)?.Nombre ?? "" : "Todas las líneas")
+            · Impreso el @DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture)
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5 d-print-none">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+        </div>
+    }
+    else if (errorCarga != null)
+    {
+        <div class="alert alert-danger">@errorCarga</div>
+    }
+    else if (!tareas.Any())
+    {
+        <div class="alert alert-info">No hay tareas programadas@(LineaId.HasValue ? " en esta línea" : "").</div>
+    }
+    else
+    {
+        <table class="table table-bordered table-sm">
+            <thead>
+                <tr>
+                    @if (!LineaId.HasValue)
+                    {
+                        <th>Línea</th>
+                    }
+                    <th>Cuerpo</th>
+                    <th>Parte</th>
+                    <th>Detalle de la tarea</th>
+                    <th>Tipo</th>
+                    <th>Criticidad</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var tarea in tareas)
+                {
+                    <tr>
+                        @if (!LineaId.HasValue)
+                        {
+                            <td>@tarea.LineaNombre</td>
+                        }
+                        <td>@tarea.EquipoNombre</td>
+                        <td>@(tarea.ParteEquipo ?? "-")</td>
+                        <td style="white-space: pre-line;">@tarea.Detalle</td>
+                        <td>@tarea.TipoTareaDescripcion</td>
+                        <td><strong>@tarea.CriticidadDescripcion</strong></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <div class="text-muted small">@tareas.Count @(tareas.Count == 1 ? "tarea" : "tareas")</div>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "lineaId")]
+    public int? LineaId { get; set; }
+
+    private List<TareaMantenimientoDto> tareas = new();
+    private List<LineaDto> lineas = new();
+    private bool isLoading = true;
+    private string? errorCarga;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            lineas = await CatalogosService.GetLineasAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error cargando líneas: {ex.Message}");
+        }
+
+        await Cargar();
+    }
+
+    private async Task Cargar()
+    {
+        isLoading = true;
+        errorCarga = null;
+        try
+        {
+            // La API las devuelve de más a menos crítica.
+            tareas = await TareasService.GetActivasAsync(LineaId, estado: "PROGRAMADA");
+        }
+        catch (Exception ex)
+        {
+            errorCarga = $"No se pudieron cargar las tareas: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task Imprimir() => await JS.InvokeVoidAsync("print");
+}

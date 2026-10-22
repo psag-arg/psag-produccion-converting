@@ -33,6 +33,9 @@ public class UnitOfWork : IUnitOfWork
     private IEjecucionInspeccionRepository? _ejecucionesInspeccion;
     private IHallazgoNoOkRepository? _hallazgosNoOk;
 
+    // Tareas de mantenimiento
+    private ITareaMantenimientoRepository? _tareasMantenimiento;
+
     public UnitOfWork(MantenimientoDbContext context)
     {
         _context = context;
@@ -61,6 +64,9 @@ public class UnitOfWork : IUnitOfWork
     public IPlanInspeccionRepository PlanesInspeccion => _planesInspeccion ??= new PlanInspeccionRepository(_context);
     public IEjecucionInspeccionRepository EjecucionesInspeccion => _ejecucionesInspeccion ??= new EjecucionInspeccionRepository(_context);
     public IHallazgoNoOkRepository HallazgosNoOk => _hallazgosNoOk ??= new HallazgoNoOkRepository(_context);
+
+    // Tareas de mantenimiento
+    public ITareaMantenimientoRepository TareasMantenimiento => _tareasMantenimiento ??= new TareaMantenimientoRepository(_context);
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
