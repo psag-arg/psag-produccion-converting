@@ -26,6 +26,8 @@ public interface IAnalisisService
 
     /// <summary>
     /// Baja una foto (con la sesión del usuario) y la devuelve como data URL para mostrarla en un img.
+    /// Queda en memoria por AnalisisAdjuntoId mientras dure la sesión: volver a mostrar la misma foto
+    /// no la baja de nuevo. Si falla, el próximo pedido la intenta otra vez.
     /// </summary>
     Task<string?> GetAdjuntoDataUrlAsync(long detencionId, long adjuntoId);
 
@@ -38,6 +40,7 @@ public interface IAnalisisService
 public class AnalisisService : IAnalisisService
 {
     private readonly HttpClient _httpClient;
+    private readonly Dictionary<long, Task<string?>> _fotos = new();
 
     public event Action? PendientesCambiaron;
 
@@ -127,6 +130,33 @@ public class AnalisisService : IAnalisisService
     }
 
     public async Task<string?> GetAdjuntoDataUrlAsync(long detencionId, long adjuntoId)
+    {
+        // Los adjuntos no se modifican: el id alcanza como clave. Se guarda la tarea para que dos
+        // componentes que piden la misma foto a la vez compartan una sola descarga.
+        if (!_fotos.TryGetValue(adjuntoId, out var tarea))
+        {
+            tarea = BajarAdjuntoDataUrlAsync(detencionId, adjuntoId);
+            _fotos[adjuntoId] = tarea;
+        }
+
+        try
+        {
+            var dataUrl = await tarea;
+            if (dataUrl == null)
+            {
+                _fotos.Remove(adjuntoId);
+            }
+
+            return dataUrl;
+        }
+        catch
+        {
+            _fotos.Remove(adjuntoId);
+            throw;
+        }
+    }
+
+    private async Task<string?> BajarAdjuntoDataUrlAsync(long detencionId, long adjuntoId)
     {
         var response = await _httpClient.GetAsync($"api/analisis/{detencionId}/adjuntos/{adjuntoId}");
         if (!response.IsSuccessStatusCode)

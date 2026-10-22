@@ -14,6 +14,7 @@ public class CalendarioLineaRepository : RepositoryBase<CalendarioLinea>, ICalen
     public async Task<IReadOnlyList<CalendarioLinea>> GetActivosAsync(int? lineaId = null, CancellationToken cancellationToken = default)
     {
         return await _dbSet
+            .AsNoTracking()
             .Include(c => c.Turnos)
             .Where(c => c.Activo && (!lineaId.HasValue || c.LineaId == lineaId.Value))
             .OrderBy(c => c.LineaId)

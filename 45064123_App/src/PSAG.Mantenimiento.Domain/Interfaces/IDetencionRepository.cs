@@ -12,6 +12,16 @@ public interface IDetencionRepository : IRepository<Detencion>
     Task<Detencion?> GetByIdWithDetailsAsync(long detencionId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Como GetByIdWithDetailsAsync, más los cambios y las fotos del análisis. Sólo para el análisis de falla.
+    /// </summary>
+    Task<Detencion?> GetByIdConAnalisisAsync(long detencionId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Una foto del análisis de la detención (sin seguimiento), o null si no existe o es de otra detención.
+    /// </summary>
+    Task<AnalisisAdjunto?> GetAdjuntoAnalisisAsync(long detencionId, long adjuntoId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Incluye las eliminadas. Sólo para acciones de administración (restaurar).
     /// </summary>
     Task<Detencion?> GetByIdIncluyendoEliminadasAsync(long detencionId, CancellationToken cancellationToken = default);

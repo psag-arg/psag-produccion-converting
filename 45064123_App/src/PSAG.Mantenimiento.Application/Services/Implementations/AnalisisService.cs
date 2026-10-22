@@ -33,11 +33,11 @@ public class AnalisisService : IAnalisisService
         IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken = default)
     {
-        var detencion = await _unitOfWork.Detenciones.GetByIdWithDetailsAsync(detencionId, cancellationToken);
+        var detencion = await _unitOfWork.Detenciones.GetByIdConAnalisisAsync(detencionId, cancellationToken);
         if (detencion == null)
             return Result<AnalisisDetencionDto>.Failure("NOT_FOUND", "Detención no encontrada.");
 
-        return Result<AnalisisDetencionDto>.Success(await ArmarDtoAsync(detencion, usuarioId, roles, cancellationToken));
+        return Result<AnalisisDetencionDto>.Success(await ArmarDtoAsync(_unitOfWork, detencion, usuarioId, roles, cancellationToken));
     }
 
     public async Task<Result<AnalisisDetencionDto>> GuardarBorradorAsync(
@@ -67,7 +67,7 @@ public class AnalisisService : IAnalisisService
         _logger.LogInformation("Análisis de la detención {DetencionId} guardado como borrador por usuario {UsuarioId}",
             detencionId, usuarioId);
 
-        return Result<AnalisisDetencionDto>.Success(await ArmarDtoAsync(detencion, usuarioId, roles, cancellationToken));
+        return Result<AnalisisDetencionDto>.Success(await ArmarDtoAsync(_unitOfWork, detencion, usuarioId, roles, cancellationToken));
     }
 
     public async Task<Result<AnalisisDetencionDto>> CerrarAsync(
@@ -101,7 +101,7 @@ public class AnalisisService : IAnalisisService
         _logger.LogInformation("Análisis de la detención {DetencionId} cerrado por usuario {UsuarioId}",
             detencionId, usuarioId);
 
-        return Result<AnalisisDetencionDto>.Success(await ArmarDtoAsync(detencion, usuarioId, roles, cancellationToken));
+        return Result<AnalisisDetencionDto>.Success(await ArmarDtoAsync(_unitOfWork, detencion, usuarioId, roles, cancellationToken));
     }
 
     public async Task<Result<MisPendientesDto>> ObtenerMisPendientesAsync(
@@ -220,7 +220,7 @@ public class AnalisisService : IAnalisisService
         byte[] rowVersion,
         CancellationToken cancellationToken)
     {
-        var detencion = await _unitOfWork.Detenciones.GetByIdWithDetailsAsync(detencionId, cancellationToken);
+        var detencion = await _unitOfWork.Detenciones.GetByIdConAnalisisAsync(detencionId, cancellationToken);
         if (detencion == null)
             return Result<Detencion>.Failure("NOT_FOUND", "Detención no encontrada.");
 
@@ -288,7 +288,12 @@ public class AnalisisService : IAnalisisService
             .Distinct()
             .ToArray();
 
-    private async Task<AnalisisDetencionDto> ArmarDtoAsync(
+    /// <summary>
+    /// DTO del análisis a partir de una detención ya cargada con GetByIdConAnalisisAsync.
+    /// AnalisisEdicionService lo usa después de guardar, sin volver a leer la detención.
+    /// </summary>
+    internal static async Task<AnalisisDetencionDto> ArmarDtoAsync(
+        IUnitOfWork unitOfWork,
         Detencion detencion,
         string usuarioId,
         IReadOnlyCollection<string> roles,
@@ -330,14 +335,14 @@ public class AnalisisService : IAnalisisService
 
         if (detencion.ReglaAnalisisId.HasValue)
         {
-            var regla = await _unitOfWork.ReglasAnalisis.GetByIdAsync(detencion.ReglaAnalisisId.Value, cancellationToken);
+            var regla = await unitOfWork.ReglasAnalisis.GetByIdAsync(detencion.ReglaAnalisisId.Value, cancellationToken);
             dto.MinutosMinimosRegla = regla?.MinutosMinimos;
         }
 
         // Fallas parecidas: mismo equipo; si la falla no tiene equipo, mismo tipo de falla.
         if (detencion.EquipoId.HasValue || detencion.TipoFallaId.HasValue)
         {
-            var parecidas = await _unitOfWork.Detenciones.GetSolucionesAsync(
+            var parecidas = await unitOfWork.Detenciones.GetSolucionesAsync(
                 equipoId: detencion.EquipoId,
                 tipoFallaId: detencion.EquipoId.HasValue ? null : detencion.TipoFallaId,
                 excluirDetencionId: detencion.DetencionId,

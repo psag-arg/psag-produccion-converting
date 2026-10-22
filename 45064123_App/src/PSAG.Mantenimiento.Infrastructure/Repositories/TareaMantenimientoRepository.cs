@@ -6,13 +6,10 @@ using PSAG.Mantenimiento.Infrastructure.Data;
 
 namespace PSAG.Mantenimiento.Infrastructure.Repositories;
 
-public class TareaMantenimientoRepository : ITareaMantenimientoRepository
+public class TareaMantenimientoRepository : RepositoryBase<TareaMantenimiento>, ITareaMantenimientoRepository
 {
-    private readonly MantenimientoDbContext _context;
-
-    public TareaMantenimientoRepository(MantenimientoDbContext context)
+    public TareaMantenimientoRepository(MantenimientoDbContext context) : base(context)
     {
-        _context = context;
     }
 
     public async Task<TareaMantenimiento?> GetByIdAsync(long tareaMantenimientoId, CancellationToken cancellationToken = default)
@@ -37,6 +34,7 @@ public class TareaMantenimientoRepository : ITareaMantenimientoRepository
         CancellationToken cancellationToken = default)
     {
         var query = ConRelaciones()
+            .AsNoTracking()
             .Where(t => t.Estado != EstadoTareaMantenimiento.CERRADA);
 
         if (lineaId.HasValue)
@@ -65,6 +63,7 @@ public class TareaMantenimientoRepository : ITareaMantenimientoRepository
         CancellationToken cancellationToken = default)
     {
         var query = ConRelaciones()
+            .AsNoTracking()
             .Where(t => t.Estado == EstadoTareaMantenimiento.CERRADA);
 
         if (lineaId.HasValue)
@@ -91,13 +90,8 @@ public class TareaMantenimientoRepository : ITareaMantenimientoRepository
         return (items, total);
     }
 
-    public async Task AddAsync(TareaMantenimiento tarea, CancellationToken cancellationToken = default)
-    {
-        await _context.TareasMantenimiento.AddAsync(tarea, cancellationToken);
-    }
-
     private IQueryable<TareaMantenimiento> ConRelaciones() =>
-        _context.TareasMantenimiento
+        _dbSet
             .Include(t => t.Linea)
             .Include(t => t.Equipo);
 }

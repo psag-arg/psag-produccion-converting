@@ -42,10 +42,31 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
             .Include(d => d.Turno)
             .Include(d => d.HistorialEstados.OrderByDescending(h => h.FechaHora))
             .Include(d => d.Notas.OrderByDescending(n => n.FechaHora))
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(d => d.DetencionId == detencionId, cancellationToken);
+    }
+
+    public async Task<Detencion?> GetByIdConAnalisisAsync(long detencionId, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .Include(d => d.Linea)
+            .Include(d => d.Equipo)
+            .Include(d => d.TipoFalla)
+            .Include(d => d.DetalleFalla)
+            .Include(d => d.Turno)
+            .Include(d => d.HistorialEstados.OrderByDescending(h => h.FechaHora))
+            .Include(d => d.Notas.OrderByDescending(n => n.FechaHora))
             .Include(d => d.CambiosAnalisis.OrderByDescending(c => c.FechaHora))
             .Include(d => d.AdjuntosAnalisis.OrderBy(a => a.AnalisisAdjuntoId))
             .AsSplitQuery()
             .FirstOrDefaultAsync(d => d.DetencionId == detencionId, cancellationToken);
+    }
+
+    public async Task<AnalisisAdjunto?> GetAdjuntoAnalisisAsync(long detencionId, long adjuntoId, CancellationToken cancellationToken = default)
+    {
+        return await _context.Set<AnalisisAdjunto>()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.AnalisisAdjuntoId == adjuntoId && a.DetencionId == detencionId, cancellationToken);
     }
 
     public async Task<IEnumerable<Detencion>> GetByLineaAsync(int lineaId, CancellationToken cancellationToken = default)

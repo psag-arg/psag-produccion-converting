@@ -387,6 +387,12 @@
         puedeGestionar = TareaMantenimientoOpciones.PuedeGestionar(user.IsInRole);
         var esSoloOperario = RolesCarga.SoloOperario(user.IsInRole);
 
+        // Catálogos y tareas no dependen entre sí: se piden juntos.
+        await Task.WhenAll(CargarCatalogos(esSoloOperario), CargarTareas());
+    }
+
+    private async Task CargarCatalogos(bool esSoloOperario)
+    {
         try
         {
             var lineasTask = CatalogosService.GetLineasAsync();
@@ -394,24 +400,12 @@
             await Task.WhenAll(lineasTask, asignacionesTask);
 
             lineas = await lineasTask;
-            var asignaciones = await asignacionesTask;
-            if (asignaciones.Any())
-            {
-                var ids = asignaciones.Select(a => a.LineaId).ToHashSet();
-                lineasDisponibles = lineas.Where(l => ids.Contains(l.LineaId)).ToList();
-            }
-            else
-            {
-                // Sin asignaciones: el operario no puede cargar (la API lo rechaza); el resto ve todas.
-                lineasDisponibles = esSoloOperario ? new() : lineas;
-            }
+            lineasDisponibles = RolesCarga.LineasDisponibles(lineas, await asignacionesTask, esSoloOperario);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error cargando catálogos: {ex.Message}");
         }
-
-        await CargarTareas();
     }
 
     private async Task CargarTareas()

@@ -12,18 +12,15 @@ namespace PSAG.Mantenimiento.Application.Services.Implementations;
 public class AnalisisEdicionService : IAnalisisEdicionService
 {
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IAnalisisService _analisisService;
     private readonly IAlmacenAdjuntos _almacen;
     private readonly ILogger<AnalisisEdicionService> _logger;
 
     public AnalisisEdicionService(
         IUnitOfWork unitOfWork,
-        IAnalisisService analisisService,
         IAlmacenAdjuntos almacen,
         ILogger<AnalisisEdicionService> logger)
     {
         _unitOfWork = unitOfWork;
-        _analisisService = analisisService;
         _almacen = almacen;
         _logger = logger;
     }
@@ -35,7 +32,7 @@ public class AnalisisEdicionService : IAnalisisEdicionService
         IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken = default)
     {
-        var detencion = await _unitOfWork.Detenciones.GetByIdWithDetailsAsync(detencionId, cancellationToken);
+        var detencion = await _unitOfWork.Detenciones.GetByIdConAnalisisAsync(detencionId, cancellationToken);
         if (detencion == null)
             return Result<AnalisisDetencionDto>.Failure("NOT_FOUND", "Detención no encontrada.");
 
@@ -75,7 +72,8 @@ public class AnalisisEdicionService : IAnalisisEdicionService
                 detencionId, usuarioId, string.Join(", ", cambios.Select(c => c.Campo)));
         }
 
-        return await _analisisService.ObtenerAsync(detencionId, usuarioId, roles, cancellationToken);
+        return Result<AnalisisDetencionDto>.Success(
+            await AnalisisService.ArmarDtoAsync(_unitOfWork, detencion, usuarioId, roles, cancellationToken));
     }
 
     public async Task<Result<AdjuntoAnalisisDto>> AgregarAdjuntoAsync(
@@ -87,7 +85,7 @@ public class AnalisisEdicionService : IAnalisisEdicionService
         IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken = default)
     {
-        var detencion = await _unitOfWork.Detenciones.GetByIdWithDetailsAsync(detencionId, cancellationToken);
+        var detencion = await _unitOfWork.Detenciones.GetByIdConAnalisisAsync(detencionId, cancellationToken);
         if (detencion == null)
             return Result<AdjuntoAnalisisDto>.Failure("NOT_FOUND", "Detención no encontrada.");
 
@@ -99,24 +97,23 @@ public class AnalisisEdicionService : IAnalisisEdicionService
             return Result<AdjuntoAnalisisDto>.Failure("FORBIDDEN", mensaje);
         }
 
+        // El stream se lee una vez para la cabecera y se rebobina para guardarlo: no se copia a memoria.
+        // El de un IFormFile siempre se puede rebobinar y su largo es el real, no el declarado.
+        if (!contenido.CanSeek)
+            throw new ArgumentException("El contenido del adjunto tiene que poder rebobinarse.", nameof(contenido));
+
         var cantidad = detencion.AdjuntosAnalisis.Count;
+        var tamanoReal = Math.Max(tamanoBytes, contenido.Length - contenido.Position);
+        var inicio = contenido.Position;
 
-        // Primero cantidad y tamaño declarado, para no leer a memoria un archivo enorme.
-        if (cantidad >= AdjuntoImagenReglas.MaximoPorAnalisis
-            || tamanoBytes <= 0
-            || tamanoBytes > AdjuntoImagenReglas.TamanoMaximoBytes)
-        {
-            return Result<AdjuntoAnalisisDto>.Failure("VALIDATION",
-                AdjuntoImagenReglas.MotivoRechazo(nombreOriginal, tamanoBytes, ReadOnlySpan<byte>.Empty, cantidad)!);
-        }
+        var cabecera = new byte[AdjuntoImagenReglas.BytesCabecera];
+        var leidos = await contenido.ReadAtLeastAsync(cabecera, cabecera.Length, throwOnEndOfStream: false, cancellationToken);
 
-        using var copia = new MemoryStream();
-        await CopiarConLimiteAsync(contenido, copia, AdjuntoImagenReglas.TamanoMaximoBytes + 1, cancellationToken);
-        var cabecera = copia.GetBuffer().AsSpan(0, (int)Math.Min(copia.Length, AdjuntoImagenReglas.BytesCabecera)).ToArray();
-
-        var motivo = AdjuntoImagenReglas.MotivoRechazo(nombreOriginal, copia.Length, cabecera, cantidad);
+        var motivo = AdjuntoImagenReglas.MotivoRechazo(nombreOriginal, tamanoReal, cabecera.AsSpan(0, leidos), cantidad);
         if (motivo != null)
             return Result<AdjuntoAnalisisDto>.Failure("VALIDATION", motivo);
+
+        contenido.Position = inicio;
 
         var contentType = AdjuntoImagenReglas.DetectarTipo(cabecera)!;
         var nombreArchivo = $"{Guid.NewGuid():N}{AdjuntoImagenReglas.Extension(contentType)}";
@@ -128,7 +125,7 @@ public class AnalisisEdicionService : IAnalisisEdicionService
             NombreArchivo = nombreArchivo,
             NombreOriginal = NombreParaMostrar(nombreOriginal),
             ContentType = contentType,
-            TamanoBytes = copia.Length,
+            TamanoBytes = tamanoReal,
             UsuarioId = usuarioId,
             FechaHora = ahora
         };
@@ -146,8 +143,7 @@ public class AnalisisEdicionService : IAnalisisEdicionService
             });
         }
 
-        copia.Position = 0;
-        await _almacen.GuardarAsync(nombreArchivo, copia, cancellationToken);
+        await _almacen.GuardarAsync(nombreArchivo, contenido, cancellationToken);
         try
         {
             await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -170,8 +166,7 @@ public class AnalisisEdicionService : IAnalisisEdicionService
         long adjuntoId,
         CancellationToken cancellationToken = default)
     {
-        var detencion = await _unitOfWork.Detenciones.GetByIdWithDetailsAsync(detencionId, cancellationToken);
-        var adjunto = detencion?.AdjuntosAnalisis.FirstOrDefault(a => a.AnalisisAdjuntoId == adjuntoId);
+        var adjunto = await _unitOfWork.Detenciones.GetAdjuntoAnalisisAsync(detencionId, adjuntoId, cancellationToken);
         if (adjunto == null)
             return Result<AdjuntoArchivo>.Failure("NOT_FOUND", "La foto no existe.");
 
@@ -197,24 +192,6 @@ public class AnalisisEdicionService : IAnalisisEdicionService
             return "La causa de la falla no puede quedar vacía.";
 
         return null;
-    }
-
-    /// <summary>
-    /// Copia hasta <paramref name="limite"/> bytes. Si el archivo es más grande, la validación de tamaño lo rechaza.
-    /// </summary>
-    private static async Task CopiarConLimiteAsync(Stream origen, Stream destino, long limite, CancellationToken cancellationToken)
-    {
-        var buffer = new byte[81920];
-        long total = 0;
-        while (total < limite)
-        {
-            var leidos = await origen.ReadAsync(buffer.AsMemory(0, (int)Math.Min(buffer.Length, limite - total)), cancellationToken);
-            if (leidos == 0)
-                break;
-
-            await destino.WriteAsync(buffer.AsMemory(0, leidos), cancellationToken);
-            total += leidos;
-        }
     }
 
     /// <summary>

@@ -16,6 +16,19 @@ public static class RolesCarga
         tieneRol("OPERARIO") && !new[] { "ADMINISTRADOR", "SUPERVISOR", "MANTENIMIENTO" }.Any(tieneRol);
 
     /// <summary>
+    /// Líneas en las que el usuario puede cargar: sus líneas asignadas; sin asignaciones, ninguna si es
+    /// sólo operario (la API lo rechaza) y todas para el resto.
+    /// </summary>
+    public static List<LineaDto> LineasDisponibles(List<LineaDto> lineas, IEnumerable<MaquinistaDto> asignaciones, bool esSoloOperario)
+    {
+        var ids = asignaciones.Select(a => a.LineaId).ToHashSet();
+        if (ids.Count > 0)
+            return lineas.Where(l => ids.Contains(l.LineaId)).ToList();
+
+        return esSoloOperario ? new() : lineas;
+    }
+
+    /// <summary>
     /// Lápiz de editar: detención abierta, rol que carga y, si es sólo operario, una de sus líneas.
     /// La API vuelve a validar lo mismo al guardar.
     /// </summary>

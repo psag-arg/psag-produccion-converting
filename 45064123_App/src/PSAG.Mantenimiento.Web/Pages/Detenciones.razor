@@ -827,18 +827,7 @@
             lineas = await lineasTask;
             tiposFalla = await tiposFallaTask;
             misAsignaciones = await asignacionesTask;
-
-            // Si el usuario tiene asignaciones, filtrar lineas a solo las asignadas
-            if (misAsignaciones.Any())
-            {
-                var lineasAsignadasIds = misAsignaciones.Select(a => a.LineaId).ToHashSet();
-                lineasDisponibles = lineas.Where(l => lineasAsignadasIds.Contains(l.LineaId)).ToList();
-            }
-            else
-            {
-                // Sin asignaciones: el operario no puede cargar (la API lo rechaza); el resto ve todas.
-                lineasDisponibles = esSoloOperario ? new() : lineas;
-            }
+            lineasDisponibles = RolesCarga.LineasDisponibles(lineas, misAsignaciones, esSoloOperario);
             errorCatalogos = false;
         }
         catch (Exception ex)

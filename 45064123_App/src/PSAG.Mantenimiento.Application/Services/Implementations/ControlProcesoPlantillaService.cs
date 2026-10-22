@@ -65,11 +65,11 @@ public class ControlProcesoPlantillaService : IControlProcesoPlantillaService
         if (error != null)
             return Result<int>.Failure("VALIDATION", error);
 
-        var existentes = await _unitOfWork.GruposParametro.GetPlantillaLineaConPuntosAsync(request.LineaId, cancellationToken);
+        var existentes = await _unitOfWork.GruposParametro.CountAsync(g => g.LineaId == request.LineaId, cancellationToken);
         var grupo = new GrupoParametro
         {
             LineaId = request.LineaId,
-            Codigo = $"CP-L{request.LineaId}-G{existentes.Count() + 1:00}",
+            Codigo = $"CP-L{request.LineaId}-G{existentes + 1:00}",
             Nombre = request.Nombre.Trim(),
             Descripcion = Recortar(request.Descripcion),
             Orden = request.Orden,

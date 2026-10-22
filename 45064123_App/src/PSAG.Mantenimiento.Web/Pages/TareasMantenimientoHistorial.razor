@@ -173,7 +173,10 @@
     private bool isLoading = true;
     private string? errorCarga;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnInitializedAsync() =>
+        await Task.WhenAll(CargarLineas(), Cargar());
+
+    private async Task CargarLineas()
     {
         try
         {
@@ -183,8 +186,6 @@
         {
             Console.WriteLine($"Error cargando líneas: {ex.Message}");
         }
-
-        await Cargar();
     }
 
     private async Task Cargar()

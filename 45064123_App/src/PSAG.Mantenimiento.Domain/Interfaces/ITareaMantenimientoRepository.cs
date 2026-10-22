@@ -3,8 +3,11 @@ using PSAG.Mantenimiento.Domain.Enums;
 
 namespace PSAG.Mantenimiento.Domain.Interfaces;
 
-public interface ITareaMantenimientoRepository
+public interface ITareaMantenimientoRepository : IRepository<TareaMantenimiento>
 {
+    /// <summary>
+    /// Con línea y equipo, con seguimiento (para programar o cerrar).
+    /// </summary>
     Task<TareaMantenimiento?> GetByIdAsync(long tareaMantenimientoId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<TareaMantenimiento>> GetByIdsAsync(
@@ -12,7 +15,7 @@ public interface ITareaMantenimientoRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Tareas no cerradas (pendientes y programadas), de más a menos crítica y, a igual criticidad, las más viejas primero.
+    /// Tareas no cerradas (pendientes y programadas), de más a menos crítica y, a igual criticidad, las más viejas primero. Sólo lectura (sin seguimiento).
     /// </summary>
     Task<IReadOnlyList<TareaMantenimiento>> GetActivasAsync(
         int? lineaId = null,
@@ -21,7 +24,7 @@ public interface ITareaMantenimientoRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Historial de tareas cerradas, de la más reciente a la más vieja. Las fechas filtran por fecha de cierre.
+    /// Historial de tareas cerradas, de la más reciente a la más vieja. Las fechas filtran por fecha de cierre. Sólo lectura (sin seguimiento).
     /// </summary>
     Task<(IReadOnlyList<TareaMantenimiento> Items, int TotalCount)> GetCerradasPaginadoAsync(
         int page,
@@ -33,6 +36,4 @@ public interface ITareaMantenimientoRepository
         DateTimeOffset? cierreDesde = null,
         DateTimeOffset? cierreHasta = null,
         CancellationToken cancellationToken = default);
-
-    Task AddAsync(TareaMantenimiento tarea, CancellationToken cancellationToken = default);
 }

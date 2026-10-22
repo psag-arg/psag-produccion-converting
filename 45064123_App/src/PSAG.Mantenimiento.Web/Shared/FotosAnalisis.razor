@@ -113,19 +113,23 @@ else if (!PuedeAdjuntar && MostrarVacio)
 
     protected override async Task OnParametersSetAsync()
     {
-        foreach (var adjunto in Adjuntos.Where(a => !imagenes.ContainsKey(a.AnalisisAdjuntoId)).ToList())
+        // En paralelo; AnalisisService guarda las que ya bajó, así que re-crear el componente no las vuelve a pedir.
+        var pendientes = Adjuntos.Where(a => !imagenes.ContainsKey(a.AnalisisAdjuntoId)).ToList();
+        await Task.WhenAll(pendientes.Select(a => CargarImagen(a.AnalisisAdjuntoId)));
+    }
+
+    private async Task CargarImagen(long adjuntoId)
+    {
+        try
         {
-            try
-            {
-                imagenes[adjunto.AnalisisAdjuntoId] = await AnalisisService.GetAdjuntoDataUrlAsync(DetencionId, adjunto.AnalisisAdjuntoId);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error al cargar la foto {adjunto.AnalisisAdjuntoId}: {ex.Message}");
-                imagenes[adjunto.AnalisisAdjuntoId] = null;
-            }
-            StateHasChanged();
+            imagenes[adjuntoId] = await AnalisisService.GetAdjuntoDataUrlAsync(DetencionId, adjuntoId);
         }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al cargar la foto {adjuntoId}: {ex.Message}");
+            imagenes[adjuntoId] = null;
+        }
+        StateHasChanged();
     }
 
     private async Task Subir(InputFileChangeEventArgs e)

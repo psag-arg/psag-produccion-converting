@@ -57,7 +57,7 @@ public class AnalisisEdicionTests : IDisposable
 
         var unitOfWork = new UnitOfWork(_context);
         _analisisService = new AnalisisService(unitOfWork, NullLogger<AnalisisService>.Instance);
-        _edicionService = new AnalisisEdicionService(unitOfWork, _analisisService, _almacen, NullLogger<AnalisisEdicionService>.Instance);
+        _edicionService = new AnalisisEdicionService(unitOfWork, _almacen, NullLogger<AnalisisEdicionService>.Instance);
 
         CrearCatalogos();
     }
