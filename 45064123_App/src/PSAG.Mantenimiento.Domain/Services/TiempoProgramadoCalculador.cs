@@ -9,8 +9,9 @@ public static class TiempoProgramadoCalculador
 {
     /// <summary>
     /// Para cada día del rango (ambos extremos incluidos) devuelve los minutos programados:
-    /// si hay una excepción activa para ese día, sus horas * 60; si no, la suma de la duración
-    /// de los turnos activos. Las filas o turnos inactivos se ignoran.
+    /// si hay una excepción activa para ese día, sus horas * 60; si no, los minutos del día que cubren
+    /// los turnos activos (una hora en la que se superponen dos turnos cuenta una vez, máximo 24 h).
+    /// Las filas o turnos inactivos se ignoran.
     /// </summary>
     public static IReadOnlyList<MinutosProgramadosDia> MinutosProgramadosPorDia(
         DateOnly desde,
@@ -18,7 +19,7 @@ public static class TiempoProgramadoCalculador
         IEnumerable<Turno> turnos,
         IEnumerable<TiempoProgramadoDia> excepciones)
     {
-        var estandar = turnos.Where(t => t.Activo).Sum(t => t.DuracionMinutos());
+        var estandar = TurnoReglas.MinutosCubiertos(turnos.Where(t => t.Activo));
 
         // Una fila por fecha (índice único en base de datos).
         var excepcionPorFecha = excepciones

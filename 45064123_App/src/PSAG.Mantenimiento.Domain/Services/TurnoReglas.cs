@@ -31,6 +31,22 @@ public static class TurnoReglas
         return null;
     }
 
+    /// <summary>
+    /// Minutos del día cubiertos por al menos uno de los turnos. Una hora que dos turnos comparten
+    /// cuenta una sola vez: el resultado nunca pasa de 24 h aunque los horarios cargados se superpongan.
+    /// </summary>
+    public static int MinutosCubiertos(IEnumerable<Turno> turnos)
+    {
+        var cubierto = new bool[MinutosDia];
+        foreach (var (desde, hasta) in turnos.SelectMany(Tramos))
+        {
+            for (var minuto = desde; minuto < hasta; minuto++)
+                cubierto[minuto] = true;
+        }
+
+        return cubierto.Count(c => c);
+    }
+
     private static bool SeSuperponen(Turno a, Turno b) =>
         Tramos(a).Any(x => Tramos(b).Any(y => x.Desde < y.Hasta && y.Desde < x.Hasta));
 

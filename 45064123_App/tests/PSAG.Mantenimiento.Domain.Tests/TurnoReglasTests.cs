@@ -76,4 +76,23 @@ public class TurnoReglasTests
         Assert.Equal("Paro · antes 8 h históricas (HS PROG)", TurnoReglas.MotivoReemplazandoHistorico(8m, "Paro"));
         Assert.Equal(200, TurnoReglas.MotivoReemplazandoHistorico(8m, new string('x', 250)).Length);
     }
+
+    [Fact]
+    public void MinutosCubiertos_TresTurnosDeOcho_Veinticuatro_Horas()
+    {
+        Assert.Equal(24 * 60, TurnoReglas.MinutosCubiertos(Planta));
+    }
+
+    [Fact]
+    public void MinutosCubiertos_HoraCompartidaCuentaUnaVez()
+    {
+        Assert.Equal(24 * 60, TurnoReglas.MinutosCubiertos([T(1, "Turno 1", 5, 14), T(2, "Turno 2", 14, 22), T(3, "Turno 3", 22, 6)]));
+        Assert.Equal(9 * 60, TurnoReglas.MinutosCubiertos([T(1, "Turno 1", 6, 14), T(9, "Extra", 13, 15)]));
+    }
+
+    [Fact]
+    public void MinutosCubiertos_SinTurnos_Cero()
+    {
+        Assert.Equal(0, TurnoReglas.MinutosCubiertos([]));
+    }
 }
