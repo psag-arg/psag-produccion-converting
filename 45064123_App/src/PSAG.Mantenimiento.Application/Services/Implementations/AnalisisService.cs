@@ -183,8 +183,9 @@ public class AnalisisService : IAnalisisService
         return total;
     }
 
-    public async Task<Result<IReadOnlyList<SolucionDto>>> BuscarSolucionesAsync(
+    public async Task<Result<SolucionesResultadoDto>> BuscarSolucionesAsync(
         BuscarSolucionesRequest filtro,
+        IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken = default)
     {
         var detenciones = await _unitOfWork.Detenciones.GetSolucionesAsync(
@@ -195,7 +196,21 @@ public class AnalisisService : IAnalisisService
             limite: LimiteSoluciones,
             cancellationToken: cancellationToken);
 
-        return Result<IReadOnlyList<SolucionDto>>.Success(detenciones.Select(MapearSolucion).ToList());
+        var items = detenciones.Select(MapearSolucion).ToList();
+
+        // Solo hace falta contar si se llenó el límite; si no, las fichas son todas las que hay.
+        var total = items.Count < LimiteSoluciones
+            ? items.Count
+            : await _unitOfWork.Detenciones.ContarSolucionesAsync(
+                filtro.Busqueda, filtro.LineaId, filtro.EquipoId, filtro.TipoFallaId, cancellationToken);
+
+        return Result<SolucionesResultadoDto>.Success(new SolucionesResultadoDto
+        {
+            Total = total,
+            Limite = LimiteSoluciones,
+            Items = items,
+            PuedeEditar = AnalisisEdicionReglas.PuedeEditarCerrado(roles)
+        });
     }
 
     private async Task<Result<Detencion>> CargarEditableAsync(
@@ -205,7 +220,7 @@ public class AnalisisService : IAnalisisService
         byte[] rowVersion,
         CancellationToken cancellationToken)
     {
-        var detencion = await _unitOfWork.Detenciones.GetByIdAsync(detencionId, cancellationToken);
+        var detencion = await _unitOfWork.Detenciones.GetByIdWithDetailsAsync(detencionId, cancellationToken);
         if (detencion == null)
             return Result<Detencion>.Failure("NOT_FOUND", "Detención no encontrada.");
 
@@ -298,6 +313,18 @@ public class AnalisisService : IAnalisisService
             PuedeEditar = detencion.RequiereAnalisis
                 && (detencion.EstadoActual == EstadoDetencion.REGISTRADA || detencion.EstadoActual == EstadoDetencion.EN_SEGUIMIENTO)
                 && AnalisisFallaReglas.PuedeEditar(detencion, usuarioId, roles),
+            PuedeEditarCerrado = detencion.EstadoActual == EstadoDetencion.CERRADA
+                && AnalisisEdicionReglas.PuedeEditarCerrado(roles),
+            PuedeAdjuntar = AnalisisEdicionReglas.PuedeAdjuntar(detencion, usuarioId, roles),
+            Adjuntos = detencion.AdjuntosAnalisis
+                .OrderBy(a => a.AnalisisAdjuntoId)
+                .Select(MapearAdjunto)
+                .ToList(),
+            Cambios = detencion.CambiosAnalisis
+                .OrderByDescending(c => c.FechaHora)
+                .ThenByDescending(c => c.AnalisisCambioId)
+                .Select(MapearCambio)
+                .ToList(),
             RowVersion = detencion.RowVersion
         };
 
@@ -331,7 +358,7 @@ public class AnalisisService : IAnalisisService
         detencion.ModificadoPorUsuarioId = usuarioId;
     }
 
-    private static string? ValidarLargos(GuardarAnalisisRequest request)
+    internal static string? ValidarLargos(GuardarAnalisisRequest request)
     {
         if ((request.AccionesRealizadas?.Length ?? 0) > LongitudMaximaSolucion)
             return $"La solución no puede superar {LongitudMaximaSolucion} caracteres.";
@@ -345,7 +372,7 @@ public class AnalisisService : IAnalisisService
         return null;
     }
 
-    private static string? Limpiar(string? texto) =>
+    internal static string? Limpiar(string? texto) =>
         string.IsNullOrWhiteSpace(texto) ? null : texto.Trim();
 
     private static bool CoincideResponsable(Detencion detencion, string? responsableRol, string? responsableUsuarioId)
@@ -424,8 +451,42 @@ public class AnalisisService : IAnalisisService
         Descripcion = detencion.Descripcion,
         AccionesRealizadas = detencion.AccionesRealizadas,
         CausaFalla = detencion.CausaFalla,
+        PlanAccion = detencion.PlanAccion,
         AnalisisPorUsuarioId = detencion.AnalisisPorUsuarioId,
-        FechaHoraAnalisis = detencion.FechaHoraAnalisis
+        FechaHoraAnalisis = detencion.FechaHoraAnalisis,
+        Adjuntos = detencion.AdjuntosAnalisis
+            .OrderBy(a => a.AnalisisAdjuntoId)
+            .Select(MapearAdjunto)
+            .ToList(),
+        RowVersion = detencion.RowVersion
+    };
+
+    internal static AdjuntoAnalisisDto MapearAdjunto(AnalisisAdjunto adjunto) => new()
+    {
+        AnalisisAdjuntoId = adjunto.AnalisisAdjuntoId,
+        DetencionId = adjunto.DetencionId,
+        NombreOriginal = adjunto.NombreOriginal,
+        ContentType = adjunto.ContentType,
+        TamanoBytes = adjunto.TamanoBytes,
+        UsuarioId = adjunto.UsuarioId,
+        FechaHora = adjunto.FechaHora
+    };
+
+    private static AnalisisCambioDto MapearCambio(AnalisisCambio cambio) => new()
+    {
+        Campo = cambio.Campo,
+        CampoDescripcion = cambio.Campo switch
+        {
+            AnalisisCambio.CampoSolucion => "Solución",
+            AnalisisCambio.CampoCausa => "Causa de falla",
+            AnalisisCambio.CampoPlanAccion => "Plan de acción",
+            AnalisisCambio.CampoFoto => "Foto agregada",
+            _ => cambio.Campo
+        },
+        ValorAnterior = cambio.ValorAnterior,
+        ValorNuevo = cambio.ValorNuevo,
+        UsuarioId = cambio.UsuarioId,
+        FechaHora = cambio.FechaHora
     };
 
     private static Result<T> Propagar<T>(Result origen) =>

@@ -157,6 +157,9 @@ $apiSettings = @"
     "AccessTokenExpirationMinutes": 480,
     "RefreshTokenExpirationDays": 30
   },
+  "Adjuntos": {
+    "Carpeta": "C:\\PSAG\\Mantenimiento\\Adjuntos"
+  },
   "Cors": {
     "AllowedOrigins": [
       "http://localhost",

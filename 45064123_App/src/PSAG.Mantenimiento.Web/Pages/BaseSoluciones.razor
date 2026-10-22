@@ -87,10 +87,13 @@
         else if (resultados.Any())
         {
             <div class="text-muted mb-3">
-                @(resultados.Count == 1 ? "1 falla cerrada coincide" : $"{resultados.Count} fallas cerradas coinciden")
-                @if (resultados.Count >= LimiteResultados)
+                @if (total > resultados.Count)
                 {
-                    <span>(se muestran las primeras @LimiteResultados; afiná la búsqueda para ver menos)</span>
+                    <span>Se muestran las @resultados.Count más recientes de @total fallas cerradas que coinciden. Afiná la búsqueda para ver menos.</span>
+                }
+                else
+                {
+                    <span>@(resultados.Count == 1 ? "1 falla cerrada coincide" : $"{resultados.Count} fallas cerradas coinciden")</span>
                 }
             </div>
         }
@@ -113,19 +116,89 @@
                             }
                             <span class="badge bg-secondary">@item.MinutosEfectivos min</span>
                         </div>
-                        <small class="text-muted">
-                            @(item.AnalisisPorUsuarioNombre ?? "")
-                            @(item.FechaHoraAnalisis.HasValue ? item.FechaHoraAnalisis.Value.ToString("dd/MM/yyyy") : item.Fecha.ToString("dd/MM/yyyy"))
-                        </small>
+                        <div class="d-flex align-items-center gap-2">
+                            <small class="text-muted">
+                                @(item.AnalisisPorUsuarioNombre ?? "")
+                                @(item.FechaHoraAnalisis.HasValue ? item.FechaHoraAnalisis.Value.ToString("dd/MM/yyyy") : item.Fecha.ToString("dd/MM/yyyy"))
+                            </small>
+                            @if (puedeEditar && editando?.DetencionId != item.DetencionId)
+                            {
+                                <button class="btn btn-outline-primary btn-sm" @onclick="() => EmpezarEdicion(item)" disabled="@(editando != null)">
+                                    <i class="bi bi-pencil me-1"></i>Editar
+                                </button>
+                            }
+                        </div>
                     </div>
                     <div><span class="text-muted">Falla:</span> @item.Descripcion</div>
-                    @if (!string.IsNullOrEmpty(item.AccionesRealizadas))
+
+                    @if (guardadoId == item.DetencionId)
                     {
-                        <div class="mt-1"><strong>Solución:</strong> @item.AccionesRealizadas</div>
+                        <div class="alert alert-success py-1 px-2 small mt-2 mb-0">Análisis actualizado. El cambio quedó en el historial de la detención.</div>
                     }
-                    @if (!string.IsNullOrEmpty(item.CausaFalla))
+
+                    @if (editando?.DetencionId == item.DetencionId)
                     {
-                        <div><strong>Causa:</strong> @item.CausaFalla</div>
+                        <div class="border rounded p-3 mt-2">
+                            @if (errorEdicion != null)
+                            {
+                                <div class="alert alert-danger py-2">@errorEdicion</div>
+                            }
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold mb-1">Solución <span class="text-danger">*</span></label>
+                                <textarea class="form-control" rows="3" maxlength="@LargoSolucion" @bind="solucionTexto" @bind:event="oninput"></textarea>
+                                <div class="form-text">@solucionTexto.Length de @LargoSolucion caracteres como máximo.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold mb-1">Causa de falla <span class="text-danger">*</span></label>
+                                <textarea class="form-control" rows="3" maxlength="@LargoCausaYPlan" @bind="causaTexto" @bind:event="oninput"></textarea>
+                                <div class="form-text">@causaTexto.Length de @LargoCausaYPlan caracteres como máximo.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold mb-1">Plan de acción <span class="text-muted small fw-normal">(opcional)</span></label>
+                                <textarea class="form-control" rows="3" maxlength="@LargoCausaYPlan" @bind="planTexto" @bind:event="oninput"></textarea>
+                                <div class="form-text">@planTexto.Length de @LargoCausaYPlan caracteres como máximo.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold mb-1">Fotos</label>
+                                <FotosAnalisis DetencionId="item.DetencionId" Adjuntos="item.Adjuntos" PuedeAdjuntar="true"
+                                               OnAgregada="@(a => item.Adjuntos.Add(a))" />
+                                <div class="form-text">Las fotos se guardan apenas se suben, aunque después canceles la edición del texto.</div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <small class="text-muted">Se guarda sobre el análisis original. Queda registrado quién lo cambió, cuándo y qué decía antes.</small>
+                                <div>
+                                    <button class="btn btn-outline-secondary me-2" @onclick="CancelarEdicion" disabled="@guardando">Cancelar</button>
+                                    <button class="btn btn-primary" @onclick="@(async () => await GuardarEdicion(item))" disabled="@guardando">
+                                        @if (guardando)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-2"></span>
+                                        }
+                                        Guardar cambios
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        @if (!string.IsNullOrEmpty(item.AccionesRealizadas))
+                        {
+                            <div class="mt-1"><strong>Solución:</strong> @item.AccionesRealizadas</div>
+                        }
+                        @if (!string.IsNullOrEmpty(item.CausaFalla))
+                        {
+                            <div><strong>Causa:</strong> @item.CausaFalla</div>
+                        }
+                        @if (!string.IsNullOrEmpty(item.PlanAccion))
+                        {
+                            <div><strong>Plan de acción:</strong> @item.PlanAccion</div>
+                        }
+                        @if (item.Adjuntos.Any())
+                        {
+                            <div class="mt-2">
+                                <FotosAnalisis DetencionId="item.DetencionId" Adjuntos="item.Adjuntos" />
+                            </div>
+                        }
                     }
                 </div>
             </div>
@@ -150,7 +223,8 @@
 </div>
 
 @code {
-    private const int LimiteResultados = 50;
+    private const int LargoSolucion = 4000;
+    private const int LargoCausaYPlan = 2000;
 
     [Parameter, SupplyParameterFromQuery]
     public string? Busqueda { get; set; }
@@ -168,7 +242,18 @@
     private List<EquipoDto> equipos = new();
     private List<TipoFallaDto> tiposFalla = new();
     private List<SolucionDto> resultados = new();
+    private int total;
     private bool buscando = true;
+
+    // Edición de un análisis cerrado (administración y supervisión; la API lo vuelve a validar)
+    private bool puedeEditar;
+    private SolucionDto? editando;
+    private long? guardadoId;
+    private string solucionTexto = string.Empty;
+    private string causaTexto = string.Empty;
+    private string planTexto = string.Empty;
+    private bool guardando;
+    private string? errorEdicion;
     private bool buscoConFiltros;
     private string? errorBusqueda;
 
@@ -231,25 +316,92 @@
         buscando = true;
         errorBusqueda = null;
         buscoConFiltros = !string.IsNullOrWhiteSpace(busqueda) || lineaId.HasValue || equipoId.HasValue || tipoFallaId.HasValue;
+        editando = null;
+        guardadoId = null;
         try
         {
-            resultados = await AnalisisService.BuscarSolucionesAsync(new BuscarSolucionesFiltro
+            var resultado = await AnalisisService.BuscarSolucionesAsync(new BuscarSolucionesFiltro
             {
                 Busqueda = busqueda,
                 LineaId = lineaId,
                 EquipoId = equipoId,
                 TipoFallaId = tipoFallaId
             });
+            resultados = resultado.Items;
+            total = resultado.Total;
+            puedeEditar = resultado.PuedeEditar;
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error buscando soluciones: {ex.Message}");
             resultados = new();
+            total = 0;
             errorBusqueda = "No se pudo buscar en la base de soluciones. Revisá la conexión y probá de nuevo.";
         }
         finally
         {
             buscando = false;
+        }
+    }
+
+    private void EmpezarEdicion(SolucionDto item)
+    {
+        editando = item;
+        guardadoId = null;
+        errorEdicion = null;
+        solucionTexto = item.AccionesRealizadas ?? string.Empty;
+        causaTexto = item.CausaFalla ?? string.Empty;
+        planTexto = item.PlanAccion ?? string.Empty;
+    }
+
+    private void CancelarEdicion()
+    {
+        editando = null;
+        errorEdicion = null;
+    }
+
+    private async Task GuardarEdicion(SolucionDto item)
+    {
+        if (string.IsNullOrWhiteSpace(solucionTexto) || string.IsNullOrWhiteSpace(causaTexto))
+        {
+            errorEdicion = "La solución y la causa de la falla no pueden quedar vacías.";
+            return;
+        }
+
+        guardando = true;
+        errorEdicion = null;
+        try
+        {
+            var (analisis, error) = await AnalisisService.EditarCerradoAsync(item.DetencionId, new GuardarAnalisisRequest
+            {
+                AccionesRealizadas = solucionTexto,
+                CausaFalla = causaTexto,
+                PlanAccion = planTexto,
+                RowVersion = item.RowVersion
+            });
+
+            if (analisis == null)
+            {
+                errorEdicion = error;
+                return;
+            }
+
+            item.AccionesRealizadas = analisis.AccionesRealizadas;
+            item.CausaFalla = analisis.CausaFalla;
+            item.PlanAccion = analisis.PlanAccion;
+            item.RowVersion = analisis.RowVersion;
+            item.Adjuntos = analisis.Adjuntos;
+            editando = null;
+            guardadoId = item.DetencionId;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al editar el análisis: {ex.Message}");
+            errorEdicion = "No se pudo guardar. Revisá la conexión y probá de nuevo.";
+        }
+        finally
+        {
+            guardando = false;
         }
     }
 }

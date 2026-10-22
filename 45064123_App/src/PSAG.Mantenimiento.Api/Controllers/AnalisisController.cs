@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using PSAG.Mantenimiento.Application.Common;
 using PSAG.Mantenimiento.Application.DTOs.Analisis;
 using PSAG.Mantenimiento.Application.Services.Interfaces;
+using PSAG.Mantenimiento.Domain.Services;
 using PSAG.Mantenimiento.Infrastructure.Identity;
 
 namespace PSAG.Mantenimiento.Api.Controllers;
@@ -19,12 +20,22 @@ namespace PSAG.Mantenimiento.Api.Controllers;
 [Authorize]
 public class AnalisisController : ApiControllerBase
 {
+    /// <summary>
+    /// Límite del pedido de subida: una foto de hasta 10 MB más el sobre del multipart.
+    /// </summary>
+    private const long LimitePedidoAdjunto = AdjuntoImagenReglas.TamanoMaximoBytes + 1024 * 1024;
+
     private readonly IAnalisisService _analisisService;
+    private readonly IAnalisisEdicionService _edicionService;
     private readonly UserManager<ApplicationUser> _userManager;
 
-    public AnalisisController(IAnalisisService analisisService, UserManager<ApplicationUser> userManager)
+    public AnalisisController(
+        IAnalisisService analisisService,
+        IAnalisisEdicionService edicionService,
+        UserManager<ApplicationUser> userManager)
     {
         _analisisService = analisisService;
+        _edicionService = edicionService;
         _userManager = userManager;
     }
 
@@ -95,6 +106,80 @@ public class AnalisisController : ApiControllerBase
     }
 
     /// <summary>
+    /// Editar solución, causa y plan de un análisis cerrado (desde la Base de soluciones).
+    /// Solo administración y supervisión; cada campo cambiado queda en el historial con el valor anterior.
+    /// </summary>
+    [HttpPut("{id:long}/cerrado")]
+    [ProducesResponseType(typeof(AnalisisDetencionDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> EditarCerrado(long id, [FromBody] GuardarAnalisisRequest request)
+    {
+        if (string.IsNullOrEmpty(CurrentUserId))
+            return Unauthorized();
+
+        var resultado = await _edicionService.EditarCerradoAsync(id, request, CurrentUserId, Roles);
+        if (resultado.IsFailure)
+            return ErrorResult(resultado);
+
+        var dto = resultado.Value!;
+        await CompletarNombresAsync(dto);
+        return Ok(dto);
+    }
+
+    /// <summary>
+    /// Adjuntar una foto (JPG o PNG, hasta 10 MB, hasta 5 por análisis). Campo del formulario: "archivo".
+    /// En borrador: el responsable o un administrador. Cerrado: administración y supervisión.
+    /// </summary>
+    [HttpPost("{id:long}/adjuntos")]
+    [RequestSizeLimit(LimitePedidoAdjunto)]
+    [RequestFormLimits(MultipartBodyLengthLimit = LimitePedidoAdjunto)]
+    [ProducesResponseType(typeof(AdjuntoAnalisisDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AgregarAdjunto(long id, IFormFile? archivo)
+    {
+        if (string.IsNullOrEmpty(CurrentUserId))
+            return Unauthorized();
+
+        if (archivo == null)
+        {
+            return ErrorResult(Result.Failure("VALIDATION", "Elegí una foto para adjuntar."));
+        }
+
+        await using var contenido = archivo.OpenReadStream();
+        var resultado = await _edicionService.AgregarAdjuntoAsync(
+            id, archivo.FileName, archivo.Length, contenido, CurrentUserId, Roles);
+        if (resultado.IsFailure)
+            return ErrorResult(resultado);
+
+        var dto = resultado.Value!;
+        dto.UsuarioNombre = NombreDe(await NombresAsync([dto.UsuarioId]), dto.UsuarioId);
+        return Ok(dto);
+    }
+
+    /// <summary>
+    /// Bajar una foto del análisis. Requiere sesión; los archivos nunca se sirven como estáticos.
+    /// </summary>
+    [HttpGet("{id:long}/adjuntos/{adjuntoId:long}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetAdjunto(long id, long adjuntoId)
+    {
+        var resultado = await _edicionService.AbrirAdjuntoAsync(id, adjuntoId);
+        if (resultado.IsFailure)
+            return ErrorResult(resultado);
+
+        var archivo = resultado.Value!;
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        Response.Headers["Cache-Control"] = "private, max-age=3600";
+        return File(archivo.Contenido, archivo.ContentType);
+    }
+
+    /// <summary>
     /// Bandeja "Mis pendientes" según los roles del usuario actual.
     /// El administrador puede filtrar por responsable.
     /// </summary>
@@ -150,24 +235,24 @@ public class AnalisisController : ApiControllerBase
     }
 
     /// <summary>
-    /// Buscar soluciones en las detenciones cerradas con análisis (máximo 50 resultados).
+    /// Buscar soluciones en las detenciones cerradas con análisis (máximo 50 fichas; Total cuenta todas).
     /// </summary>
     [HttpGet("soluciones")]
-    [ProducesResponseType(typeof(IEnumerable<SolucionDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(SolucionesResultadoDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> BuscarSoluciones([FromQuery] BuscarSolucionesRequest filtro)
     {
-        var resultado = await _analisisService.BuscarSolucionesAsync(filtro);
+        var resultado = await _analisisService.BuscarSolucionesAsync(filtro, Roles);
         if (resultado.IsFailure)
             return ErrorResult(resultado);
 
-        var items = resultado.Value!;
+        var items = resultado.Value!.Items;
         var nombres = await NombresAsync(items.Select(s => s.AnalisisPorUsuarioId));
         foreach (var item in items)
         {
             item.AnalisisPorUsuarioNombre = NombreDe(nombres, item.AnalisisPorUsuarioId);
         }
 
-        return Ok(items);
+        return Ok(resultado.Value);
     }
 
     private async Task CompletarNombresAsync(AnalisisDetencionDto dto)
@@ -178,6 +263,8 @@ public class AnalisisController : ApiControllerBase
             dto.AnalisisPorUsuarioId
         };
         ids.AddRange(dto.FallasParecidas.Select(f => f.AnalisisPorUsuarioId));
+        ids.AddRange(dto.Cambios.Select(c => c.UsuarioId));
+        ids.AddRange(dto.Adjuntos.Select(a => a.UsuarioId));
 
         var nombres = await NombresAsync(ids);
         dto.ResponsableUsuarioNombre = NombreDe(nombres, dto.ResponsableUsuarioId);
@@ -187,6 +274,16 @@ public class AnalisisController : ApiControllerBase
         foreach (var parecida in dto.FallasParecidas)
         {
             parecida.AnalisisPorUsuarioNombre = NombreDe(nombres, parecida.AnalisisPorUsuarioId);
+        }
+
+        foreach (var cambio in dto.Cambios)
+        {
+            cambio.UsuarioNombre = NombreDe(nombres, cambio.UsuarioId);
+        }
+
+        foreach (var adjunto in dto.Adjuntos)
+        {
+            adjunto.UsuarioNombre = NombreDe(nombres, adjunto.UsuarioId);
         }
     }
 

@@ -1,0 +1,33 @@
+@* Historial de ediciones de un análisis cerrado: quién, cuándo y qué decía antes. *@
+
+@if (Cambios.Any())
+{
+    <div class="mb-3">
+        <h6 class="mb-2"><i class="bi bi-clock-history me-1"></i>Historial de cambios</h6>
+        <ul class="list-group">
+            @foreach (var cambio in Cambios)
+            {
+                <li class="list-group-item small">
+                    <div class="d-flex justify-content-between flex-wrap gap-2">
+                        <strong>@cambio.CampoDescripcion</strong>
+                        <span class="text-muted">@(cambio.UsuarioNombre ?? "usuario") · @cambio.FechaHora.ToString("dd/MM/yyyy HH:mm")</span>
+                    </div>
+                    @if (cambio.Campo == "FOTO")
+                    {
+                        <div>@cambio.ValorNuevo</div>
+                    }
+                    else
+                    {
+                        <div><span class="text-muted">Antes:</span> @(string.IsNullOrEmpty(cambio.ValorAnterior) ? "(vacío)" : cambio.ValorAnterior)</div>
+                        <div><span class="text-muted">Ahora:</span> @(string.IsNullOrEmpty(cambio.ValorNuevo) ? "(vacío)" : cambio.ValorNuevo)</div>
+                    }
+                </li>
+            }
+        </ul>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public List<AnalisisCambioDto> Cambios { get; set; } = new();
+}

@@ -1,5 +1,7 @@
 using PSAG.Mantenimiento.Web.Models;
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Components.Forms;
+using PSAG.Mantenimiento.Web.Shared;
 
 namespace PSAG.Mantenimiento.Web.Services;
 
@@ -10,7 +12,22 @@ public interface IAnalisisService
     Task<(bool Success, string? Error)> CerrarAnalisisAsync(long detencionId, GuardarAnalisisRequest request);
     Task<MisPendientesDto> GetMisPendientesAsync(string? responsableRol = null, string? responsableUsuarioId = null);
     Task<int> GetConteoPendientesAsync();
-    Task<List<SolucionDto>> BuscarSolucionesAsync(BuscarSolucionesFiltro filtro);
+    Task<SolucionesResultadoDto> BuscarSolucionesAsync(BuscarSolucionesFiltro filtro);
+
+    /// <summary>
+    /// Corrige un análisis cerrado (administración y supervisión). Devuelve el análisis actualizado.
+    /// </summary>
+    Task<(AnalisisDetencionDto? Analisis, string? Error)> EditarCerradoAsync(long detencionId, GuardarAnalisisRequest request);
+
+    /// <summary>
+    /// Sube una foto JPG o PNG al análisis.
+    /// </summary>
+    Task<(AdjuntoAnalisisDto? Adjunto, string? Error)> SubirAdjuntoAsync(long detencionId, IBrowserFile archivo);
+
+    /// <summary>
+    /// Baja una foto (con la sesión del usuario) y la devuelve como data URL para mostrarla en un img.
+    /// </summary>
+    Task<string?> GetAdjuntoDataUrlAsync(long detencionId, long adjuntoId);
 
     /// <summary>
     /// Se dispara después de guardar o cerrar un análisis, cuando cambia la bandeja de pendientes.
@@ -73,7 +90,56 @@ public class AnalisisService : IAnalisisService
         return resultado;
     }
 
-    public async Task<List<SolucionDto>> BuscarSolucionesAsync(BuscarSolucionesFiltro filtro)
+    public async Task<(AnalisisDetencionDto? Analisis, string? Error)> EditarCerradoAsync(long detencionId, GuardarAnalisisRequest request)
+    {
+        var response = await _httpClient.PutAsJsonAsync($"api/analisis/{detencionId}/cerrado", request);
+        var (success, error) = await ApiErrores.ResultadoAsync(response, "No se pudo guardar el análisis");
+        return success
+            ? (await response.Content.ReadFromJsonAsync<AnalisisDetencionDto>(), null)
+            : (null, error);
+    }
+
+    public async Task<(AdjuntoAnalisisDto? Adjunto, string? Error)> SubirAdjuntoAsync(long detencionId, IBrowserFile archivo)
+    {
+        // Mismo límite que la API; se avisa antes de mandar el archivo.
+        var motivo = AdjuntosAnalisisReglas.MotivoRechazoPrevio(archivo.Name, archivo.Size);
+        if (motivo != null)
+        {
+            return (null, motivo);
+        }
+
+        using var contenido = new MultipartFormDataContent();
+        var stream = new StreamContent(archivo.OpenReadStream(AdjuntosAnalisisReglas.TamanoMaximoBytes));
+        stream.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(
+            string.IsNullOrEmpty(archivo.ContentType) ? "application/octet-stream" : archivo.ContentType);
+        contenido.Add(stream, "archivo", archivo.Name);
+
+        var response = await _httpClient.PostAsync($"api/analisis/{detencionId}/adjuntos", contenido);
+        if (response.StatusCode == System.Net.HttpStatusCode.RequestEntityTooLarge)
+        {
+            return (null, $"La foto {archivo.Name} es demasiado grande. El máximo es 10 MB por foto.");
+        }
+
+        var (success, error) = await ApiErrores.ResultadoAsync(response, $"No se pudo subir {archivo.Name}");
+        return success
+            ? (await response.Content.ReadFromJsonAsync<AdjuntoAnalisisDto>(), null)
+            : (null, $"{archivo.Name}: {error}");
+    }
+
+    public async Task<string?> GetAdjuntoDataUrlAsync(long detencionId, long adjuntoId)
+    {
+        var response = await _httpClient.GetAsync($"api/analisis/{detencionId}/adjuntos/{adjuntoId}");
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        var tipo = response.Content.Headers.ContentType?.MediaType ?? "image/jpeg";
+        var bytes = await response.Content.ReadAsByteArrayAsync();
+        return $"data:{tipo};base64,{Convert.ToBase64String(bytes)}";
+    }
+
+    public async Task<SolucionesResultadoDto> BuscarSolucionesAsync(BuscarSolucionesFiltro filtro)
     {
         var query = new List<string>();
         if (!string.IsNullOrWhiteSpace(filtro.Busqueda)) query.Add($"busqueda={Uri.EscapeDataString(filtro.Busqueda)}");
@@ -82,6 +148,6 @@ public class AnalisisService : IAnalisisService
         if (filtro.TipoFallaId.HasValue) query.Add($"tipoFallaId={filtro.TipoFallaId}");
 
         var url = "api/analisis/soluciones" + (query.Count > 0 ? "?" + string.Join("&", query) : string.Empty);
-        return await _httpClient.GetFromJsonAsync<List<SolucionDto>>(url) ?? new List<SolucionDto>();
+        return await _httpClient.GetFromJsonAsync<SolucionesResultadoDto>(url) ?? new SolucionesResultadoDto();
     }
 }

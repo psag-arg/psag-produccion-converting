@@ -1,0 +1,171 @@
+@* Fotos del análisis de falla: miniaturas, vista grande y, con permiso, subir fotos nuevas. *@
+@inject IAnalisisService AnalisisService
+
+@if (Adjuntos.Any())
+{
+    <div class="d-flex flex-wrap gap-2 mb-2">
+        @foreach (var adjunto in Adjuntos)
+        {
+            <button type="button" class="btn p-0 border rounded overflow-hidden" style="width: 96px; height: 96px;"
+                    title="@($"{adjunto.NombreOriginal} · {adjunto.UsuarioNombre ?? "usuario"} · {adjunto.FechaHora:dd/MM/yyyy HH:mm}")"
+                    @onclick="() => ampliada = adjunto">
+                @if (imagenes.TryGetValue(adjunto.AnalisisAdjuntoId, out var url) && url != null)
+                {
+                    <img src="@url" alt="@adjunto.NombreOriginal" style="width: 100%; height: 100%; object-fit: cover;" />
+                }
+                else if (imagenes.ContainsKey(adjunto.AnalisisAdjuntoId))
+                {
+                    <span class="small text-muted px-1">No se pudo cargar</span>
+                }
+                else
+                {
+                    <span class="spinner-border spinner-border-sm text-secondary"></span>
+                }
+            </button>
+        }
+    </div>
+}
+else if (!PuedeAdjuntar && MostrarVacio)
+{
+    <div class="small text-muted mb-2">Sin fotos.</div>
+}
+
+@if (PuedeAdjuntar)
+{
+    @if (Adjuntos.Count < AdjuntosAnalisisReglas.MaximoPorAnalisis)
+    {
+        <label class="btn btn-outline-secondary btn-sm @(subiendo ? "disabled" : "")">
+            @if (subiendo)
+            {
+                <span class="spinner-border spinner-border-sm me-1"></span>
+                <span>Subiendo...</span>
+            }
+            else
+            {
+                <i class="bi bi-camera me-1"></i>
+                <span>Agregar fotos</span>
+            }
+            <InputFile class="d-none" multiple accept="@AdjuntosAnalisisReglas.Accept" OnChange="@(async e => await Subir(e))" disabled="@subiendo" />
+        </label>
+        <div class="form-text">JPG o PNG, hasta 10 MB cada una y @AdjuntosAnalisisReglas.MaximoPorAnalisis por análisis (quedan @(AdjuntosAnalisisReglas.MaximoPorAnalisis - Adjuntos.Count)).</div>
+    }
+    else
+    {
+        <div class="form-text">Ya tiene @AdjuntosAnalisisReglas.MaximoPorAnalisis fotos, que es el máximo por análisis.</div>
+    }
+}
+
+@foreach (var error in errores)
+{
+    <div class="alert alert-danger py-1 px-2 small mt-2 mb-0">@error</div>
+}
+
+@if (ampliada != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.6);" @onclick="() => ampliada = null">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+            <div class="modal-content" @onclick:stopPropagation="true">
+                <div class="modal-header py-2">
+                    <div class="small">
+                        <strong>@ampliada.NombreOriginal</strong>
+                        <span class="text-muted"> · @(ampliada.UsuarioNombre ?? "usuario") · @ampliada.FechaHora.ToString("dd/MM/yyyy HH:mm")</span>
+                    </div>
+                    <button type="button" class="btn-close" aria-label="Cerrar" @onclick="() => ampliada = null"></button>
+                </div>
+                <div class="modal-body text-center">
+                    @if (imagenes.TryGetValue(ampliada.AnalisisAdjuntoId, out var grande) && grande != null)
+                    {
+                        <img src="@grande" alt="@ampliada.NombreOriginal" class="img-fluid" style="max-height: 75vh;" />
+                    }
+                    else
+                    {
+                        <span class="text-muted">No se pudo cargar la foto.</span>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public long DetencionId { get; set; }
+
+    [Parameter]
+    public List<AdjuntoAnalisisDto> Adjuntos { get; set; } = new();
+
+    [Parameter]
+    public bool PuedeAdjuntar { get; set; }
+
+    /// <summary>Muestra "Sin fotos." cuando no hay ninguna y no se pueden agregar.</summary>
+    [Parameter]
+    public bool MostrarVacio { get; set; }
+
+    /// <summary>Se dispara después de subir cada foto.</summary>
+    [Parameter]
+    public EventCallback<AdjuntoAnalisisDto> OnAgregada { get; set; }
+
+    // null = se intentó y falló
+    private readonly Dictionary<long, string?> imagenes = new();
+    private readonly List<string> errores = new();
+    private AdjuntoAnalisisDto? ampliada;
+    private bool subiendo;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        foreach (var adjunto in Adjuntos.Where(a => !imagenes.ContainsKey(a.AnalisisAdjuntoId)).ToList())
+        {
+            try
+            {
+                imagenes[adjunto.AnalisisAdjuntoId] = await AnalisisService.GetAdjuntoDataUrlAsync(DetencionId, adjunto.AnalisisAdjuntoId);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error al cargar la foto {adjunto.AnalisisAdjuntoId}: {ex.Message}");
+                imagenes[adjunto.AnalisisAdjuntoId] = null;
+            }
+            StateHasChanged();
+        }
+    }
+
+    private async Task Subir(InputFileChangeEventArgs e)
+    {
+        errores.Clear();
+        var lugares = AdjuntosAnalisisReglas.MaximoPorAnalisis - Adjuntos.Count;
+        var archivos = e.GetMultipleFiles(AdjuntosAnalisisReglas.MaximoPorAnalisis + 10);
+        if (archivos.Count > lugares)
+        {
+            errores.Add($"Elegiste {archivos.Count} fotos y quedan {lugares} lugares. Se suben las primeras {lugares}.");
+        }
+
+        subiendo = true;
+        try
+        {
+            // Una por pedido: cada foto se valida y se guarda por separado.
+            foreach (var archivo in archivos.Take(lugares))
+            {
+                try
+                {
+                    var (adjunto, error) = await AnalisisService.SubirAdjuntoAsync(DetencionId, archivo);
+                    if (adjunto != null)
+                    {
+                        await OnAgregada.InvokeAsync(adjunto);
+                    }
+                    else if (error != null)
+                    {
+                        errores.Add(error);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error al subir {archivo.Name}: {ex.Message}");
+                    errores.Add($"{archivo.Name}: no se pudo subir. Revisá la conexión y probá de nuevo.");
+                }
+            }
+        }
+        finally
+        {
+            subiendo = false;
+        }
+    }
+}

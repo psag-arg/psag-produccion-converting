@@ -183,6 +183,32 @@
                                 <div class="p-3 bg-success bg-opacity-10 rounded">@detencion.ResolucionDescripcion</div>
                             </div>
                         }
+
+                        @if (analisisSinRegla != null && (analisisSinRegla.Adjuntos.Any() || analisisSinRegla.Cambios.Any()))
+                        {
+                            @if (!string.IsNullOrEmpty(analisisSinRegla.CausaFalla))
+                            {
+                                <div class="mb-3">
+                                    <label class="text-muted small">Causa de falla</label>
+                                    <div class="p-3 bg-light rounded">@analisisSinRegla.CausaFalla</div>
+                                </div>
+                            }
+                            @if (!string.IsNullOrEmpty(analisisSinRegla.PlanAccion))
+                            {
+                                <div class="mb-3">
+                                    <label class="text-muted small">Plan de acción</label>
+                                    <div class="p-3 bg-light rounded">@analisisSinRegla.PlanAccion</div>
+                                </div>
+                            }
+                            @if (analisisSinRegla.Adjuntos.Any())
+                            {
+                                <div class="mb-3">
+                                    <label class="text-muted small">Fotos</label>
+                                    <FotosAnalisis DetencionId="Id" Adjuntos="analisisSinRegla.Adjuntos" />
+                                </div>
+                            }
+                            <HistorialAnalisis Cambios="analisisSinRegla.Cambios" />
+                        }
                     </div>
                 </div>
 
@@ -254,6 +280,27 @@
                                     }
                                 </div>
 
+                                @if (analisis.Adjuntos.Any() || (analisis.PuedeAdjuntar && !AnalisisCerrado))
+                                {
+                                    <div class="mb-4">
+                                        <h6 class="mb-1">Fotos @if (!AnalisisCerrado) { <span class="text-muted small fw-normal">(opcional)</span> }</h6>
+                                        <FotosAnalisis DetencionId="Id" Adjuntos="analisis.Adjuntos"
+                                                       PuedeAdjuntar="@(analisis.PuedeAdjuntar && !AnalisisCerrado)"
+                                                       OnAgregada="@(a => analisis.Adjuntos.Add(a))" />
+                                    </div>
+                                }
+
+                                @if (AnalisisCerrado && analisis.PuedeEditarCerrado)
+                                {
+                                    <div class="mb-3">
+                                        <a class="btn btn-outline-primary btn-sm" href="@($"detenciones/soluciones?busqueda={Uri.EscapeDataString(detencion.Codigo)}")">
+                                            <i class="bi bi-pencil me-1"></i>Editar en la base de soluciones
+                                        </a>
+                                    </div>
+                                }
+
+                                <HistorialAnalisis Cambios="analisis.Cambios" />
+
                                 <hr />
 
                                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -277,7 +324,7 @@
                                                 Cerrar análisis
                                             </button>
                                             <div class="form-text">
-                                                @(FormularioVacio ? "Escribí algo antes de guardar el borrador. " : "")Una vez cerrado, el análisis no se puede editar.
+                                                @(FormularioVacio ? "Escribí algo antes de guardar el borrador. " : "")Una vez cerrado, solo administración o supervisión pueden corregirlo.
                                             </div>
                                         </div>
                                     }
@@ -286,7 +333,7 @@
                                 @if (confirmandoCierre)
                                 {
                                     <div class="alert alert-warning mt-3 mb-0 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                                        <span><strong>Al cerrar el análisis ya no se puede modificar.</strong> ¿Lo cerrás?</span>
+                                        <span><strong>Al cerrar el análisis ya no lo podés modificar</strong> (solo administración o supervisión pueden corregirlo). ¿Lo cerrás?</span>
                                         <div>
                                             <button class="btn btn-outline-secondary btn-sm me-2" @onclick="() => confirmandoCierre = false" disabled="@guardandoAnalisis">
                                                 Volver
@@ -476,6 +523,7 @@
 
     private DetencionDetalleDto? detencion;
     private AnalisisDetencionDto? analisis;
+    private AnalisisDetencionDto? analisisSinRegla;
     private bool isLoading = true;
     private bool showCerrarModal = false;
     private bool isCerrando = false;
@@ -527,6 +575,8 @@
                 puedeEditar = await PuedeEditarAsync(detencion);
                 cerrarRequest.RowVersion = detencion.RowVersion;
                 analisis = detencion.RequiereAnalisis ? await tareaAnalisis : null;
+                // Sin regla de análisis igual puede tener fotos o correcciones hechas desde la base de soluciones.
+                analisisSinRegla = detencion.RequiereAnalisis ? null : await tareaAnalisis;
                 CargarFormulario();
             }
         }
