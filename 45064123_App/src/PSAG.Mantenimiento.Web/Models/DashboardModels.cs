@@ -260,5 +260,6 @@ public class TiempoProgramadoDiaDto
     public int Minutos { get; set; }
     public double Horas { get; set; }
     public string Origen { get; set; } = string.Empty;
+    public string? Turnos { get; set; }
     public string? Motivo { get; set; }
 }

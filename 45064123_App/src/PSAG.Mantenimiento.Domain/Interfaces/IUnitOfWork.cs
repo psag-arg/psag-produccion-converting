@@ -16,6 +16,7 @@ public interface IUnitOfWork : IDisposable
     IAuditoriaRepository Auditoria { get; }
     IReglaAnalisisRepository ReglasAnalisis { get; }
     ITiempoProgramadoDiaRepository TiemposProgramadosDia { get; }
+    ICalendarioLineaRepository CalendariosLinea { get; }
 
     // Eje 2: Variables de proceso
     IProductoRepository Productos { get; }

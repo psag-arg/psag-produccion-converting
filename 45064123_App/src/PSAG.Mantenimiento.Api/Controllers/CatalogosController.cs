@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PSAG.Mantenimiento.Application.DTOs.Catalogos;
 using PSAG.Mantenimiento.Application.Services.Implementations;
+using PSAG.Mantenimiento.Domain.Common;
 using PSAG.Mantenimiento.Domain.Interfaces;
 using PSAG.Mantenimiento.Domain.Services;
 using PSAG.Mantenimiento.Infrastructure.Identity;
@@ -1081,13 +1082,15 @@ public class CatalogosController : ApiControllerBase
 
         var turnos = await _unitOfWork.Turnos.GetActivosAsync();
         var excepciones = (await _unitOfWork.TiemposProgramadosDia.GetPorRangoAsync(desde, hasta, lineaId)).ToList();
+        var calendarios = await _unitOfWork.CalendariosLinea.GetActivosAsync(lineaId);
 
-        var dias = TiempoProgramadoReporte.DiasDeLinea(lineaId, linea.Nombre, desde, hasta, turnos, excepciones)
+        var dias = TiempoProgramadoReporte.DiasDeLinea(lineaId, linea.Nombre, desde, hasta, turnos, calendarios, excepciones)
             .Select(d => new DiaProgramadoDto
             {
                 Fecha = d.Fecha,
                 Horas = (decimal)d.Horas,
                 Origen = d.Origen,
+                Turnos = d.Turnos,
                 Motivo = d.Motivo,
                 TiempoProgramadoDiaId = d.TiempoProgramadoDiaId
             });
@@ -1100,7 +1103,7 @@ public class CatalogosController : ApiControllerBase
     /// Una fila histórica pasa a EXCEPCION al editarla.
     /// </summary>
     [HttpPost("tiempos-programados")]
-    [Authorize(Policy = "CanManageCatalogs")]
+    [Authorize(Roles = RolesSistema.Administrador + "," + RolesSistema.Supervisor)]
     [ProducesResponseType(typeof(DiaProgramadoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GuardarTiempoProgramado([FromBody] GuardarTiempoProgramadoDiaRequest request)
@@ -1132,6 +1135,10 @@ public class CatalogosController : ApiControllerBase
                 Detail = "Elegí una línea válida.",
                 Status = StatusCodes.Status400BadRequest
             });
+
+        // El supervisor carga las excepciones de sus líneas; el administrador, de todas.
+        if (!await PuedeEditarCalendarioAsync(request.LineaId))
+            return Forbid();
 
         var fila = (await _unitOfWork.TiemposProgramadosDia.FindAsync(
             t => t.LineaId == request.LineaId && t.Fecha == request.Fecha)).FirstOrDefault();
@@ -1192,7 +1199,7 @@ public class CatalogosController : ApiControllerBase
     /// Quita una excepción sin borrarla: el día vuelve a regirse por los turnos activos.
     /// </summary>
     [HttpPost("tiempos-programados/{id:int}/desactivar")]
-    [Authorize(Policy = "CanManageCatalogs")]
+    [Authorize(Roles = RolesSistema.Administrador + "," + RolesSistema.Supervisor)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DesactivarTiempoProgramado(int id)
@@ -1204,6 +1211,9 @@ public class CatalogosController : ApiControllerBase
         if (fila == null)
             return NotFound();
 
+        if (!await PuedeEditarCalendarioAsync(fila.LineaId))
+            return Forbid();
+
         fila.Activo = false;
         fila.ModificadoPorUsuarioId = CurrentUserId;
 
@@ -1211,6 +1221,13 @@ public class CatalogosController : ApiControllerBase
         await _unitOfWork.SaveChangesAsync();
 
         return NoContent();
+    }
+
+    private async Task<bool> PuedeEditarCalendarioAsync(int lineaId)
+    {
+        var asignadas = (await _unitOfWork.UsuariosLineas.FindAsync(ul => ul.UsuarioId == CurrentUserId))
+            .Select(ul => ul.LineaId);
+        return CalendarioLineaReglas.PuedeEditar(Roles, asignadas, lineaId);
     }
 
     #endregion

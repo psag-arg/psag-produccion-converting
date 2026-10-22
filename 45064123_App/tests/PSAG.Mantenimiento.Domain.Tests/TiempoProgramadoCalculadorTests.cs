@@ -130,4 +130,50 @@ public class TiempoProgramadoCalculadorTests
 
         Assert.Equal(0, MinutosDe(dias, Lunes));
     }
+
+    // T-541: Tango 2 mostraba 25 h por día con origen Estándar.
+
+    [Fact]
+    public void TresTurnosDeOcho_UnDiaEstandarSumaVeinticuatro_Horas()
+    {
+        var turnos = new[] { Turno("T1", 6, 14), Turno("T2", 14, 22), Turno("T3", 22, 6) };
+
+        var dias = TiempoProgramadoCalculador.MinutosProgramadosPorDia(Lunes, Lunes, turnos, []);
+
+        Assert.Equal(24 * 60, MinutosDe(dias, Lunes));
+    }
+
+    [Fact]
+    public void TurnosQueSeSuperponenUnaHora_NoCuentanVeinticinco_Horas()
+    {
+        // T1 cargado 05:00-14:00 (9 h) más T2 y T3 de 8 h: la suma de duraciones da 25 h,
+        // pero de 05:00 a 06:00 T1 y T3 cubren la misma hora.
+        var turnos = new[] { Turno("T1", 5, 14), Turno("T2", 14, 22), Turno("T3", 22, 6) };
+        Assert.Equal(25 * 60, turnos.Sum(t => t.DuracionMinutos()));
+
+        var dias = TiempoProgramadoCalculador.MinutosProgramadosPorDia(Lunes, Lunes, turnos, []);
+
+        Assert.Equal(24 * 60, MinutosDe(dias, Lunes));
+    }
+
+    [Fact]
+    public void TurnoDuplicado_CuentaUnaSolaVez()
+    {
+        var turnos = new[] { Turno("T1", 6, 14), Turno("T1 copia", 6, 14), Turno("T2", 14, 22) };
+
+        var dias = TiempoProgramadoCalculador.MinutosProgramadosPorDia(Lunes, Lunes, turnos, []);
+
+        Assert.Equal(16 * 60, MinutosDe(dias, Lunes));
+    }
+
+    [Fact]
+    public void OctubreHastaEl15_ConTurnosDeVeinticincoHorasCargadas_DaTrescientasSesenta_Horas()
+    {
+        var turnos = new[] { Turno("T1", 6, 14), Turno("T2", 14, 22), Turno("T3", 21, 6) };
+
+        var dias = TiempoProgramadoCalculador.MinutosProgramadosPorDia(new(2026, 10, 1), new(2026, 10, 15), turnos, []);
+
+        Assert.Equal(15, dias.Count);
+        Assert.Equal(15 * 24 * 60, dias.Sum(d => d.Minutos)); // antes 22.500 min (375 h)
+    }
 }
