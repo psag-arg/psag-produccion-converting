@@ -107,7 +107,7 @@
                         {
                             <div class="alert alert-info py-2 small">
                                 <strong>Indisponibilidad = minutos de detención ÷ tiempo programado.</strong>
-                                El tiempo programado sale de los turnos de la planta más las excepciones del calendario.
+                                El tiempo programado sale del calendario de cada línea (o de los turnos de la planta si no tiene) más las excepciones por día.
                                 El mes en curso se mide hasta hoy.
                             </div>
 
@@ -709,8 +709,10 @@
                             </table>
                         </div>
                         <p class="small text-muted mt-2 mb-0">
-                            Estándar = suma de los turnos activos. Si ese día no se trabajó o se trabajó menos,
-                            cargá una excepción en Configuración → Turnos.
+                            Base de línea = turnos que la línea trabaja ese día de la semana según su calendario.
+                            Estándar = todos los turnos activos (la línea no tiene calendario). Una hora en la que se pisan
+                            dos turnos cuenta una vez. Si ese día no se trabajó o se trabajó menos, cargá una excepción
+                            en Horas programadas.
                         </p>
                     }
                 </div>
@@ -1000,7 +1002,8 @@
     {
         "EXCEPCION" => string.IsNullOrWhiteSpace(dia.Motivo) ? "Excepción" : $"Excepción · {dia.Motivo}",
         "HISTORICO" => "Histórico (HS PROG)",
-        _ => "Estándar"
+        "BASE_LINEA" => string.IsNullOrEmpty(dia.Turnos) ? "Base de línea · no se trabaja" : $"Base de línea · {dia.Turnos}",
+        _ => string.IsNullOrEmpty(dia.Turnos) ? "Estándar" : $"Estándar · {dia.Turnos}"
     };
 
     // Metodos del modal de detalle

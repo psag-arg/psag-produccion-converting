@@ -294,8 +294,9 @@ public class ParetoDetencionesReporteDto
 }
 
 /// <summary>
-/// Tiempo programado de una línea en un día. Origen: ESTANDAR (suma de turnos activos),
-/// EXCEPCION (calendario, con motivo) o HISTORICO (HS PROG cargado desde el Excel).
+/// Tiempo programado de una línea en un día. Origen: ESTANDAR (turnos activos de la planta, línea sin
+/// calendario), BASE_LINEA (calendario base de la línea), EXCEPCION (día puntual, con motivo)
+/// o HISTORICO (HS PROG cargado desde el Excel).
 /// </summary>
 public class TiempoProgramadoDiaDto
 {
@@ -305,6 +306,10 @@ public class TiempoProgramadoDiaDto
     public int Minutos { get; set; }
     public double Horas { get; set; }
     public string Origen { get; set; } = string.Empty;
+    /// <summary>
+    /// Turnos que suman ese día (ej.: "T1 + T2"); vacío si no se trabaja; null si es excepción o histórico.
+    /// </summary>
+    public string? Turnos { get; set; }
     public string? Motivo { get; set; }
     public int? TiempoProgramadoDiaId { get; set; }
 }

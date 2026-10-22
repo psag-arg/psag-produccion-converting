@@ -26,6 +26,38 @@ public class TiempoProgramadoReporteTests
     };
 
     [Fact]
+    public void ConCalendarioDeLaLinea_OrigenBaseLineaYTurnosDelDia()
+    {
+        var calendario = new CalendarioLinea
+        {
+            LineaId = 1,
+            VigenteDesde = Desde,
+            Activo = true,
+            Turnos = [new CalendarioLineaTurno { DiaSemana = DayOfWeek.Monday, TurnoId = 1 }]
+        };
+        var turnos = TresTurnos.Select((t, i) => new Turno
+        {
+            TurnoId = i + 1, Codigo = "T" + (i + 1), Nombre = t.Nombre, HoraInicio = t.HoraInicio, HoraFin = t.HoraFin, Activo = true
+        }).ToArray();
+
+        // Lunes 2 y martes 3 de marzo de 2026.
+        var dias = TiempoProgramadoReporte.DiasDeLinea(1, "Tango 2", new(2026, 3, 2), new(2026, 3, 3), turnos, [calendario], []);
+
+        Assert.Equal(("BASE_LINEA", 8.0, "T1"), (dias[0].Origen, dias[0].Horas, dias[0].Turnos));
+        Assert.Equal(("BASE_LINEA", 0.0, ""), (dias[1].Origen, dias[1].Horas, dias[1].Turnos));
+    }
+
+    [Fact]
+    public void CalendarioDeOtraLinea_NoSeAplica()
+    {
+        var calendarioOtraLinea = new CalendarioLinea { LineaId = 2, VigenteDesde = Desde, Activo = true };
+
+        var dia = Assert.Single(TiempoProgramadoReporte.DiasDeLinea(1, "Tango 2", new(2026, 3, 2), new(2026, 3, 2), TresTurnos, [calendarioOtraLinea], []));
+
+        Assert.Equal(("ESTANDAR", 24.0), (dia.Origen, dia.Horas));
+    }
+
+    [Fact]
     public void DiaSinExcepcion_TomaElEstandarDeLosTurnosYOrigenEstandar()
     {
         var dias = TiempoProgramadoReporte.DiasDeLinea(1, "Tango 2", new(2026, 3, 2), new(2026, 3, 2), TresTurnos, []);

@@ -93,132 +93,12 @@
             </div>
         </div>
     }
-        <div class="card mt-4">
-            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
-                <h5 class="mb-0"><i class="bi bi-calendar3 me-2"></i>Calendario de excepciones</h5>
-                <div class="d-flex align-items-center gap-2">
-                    <label class="form-label mb-0" for="lineaCalendario">Línea:</label>
-                    <select id="lineaCalendario" class="form-select form-select-sm" style="width: 220px;" @onchange="CambiarLineaCalendario">
-                        @foreach (var linea in lineas)
-                        {
-                            <option value="@linea.LineaId" selected="@(linea.LineaId == lineaCalendarioId)">@linea.Nombre</option>
-                        }
-                    </select>
-                </div>
-            </div>
-            <div class="card-body">
-                <p class="text-muted small mb-3">
-                    Si un día no tiene excepción, se usan las horas de los turnos activos de la planta (hoy @HorasEstandar).
-                    Cargá sólo los días distintos.
-                </p>
-
-                @if (!string.IsNullOrEmpty(errorCalendario) && diaSeleccionado == null)
-                {
-                    <div class="alert alert-danger">@errorCalendario</div>
-                }
-
-                <div class="row g-4">
-                    <div class="col-lg-8">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <button type="button" class="btn btn-outline-secondary btn-sm" title="Mes anterior" @onclick="MesAnterior">
-                                <i class="bi bi-chevron-left"></i>
-                            </button>
-                            <strong class="text-capitalize">@NombreMes</strong>
-                            <button type="button" class="btn btn-outline-secondary btn-sm" title="Mes siguiente" @onclick="MesSiguiente">
-                                <i class="bi bi-chevron-right"></i>
-                            </button>
-                        </div>
-
-                        <div class="calendario-dias text-center small text-muted fw-semibold mb-1">
-                            <div>Lun</div><div>Mar</div><div>Mié</div><div>Jue</div><div>Vie</div><div>Sáb</div><div>Dom</div>
-                        </div>
-                        <div class="calendario-dias">
-                            @for (var i = 0; i < OffsetPrimerDia; i++)
-                            {
-                                <div></div>
-                            }
-                            @foreach (var dia in diasCalendario)
-                            {
-                                <button type="button"
-                                        class="btn btn-sm dia-calendario p-1 text-start d-flex flex-column rounded-2 border @ClaseDia(dia) @(EsDiaSeleccionado(dia) ? "border-primary border-2" : "")"
-                                        @onclick="() => SeleccionarDia(dia)">
-                                    <span class="fw-bold small">@dia.Fecha.Day</span>
-                                    <span class="small fw-semibold">@FormatearHorasDia(dia.Horas)</span>
-                                    @if (dia.Origen == "EXCEPCION" && !string.IsNullOrEmpty(dia.Motivo))
-                                    {
-                                        <span class="small text-truncate">@dia.Motivo</span>
-                                    }
-                                </button>
-                            }
-                        </div>
-
-                        <div class="d-flex flex-wrap gap-3 small text-muted mt-3">
-                            <span><span class="d-inline-block rounded-1 border me-1" style="width: 12px; height: 12px;"></span>estándar por turnos</span>
-                            <span><span class="d-inline-block rounded-1 border border-warning-subtle bg-warning-subtle me-1" style="width: 12px; height: 12px;"></span>excepción cargada</span>
-                            <span><span class="d-inline-block rounded-1 border border-info-subtle bg-info-subtle me-1" style="width: 12px; height: 12px;"></span>horas históricas (HS PROG)</span>
-                        </div>
-                    </div>
-
-                    <div class="col-lg-4">
-                        @if (diaSeleccionado != null)
-                        {
-                            <div class="border rounded p-3">
-                                <h6 class="mb-3">Excepción del @diaSeleccionado.Fecha.ToString("dd/MM/yyyy")</h6>
-                                <div class="mb-3">
-                                    <label class="form-label">Fecha</label>
-                                    <input type="text" class="form-control" value="@diaSeleccionado.Fecha.ToString("dd/MM/yyyy")" disabled />
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Horas programadas *</label>
-                                    <input type="number" class="form-control" min="0" max="24" step="0.5" @bind="horasDiaSeleccionado" />
-                                    @if (horasDiaSeleccionado == null)
-                                    {
-                                        <small class="text-danger">Escribí las horas programadas (0 si la línea no trabaja ese día).</small>
-                                    }
-                                    else
-                                    {
-                                        <small class="text-muted">0 = la línea no trabaja ese día.</small>
-                                    }
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Motivo</label>
-                                    <input type="text" class="form-control" maxlength="200" placeholder="Ej: Paro parcial" @bind="motivoDiaSeleccionado" />
-                                </div>
-                                @if (diaSeleccionado.Origen == "HISTORICO")
-                                {
-                                    <div class="alert alert-info small py-2 mb-3">
-                                        Este día tiene @FormatearHorasDia(diaSeleccionado.Horas) históricas (HS PROG).
-                                        Si guardás otro valor pasa a excepción y el dato histórico queda anotado en el motivo.
-                                    </div>
-                                }
-                                @if (!string.IsNullOrEmpty(errorCalendario))
-                                {
-                                    <div class="alert alert-danger py-2">@errorCalendario</div>
-                                }
-                                <div class="d-flex flex-wrap gap-2">
-                                    <button type="button" class="btn btn-primary" @onclick="GuardarExcepcion" disabled="@isSavingDia">
-                                        @if (isSavingDia)
-                                        {
-                                            <span class="spinner-border spinner-border-sm me-2"></span>
-                                        }
-                                        Guardar excepción
-                                    </button>
-                                    @if (diaSeleccionado.Origen == "EXCEPCION")
-                                    {
-                                        <button type="button" class="btn btn-outline-danger" @onclick="QuitarExcepcion">Quitar excepción</button>
-                                    }
-                                    <button type="button" class="btn btn-link" @onclick="CerrarDia">Cancelar</button>
-                                </div>
-                            </div>
-                        }
-                        else
-                        {
-                            <div class="text-muted small">Hacé clic en un día del calendario para cargar o editar su excepción.</div>
-                        }
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div class="alert alert-light border mt-4 small mb-0">
+        <i class="bi bi-calendar3 me-2"></i>
+        Las horas programadas de cada línea (qué turnos trabaja cada día de la semana y las excepciones por día)
+        se cargan en <a href="configuracion/horas-programadas">Horas programadas</a>.
+        Una línea sin calendario cuenta todos los turnos activos todos los días.
+    </div>
 </div>
 
 @* Modal para crear/editar *@
@@ -290,180 +170,15 @@
     private bool isSaving = false;
     private string? errorMessage;
 
-    private List<LineaDto> lineas = new();
-    private int lineaCalendarioId;
-    private DateOnly mesCalendario;
-    private List<DiaProgramadoDto> diasCalendario = new();
-    private DiaProgramadoDto? diaSeleccionado;
-    private decimal? horasDiaSeleccionado;
-    private string? motivoDiaSeleccionado;
-    private string? errorCalendario;
-    private bool isSavingDia = false;
     private string? mensajeLista;
     private bool mostrarInactivos;
 
-    private string HorasEstandar =>
-        FormatearHorasDia(turnos.Where(t => t.Activo).Sum(t => t.DuracionMinutos) / 60m);
-
-    private string NombreMes => mesCalendario.ToString("MMMM yyyy");
-
-    private int OffsetPrimerDia => ((int)new DateTime(mesCalendario.Year, mesCalendario.Month, 1).DayOfWeek + 6) % 7;
-
     protected override async Task OnInitializedAsync()
     {
-        var hoy = DateTime.Today;
-        mesCalendario = new DateOnly(hoy.Year, hoy.Month, 1);
-        var tareaLineas = CatalogosService.GetLineasAsync();
-        var tareaTurnos = CargarTurnos();
-        lineas = await tareaLineas;
-        await tareaTurnos;
-        await ElegirLineaConDatos();
-    }
-
-    /// <summary>
-    /// Abre en la primera línea con excepciones o históricos este mes; si ninguna tiene, en la primera.
-    /// </summary>
-    private async Task ElegirLineaConDatos()
-    {
-        foreach (var linea in lineas)
-        {
-            lineaCalendarioId = linea.LineaId;
-            await CargarCalendario();
-            if (diasCalendario.Any(d => d.Origen is "EXCEPCION" or "HISTORICO"))
-                return;
-        }
-
-        lineaCalendarioId = lineas.FirstOrDefault()?.LineaId ?? 0;
-        await CargarCalendario();
+        await CargarTurnos();
     }
 
     private static string FormatearHoras(TurnoDto turno) => $"{turno.DuracionMinutos / 60.0:0.##} h";
-
-    private static string FormatearHorasDia(decimal horas) => $"{horas:0.##} h";
-
-    private static string ClaseDia(DiaProgramadoDto dia) => dia.Origen switch
-    {
-        "EXCEPCION" => "bg-warning-subtle border-warning-subtle",
-        "HISTORICO" => "bg-info-subtle border-info-subtle",
-        _ => "text-body"
-    };
-
-    private bool EsDiaSeleccionado(DiaProgramadoDto dia) => diaSeleccionado?.Fecha == dia.Fecha;
-
-    private async Task CargarCalendario()
-    {
-        diasCalendario = new();
-        if (lineaCalendarioId == 0)
-            return;
-
-        try
-        {
-            var hasta = new DateOnly(mesCalendario.Year, mesCalendario.Month, DateTime.DaysInMonth(mesCalendario.Year, mesCalendario.Month));
-            diasCalendario = await CatalogosService.GetTiemposProgramadosAsync(lineaCalendarioId, mesCalendario, hasta);
-        }
-        catch (Exception ex)
-        {
-            errorCalendario = ex.Message;
-        }
-    }
-
-    private async Task CambiarLineaCalendario(ChangeEventArgs e)
-    {
-        lineaCalendarioId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
-        diaSeleccionado = null;
-        await CargarCalendario();
-    }
-
-    private async Task MesAnterior()
-    {
-        mesCalendario = mesCalendario.AddMonths(-1);
-        diaSeleccionado = null;
-        await CargarCalendario();
-    }
-
-    private async Task MesSiguiente()
-    {
-        mesCalendario = mesCalendario.AddMonths(1);
-        diaSeleccionado = null;
-        await CargarCalendario();
-    }
-
-    private void SeleccionarDia(DiaProgramadoDto dia)
-    {
-        diaSeleccionado = dia;
-        horasDiaSeleccionado = dia.Horas;
-        motivoDiaSeleccionado = dia.Origen == "EXCEPCION" ? dia.Motivo : null;
-        errorCalendario = null;
-    }
-
-    private void CerrarDia()
-    {
-        diaSeleccionado = null;
-        errorCalendario = null;
-    }
-
-    private async Task GuardarExcepcion()
-    {
-        if (diaSeleccionado == null)
-            return;
-
-        if (horasDiaSeleccionado is not decimal horas)
-        {
-            errorCalendario = "Escribí las horas programadas (0 si la línea no trabaja ese día).";
-            return;
-        }
-        if (horas < 0 || horas > 24)
-        {
-            errorCalendario = "Las horas programadas deben estar entre 0 y 24.";
-            return;
-        }
-
-        var fecha = diaSeleccionado.Fecha;
-        isSavingDia = true;
-        errorCalendario = null;
-
-        try
-        {
-            await CatalogosService.GuardarTiempoProgramadoAsync(lineaCalendarioId, fecha, horas, motivoDiaSeleccionado);
-            await CargarCalendario();
-            var actualizado = diasCalendario.FirstOrDefault(d => d.Fecha == fecha);
-            if (actualizado != null)
-                SeleccionarDia(actualizado);
-        }
-        catch (Exception ex)
-        {
-            errorCalendario = ex.Message;
-        }
-        finally
-        {
-            isSavingDia = false;
-        }
-    }
-
-    private async Task QuitarExcepcion()
-    {
-        if (diaSeleccionado?.TiempoProgramadoDiaId is not int id)
-            return;
-
-        var historico = diaSeleccionado.Motivo?.Contains("históricas (HS PROG)") == true
-            ? $" Las horas históricas anotadas en el motivo ({diaSeleccionado.Motivo}) no se recuperan."
-            : "";
-        var confirmed = await JS.InvokeAsync<bool>("confirm",
-            $"¿Quitar la excepción del {diaSeleccionado.Fecha:dd/MM/yyyy}? El día vuelve a las horas de los turnos activos ({HorasEstandar}).{historico}");
-        if (!confirmed)
-            return;
-
-        try
-        {
-            await CatalogosService.DesactivarTiempoProgramadoAsync(id);
-            diaSeleccionado = null;
-            await CargarCalendario();
-        }
-        catch (Exception ex)
-        {
-            errorCalendario = ex.Message;
-        }
-    }
 
     private async Task CargarTurnos()
     {
@@ -561,7 +276,6 @@
 
             showModal = false;
             await CargarTurnos();
-            await CargarCalendario();
         }
         catch (Exception ex)
         {
@@ -576,7 +290,7 @@
     private Task ConfirmarDesactivar(TurnoDto turno) =>
         JS.ConfirmarYDesactivarAsync($"el turno '{turno.Nombre}'", $"Las horas programadas por día bajan en {FormatearHoras(turno)}.",
             activo => turno.Activo = activo, () => CatalogosService.UpdateTurnoAsync(turno),
-            async () => { await CargarTurnos(); await CargarCalendario(); }, m => mensajeLista = m);
+            async () => await CargarTurnos(), m => mensajeLista = m);
 
     private static TimeOnly? ParsearHora(string? texto) =>
         TimeOnly.TryParseExact(texto?.Trim(), new[] { "HH:mm", "H:mm", "HH:mm:ss" }, CultureInfo.InvariantCulture, DateTimeStyles.None, out var hora)

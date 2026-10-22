@@ -92,3 +92,114 @@ BEGIN
     COMMIT TRANSACTION;
 END
 GO
+
+-- ============================================================================
+-- PARTE 2 · Calendario base por línea (T-542)
+-- ============================================================================
+
+-- ============================================================================
+-- Tabla: mnt.CalendariosLinea
+-- Descripción: versión del calendario base de una línea, vigente desde una fecha.
+-- Guardar crea una versión nueva; la de la misma fecha queda Activo = 0 (historial).
+-- ============================================================================
+IF OBJECT_ID(N'[mnt].[CalendariosLinea]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [mnt].[CalendariosLinea] (
+        [CalendarioLineaId] INT IDENTITY(1,1) NOT NULL,
+        [LineaId] INT NOT NULL,
+        [VigenteDesde] DATE NOT NULL,
+        [Activo] BIT NOT NULL CONSTRAINT [DF_CalendariosLinea_Activo] DEFAULT 1,
+        [FechaHoraCreacion] DATETIMEOFFSET NOT NULL,
+        [FechaHoraModificacion] DATETIMEOFFSET NOT NULL,
+        [CreadoPorUsuarioId] NVARCHAR(450) NOT NULL,
+        [ModificadoPorUsuarioId] NVARCHAR(450) NOT NULL,
+        CONSTRAINT [PK_CalendariosLinea] PRIMARY KEY ([CalendarioLineaId])
+    )
+    PRINT 'Tabla mnt.CalendariosLinea creada exitosamente.'
+END
+GO
+
+-- ============================================================================
+-- Tabla: mnt.CalendariosLineaTurnos
+-- Descripción: turnos que la línea trabaja cada día de la semana en una versión.
+-- DiaSemana: 0 = domingo ... 6 = sábado. Un día sin filas = la línea no trabaja (0 h).
+-- ============================================================================
+IF OBJECT_ID(N'[mnt].[CalendariosLineaTurnos]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [mnt].[CalendariosLineaTurnos] (
+        [CalendarioLineaTurnoId] INT IDENTITY(1,1) NOT NULL,
+        [CalendarioLineaId] INT NOT NULL,
+        [DiaSemana] INT NOT NULL,
+        [TurnoId] INT NOT NULL,
+        CONSTRAINT [PK_CalendariosLineaTurnos] PRIMARY KEY ([CalendarioLineaTurnoId])
+    )
+    PRINT 'Tabla mnt.CalendariosLineaTurnos creada exitosamente.'
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.check_constraints WHERE name = N'CK_CalendariosLineaTurnos_DiaSemana')
+BEGIN
+    ALTER TABLE [mnt].[CalendariosLineaTurnos]
+    ADD CONSTRAINT [CK_CalendariosLineaTurnos_DiaSemana] CHECK ([DiaSemana] BETWEEN 0 AND 6)
+    PRINT 'Check Constraint CK_CalendariosLineaTurnos_DiaSemana creado.'
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = N'FK_CalendariosLinea_Lineas_LineaId')
+BEGIN
+    ALTER TABLE [mnt].[CalendariosLinea]
+    ADD CONSTRAINT [FK_CalendariosLinea_Lineas_LineaId] FOREIGN KEY ([LineaId])
+    REFERENCES [mnt].[Lineas] ([LineaId])
+    ON DELETE NO ACTION
+    PRINT 'Foreign Key FK_CalendariosLinea_Lineas_LineaId creada.'
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = N'FK_CalendariosLineaTurnos_CalendariosLinea_CalendarioLineaId')
+BEGIN
+    ALTER TABLE [mnt].[CalendariosLineaTurnos]
+    ADD CONSTRAINT [FK_CalendariosLineaTurnos_CalendariosLinea_CalendarioLineaId] FOREIGN KEY ([CalendarioLineaId])
+    REFERENCES [mnt].[CalendariosLinea] ([CalendarioLineaId])
+    ON DELETE NO ACTION
+    PRINT 'Foreign Key FK_CalendariosLineaTurnos_CalendariosLinea_CalendarioLineaId creada.'
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = N'FK_CalendariosLineaTurnos_Turnos_TurnoId')
+BEGIN
+    ALTER TABLE [mnt].[CalendariosLineaTurnos]
+    ADD CONSTRAINT [FK_CalendariosLineaTurnos_Turnos_TurnoId] FOREIGN KEY ([TurnoId])
+    REFERENCES [mnt].[Turnos] ([TurnoId])
+    ON DELETE NO ACTION
+    PRINT 'Foreign Key FK_CalendariosLineaTurnos_Turnos_TurnoId creada.'
+END
+GO
+
+-- Una versión activa por línea y fecha (las reemplazadas quedan inactivas).
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = N'UX_CalendariosLinea_LineaId_VigenteDesde' AND object_id = OBJECT_ID(N'[mnt].[CalendariosLinea]'))
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX [UX_CalendariosLinea_LineaId_VigenteDesde]
+    ON [mnt].[CalendariosLinea] ([LineaId], [VigenteDesde])
+    WHERE [Activo] = 1
+    PRINT 'Índice UX_CalendariosLinea_LineaId_VigenteDesde creado.'
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = N'UX_CalendariosLineaTurnos_Calendario_Dia_Turno' AND object_id = OBJECT_ID(N'[mnt].[CalendariosLineaTurnos]'))
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX [UX_CalendariosLineaTurnos_Calendario_Dia_Turno]
+    ON [mnt].[CalendariosLineaTurnos] ([CalendarioLineaId], [DiaSemana], [TurnoId])
+    PRINT 'Índice UX_CalendariosLineaTurnos_Calendario_Dia_Turno creado.'
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = N'IX_CalendariosLineaTurnos_TurnoId' AND object_id = OBJECT_ID(N'[mnt].[CalendariosLineaTurnos]'))
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_CalendariosLineaTurnos_TurnoId]
+    ON [mnt].[CalendariosLineaTurnos] ([TurnoId])
+    PRINT 'Índice IX_CalendariosLineaTurnos_TurnoId creado.'
+END
+GO
+
+PRINT 'Script 19 (T-541/T-542) terminado.'
+GO

@@ -20,6 +20,7 @@ public class UnitOfWork : IUnitOfWork
     private IAuditoriaRepository? _auditoria;
     private IReglaAnalisisRepository? _reglasAnalisis;
     private ITiempoProgramadoDiaRepository? _tiemposProgramadosDia;
+    private ICalendarioLineaRepository? _calendariosLinea;
 
     // Eje 2: Variables de proceso
     private IProductoRepository? _productos;
@@ -49,6 +50,7 @@ public class UnitOfWork : IUnitOfWork
     public IAuditoriaRepository Auditoria => _auditoria ??= new AuditoriaRepository(_context);
     public IReglaAnalisisRepository ReglasAnalisis => _reglasAnalisis ??= new ReglaAnalisisRepository(_context);
     public ITiempoProgramadoDiaRepository TiemposProgramadosDia => _tiemposProgramadosDia ??= new TiempoProgramadoDiaRepository(_context);
+    public ICalendarioLineaRepository CalendariosLinea => _calendariosLinea ??= new CalendarioLineaRepository(_context);
 
     // Eje 2: Variables de proceso
     public IProductoRepository Productos => _productos ??= new ProductoRepository(_context);

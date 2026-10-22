@@ -10,7 +10,7 @@ namespace PSAG.Mantenimiento.Application.Services.Implementations;
 /// </summary>
 public static class TiempoProgramadoReporte
 {
-    public const string Estandar = "ESTANDAR";
+    public const string Estandar = OrigenTiempoProgramado.Estandar;
 
     public static IReadOnlyList<TiempoProgramadoDiaDto> DiasDeLinea(
         int lineaId,
@@ -18,12 +18,28 @@ public static class TiempoProgramadoReporte
         DateOnly desde,
         DateOnly hasta,
         IEnumerable<Turno> turnos,
+        IEnumerable<TiempoProgramadoDia> excepciones) =>
+        DiasDeLinea(lineaId, lineaNombre, desde, hasta, turnos, [], excepciones);
+
+    /// <summary>
+    /// Días de la línea con origen: excepción o histórico del día, calendario base de la línea,
+    /// o estándar de planta (todos los turnos activos) si la línea no tiene calendario vigente.
+    /// </summary>
+    public static IReadOnlyList<TiempoProgramadoDiaDto> DiasDeLinea(
+        int lineaId,
+        string lineaNombre,
+        DateOnly desde,
+        DateOnly hasta,
+        IEnumerable<Turno> turnos,
+        IEnumerable<CalendarioLinea> calendarios,
         IEnumerable<TiempoProgramadoDia> excepciones)
     {
-        var excepcionPorFecha = excepciones.Where(e => e.Activo).ToDictionary(e => e.Fecha);
+        var activas = excepciones.Where(e => e.Activo).ToList();
+        var excepcionPorFecha = activas.ToDictionary(e => e.Fecha);
         var dias = new List<TiempoProgramadoDiaDto>();
 
-        foreach (var dia in TiempoProgramadoCalculador.MinutosProgramadosPorDia(desde, hasta, turnos, excepciones))
+        foreach (var dia in TiempoProgramadoCalculador.MinutosProgramadosPorDia(
+                     desde, hasta, turnos, calendarios.Where(c => c.LineaId == lineaId), activas))
         {
             var hayExcepcion = excepcionPorFecha.TryGetValue(dia.Fecha, out var excepcion);
 
@@ -34,7 +50,8 @@ public static class TiempoProgramadoReporte
                 LineaNombre = lineaNombre,
                 Minutos = dia.Minutos,
                 Horas = Horas(dia.Minutos),
-                Origen = hayExcepcion ? excepcion!.Origen : Estandar,
+                Origen = dia.Origen,
+                Turnos = dia.Turnos,
                 Motivo = hayExcepcion ? excepcion!.Motivo : null,
                 TiempoProgramadoDiaId = hayExcepcion ? excepcion!.TiempoProgramadoDiaId : null
             });

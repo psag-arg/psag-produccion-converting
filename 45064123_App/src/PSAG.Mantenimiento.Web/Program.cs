@@ -35,6 +35,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IDetencionesService, DetencionesService>();
 builder.Services.AddScoped<IAnalisisService, AnalisisService>();
 builder.Services.AddScoped<ICatalogosService, CatalogosService>();
+builder.Services.AddScoped<ICalendarioLineaService, CalendarioLineaService>();
 builder.Services.AddScoped<IUsuariosService, UsuariosService>();
 builder.Services.AddScoped<IRegistroProcesoService, RegistroProcesoService>();
 builder.Services.AddScoped<IInspeccionService, InspeccionService>();
