@@ -148,7 +148,9 @@
                         }
                     </div>
                     <div class="card-body">
-                        @foreach (var seccion in grupoActual.Detalles.GroupBy(d => d.Seccion ?? "General").OrderBy(s => s.Key))
+                        @* Secciones en el orden de la planilla (el Orden de sus puntos), no alfabético. *@
+                        @foreach (var seccion in grupoActual.Detalles.GroupBy(d => d.Seccion ?? "General")
+                                     .OrderBy(s => s.Min(d => d.Orden)).ThenBy(s => s.Key))
                         {
                             <h6 class="text-primary mt-3 mb-3 border-bottom pb-2">@seccion.Key</h6>
 
@@ -181,7 +183,17 @@
                                                     }
                                                 </td>
                                                 <td>
-                                                    <span class="badge bg-info">@(detalle.ValorEstandarSnapshot ?? "-")</span>
+                                                    @if (EsReferencia(detalle))
+                                                    {
+                                                        @* Valor único de la planilla: se muestra, pero no tiene rango y no marca desvío. *@
+                                                        <span class="badge bg-secondary" title="Valor de referencia: no tiene rango, no marca desvío">
+                                                            @detalle.ValorEstandarSnapshot (ref.)
+                                                        </span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-info">@(detalle.ValorEstandarSnapshot ?? "-")</span>
+                                                    }
                                                 </td>
                                                 <td>
                                                     @if (ControlProcesoCatalogo.EsNumerico(detalle.TipoDato))
@@ -378,6 +390,15 @@
         detalle.ValorRealTexto = e.Value?.ToString();
         RegistrarCambio(detalle);
     }
+
+    /// <summary>
+    /// Estándar numérico sin límites (ej. "202" de la planilla): referencia que no se valida.
+    /// </summary>
+    private static bool EsReferencia(RegistroProcesoDetalleDto detalle) =>
+        ControlProcesoCatalogo.EsNumerico(detalle.TipoDato)
+        && !detalle.FueraDePlantilla
+        && !string.IsNullOrWhiteSpace(detalle.ValorEstandarSnapshot)
+        && !detalle.ValorMin.HasValue && !detalle.ValorMax.HasValue;
 
     private void OnObservacionChanged(RegistroProcesoDetalleDto detalle, ChangeEventArgs e)
     {

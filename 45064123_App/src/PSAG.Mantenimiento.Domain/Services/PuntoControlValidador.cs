@@ -15,8 +15,13 @@ public readonly record struct RangoControl(decimal? Min, decimal? Max)
         (!Min.HasValue || valor >= Min.Value) && (!Max.HasValue || valor <= Max.Value);
 
     /// <summary>
-    /// Rango de un estándar por producto (Eje 2 original): rango, valor ± tolerancia o valor exacto.
-    /// Rango: entre mín y máx; con tolerancia: valor ± tolerancia; si no, el valor exacto.
+    /// Rango de un estándar por producto. Siempre inclusivo (los extremos son OK):
+    /// <list type="bullet">
+    /// <item>mín y máx → entre mín y máx ("152 - 153");</item>
+    /// <item>mín y tolerancia → mín ± tolerancia; tolerancia 0 = valor exacto;</item>
+    /// <item>solo mín → piso abierto, ≥ mín ("&gt; 10mm" de la planilla de Tango 2);</item>
+    /// <item>sin mín → sin límites: el ValorEstandarTexto es una referencia ("202") que se muestra y no marca desvío.</item>
+    /// </list>
     /// </summary>
     public static RangoControl DesdeEstandar(EstandarParametro estandar)
     {
@@ -26,7 +31,7 @@ public readonly record struct RangoControl(decimal? Min, decimal? Max)
             return new RangoControl(estandar.ValorMin, estandar.ValorMax);
         if (estandar.Tolerancia.HasValue)
             return new RangoControl(estandar.ValorMin - estandar.Tolerancia, estandar.ValorMin + estandar.Tolerancia);
-        return new RangoControl(estandar.ValorMin, estandar.ValorMin);
+        return new RangoControl(estandar.ValorMin, null);
     }
 }
 
