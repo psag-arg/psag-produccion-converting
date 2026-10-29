@@ -21,17 +21,19 @@ public class EstandarParametro : EntityBase
     public string? ValorEstandarTexto { get; set; }
 
     /// <summary>
-    /// Valor mínimo del rango (para RANGO) o valor exacto (para NUMERICO).
+    /// Mínimo aceptable. Con ValorMax es un rango; con Tolerancia es el valor nominal
+    /// (Tolerancia 0 = valor exacto); solo, es un piso (≥). NULL = sin límites: el texto
+    /// queda como referencia y no marca desvío. Ver RangoControl.DesdeEstandar.
     /// </summary>
     public decimal? ValorMin { get; set; }
 
     /// <summary>
-    /// Valor máximo del rango (solo para RANGO).
+    /// Máximo aceptable del rango (inclusivo).
     /// </summary>
     public decimal? ValorMax { get; set; }
 
     /// <summary>
-    /// Tolerancia permitida para valores NUMERICO.
+    /// Tolerancia sobre ValorMin cuando no hay ValorMax.
     /// Si el valor real está dentro de ValorMin ± Tolerancia, no es desvío.
     /// </summary>
     public decimal? Tolerancia { get; set; }

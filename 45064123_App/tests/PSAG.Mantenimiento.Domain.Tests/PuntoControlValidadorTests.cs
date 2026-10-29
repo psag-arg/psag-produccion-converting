@@ -234,9 +234,35 @@ public class PuntoControlValidadorTests
     public void RangoDesdeEstandar_RespetaToleranciaYValorExacto()
     {
         var conTolerancia = RangoControl.DesdeEstandar(new EstandarParametro { ValorMin = 152m, Tolerancia = 2m });
-        var exacto = RangoControl.DesdeEstandar(new EstandarParametro { ValorMin = 98.5m });
+        var exacto = RangoControl.DesdeEstandar(new EstandarParametro { ValorMin = 98.5m, Tolerancia = 0m });
+        var rango = RangoControl.DesdeEstandar(new EstandarParametro { ValorMin = 152m, ValorMax = 153m });
 
         Assert.Equal(new RangoControl(150m, 154m), conTolerancia);
         Assert.Equal(new RangoControl(98.5m, 98.5m), exacto);
+        Assert.Equal(new RangoControl(152m, 153m), rango);
+    }
+
+    [Fact]
+    public void RangoDesdeEstandar_SoloMinimo_EsPisoInclusivo()
+    {
+        // "> 10mm" de la planilla de Tango 2: ValorMin = 10, sin máximo ni tolerancia.
+        var piso = RangoControl.DesdeEstandar(new EstandarParametro { ValorEstandarTexto = "> 10mm", ValorMin = 10m });
+
+        Assert.Equal(new RangoControl(10m, null), piso);
+        Assert.False(PuntoControlValidador.ValidarCarga(TipoDatoParametro.NUMERICO, piso, 25m, null, null).FueraDeEstandar);
+        Assert.False(PuntoControlValidador.ValidarCarga(TipoDatoParametro.NUMERICO, piso, 10m, null, null).FueraDeEstandar);
+        Assert.NotNull(PuntoControlValidador.ValidarCarga(TipoDatoParametro.NUMERICO, piso, 8m, null, null).Error);
+    }
+
+    [Fact]
+    public void RangoDesdeEstandar_SoloTexto_EsReferenciaSinDesvio()
+    {
+        // Valor único de la planilla ("202"): se muestra como referencia, no se valida.
+        var referencia = RangoControl.DesdeEstandar(new EstandarParametro { ValorEstandarTexto = "202" });
+
+        Assert.False(referencia.TieneLimites);
+        var r = PuntoControlValidador.ValidarCarga(TipoDatoParametro.NUMERICO, referencia, 250m, null, null);
+        Assert.True(r.EsValido);
+        Assert.False(r.FueraDeEstandar);
     }
 }
