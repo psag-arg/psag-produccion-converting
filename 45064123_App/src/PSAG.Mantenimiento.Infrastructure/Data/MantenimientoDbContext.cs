@@ -48,6 +48,12 @@ public class MantenimientoDbContext : IdentityDbContext<ApplicationUser>
     // Tareas de mantenimiento (T-546/T-547)
     public DbSet<TareaMantenimiento> TareasMantenimiento => Set<TareaMantenimiento>();
 
+    // Control de calidad por cámaras (T-611)
+    public DbSet<PuntoControlCalidad> PuntosControlCalidad => Set<PuntoControlCalidad>();
+    public DbSet<TipoDefectoCalidad> TiposDefectoCalidad => Set<TipoDefectoCalidad>();
+    public DbSet<RegistroCalidad> RegistrosCalidad => Set<RegistroCalidad>();
+    public DbSet<RegistroCalidadRevision> RegistrosCalidadRevisiones => Set<RegistroCalidadRevision>();
+
     private bool EsSqlite => Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true;
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)

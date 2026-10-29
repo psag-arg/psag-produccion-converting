@@ -32,6 +32,7 @@ var jwtSettings = configuration.GetSection("JwtSettings");
 builder.Services.AddInfrastructure(configuration);
 builder.Services.AddApplication();
 builder.Services.AddAlmacenAdjuntos(configuration, builder.Environment.ContentRootPath);
+builder.Services.AddAlmacenImagenesCalidad(configuration, builder.Environment.ContentRootPath);
 var zonaPlanta = ZonaHorariaPlanta.Resolver(configuration);
 builder.Services.AddSingleton(zonaPlanta);
 

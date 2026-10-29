@@ -19,3 +19,11 @@ public interface IAlmacenAdjuntos
     /// </summary>
     void Eliminar(string nombreArchivo);
 }
+
+/// <summary>
+/// Almacén de las imágenes de los registros de calidad (T-611). Mismo mecanismo que las fotos del análisis
+/// (disco fuera de wwwroot, nombre generado), en su propia carpeta: Calidad:CarpetaImagenes.
+/// </summary>
+public interface IAlmacenImagenesCalidad : IAlmacenAdjuntos
+{
+}
