@@ -1,0 +1,328 @@
+@page "/maestros/calidad"
+@using Microsoft.AspNetCore.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize(Roles = "ADMINISTRADOR")]
+@inject ICalidadService CalidadService
+@inject ICatalogosService CatalogosService
+
+<PageTitle>Maestros de calidad - PSAG Produccion</PageTitle>
+
+<div class="container-fluid">
+    <h3 class="mb-1">Maestros de calidad</h3>
+    <p class="text-muted">
+        Puntos de control (cámaras) por línea y tipos de defecto. El detector manda los <strong>códigos</strong>:
+        tienen que coincidir con los que configure quien instale la cámara. Nada se borra: se desactiva.
+    </p>
+
+    <SwitchInactivos @bind-Mostrar="mostrarInactivos" @bind-Mostrar:after="Cargar"
+                     Ayuda="Los desactivados no se pueden usar en registros nuevos (ni del detector). Para reactivar uno, mostralo y editalo." />
+
+    @if (!string.IsNullOrEmpty(errorCarga))
+    {
+        <div class="alert alert-danger">@errorCarga</div>
+    }
+
+    <div class="row g-4">
+        <div class="col-xl-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>Puntos de control</strong>
+                    <button class="btn btn-primary btn-sm" @onclick="NuevoPunto"><i class="bi bi-plus-circle me-1"></i>Nuevo punto</button>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr><th>Código</th><th>Nombre</th><th>Línea</th><th class="text-center">Activo</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            @if (puntos.Any())
+                            {
+                                @foreach (var punto in puntos)
+                                {
+                                    <tr>
+                                        <td class="font-monospace">@punto.Codigo</td>
+                                        <td>
+                                            <strong>@punto.Nombre</strong>
+                                            @if (!string.IsNullOrEmpty(punto.Descripcion))
+                                            {
+                                                <div class="small text-muted">@punto.Descripcion</div>
+                                            }
+                                        </td>
+                                        <td>@punto.LineaNombre</td>
+                                        <td class="text-center"><span class="badge @(punto.Activo ? "bg-success" : "bg-secondary")">@(punto.Activo ? "Activo" : "Inactivo")</span></td>
+                                        <td class="text-end">
+                                            <button class="btn btn-sm btn-outline-primary" @onclick="() => EditarPunto(punto)"><i class="bi bi-pencil"></i></button>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr><td colspan="5" class="text-center text-muted py-4">No hay puntos de control cargados.</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>Tipos de defecto</strong>
+                    <button class="btn btn-primary btn-sm" @onclick="NuevoTipo"><i class="bi bi-plus-circle me-1"></i>Nuevo defecto</button>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr><th>Código</th><th>Nombre</th><th>Unidad</th><th class="text-center">Activo</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            @if (tipos.Any())
+                            {
+                                @foreach (var tipo in tipos)
+                                {
+                                    <tr>
+                                        <td class="font-monospace">@tipo.Codigo</td>
+                                        <td>
+                                            <strong>@tipo.Nombre</strong>
+                                            @if (!string.IsNullOrEmpty(tipo.Descripcion))
+                                            {
+                                                <div class="small text-muted" style="white-space: pre-line;">@tipo.Descripcion</div>
+                                            }
+                                        </td>
+                                        <td>@(tipo.UnidadMedida ?? "-")</td>
+                                        <td class="text-center"><span class="badge @(tipo.Activo ? "bg-success" : "bg-secondary")">@(tipo.Activo ? "Activo" : "Inactivo")</span></td>
+                                        <td class="text-end">
+                                            <button class="btn btn-sm btn-outline-primary" @onclick="() => EditarTipo(tipo)"><i class="bi bi-pencil"></i></button>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        No hay tipos de defecto cargados. Se cargan cuando llegue la ficha de criterios de calidad.
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (puntoActual != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(puntoActual.PuntoControlCalidadId == 0 ? "Nuevo" : "Editar") punto de control</h5>
+                    <button type="button" class="btn-close" @onclick="() => puntoActual = null"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Línea *</label>
+                        <select class="form-select" @bind="puntoActual.LineaId">
+                            <option value="0">-- Elegí la línea --</option>
+                            @foreach (var linea in lineas)
+                            {
+                                <option value="@linea.LineaId">@linea.Nombre</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Código *</label>
+                        <input type="text" class="form-control font-monospace" maxlength="50" placeholder="Ej.: T2-CAM1" @bind="puntoActual.Codigo" />
+                        <div class="form-text">Es el que manda el detector. Sin espacios; se guarda en mayúsculas.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nombre *</label>
+                        <input type="text" class="form-control" maxlength="100" placeholder="Ej.: Cámara 1 - salida de cortadora" @bind="puntoActual.Nombre" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descripción</label>
+                        <textarea class="form-control" rows="2" maxlength="500" @bind="puntoActual.Descripcion"></textarea>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="puntoActivo" @bind="puntoActual.Activo" />
+                        <label class="form-check-label" for="puntoActivo">Activo</label>
+                    </div>
+                    @if (!string.IsNullOrEmpty(errorModal))
+                    {
+                        <div class="alert alert-danger mt-3 mb-0">@errorModal</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => puntoActual = null">Cancelar</button>
+                    <button type="button" class="btn btn-primary" disabled="@guardando" @onclick="@(async () => await GuardarPunto())">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (tipoActual != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(tipoActual.TipoDefectoCalidadId == 0 ? "Nuevo" : "Editar") tipo de defecto</h5>
+                    <button type="button" class="btn-close" @onclick="() => tipoActual = null"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Código *</label>
+                        <input type="text" class="form-control font-monospace" maxlength="50" @bind="tipoActual.Codigo" />
+                        <div class="form-text">Es el que manda el detector. Sin espacios; se guarda en mayúsculas.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nombre *</label>
+                        <input type="text" class="form-control" maxlength="100" @bind="tipoActual.Nombre" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descripción / criterio</label>
+                        <textarea class="form-control" rows="3" maxlength="500" @bind="tipoActual.Descripcion"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Unidad de medida</label>
+                        <input type="text" class="form-control" maxlength="20" placeholder="Ej.: mm, paquetes (opcional)" @bind="tipoActual.UnidadMedida" />
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="tipoActivo" @bind="tipoActual.Activo" />
+                        <label class="form-check-label" for="tipoActivo">Activo</label>
+                    </div>
+                    @if (!string.IsNullOrEmpty(errorModal))
+                    {
+                        <div class="alert alert-danger mt-3 mb-0">@errorModal</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => tipoActual = null">Cancelar</button>
+                    <button type="button" class="btn btn-primary" disabled="@guardando" @onclick="@(async () => await GuardarTipo())">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<PuntoControlCalidadDto> puntos = new();
+    private List<TipoDefectoCalidadDto> tipos = new();
+    private List<LineaDto> lineas = new();
+    private bool mostrarInactivos;
+    private bool guardando;
+    private string? errorCarga;
+    private string? errorModal;
+    private PuntoControlCalidadDto? puntoActual;
+    private TipoDefectoCalidadDto? tipoActual;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            lineas = await CatalogosService.GetLineasAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error cargando líneas: {ex.Message}");
+        }
+        await Cargar();
+    }
+
+    private async Task Cargar()
+    {
+        errorCarga = null;
+        try
+        {
+            var puntosTask = CalidadService.GetPuntosControlAsync(incluirInactivos: mostrarInactivos);
+            var tiposTask = CalidadService.GetTiposDefectoAsync(mostrarInactivos);
+            await Task.WhenAll(puntosTask, tiposTask);
+            puntos = puntosTask.Result;
+            tipos = tiposTask.Result;
+        }
+        catch (Exception ex)
+        {
+            errorCarga = $"No se pudieron cargar los maestros: {ex.Message}";
+        }
+    }
+
+    private void NuevoPunto()
+    {
+        errorModal = null;
+        puntoActual = new PuntoControlCalidadDto { Activo = true, LineaId = lineas.Count == 1 ? lineas[0].LineaId : 0 };
+    }
+
+    private void EditarPunto(PuntoControlCalidadDto p)
+    {
+        errorModal = null;
+        puntoActual = new PuntoControlCalidadDto
+        {
+            PuntoControlCalidadId = p.PuntoControlCalidadId, LineaId = p.LineaId, Codigo = p.Codigo,
+            Nombre = p.Nombre, Descripcion = p.Descripcion, Activo = p.Activo
+        };
+    }
+
+    private void NuevoTipo()
+    {
+        errorModal = null;
+        tipoActual = new TipoDefectoCalidadDto { Activo = true };
+    }
+
+    private void EditarTipo(TipoDefectoCalidadDto t)
+    {
+        errorModal = null;
+        tipoActual = new TipoDefectoCalidadDto
+        {
+            TipoDefectoCalidadId = t.TipoDefectoCalidadId, Codigo = t.Codigo, Nombre = t.Nombre,
+            Descripcion = t.Descripcion, UnidadMedida = t.UnidadMedida, Activo = t.Activo
+        };
+    }
+
+    private async Task GuardarPunto()
+    {
+        if (puntoActual == null) return;
+        guardando = true;
+        try
+        {
+            var (punto, error) = await CalidadService.GuardarPuntoControlAsync(puntoActual);
+            if (punto == null)
+            {
+                errorModal = error;
+                return;
+            }
+            puntoActual = null;
+            await Cargar();
+        }
+        finally
+        {
+            guardando = false;
+        }
+    }
+
+    private async Task GuardarTipo()
+    {
+        if (tipoActual == null) return;
+        guardando = true;
+        try
+        {
+            var (tipo, error) = await CalidadService.GuardarTipoDefectoAsync(tipoActual);
+            if (tipo == null)
+            {
+                errorModal = error;
+                return;
+            }
+            tipoActual = null;
+            await Cargar();
+        }
+        finally
+        {
+            guardando = false;
+        }
+    }
+}

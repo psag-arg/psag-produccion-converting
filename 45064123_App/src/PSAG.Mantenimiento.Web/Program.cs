@@ -42,6 +42,7 @@ builder.Services.AddScoped<IRegistroProcesoService, RegistroProcesoService>();
 builder.Services.AddScoped<IControlProcesoPlantillaService, ControlProcesoPlantillaService>();
 builder.Services.AddScoped<IInspeccionService, InspeccionService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<ICalidadService, CalidadService>();
 
 // Servicio de temas
 builder.Services.AddScoped<IThemeService, ThemeService>();
