@@ -39,7 +39,7 @@ public class AlmacenAdjuntosDisco : IAlmacenAdjuntos
             // Sin permiso de escritura es un problema del servidor, no de la sesión: como
             // UnauthorizedAccessException el middleware respondería 401 y la Web cerraría
             // la sesión del usuario.
-            throw new IOException($"Sin permiso para escribir en la carpeta de fotos {_carpeta}.", ex);
+            throw new IOException($"Sin permiso para escribir en la carpeta de imágenes {_carpeta}.", ex);
         }
     }
 
@@ -75,6 +75,18 @@ public class AlmacenAdjuntosDisco : IAlmacenAdjuntos
     }
 }
 
+/// <summary>
+/// Imágenes de los registros de calidad (T-611): mismo almacén seguro que las fotos del análisis, otra carpeta.
+/// </summary>
+public class AlmacenImagenesCalidadDisco : AlmacenAdjuntosDisco, IAlmacenImagenesCalidad
+{
+    public new const string CarpetaPorDefecto = "App_Data/ImagenesCalidad";
+
+    public AlmacenImagenesCalidadDisco(string carpeta) : base(carpeta)
+    {
+    }
+}
+
 public static class AlmacenAdjuntosExtensions
 {
     /// <summary>
@@ -93,6 +105,27 @@ public static class AlmacenAdjuntosExtensions
             var almacen = new AlmacenAdjuntosDisco(carpeta);
             sp.GetService<ILoggerFactory>()?.CreateLogger<AlmacenAdjuntosDisco>()
                 .LogInformation("Fotos de análisis en {Carpeta}", almacen.Carpeta);
+            return almacen;
+        });
+        return services;
+    }
+
+    /// <summary>
+    /// Registra el almacén de imágenes de calidad en Calidad:CarpetaImagenes (relativa a <paramref name="carpetaBase"/>
+    /// si no es absoluta). En producción: C:\PSAG\Mantenimiento\ImagenesCalidad, fuera de la carpeta Api.
+    /// </summary>
+    public static IServiceCollection AddAlmacenImagenesCalidad(this IServiceCollection services, IConfiguration configuration, string carpetaBase)
+    {
+        var configurada = configuration["Calidad:CarpetaImagenes"];
+        var carpeta = string.IsNullOrWhiteSpace(configurada) ? AlmacenImagenesCalidadDisco.CarpetaPorDefecto : configurada;
+        if (!Path.IsPathRooted(carpeta))
+            carpeta = Path.Combine(carpetaBase, carpeta);
+
+        services.AddSingleton<IAlmacenImagenesCalidad>(sp =>
+        {
+            var almacen = new AlmacenImagenesCalidadDisco(carpeta);
+            sp.GetService<ILoggerFactory>()?.CreateLogger<AlmacenImagenesCalidadDisco>()
+                .LogInformation("Imágenes de calidad en {Carpeta}", almacen.Carpeta);
             return almacen;
         });
         return services;

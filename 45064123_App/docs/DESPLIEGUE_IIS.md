@@ -120,6 +120,17 @@ con nombre generado por la aplicación. No se sirven como archivos estáticos: s
 - Límites: JPG o PNG reales (se valida el contenido), hasta 10 MB por foto y 5 por análisis.
   Cada foto se sube en un pedido aparte, así que alcanza el límite por defecto de IIS (30 MB).
 
+### Imágenes y clave del detector de calidad (T-611)
+
+Las imágenes de los registros de calidad usan el mismo mecanismo que las fotos del análisis, en su
+propia carpeta `Calidad:CarpetaImagenes` (el publicador genera `C:\PSAG\Mantenimiento\ImagenesCalidad`).
+Mismos cuidados: fuera de `Api`, permiso de modificar para el usuario del servicio y en el backup.
+Una cámara puede generar muchas imágenes: vigilar el espacio en disco.
+
+La ingesta del detector (`POST api/calidad/ingesta`) queda **deshabilitada (503)** hasta configurar
+`Calidad:ClaveIngesta`. No ponerla en `appsettings.Production.json` (se regenera en cada publicación):
+cargarla como variable de entorno del servicio NSSM. Pasos en `docs/CALIDAD.md` → Configuración.
+
 ### web.config (API)
 ```xml
 <?xml version="1.0" encoding="utf-8"?>

@@ -160,6 +160,9 @@ $apiSettings = @"
   "Adjuntos": {
     "Carpeta": "C:\\PSAG\\Mantenimiento\\Adjuntos"
   },
+  "Calidad": {
+    "CarpetaImagenes": "C:\\PSAG\\Mantenimiento\\ImagenesCalidad"
+  },
   "Cors": {
     "AllowedOrigins": [
       "http://localhost",

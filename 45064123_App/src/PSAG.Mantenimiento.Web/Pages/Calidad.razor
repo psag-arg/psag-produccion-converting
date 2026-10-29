@@ -1,0 +1,741 @@
+@page "/calidad"
+@using System.Globalization
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize]
+@inject ICalidadService CalidadService
+@inject ICatalogosService CatalogosService
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Calidad - PSAG Produccion</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h2 class="mb-0">Registro de defectos de calidad</h2>
+            <small class="text-muted">Detecciones de las cámaras y cargas manuales. El sistema solo registra: no rechaza ni alerta.</small>
+        </div>
+        @if (puedeCargarManual)
+        {
+            <button class="btn btn-primary" @onclick="AbrirNuevo">
+                <i class="bi bi-plus-lg me-2"></i>Carga manual
+            </button>
+        }
+    </div>
+
+    @if (!string.IsNullOrEmpty(mensajeExito))
+    {
+        <div class="alert alert-success alert-dismissible">
+            @mensajeExito
+            <button type="button" class="btn-close" @onclick="() => mensajeExito = null"></button>
+        </div>
+    }
+    @if (!string.IsNullOrEmpty(mensajeError))
+    {
+        <div class="alert alert-danger">@mensajeError</div>
+    }
+
+    <!-- Filtros -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-6 col-md-2">
+                    <label class="form-label">Desde</label>
+                    <input type="date" class="form-control" @bind="fechaDesde" @bind:after="@(async () => await Buscar())" />
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label">Hasta</label>
+                    <input type="date" class="form-control" @bind="fechaHasta" @bind:after="@(async () => await Buscar())" />
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label">Turno</label>
+                    <select class="form-select" @bind="filtro.TurnoId" @bind:after="@(async () => await Buscar())">
+                        <option value="">Todos</option>
+                        @foreach (var turno in turnos)
+                        {
+                            <option value="@turno.TurnoId">@turno.Nombre</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label">Línea</label>
+                    <select class="form-select" @bind="filtro.LineaId" @bind:after="@(async () => await CambioLineaFiltro())">
+                        <option value="">Todas</option>
+                        @foreach (var linea in lineas)
+                        {
+                            <option value="@linea.LineaId">@linea.Nombre</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label">Punto de control</label>
+                    <select class="form-select" @bind="filtro.PuntoControlCalidadId" @bind:after="@(async () => await Buscar())">
+                        <option value="">Todos</option>
+                        @foreach (var punto in PuntosDelFiltro)
+                        {
+                            <option value="@punto.PuntoControlCalidadId">@punto.Nombre</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label">Defecto</label>
+                    <select class="form-select" @bind="filtro.TipoDefectoCalidadId" @bind:after="@(async () => await Buscar())">
+                        <option value="">Todos</option>
+                        @foreach (var tipo in tiposTodos)
+                        {
+                            <option value="@tipo.TipoDefectoCalidadId">@tipo.Nombre</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label">Revisión</label>
+                    <select class="form-select" @bind="filtro.EstadoRevision" @bind:after="@(async () => await Buscar())">
+                        <option value="">Todas</option>
+                        @foreach (var (valor, texto) in CalidadOpciones.Estados)
+                        {
+                            <option value="@valor">@texto</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label">Origen</label>
+                    <select class="form-select" @bind="filtro.Origen" @bind:after="@(async () => await Buscar())">
+                        <option value="">Todos</option>
+                        @foreach (var (valor, texto) in CalidadOpciones.Origenes)
+                        {
+                            <option value="@valor">@texto</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-8 d-flex justify-content-end">
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="@(async () => await LimpiarFiltros())">
+                        <i class="bi bi-x-circle me-1"></i>Limpiar filtros
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+        </div>
+    }
+    else if (errorCarga != null)
+    {
+        <div class="alert alert-danger">@errorCarga</div>
+    }
+    else if (pagina.Items.Any())
+    {
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Fecha y hora</th>
+                            <th>Línea</th>
+                            <th>Punto de control</th>
+                            <th>Turno</th>
+                            <th>Defecto</th>
+                            <th class="text-end">Medido</th>
+                            <th class="text-end">Confianza</th>
+                            <th>Origen</th>
+                            <th>Revisión</th>
+                            <th class="text-end">Ver</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var registro in pagina.Items)
+                        {
+                            <tr>
+                                <td class="text-nowrap">@registro.FechaHoraDeteccion.ToString("dd/MM/yyyy HH:mm:ss", CultureInfo.InvariantCulture)</td>
+                                <td>@registro.LineaNombre</td>
+                                <td>@registro.PuntoControlNombre</td>
+                                <td>@(registro.TurnoNombre ?? "-")</td>
+                                <td>@registro.TipoDefectoNombre</td>
+                                <td class="text-end text-nowrap">@Medido(registro)</td>
+                                <td class="text-end">@Confianza(registro.Confianza)</td>
+                                <td>@registro.OrigenDescripcion</td>
+                                <td>
+                                    <span class="@CalidadOpciones.BadgeEstado(registro.EstadoRevision)">@registro.EstadoRevisionDescripcion</span>
+                                    @if (registro.FechaHoraRevision is { } revisado)
+                                    {
+                                        <div class="small text-muted">@(registro.RevisadoPorUsuarioNombre ?? "-") · @revisado.ToString("dd/MM HH:mm", CultureInfo.InvariantCulture)</div>
+                                    }
+                                </td>
+                                <td class="text-end text-nowrap">
+                                    <button class="btn btn-sm btn-outline-primary" title="Ver imagen y detalle"
+                                            @onclick="@(async () => await AbrirDetalle(registro.RegistroCalidadId))">
+                                        <i class="bi @(registro.TieneImagen ? "bi-image" : "bi-eye")"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="d-flex justify-content-between align-items-center mt-2">
+            <span class="text-muted">@pagina.TotalCount @(pagina.TotalCount == 1 ? "registro" : "registros")</span>
+            @if (pagina.TotalPages > 1)
+            {
+                <div class="btn-group">
+                    <button class="btn btn-outline-secondary btn-sm" disabled="@(filtro.Page <= 1)" @onclick="@(async () => await IrAPagina(filtro.Page - 1))">Anterior</button>
+                    <span class="btn btn-outline-secondary btn-sm disabled">Página @filtro.Page de @pagina.TotalPages</span>
+                    <button class="btn btn-outline-secondary btn-sm" disabled="@(filtro.Page >= pagina.TotalPages)" @onclick="@(async () => await IrAPagina(filtro.Page + 1))">Siguiente</button>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-info">No hay registros de calidad con estos filtros.</div>
+    }
+</div>
+
+@* Detalle: imagen, datos, revisión e historial *@
+@if (detalle != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        @detalle.TipoDefectoNombre
+                        <span class="@CalidadOpciones.BadgeEstado(detalle.EstadoRevision) ms-2">@detalle.EstadoRevisionDescripcion</span>
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CerrarDetalle"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrEmpty(errorDetalle))
+                    {
+                        <div class="alert alert-danger">@errorDetalle</div>
+                    }
+                    <div class="row g-4">
+                        <div class="col-lg-7 text-center">
+                            @if (!detalle.TieneImagen)
+                            {
+                                <div class="text-muted py-5">Este registro no tiene imagen.</div>
+                            }
+                            else if (imagenDetalle == null && cargandoImagen)
+                            {
+                                <div class="spinner-border text-secondary my-5"></div>
+                            }
+                            else if (imagenDetalle == null)
+                            {
+                                <div class="text-muted py-5">No se pudo cargar la imagen.</div>
+                            }
+                            else
+                            {
+                                <img src="@imagenDetalle" alt="Imagen de la detección" class="img-fluid border rounded" style="max-height: 70vh;" />
+                            }
+                        </div>
+                        <div class="col-lg-5">
+                            <dl class="row small mb-3">
+                                <dt class="col-5">Fecha y hora</dt>
+                                <dd class="col-7">@detalle.FechaHoraDeteccion.ToString("dd/MM/yyyy HH:mm:ss", CultureInfo.InvariantCulture)</dd>
+                                <dt class="col-5">Línea</dt>
+                                <dd class="col-7">@detalle.LineaNombre</dd>
+                                <dt class="col-5">Punto de control</dt>
+                                <dd class="col-7">@detalle.PuntoControlNombre <span class="text-muted">(@detalle.PuntoControlCodigo)</span></dd>
+                                <dt class="col-5">Turno</dt>
+                                <dd class="col-7">@(detalle.TurnoNombre ?? "Sin turno")</dd>
+                                <dt class="col-5">Dato medido</dt>
+                                <dd class="col-7">@Medido(detalle)</dd>
+                                <dt class="col-5">Confianza</dt>
+                                <dd class="col-7">@Confianza(detalle.Confianza)</dd>
+                                <dt class="col-5">Producto</dt>
+                                <dd class="col-7">@(detalle.ProductoNombre is null ? "-" : $"{detalle.ProductoCodigo} - {detalle.ProductoNombre}")</dd>
+                                <dt class="col-5">Origen</dt>
+                                <dd class="col-7">@detalle.OrigenDescripcion · @(detalle.CreadoPorUsuarioNombre ?? "-")</dd>
+                                <dt class="col-5">Detención</dt>
+                                <dd class="col-7">
+                                    @if (detalle.DetencionId is { } detencionId)
+                                    {
+                                        <a href="detenciones/@detencionId" target="_blank">@detalle.DetencionCodigo</a>
+                                    }
+                                    else
+                                    {
+                                        <span>-</span>
+                                    }
+                                </dd>
+                                @if (!string.IsNullOrEmpty(detalle.Observaciones))
+                                {
+                                    <dt class="col-5">Observaciones</dt>
+                                    <dd class="col-7" style="white-space: pre-line;">@detalle.Observaciones</dd>
+                                }
+                            </dl>
+
+                            @if (puedeRevisar)
+                            {
+                                <div class="card mb-3">
+                                    <div class="card-body">
+                                        <h6 class="card-title">Revisión</h6>
+                                        <textarea class="form-control form-control-sm mb-2" rows="2" maxlength="500"
+                                                  placeholder="Comentario (opcional)" @bind="comentarioRevision"></textarea>
+                                        <div class="d-flex gap-2 flex-wrap">
+                                            @if (detalle.EstadoRevision != "CONFIRMADO")
+                                            {
+                                                <button class="btn btn-danger btn-sm" disabled="@procesando"
+                                                        @onclick="@(async () => await Revisar("CONFIRMADO"))">
+                                                    <i class="bi bi-check2-circle me-1"></i>Confirmar defecto
+                                                </button>
+                                            }
+                                            @if (detalle.EstadoRevision != "FALSO_POSITIVO")
+                                            {
+                                                <button class="btn btn-outline-secondary btn-sm" disabled="@procesando"
+                                                        @onclick="@(async () => await Revisar("FALSO_POSITIVO"))">
+                                                    <i class="bi bi-x-circle me-1"></i>Falso positivo
+                                                </button>
+                                            }
+                                        </div>
+                                        @if (detalle.EstadoRevision != "PENDIENTE")
+                                        {
+                                            <div class="form-text">Ya está revisado. Cambiarlo es una corrección y queda en el historial.</div>
+                                        }
+
+                                        <hr />
+                                        <label class="form-label small mb-1">Detención relacionada (código DET-...)</label>
+                                        <div class="input-group input-group-sm">
+                                            <input type="text" class="form-control" maxlength="30" placeholder="Vacío = sin detención" @bind="codigoDetencion" />
+                                            <button class="btn btn-outline-primary" disabled="@procesando" @onclick="@(async () => await VincularDetencion())">Guardar</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+
+                            <h6>Historial de revisión</h6>
+                            @if (detalle.Revisiones.Any())
+                            {
+                                <ul class="list-unstyled small mb-0">
+                                    @foreach (var revision in detalle.Revisiones)
+                                    {
+                                        <li class="mb-2">
+                                            <strong>@revision.EstadoAnteriorDescripcion → @revision.EstadoNuevoDescripcion</strong>
+                                            <span class="text-muted"> · @(revision.UsuarioNombre ?? revision.UsuarioId) · @revision.FechaHora.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture)</span>
+                                            @if (!string.IsNullOrEmpty(revision.Comentario))
+                                            {
+                                                <div style="white-space: pre-line;">@revision.Comentario</div>
+                                            }
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                            else
+                            {
+                                <div class="small text-muted">Todavía no se revisó.</div>
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CerrarDetalle">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* Carga manual *@
+@if (mostrarNuevo)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Carga manual de un defecto</h5>
+                    <button type="button" class="btn-close" @onclick="() => mostrarNuevo = false"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrEmpty(errorNuevo))
+                    {
+                        <div class="alert alert-danger">@errorNuevo</div>
+                    }
+                    @if (!puntosActivos.Any() || !tiposActivos.Any())
+                    {
+                        <div class="alert alert-warning">
+                            Faltan cargar @(puntosActivos.Any() ? "" : "puntos de control")@(!puntosActivos.Any() && !tiposActivos.Any() ? " y " : "")@(tiposActivos.Any() ? "" : "tipos de defecto").
+                            El administrador los carga en Maestros → Calidad.
+                        </div>
+                    }
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Punto de control *</label>
+                            <select class="form-select" @bind="nuevo.PuntoControlCalidadId">
+                                <option value="0">-- Elegí el punto --</option>
+                                @foreach (var punto in puntosActivos)
+                                {
+                                    <option value="@punto.PuntoControlCalidadId">@punto.LineaNombre · @punto.Nombre</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Defecto *</label>
+                            <select class="form-select" @bind="nuevo.TipoDefectoCalidadId">
+                                <option value="0">-- Elegí el defecto --</option>
+                                @foreach (var tipo in tiposActivos)
+                                {
+                                    <option value="@tipo.TipoDefectoCalidadId">@tipo.Nombre</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Fecha y hora *</label>
+                            <input type="datetime-local" class="form-control" @bind="nuevo.FechaHora" @bind:format="yyyy-MM-ddTHH:mm" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Turno</label>
+                            <select class="form-select" @bind="nuevo.TurnoId">
+                                <option value="">Según la hora</option>
+                                @foreach (var turno in turnos)
+                                {
+                                    <option value="@turno.TurnoId">@turno.Nombre</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Dato medido</label>
+                            <div class="input-group">
+                                <input type="number" step="any" min="0" class="form-control" @bind="nuevo.ValorMedido" />
+                                <input type="text" class="form-control" style="max-width: 9rem;" maxlength="20"
+                                       placeholder="@(UnidadDelTipo ?? "unidad")" @bind="nuevo.UnidadMedida" />
+                            </div>
+                            <div class="form-text">Ej.: 14 mm de rabo, 3 paquetes. Sin unidad se usa la del defecto.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Producto / SKU</label>
+                            <select class="form-select" @bind="nuevo.ProductoId">
+                                <option value="">Sin producto</option>
+                                @foreach (var producto in productos)
+                                {
+                                    <option value="@producto.ProductoId">@producto.Codigo - @producto.Nombre</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Detención relacionada</label>
+                            <input type="text" class="form-control" maxlength="30" placeholder="DET-AAAAMMDD-NNNNNN (opcional)" @bind="nuevo.CodigoDetencion" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Imagen</label>
+                            <InputFile class="form-control" accept="@AdjuntosAnalisisReglas.Accept" OnChange="ElegirImagen" />
+                            <div class="form-text">JPG o PNG, hasta 10 MB. Opcional.</div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Observaciones</label>
+                        <textarea class="form-control" rows="3" maxlength="1000" @bind="nuevo.Observaciones"></textarea>
+                    </div>
+                    <div class="form-text">Queda confirmado a tu nombre: lo viste vos.</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="() => mostrarNuevo = false">Cancelar</button>
+                    <button type="button" class="btn btn-primary" disabled="@procesando" @onclick="@(async () => await GuardarNuevo())">
+                        @if (procesando)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        Guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private PagedResult<RegistroCalidadDto> pagina = new();
+    private RegistrosCalidadFiltro filtro = new();
+    private DateTime? fechaDesde;
+    private DateTime? fechaHasta;
+
+    private List<LineaDto> lineas = new();
+    private List<TurnoDto> turnos = new();
+    private List<PuntoControlCalidadDto> puntosTodos = new();
+    private List<TipoDefectoCalidadDto> tiposTodos = new();
+    private List<ProductoDto> productos = new();
+
+    private bool puedeRevisar;
+    private bool puedeCargarManual;
+    private bool isLoading = true;
+    private bool procesando;
+    private string? errorCarga;
+    private string? mensajeError;
+    private string? mensajeExito;
+
+    private RegistroCalidadDto? detalle;
+    private string? imagenDetalle;
+    private bool cargandoImagen;
+    private string? errorDetalle;
+    private string? comentarioRevision;
+    private string? codigoDetencion;
+
+    private bool mostrarNuevo;
+    private NuevoRegistroCalidadManual nuevo = new();
+    private IBrowserFile? imagenNueva;
+    private string? errorNuevo;
+
+    private IEnumerable<PuntoControlCalidadDto> PuntosDelFiltro =>
+        filtro.LineaId.HasValue ? puntosTodos.Where(p => p.LineaId == filtro.LineaId) : puntosTodos;
+
+    private List<PuntoControlCalidadDto> puntosActivos => puntosTodos.Where(p => p.Activo).ToList();
+    private List<TipoDefectoCalidadDto> tiposActivos => tiposTodos.Where(t => t.Activo).ToList();
+
+    private string? UnidadDelTipo => tiposTodos.FirstOrDefault(t => t.TipoDefectoCalidadId == nuevo.TipoDefectoCalidadId)?.UnidadMedida;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthStateProvider.GetAuthenticationStateAsync()).User;
+        puedeRevisar = CalidadOpciones.PuedeRevisar(user.IsInRole);
+        puedeCargarManual = CalidadOpciones.PuedeCargarManual(user.IsInRole);
+
+        // Por defecto, los últimos 7 días.
+        fechaHasta = DateTime.Today;
+        fechaDesde = DateTime.Today.AddDays(-6);
+
+        await Task.WhenAll(CargarCatalogos(), Buscar());
+    }
+
+    private async Task CargarCatalogos()
+    {
+        try
+        {
+            var lineasTask = CatalogosService.GetLineasAsync();
+            var turnosTask = CatalogosService.GetTurnosAsync();
+            // Con inactivos: los registros viejos pueden ser de una cámara o un defecto dados de baja.
+            var puntosTask = CalidadService.GetPuntosControlAsync(incluirInactivos: true);
+            var tiposTask = CalidadService.GetTiposDefectoAsync(incluirInactivos: true);
+            var productosTask = puedeCargarManual ? CatalogosService.GetProductosAsync() : Task.FromResult(new List<ProductoDto>());
+            await Task.WhenAll(lineasTask, turnosTask, puntosTask, tiposTask, productosTask);
+
+            lineas = lineasTask.Result;
+            turnos = turnosTask.Result;
+            puntosTodos = puntosTask.Result;
+            tiposTodos = tiposTask.Result;
+            productos = productosTask.Result.Where(p => p.Activo).ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error cargando catálogos de calidad: {ex.Message}");
+        }
+    }
+
+    private async Task Buscar()
+    {
+        filtro.Page = 1;
+        await CargarRegistros();
+    }
+
+    private async Task IrAPagina(int page)
+    {
+        filtro.Page = page;
+        await CargarRegistros();
+    }
+
+    private async Task CargarRegistros()
+    {
+        isLoading = true;
+        errorCarga = null;
+        filtro.FechaDesde = fechaDesde.HasValue ? DateOnly.FromDateTime(fechaDesde.Value) : null;
+        filtro.FechaHasta = fechaHasta.HasValue ? DateOnly.FromDateTime(fechaHasta.Value) : null;
+        try
+        {
+            pagina = await CalidadService.GetRegistrosAsync(filtro);
+        }
+        catch (Exception ex)
+        {
+            errorCarga = $"No se pudieron cargar los registros: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task CambioLineaFiltro()
+    {
+        // Si el punto elegido no es de la línea nueva, se suelta.
+        if (filtro.PuntoControlCalidadId.HasValue && !PuntosDelFiltro.Any(p => p.PuntoControlCalidadId == filtro.PuntoControlCalidadId))
+            filtro.PuntoControlCalidadId = null;
+        await Buscar();
+    }
+
+    private async Task LimpiarFiltros()
+    {
+        filtro = new RegistrosCalidadFiltro();
+        fechaDesde = null;
+        fechaHasta = null;
+        await Buscar();
+    }
+
+    private static string Medido(RegistroCalidadDto r) =>
+        r.ValorMedido is { } v ? $"{v.ToString("0.##", CultureInfo.CurrentCulture)} {r.UnidadMedida}".Trim() : "-";
+
+    private static string Confianza(decimal? c) =>
+        c is { } valor ? (valor * 100).ToString("0.#", CultureInfo.CurrentCulture) + " %" : "-";
+
+    // ===================== Detalle =====================
+
+    private async Task AbrirDetalle(long id)
+    {
+        errorDetalle = null;
+        comentarioRevision = null;
+        imagenDetalle = null;
+        try
+        {
+            detalle = await CalidadService.GetRegistroAsync(id);
+        }
+        catch (Exception ex)
+        {
+            mensajeError = $"No se pudo abrir el registro: {ex.Message}";
+            return;
+        }
+
+        codigoDetencion = detalle?.DetencionCodigo;
+        if (detalle?.TieneImagen == true)
+        {
+            cargandoImagen = true;
+            StateHasChanged();
+            try
+            {
+                imagenDetalle = await CalidadService.GetImagenDataUrlAsync(id);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error al cargar la imagen {id}: {ex.Message}");
+            }
+            finally
+            {
+                cargandoImagen = false;
+            }
+        }
+    }
+
+    private void CerrarDetalle()
+    {
+        detalle = null;
+        imagenDetalle = null;
+    }
+
+    private async Task Revisar(string estado)
+    {
+        if (detalle == null) return;
+
+        errorDetalle = null;
+        procesando = true;
+        try
+        {
+            var (registro, error) = await CalidadService.RevisarAsync(detalle.RegistroCalidadId, estado, comentarioRevision, detalle.RowVersion);
+            if (registro != null)
+            {
+                detalle = registro;
+                comentarioRevision = null;
+                mensajeExito = estado == "CONFIRMADO" ? "Defecto confirmado." : "Marcado como falso positivo.";
+                await CargarRegistros();
+            }
+            else
+            {
+                errorDetalle = error;
+            }
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+
+    private async Task VincularDetencion()
+    {
+        if (detalle == null) return;
+
+        errorDetalle = null;
+        procesando = true;
+        try
+        {
+            var (registro, error) = await CalidadService.VincularDetencionAsync(detalle.RegistroCalidadId, codigoDetencion);
+            if (registro != null)
+            {
+                detalle = registro;
+                codigoDetencion = registro.DetencionCodigo;
+                mensajeExito = registro.DetencionCodigo == null ? "Se quitó la detención relacionada." : $"Relacionado con {registro.DetencionCodigo}.";
+            }
+            else
+            {
+                errorDetalle = error;
+            }
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+
+    // ===================== Carga manual =====================
+
+    private void AbrirNuevo()
+    {
+        nuevo = new NuevoRegistroCalidadManual
+        {
+            FechaHora = DateTime.Now,
+            PuntoControlCalidadId = puntosActivos.Count == 1 ? puntosActivos[0].PuntoControlCalidadId : 0
+        };
+        imagenNueva = null;
+        errorNuevo = null;
+        mostrarNuevo = true;
+    }
+
+    private void ElegirImagen(InputFileChangeEventArgs e)
+    {
+        imagenNueva = e.File;
+        errorNuevo = AdjuntosAnalisisReglas.MotivoRechazoPrevio(e.File.Name, e.File.Size);
+    }
+
+    private async Task GuardarNuevo()
+    {
+        var faltan = new List<string>();
+        if (nuevo.PuntoControlCalidadId == 0) faltan.Add("punto de control");
+        if (nuevo.TipoDefectoCalidadId == 0) faltan.Add("defecto");
+        if (faltan.Any())
+        {
+            errorNuevo = "Falta completar: " + string.Join(", ", faltan) + ".";
+            return;
+        }
+
+        errorNuevo = null;
+        procesando = true;
+        try
+        {
+            var (registro, error) = await CalidadService.CrearManualAsync(nuevo, imagenNueva);
+            if (registro != null)
+            {
+                mostrarNuevo = false;
+                mensajeError = null;
+                mensajeExito = "Registro de calidad guardado.";
+                await Buscar();
+            }
+            else
+            {
+                errorNuevo = error;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorNuevo = ex.Message;
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+}

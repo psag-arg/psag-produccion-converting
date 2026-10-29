@@ -33,6 +33,11 @@ public interface IUnitOfWork : IDisposable
     // Tareas de mantenimiento
     ITareaMantenimientoRepository TareasMantenimiento { get; }
 
+    // Control de calidad (T-611)
+    IPuntoControlCalidadRepository PuntosControlCalidad { get; }
+    ITipoDefectoCalidadRepository TiposDefectoCalidad { get; }
+    IRegistroCalidadRepository RegistrosCalidad { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     Task BeginTransactionAsync(CancellationToken cancellationToken = default);
     Task CommitTransactionAsync(CancellationToken cancellationToken = default);

@@ -49,6 +49,15 @@ public static class AdjuntoImagenReglas
         if (fotosYaCargadas >= MaximoPorAnalisis)
             return $"El análisis ya tiene {MaximoPorAnalisis} fotos, que es el máximo.";
 
+        return MotivoRechazoImagen(nombreArchivo, tamanoBytes, cabecera);
+    }
+
+    /// <summary>
+    /// Mismas reglas de archivo sin el tope de fotos por análisis: JPG o PNG real, no vacío y hasta 10 MB.
+    /// La usan también las imágenes de los registros de calidad (T-611).
+    /// </summary>
+    public static string? MotivoRechazoImagen(string? nombreArchivo, long tamanoBytes, ReadOnlySpan<byte> cabecera)
+    {
         if (tamanoBytes <= 0)
             return "El archivo está vacío.";
 

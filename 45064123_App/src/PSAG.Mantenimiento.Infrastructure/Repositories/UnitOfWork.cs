@@ -37,6 +37,11 @@ public class UnitOfWork : IUnitOfWork
     // Tareas de mantenimiento
     private ITareaMantenimientoRepository? _tareasMantenimiento;
 
+    // Control de calidad
+    private IPuntoControlCalidadRepository? _puntosControlCalidad;
+    private ITipoDefectoCalidadRepository? _tiposDefectoCalidad;
+    private IRegistroCalidadRepository? _registrosCalidad;
+
     public UnitOfWork(MantenimientoDbContext context)
     {
         _context = context;
@@ -69,6 +74,11 @@ public class UnitOfWork : IUnitOfWork
 
     // Tareas de mantenimiento
     public ITareaMantenimientoRepository TareasMantenimiento => _tareasMantenimiento ??= new TareaMantenimientoRepository(_context);
+
+    // Control de calidad
+    public IPuntoControlCalidadRepository PuntosControlCalidad => _puntosControlCalidad ??= new PuntoControlCalidadRepository(_context);
+    public ITipoDefectoCalidadRepository TiposDefectoCalidad => _tiposDefectoCalidad ??= new TipoDefectoCalidadRepository(_context);
+    public IRegistroCalidadRepository RegistrosCalidad => _registrosCalidad ??= new RegistroCalidadRepository(_context);
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
