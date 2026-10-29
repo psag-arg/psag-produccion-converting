@@ -104,6 +104,7 @@ Referrer-Policy: strict-origin-when-cross-origin
 ### NO versionar
 - `appsettings.Production.json`
 - Claves JWT
+- `Calidad:ClaveIngesta` (clave de servicio del detector de calidad, T-611): en producción va en la variable de entorno `Calidad__ClaveIngesta` del servicio. Ver `CALIDAD.md`.
 - Connection strings de producción
 
 ### Usar

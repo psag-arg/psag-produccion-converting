@@ -117,6 +117,27 @@ Filtros: varios, devuelve CSV.
 ### GET /auditoria
 Filtros: `usuarioId`, `accion`, `entidad`, `fechaDesde`, `fechaHasta`
 
+## Calidad (T-611)
+
+Detalle completo, reglas y contrato del detector en [CALIDAD.md](CALIDAD.md).
+
+### GET /calidad/registros
+Filtros: `fechaDesde`, `fechaHasta` (días de planta), `turnoId`, `lineaId`, `puntoControlCalidadId`, `tipoDefectoCalidadId`, `estadoRevision` (PENDIENTE | CONFIRMADO | FALSO_POSITIVO), `origen` (AUTOMATICO | MANUAL), `page`, `pageSize`.
+### GET /calidad/registros/{id}
+Con historial de revisión.
+### GET /calidad/registros/{id}/imagen
+Solo con sesión, `nosniff`.
+### POST /calidad/registros
+Carga manual (multipart, imagen opcional en `archivo`). SUPERVISOR, ADMINISTRADOR.
+### POST /calidad/registros/{id}/revision
+`{ "estado": "CONFIRMADO" | "FALSO_POSITIVO", "comentario": "...", "rowVersion": "..." }`. SUPERVISOR, MANTENIMIENTO, ADMINISTRADOR.
+### POST /calidad/registros/{id}/detencion
+`{ "codigoDetencion": "DET-..." }` (vacío = quitar). Mismos roles que la revisión.
+### GET / POST / PUT /calidad/puntos-control, /calidad/tipos-defecto
+Maestros. Alta y edición solo ADMINISTRADOR.
+### POST /calidad/ingesta
+Detector. Sin JWT: header `X-Clave-Ingesta` (`Calidad:ClaveIngesta`). 201 / 200 (duplicado) / 400 / 401 / 503.
+
 ## Respuestas de Error
 
 Formato RFC 7807 (ProblemDetails):
