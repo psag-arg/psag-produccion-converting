@@ -189,6 +189,28 @@ Este documento registra las decisiones técnicas tomadas durante el desarrollo d
 
 ---
 
+## Decisiones - 30/10/2026 (T-610 Conteo por cámara)
+
+### DEC-035: Servicio .NET con ffmpeg portable, no Python
+**Decisión**: El conteo por cámara es un proyecto más de la solución (`PSAG.Mantenimiento.ConteoCamara`), servicio
+NSSM como la API, que lanza `ffmpeg.exe` portable y lee cuadros grises reducidos (640x480, 10 fps) por stdout.
+**Justificación**: El servidor ya tiene el runtime de .NET 9 y NSSM; sin GPU, sin internet y sin Python. Instalar =
+copiar una carpeta (un exe de ffmpeg sin DLLs + la publicación, sin paquetes NuGet). Python obligaba a llevar
+intérprete embebido + wheels de numpy/opencv y mantener dos ecosistemas. El método (FFT por carril) es poco código.
+
+### DEC-036: La cámara se identifica con un punto de control de calidad y escribe por la API
+**Decisión**: El servicio manda lotes a `POST api/conteo-camara/ingesta` con la clave de ingesta de calidad; la cámara
+es un `PuntoControlCalidad` (define la línea). No tiene cadena de conexión a la base.
+**Justificación**: Mismo patrón que el detector de T-611; validación en backend; los lotes quedan en disco si la API
+está caída. Insert-only e idempotente (minuto+carril, identificador de parada).
+
+### DEC-037: El cruce paradas de cámara / detenciones se calcula al consultar
+**Decisión**: No se guarda el vínculo: se busca una detención de la misma línea con horario superpuesto (±5 min) o,
+si la detención no tiene horario, del mismo día y turno (`POSIBLE`).
+**Justificación**: La detención se carga después de la parada (a veces horas después) y puede editarse.
+
+---
+
 ## Registro de Cambios
 
 | Fecha | Decisión | Autor |
@@ -197,3 +219,4 @@ Este documento registra las decisiones técnicas tomadas durante el desarrollo d
 | 2026-08-08 | Derogaciones + DEC-020 a DEC-027 | Claude Code |
 | 2026-08-19 | DEC-028 a DEC-030 (Cierre Fase 1) | Claude Code |
 | 2026-08-22 | DEC-031 a DEC-034 (UI/UX Fase 1) | Claude Code |
+| 2026-10-30 | DEC-035 a DEC-037 (T-610 Conteo por cámara) | Claude Code |

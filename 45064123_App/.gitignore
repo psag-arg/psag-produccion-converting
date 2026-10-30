@@ -102,3 +102,9 @@ CLAUDE.local.md
 # Adicional: archivos temporales de OneDrive
 ~$*
 *.tmp
+
+# T-610 conteo por cámara: binario de ffmpeg, overrides locales, lotes pendientes y credenciales
+**/ffmpeg/*.exe
+appsettings.local.json
+**/pendientes/
+*.env

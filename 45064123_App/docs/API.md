@@ -138,6 +138,15 @@ Maestros. Alta y edición solo ADMINISTRADOR.
 ### POST /calidad/ingesta
 Detector. Sin JWT: header `X-Clave-Ingesta` (`Calidad:ClaveIngesta`). 201 / 200 (duplicado) / 400 / 401 / 503.
 
+### GET /conteo-camara/paradas
+T-610. Paradas detectadas por la cámara con el cruce con detenciones (`CON_DETENCION` / `POSIBLE` / `SIN_DETENCION`).
+Query: `fechaDesde`, `fechaHasta` (días de planta, máx. 3 meses), `lineaId`, `soloSinDetencion`, `segundosMinimos`.
+### GET /conteo-camara/produccion?fecha=YYYY-MM-DD&lineaId=
+T-610. Rollos por hora y carril de un día de planta.
+### POST /conteo-camara/ingesta
+Servicio de conteo. Sin JWT: misma clave que la ingesta de calidad. JSON con `puntoControl`, `minutos[]` y `paradas[]`;
+idempotente (minuto+carril, identificadorExterno), todo o nada. 200 / 400 / 401 / 503. Contrato en `docs/CONTEO_CAMARA.md`.
+
 ## Respuestas de Error
 
 Formato RFC 7807 (ProblemDetails):
