@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    T-610: conteo de producción y detección de paradas con la cámara 09 (salida de la cortadora).
+    Sin paquetes NuGet: usa el framework compartido de ASP.NET Core (Generic Host, configuración, logging,
+    HttpClient), que ya está instalado en el servidor por la API. Así se instala offline copiando la carpeta.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>PSAG.Mantenimiento.ConteoCamara</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="zonas-camara.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Herramientas\calibracion.html" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="PSAG.Mantenimiento.ConteoCamara.Tests" />
+  </ItemGroup>
+
+</Project>

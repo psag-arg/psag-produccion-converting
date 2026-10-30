@@ -1,0 +1,14 @@
+{
+  "ConteoCamara": {
+    "Zonas": {
+      "AnchoImagen": 2560,
+      "AltoImagen": 1920,
+      "Carriles": [
+        { "Carril": 1, "X": 1092, "Y": 984, "Lado": 32 },
+        { "Carril": 2, "X": 1228, "Y": 1000, "Lado": 32 },
+        { "Carril": 3, "X": 1408, "Y": 1000, "Lado": 32 },
+        { "Carril": 4, "X": 1576, "Y": 1000, "Lado": 32 }
+      ]
+    }
+  }
+}

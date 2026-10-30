@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zonas de conteo</title>
+<!-- Herramienta local de calibración (T-610). Sin dependencias externas: abre la foto que está al lado de este archivo. -->
+<style>
+  :root { --fondo:#f6f6f4; --texto:#1d1d1b; --borde:#c9c9c4; --acento:#0b6bcb; }
+  @media (prefers-color-scheme: dark) { :root { --fondo:#1b1c1e; --texto:#e8e8e6; --borde:#44464a; --acento:#5aa9ff; } }
+  body { margin:0; padding:16px; background:var(--fondo); color:var(--texto); font:14px/1.45 system-ui, sans-serif; }
+  h1 { font-size:18px; margin:0 0 8px; }
+  .barra { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0; }
+  button { font:inherit; padding:6px 10px; border:1px solid var(--borde); border-radius:6px; background:transparent; color:var(--texto); cursor:pointer; }
+  button.activo { border-color:var(--acento); color:var(--acento); font-weight:600; }
+  #lienzo { max-width:100%; border:1px solid var(--borde); cursor:crosshair; }
+  textarea { width:100%; max-width:900px; height:200px; font:12px ui-monospace, monospace; background:transparent; color:var(--texto); border:1px solid var(--borde); }
+  .nota { opacity:.8; max-width:900px; }
+</style>
+</head>
+<body>
+<h1>Zonas de conteo por carril</h1>
+<p class="nota">Elegí un carril y hacé clic en la foto donde quieras medir el paso de rollos: un punto del tramo recto
+de salida, sobre el centro del carril, por donde pasen los rollos uno tras otro (cara con tubo). Evitá barras, manijas y
+bordes de la cinta. Lado = tamaño del cuadrado en píxeles de la foto original. Al terminar, descargá
+<code>zonas-camara.json</code> y reemplazá el de la carpeta del servicio (después reiniciá el servicio).</p>
+<div class="barra" id="carriles"></div>
+<div class="barra">
+  <label>Lado <input id="lado" type="number" min="8" max="128" step="4" style="width:70px"></label>
+  <button id="descargar">Descargar zonas-camara.json</button>
+</div>
+<canvas id="lienzo"></canvas>
+<p><textarea id="json" readonly></textarea></p>
+<script>
+const FOTO = "__FOTO__";
+const zonas = __ZONAS__;
+const colores = ["#e8453c", "#f2a900", "#21a366", "#1a73e8", "#a142f4", "#00acc1"];
+let elegido = zonas.Carriles.length ? zonas.Carriles[0].Carril : 1;
+const img = new Image();
+const lienzo = document.getElementById("lienzo"), ctx = lienzo.getContext("2d");
+function dibujar() {
+  lienzo.width = img.naturalWidth || zonas.AnchoImagen; lienzo.height = img.naturalHeight || zonas.AltoImagen;
+  if (img.complete && img.naturalWidth) ctx.drawImage(img, 0, 0);
+  const ex = lienzo.width / zonas.AnchoImagen, ey = lienzo.height / zonas.AltoImagen;
+  zonas.Carriles.forEach((z, i) => {
+    const c = colores[i % colores.length], l = z.Lado * ex;
+    ctx.lineWidth = z.Carril === elegido ? 6 : 3; ctx.strokeStyle = c;
+    ctx.strokeRect(z.X * ex - l / 2, z.Y * ey - l / 2, l, l);
+    ctx.fillStyle = c; ctx.font = "bold 40px system-ui"; ctx.fillText("C" + z.Carril, z.X * ex + l / 2 + 6, z.Y * ey + 14);
+  });
+  document.getElementById("json").value = JSON.stringify({ ConteoCamara: { Zonas: zonas } }, null, 2);
+  const actual = zonas.Carriles.find(z => z.Carril === elegido); document.getElementById("lado").value = actual ? actual.Lado : 32;
+  document.querySelectorAll("#carriles button").forEach(b => b.classList.toggle("activo", +b.dataset.c === elegido));
+}
+function botones() {
+  const cont = document.getElementById("carriles"); cont.innerHTML = "Carril:";
+  zonas.Carriles.forEach(z => { const b = document.createElement("button"); b.textContent = z.Carril; b.dataset.c = z.Carril;
+    b.onclick = () => { elegido = z.Carril; dibujar(); }; cont.appendChild(b); });
+  const mas = document.createElement("button"); mas.textContent = "+ carril";
+  mas.onclick = () => { const n = Math.max(0, ...zonas.Carriles.map(z => z.Carril)) + 1;
+    zonas.Carriles.push({ Carril: n, X: zonas.AnchoImagen / 2, Y: zonas.AltoImagen / 2, Lado: 32 }); elegido = n; botones(); dibujar(); };
+  cont.appendChild(mas);
+}
+lienzo.addEventListener("click", e => {
+  const r = lienzo.getBoundingClientRect();
+  const x = (e.clientX - r.left) * lienzo.width / r.width, y = (e.clientY - r.top) * lienzo.height / r.height;
+  const z = zonas.Carriles.find(z => z.Carril === elegido); if (!z) return;
+  z.X = Math.round(x * zonas.AnchoImagen / lienzo.width); z.Y = Math.round(y * zonas.AltoImagen / lienzo.height); dibujar();
+});
+document.getElementById("lado").addEventListener("change", e => {
+  const z = zonas.Carriles.find(z => z.Carril === elegido); if (z) { z.Lado = Math.max(8, +e.target.value || 32); dibujar(); } });
+document.getElementById("descargar").onclick = () => {
+  const blob = new Blob([document.getElementById("json").value], { type: "application/json" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "zonas-camara.json"; a.click();
+};
+img.onload = dibujar; img.onerror = dibujar; img.src = FOTO; botones(); dibujar();
+</script>
+</body>
+</html>
