@@ -1,0 +1,265 @@
+@page "/paradas-camara"
+@using Microsoft.AspNetCore.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize]
+@inject IConteoCamaraService ConteoCamaraService
+@inject ICatalogosService CatalogosService
+
+<PageTitle>Paradas por cámara - PSAG Produccion</PageTitle>
+
+<div class="container-fluid">
+    <div class="mb-4">
+        <h2 class="mb-0">Paradas y producción según la cámara</h2>
+        <small class="text-muted">
+            Paradas detectadas por la cámara de salida de la cortadora y si tienen una detención cargada.
+            La cámara solo informa: las detenciones se siguen cargando como siempre.
+        </small>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-2 align-items-end">
+                <div class="col-6 col-md-2">
+                    <label class="form-label">Desde</label>
+                    <input type="date" class="form-control" @bind="desde" @bind:after="@(async () => await Buscar())" />
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label">Hasta</label>
+                    <input type="date" class="form-control" @bind="hasta" @bind:after="@(async () => await Buscar())" />
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label">Línea</label>
+                    <select class="form-select" @bind="lineaId" @bind:after="@(async () => await Buscar())">
+                        <option value="">Todas</option>
+                        @foreach (var linea in lineas)
+                        {
+                            <option value="@linea.LineaId">@linea.Nombre</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label">Duración mínima</label>
+                    <select class="form-select" @bind="segundosMinimos" @bind:after="@(async () => await Buscar())">
+                        <option value="0">Todas</option>
+                        <option value="60">1 min o más</option>
+                        <option value="180">3 min o más</option>
+                        <option value="600">10 min o más</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-4">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="soloSin" @bind="soloSinDetencion" @bind:after="@(async () => await Buscar())" />
+                        <label class="form-check-label" for="soloSin">Solo las que no tienen detención cargada</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (error != null)
+    {
+        <div class="alert alert-danger">@error</div>
+    }
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Cargando...</span></div></div>
+    }
+    else
+    {
+        <div class="row g-3 mb-3">
+            <div class="col-6 col-md-3">
+                <div class="card"><div class="card-body">
+                    <div class="text-muted small">Paradas en la lista</div>
+                    <div class="fs-3 fw-semibold">@resultado.Total</div>
+                </div></div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card"><div class="card-body">
+                    <div class="text-muted small">Sin detención cargada</div>
+                    <div class="fs-3 fw-semibold @(resultado.SinDetencion > 0 ? "text-danger" : "")">@resultado.SinDetencion</div>
+                    <div class="small text-muted">@resultado.MinutosSinDetencion min en total</div>
+                </div></div>
+            </div>
+        </div>
+
+        @if (resultado.Items.Count == 0)
+        {
+            <div class="alert alert-info">No hay paradas detectadas con estos filtros.</div>
+        }
+        else
+        {
+            <div class="card mb-4">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Inicio</th>
+                                <th>Fin</th>
+                                <th class="text-end">Duración</th>
+                                <th>Línea</th>
+                                <th>Turno</th>
+                                <th>Tipo</th>
+                                <th>Carriles</th>
+                                <th>Detención</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var p in resultado.Items)
+                            {
+                                <tr>
+                                    <td>
+                                        @p.FechaHoraInicio.ToString("dd/MM HH:mm:ss")
+                                        @if (p.InicioIncierto)
+                                        {
+                                            <span class="badge text-bg-light" title="El servicio arrancó con la línea ya parada: pudo empezar antes">aprox.</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @p.FechaHoraFin.ToString("HH:mm:ss")
+                                        @if (p.FinIncierto)
+                                        {
+                                            <span class="badge text-bg-light" title="Se cortó el video antes del arranque: pudo seguir después">aprox.</span>
+                                        }
+                                    </td>
+                                    <td class="text-end">@Duracion(p.DuracionSegundos)</td>
+                                    <td>@p.LineaNombre</td>
+                                    <td>@p.TurnoNombre</td>
+                                    <td>@(p.Tipo == "PARADA" ? "Parada" : "Acumulación")</td>
+                                    <td>@p.Carriles</td>
+                                    <td>
+                                        @switch (p.Cruce)
+                                        {
+                                            case "CON_DETENCION":
+                                                <span class="badge text-bg-success">Cargada</span>
+                                                <span class="small ms-1">@string.Join(", ", p.CodigosDetencion)</span>
+                                                break;
+                                            case "POSIBLE":
+                                                <span class="badge text-bg-warning" title="Hay una detención del mismo día y turno sin horario: puede ser esta">Posible</span>
+                                                <span class="small ms-1">@string.Join(", ", p.CodigosDetencion)</span>
+                                                break;
+                                            default:
+                                                <span class="badge text-bg-danger">Sin detención</span>
+                                                break;
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+
+        <h5 class="mt-4">Producción del @hasta.ToString("dd/MM/yyyy") según la cámara</h5>
+        <small class="text-muted d-block mb-2">
+            Rollos estimados por la frecuencia de paso en cada carril. Validar contra el contador de la cortadora antes de usarlo como dato oficial.
+        </small>
+        @if (produccion.Horas.Count == 0)
+        {
+            <div class="alert alert-info">Sin datos de la cámara para ese día.</div>
+        }
+        else
+        {
+            <div class="card">
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Hora</th>
+                                @foreach (var c in produccion.Carriles)
+                                {
+                                    <th class="text-end">Carril @c</th>
+                                }
+                                <th class="text-end">Total</th>
+                                <th class="text-end" title="Minutos-carril en marcha sobre minutos-carril con video">En marcha</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var h in produccion.Horas)
+                            {
+                                <tr>
+                                    <td>@h.Hora.ToString("HH:mm")</td>
+                                    @foreach (var c in produccion.Carriles)
+                                    {
+                                        <td class="text-end">@(h.RollosPorCarril.TryGetValue(c, out var r) ? r.ToString("N0") : "-")</td>
+                                    }
+                                    <td class="text-end fw-semibold">@h.TotalRollos.ToString("N0")</td>
+                                    <td class="text-end">@(h.MinutosCarrilConDatos > 0 ? (100.0 * h.MinutosCarrilMarcha / h.MinutosCarrilConDatos).ToString("0") + " %" : "-")</td>
+                                </tr>
+                            }
+                        </tbody>
+                        <tfoot>
+                            <tr class="fw-semibold">
+                                <td>Día</td>
+                                @foreach (var c in produccion.Carriles)
+                                {
+                                    <td class="text-end">@produccion.Horas.Sum(h => h.RollosPorCarril.GetValueOrDefault(c)).ToString("N0")</td>
+                                }
+                                <td class="text-end">@produccion.TotalRollos.ToString("N0")</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private DateTime desde = DateTime.Today.AddDays(-7);
+    private DateTime hasta = DateTime.Today;
+    private int? lineaId;
+    private int segundosMinimos = 60;
+    private bool soloSinDetencion = true;
+    private bool isLoading = true;
+    private string? error;
+    private List<LineaDto> lineas = [];
+    private ParadasCamaraResultado resultado = new();
+    private ProduccionCamaraDto produccion = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            lineas = await CatalogosService.GetLineasAsync();
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        await Buscar();
+    }
+
+    private async Task Buscar()
+    {
+        isLoading = true;
+        error = null;
+        try
+        {
+            var d = DateOnly.FromDateTime(desde);
+            var h = DateOnly.FromDateTime(hasta);
+            var paradas = ConteoCamaraService.GetParadasAsync(d, h, lineaId, soloSinDetencion, segundosMinimos);
+            var prod = ConteoCamaraService.GetProduccionAsync(h, lineaId);
+            resultado = await paradas;
+            produccion = await prod;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            resultado = new();
+            produccion = new();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private static string Duracion(int segundos) =>
+        segundos >= 3600 ? $"{segundos / 3600} h {segundos % 3600 / 60} min"
+        : segundos >= 60 ? $"{segundos / 60} min {segundos % 60} s"
+        : $"{segundos} s";
+}

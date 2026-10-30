@@ -43,6 +43,7 @@ builder.Services.AddScoped<IControlProcesoPlantillaService, ControlProcesoPlanti
 builder.Services.AddScoped<IInspeccionService, InspeccionService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<ICalidadService, CalidadService>();
+builder.Services.AddScoped<IConteoCamaraService, ConteoCamaraService>();
 
 // Servicio de temas
 builder.Services.AddScoped<IThemeService, ThemeService>();
