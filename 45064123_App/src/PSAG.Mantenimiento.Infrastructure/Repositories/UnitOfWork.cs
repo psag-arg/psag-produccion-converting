@@ -42,6 +42,10 @@ public class UnitOfWork : IUnitOfWork
     private ITipoDefectoCalidadRepository? _tiposDefectoCalidad;
     private IRegistroCalidadRepository? _registrosCalidad;
 
+    // Conteo por cámara
+    private IConteoCamaraMinutoRepository? _conteosCamaraMinuto;
+    private IParadaCamaraRepository? _paradasCamara;
+
     public UnitOfWork(MantenimientoDbContext context)
     {
         _context = context;
@@ -79,6 +83,10 @@ public class UnitOfWork : IUnitOfWork
     public IPuntoControlCalidadRepository PuntosControlCalidad => _puntosControlCalidad ??= new PuntoControlCalidadRepository(_context);
     public ITipoDefectoCalidadRepository TiposDefectoCalidad => _tiposDefectoCalidad ??= new TipoDefectoCalidadRepository(_context);
     public IRegistroCalidadRepository RegistrosCalidad => _registrosCalidad ??= new RegistroCalidadRepository(_context);
+
+    // Conteo por cámara
+    public IConteoCamaraMinutoRepository ConteosCamaraMinuto => _conteosCamaraMinuto ??= new ConteoCamaraMinutoRepository(_context);
+    public IParadaCamaraRepository ParadasCamara => _paradasCamara ??= new ParadaCamaraRepository(_context);
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {

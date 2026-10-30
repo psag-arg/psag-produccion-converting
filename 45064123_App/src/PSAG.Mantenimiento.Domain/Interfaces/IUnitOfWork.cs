@@ -38,6 +38,10 @@ public interface IUnitOfWork : IDisposable
     ITipoDefectoCalidadRepository TiposDefectoCalidad { get; }
     IRegistroCalidadRepository RegistrosCalidad { get; }
 
+    // Conteo de producción y paradas por cámara (T-610)
+    IConteoCamaraMinutoRepository ConteosCamaraMinuto { get; }
+    IParadaCamaraRepository ParadasCamara { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     Task BeginTransactionAsync(CancellationToken cancellationToken = default);
     Task CommitTransactionAsync(CancellationToken cancellationToken = default);

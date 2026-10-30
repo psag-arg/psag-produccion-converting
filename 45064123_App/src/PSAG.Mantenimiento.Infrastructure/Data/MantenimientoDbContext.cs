@@ -54,6 +54,10 @@ public class MantenimientoDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<RegistroCalidad> RegistrosCalidad => Set<RegistroCalidad>();
     public DbSet<RegistroCalidadRevision> RegistrosCalidadRevisiones => Set<RegistroCalidadRevision>();
 
+    // Conteo de producción y paradas por cámara (T-610)
+    public DbSet<ConteoCamaraMinuto> ConteosCamaraMinuto => Set<ConteoCamaraMinuto>();
+    public DbSet<ParadaCamara> ParadasCamara => Set<ParadaCamara>();
+
     private bool EsSqlite => Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true;
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)

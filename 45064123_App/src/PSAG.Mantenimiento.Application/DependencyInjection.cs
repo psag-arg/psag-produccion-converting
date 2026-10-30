@@ -30,6 +30,9 @@ public static class DependencyInjection
         services.AddScoped<ICalidadMaestrosService, CalidadMaestrosService>();
         services.AddScoped<IRegistroCalidadService, RegistroCalidadService>();
 
+        // Conteo de producción y paradas por cámara (T-610)
+        services.AddScoped<IConteoCamaraService, ConteoCamaraService>();
+
         // Dashboard consolidado
         services.AddScoped<IDashboardService, DashboardService>();
 
