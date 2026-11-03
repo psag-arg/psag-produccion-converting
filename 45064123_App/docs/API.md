@@ -146,6 +146,18 @@ T-610. Rollos por hora y carril de un día de planta.
 ### POST /conteo-camara/ingesta
 Servicio de conteo. Sin JWT: misma clave que la ingesta de calidad. JSON con `puntoControl`, `minutos[]` y `paradas[]`;
 idempotente (minuto+carril, identificadorExterno), todo o nada. 200 / 400 / 401 / 503. Contrato en `docs/CONTEO_CAMARA.md`.
+Desde T-610 cámara 10 también `paradasEnCurso[]` (identificadorExterno, inicio, hasta, tipo) y `alertas[]` (tipo
+CONGELADA / SIN_VIDEO, inicio, fin). Si el punto tiene "crea detenciones", la parada que llega al umbral da de alta una
+detención pendiente de declaración (idempotente). `paradas` y `produccion` aceptan `puntoControlCalidadId`;
+`produccion` devuelve también `turnos[]`.
+### GET /conteo-camara/alertas?lineaId=&horas=24
+Alertas de cámara congelada o sin video: abiertas y las cerradas en las últimas horas.
+### GET /detenciones/{id}/declaracion · POST /detenciones/{id}/declarar
+Detención automática para declarar (hora de parada, arranque sugerido por la cámara, maquinista) y declaración del
+operador: `equipoId`, `tipoFallaId`, `detalleFallaId`, `descripcion`, `horaArranque` (HH:mm, planta) o
+`minutosDeclarados`, `rowVersion`. Pasa a REGISTRADA. 200 / 400 / 403 (línea no asignada) / 404 / 409.
+### GET /detenciones/aviso-fin-turno?minutosAviso=30
+Pendientes de declaración de las líneas del usuario y minutos para el fin del turno (`mostrar` = hay que avisar).
 
 ## Respuestas de Error
 

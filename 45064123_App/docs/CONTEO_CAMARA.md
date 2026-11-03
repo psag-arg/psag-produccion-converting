@@ -4,8 +4,10 @@ Cuenta los rollos que salen de la cortadora de la **Tango 2 / Futura 2** y detec
 **cámara 09** del grabador Hikvision (NVR `172.16.9.67`). No requiere hardware nuevo ni toca el NVR: sólo lee el
 video en vivo (una conexión RTSP de lectura).
 
-La cámara **sólo informa**. No crea detenciones: las paradas detectadas se cruzan con las detenciones cargadas y la
-pantalla *Calidad → Paradas y producción (cámara)* muestra las que nadie cargó.
+Desde el 03/11/2026 el servicio corre **varias cámaras** (`ConteoCamara:Camaras`). La **cámara 09** sigue igual: sólo
+informa, y las paradas detectadas se cruzan con las detenciones cargadas en *Calidad → Paradas y producción (cámara)*.
+La **cámara 10** (rebobinadora) cuenta las **mangas** y **crea sola la detención** cuando la máquina queda parada 5
+minutos o más (umbral configurable en Maestros). Ver la sección 8.
 
 ## 1. Cómo funciona
 
@@ -174,3 +176,84 @@ y `GET api/conteo-camara/produccion?fecha&lineaId`.
 - Si cambia la velocidad nominal (otro formato) ajustar `FrecuenciaNominalHz`; si no, las ventanas lentas se ven como acumulación.
 - Si se apaga el servicio de golpe (no por NSSM) se pierden hasta ~30 s de datos en memoria; un minuto partido por un
   reinicio queda con lo del primer envío (el segundo se toma como repetido).
+
+## 8. Cámara 10: mangas, rodillo y detención automática (03/11/2026)
+
+### 8.1 Método `MANGAS`
+
+Medido en grabaciones reales del 02 y 03/11 (día y noche), decodificando el stream principal a 320x180 y 5 fps. Se
+usa el **movimiento medio** de una zona (diferencia absoluta entre dos cuadros seguidos):
+
+| Zona (px de 2560x1440) | En marcha | Parada |
+|---|---|---|
+| **Mesa** `X 1120 Y 160 960x560`: cruzan las mangas | un pulso de 15-45 por manga, una cada ~2,7 s; 0-2 entre mangas | 0-1 |
+| **Rodillo** `X 240 Y 80 320x480` (arriba a la izquierda) | ~20 constante | 0-1 con el rodillo quieto |
+
+Cada ventana de 10 s queda en:
+
+| Estado | Regla |
+|---|---|
+| `PARADA` | el rodillo estuvo quieto (< 6) la mitad de los cuadros o más |
+| `ACUMULACION` → tipo de parada **`SIN_MANGAS`** | el rodillo gira pero no pasó ninguna manga en la ventana |
+| `MARCHA` | el rodillo gira y pasó al menos una manga |
+
+Las paradas usan el mismo detector con histéresis que la 09 (2 ventanas, 20 s). Las **mangas** se cuentan siempre
+(histéresis 12/4 y 1,2 s mínimo entre mangas) y van a `mnt.ConteosCamaraMinuto` como "rollos" del carril 1; la API
+las suma por turno (`GET api/conteo-camara/produccion?puntoControlCalidadId=...` → `turnos`).
+
+**Por qué las dos señales (OR):** en el 02-03/11 se vieron paradas con el rodillo girando y sin mangas (09:55, 05:20,
+22:10, 23:15: todo quieto menos el rodillo) y paradas con el rodillo quieto (02:28 a 02:36, 23:10). Mirar sólo el
+rodillo pierde las primeras; mirar sólo las mangas no distingue el tipo. **Empalme**: el rodillo sigue y las mangas
+salen más espaciadas pero siguen saliendo, así que no se abre parada; si alguna vez dejan de salir más de 20 s queda
+como microcorte (sólo log). Recién a los 5 minutos se crea la detención.
+
+### 8.2 Detención automática
+
+1. Mientras la máquina sigue parada, cada lote lleva la parada **en curso** (`paradasEnCurso`: inicio y última hora
+   vista). Cuando llega al umbral del punto de control (`MinutosUmbralDetencion`, 5 por defecto) y el punto tiene
+   `CreaDetenciones`, la API da de alta la detención **sin esperar el arranque**.
+2. La detención nace en `PENDIENTE_JUSTIFICACION` ("Pendiente de declaración"), `OrigenRegistro = CAMARA`, con
+   línea (la del punto), fecha y turno de la hora de parada, `FechaHoraParada` y **maquinista del turno**. Quedan
+   vacíos el equipo, el tipo y detalle de falla, la descripción, la hora de arranque y los minutos (0).
+3. **Idempotente**: `IdentificadorParadaCamara` (punto + inicio UTC) es único en `mnt.Detenciones`. Un reenvío o la
+   misma parada cerrada no la duplican; una detención eliminada no se vuelve a crear.
+4. Cuando la máquina arranca, la parada cerrada guarda el arranque visto en `FechaHoraArranqueDetectada`. Es **sólo
+   una sugerencia**: la hora de arranque la declara el operador (botón "Usar la de la cámara").
+5. Las paradas de menos que el umbral quedan sólo en `mnt.ParadasCamara` (log de microcortes).
+
+**Maquinista** (`DetencionCamaraReglas.ElegirMaquinista`): la asignación de la línea para el turno de la parada; si
+hay dos (error de carga), la asignada más recientemente y se deja escrito en el historial; si no hay, la única
+asignación de la línea sin turno fijo; si no, vacío, y al declarar queda el operador que declara si está asignado.
+
+**Declaración** (`POST api/detenciones/{id}/declarar`): equipo, tipo y detalle de falla, descripción (obligatoria) y
+hora de arranque HH:mm (o minutos). Pasa a `REGISTRADA`, se calcula `MinutosEfectivos` y se aplican las reglas de
+análisis como en cualquier detención. Valida la línea asignada del operario en backend.
+
+**Pantallas**: *Mis pendientes* → solapa **Pendiente de declaración** (primera), filtrada por las líneas del usuario
+(administrador o supervisor sin líneas: todas). *Declarar detención* (`/detenciones/{id}/declarar`). **Aviso de fin
+de turno**: banner en todas las pantallas cuando faltan 30 min o menos y hay pendientes (no bloquea nada).
+
+### 8.3 Cámara congelada o sin video
+
+- **Congelada**: si durante 6 s ningún píxel cambia más de 4 entre cuadros (una imagen viva siempre cambia: el reloj de
+  la cámara avanza cada segundo y hay ruido; con la máquina y el rodillo quietos la diferencia máxima medida fue 15),
+  esos cuadros se descartan antes de analizarlos: **no hay parada ni detención falsa**. Se abre una alerta `CONGELADA`
+  y se cierra cuando la imagen cambia 1 s seguido (un cuadro clave del códec no la cierra).
+- **Sin video**: 60 s sin cuadros del NVR abren una alerta `SIN_VIDEO` ("pérdida de conexión de cámara"); se cierra
+  con el primer cuadro. Las alertas se guardan en `mnt.AlertasCamara` y se ven en Mis pendientes y en Paradas (cámara).
+
+### 8.4 Configuración (`appsettings.json` → `ConteoCamara:Camaras`)
+
+La sección común (`Fuente`, `Analisis`, `Vigilancia`, `Api`) vale para todas; cada cámara pisa lo suyo. La 09 sigue
+leyendo sus carriles de `zonas-camara.json` y conserva la carpeta `pendientes\`; las demás usan `pendientes\<código>`.
+La 10 viene **apagada** (`"Activa": false`) hasta que el usuario del servicio tenga permiso sobre el canal 10. Para
+encenderla, en `appsettings.local.json` del servidor:
+
+```json
+{ "ConteoCamara": { "Camaras": [ { "PuntoControl": "T2-CAM09" }, { "PuntoControl": "T2-CAM10", "Activa": true } ] } }
+```
+
+Probar sin instalar: `.\PSAG.Mantenimiento.ConteoCamara.exe vivo --camara T2-CAM10 --segundos 120` o
+`procesar --camara T2-CAM10 --archivo c10.mp4 --inicio 2026-11-03T02:25:00-03:00 --eco`.
+
+**Umbral, cuerpo y número de cámara**: Web → Maestros → Calidad → editar `T2-CAM10` → *Cámara asociada*.

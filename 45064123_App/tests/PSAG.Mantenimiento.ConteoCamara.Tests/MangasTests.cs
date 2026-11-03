@@ -181,6 +181,23 @@ public class ProcesadorMangasTests
     }
 
     [Fact]
+    public void ImagenCongelada_UnCuadroClaveDistintoNoCierraLaAlerta()
+    {
+        var t = _cam.Pasar(_cadena, 0, 30, periodo: 2.7);
+        var congelado = _cam.Cuadro(true, false);
+        var apenasDistinto = (byte[])congelado.Clone();
+        apenasDistinto[0] = (byte)(apenasDistinto[0] + 20);   // como un cuadro clave del códec
+        for (var i = 0; i < 120 * Camara10.Fps; i++)
+            _cadena.Cuadro(i == 300 ? apenasDistinto : congelado, Camara10.T0.AddSeconds(t + (double)i / Camara10.Fps));
+        _cam.Pasar(_cadena, t + 120, 30, periodo: 2.7);
+        _cadena.CortarSenal(final: true);
+
+        Assert.Single(_salida.Alertas, a => a.Fin == null);
+        Assert.Single(_salida.Alertas, a => a.Fin != null);
+        Assert.Empty(_salida.Paradas);
+    }
+
+    [Fact]
     public void Vigilante_NoAtrasaElConteo_EntregaTodoAlCortar()
     {
         _cam.Pasar(_cadena, 0, 30, periodo: 2.7);

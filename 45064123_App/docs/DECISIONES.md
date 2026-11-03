@@ -211,6 +211,27 @@ si la detención no tiene horario, del mismo día y turno (`POSIBLE`).
 
 ---
 
+## Decisiones - 03/11/2026 (T-610 Detención automática, cámara 10)
+
+### DEC-038: La "cámara asociada" es el punto de control de calidad, con cuerpo, número y umbral
+**Decisión**: Se extiende `PuntoControlCalidad` (línea + `EquipoId` del cuerpo que mira + `NumeroCamara` +
+`CreaDetenciones` + `MinutosUmbralDetencion`) en lugar de agregar un campo al maestro de Líneas o Equipos.
+**Justificación**: Ya identifica la cámara frente al servicio y define la línea; admite varias cámaras por máquina y
+por cuerpo; el umbral se cambia desde Maestros sin redeploy. El cuerpo es de referencia: el equipo de la detención
+lo declara el operador (reunión 03/11 [34:46]).
+
+### DEC-039: La detención automática usa el estado PENDIENTE_JUSTIFICACION existente
+**Decisión**: Nace en `PENDIENTE_JUSTIFICACION` (en pantalla "Pendiente de declaración") con 0 minutos, sin hora de
+arranque y con `OrigenRegistro = CAMARA`; al declarar pasa a `REGISTRADA`. Idempotente por `IdentificadorParadaCamara`.
+**Justificación**: El estado y su transición ya existían para el PLC (Fase 2) y el CHECK ya lo admite; no se tocan las
+validaciones del alta manual. La hora de arranque detectada se guarda aparte como sugerencia porque la declara el operador.
+
+### DEC-040: Parada de la cámara 10 = rodillo quieto O sin mangas en la mesa
+**Decisión**: Las dos señales, con histéresis de 20 s; tipos `PARADA` (rodillo quieto) y `SIN_MANGAS`.
+**Justificación**: En grabaciones reales hubo paradas de los dos tipos. El empalme no corta la salida de mangas.
+
+---
+
 ## Registro de Cambios
 
 | Fecha | Decisión | Autor |
@@ -220,3 +241,4 @@ si la detención no tiene horario, del mismo día y turno (`POSIBLE`).
 | 2026-08-19 | DEC-028 a DEC-030 (Cierre Fase 1) | Claude Code |
 | 2026-08-22 | DEC-031 a DEC-034 (UI/UX Fase 1) | Claude Code |
 | 2026-10-30 | DEC-035 a DEC-037 (T-610 Conteo por cámara) | Claude Code |
+| 2026-11-03 | DEC-038 a DEC-040 (T-610 Detención automática) | Claude Code |

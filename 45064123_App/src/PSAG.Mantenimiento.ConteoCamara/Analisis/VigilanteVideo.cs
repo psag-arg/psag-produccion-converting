@@ -30,6 +30,9 @@ public sealed class VigilanteVideo : IAnalizadorCuadros
     private byte[]? _anterior;
     private int _identicosSeguidos;
     private DateTimeOffset? _congeladaDesde;
+    private readonly int _cuadrosParaVolver;
+    private int _cambiosSeguidos;
+    private DateTimeOffset _primerCambio;
 
     public VigilanteVideo(IAnalizadorCuadros analizador, ISalidaConteo salida, OpcionesVigilancia opciones, int largoCuadro)
     {
@@ -38,6 +41,7 @@ public sealed class VigilanteVideo : IAnalizadorCuadros
         _diferenciaMaxima = Math.Max(0, opciones.DiferenciaMaximaIdentico);
         _cuadrosParaCongelado = Math.Max(2, (int)Math.Round(opciones.SegundosCongelado * analizador.Fps));
         _largoCuadro = largoCuadro;
+        _cuadrosParaVolver = Math.Max(2, (int)Math.Round(analizador.Fps));
     }
 
     public double Fps => _analizador.Fps;
@@ -66,11 +70,19 @@ public sealed class VigilanteVideo : IAnalizadorCuadros
 
         if (_congeladaDesde is { } desde)
         {
-            if (identico) return;
-            // Volvió la imagen: se cierra la alerta y se arranca de cero (la ventana a medias ya se cortó).
-            _salida.Alerta(new AlertaVideo(TipoAlertaVideo.CONGELADA, desde, hora, "La imagen volvió a cambiar."));
+            if (identico)
+            {
+                _cambiosSeguidos = 0;
+                return;
+            }
+            // Un cuadro clave del códec puede cambiar apenas una imagen congelada: la imagen "volvió" recién
+            // cuando cambia durante 1 s seguido. Se cierra la alerta en el primero de esos cuadros.
+            if (_cambiosSeguidos++ == 0) _primerCambio = hora;
+            if (_cambiosSeguidos < _cuadrosParaVolver) return;
+            _salida.Alerta(new AlertaVideo(TipoAlertaVideo.CONGELADA, desde, _primerCambio, "La imagen volvió a cambiar."));
             _congeladaDesde = null;
             _identicosSeguidos = 0;
+            _cambiosSeguidos = 0;
             Retener(actual, hora);
             return;
         }

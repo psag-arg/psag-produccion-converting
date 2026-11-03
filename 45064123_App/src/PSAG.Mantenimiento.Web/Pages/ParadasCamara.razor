@@ -78,7 +78,7 @@
     {
         <div class="alert @(a.Activa ? "alert-danger" : "alert-secondary") py-2" data-testid="alerta-camara">
             <i class="bi bi-camera-video-off me-1"></i>
-            <strong>@a.TipoDescripcion</strong> · @a.PuntoControlCodigo (@a.LineaNombre) desde @a.FechaHoraInicio.ToString("dd/MM HH:mm:ss")
+            <strong>@a.TipoDescripcion</strong> · @a.PuntoControlCodigo (@a.LineaNombre) desde @a.FechaHoraInicio.ToString("dd/MM HH:mm:ss")&nbsp;
             @if (a.FechaHoraFin is { } fin)
             {
                 <span>hasta @fin.ToString("HH:mm:ss") (resuelta).</span>
