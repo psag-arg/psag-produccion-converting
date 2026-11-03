@@ -16,6 +16,12 @@ public class PuntoControlCalidadDto
     public int? NumeroCamara { get; set; }
     public bool CreaDetenciones { get; set; }
     public int MinutosUmbralDetencion { get; set; } = 5;
+
+    // Eficiencia (script 28)
+    public decimal? ObjetivoPorHora { get; set; }
+
+    /// <summary>CARRILES (rollos), MANGAS o null (se deduce de los datos).</summary>
+    public string? MetodoConteo { get; set; }
 }
 
 public class TipoDefectoCalidadDto

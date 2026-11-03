@@ -124,3 +124,47 @@ public class ProduccionCamaraHoraDto
     public int MinutosCarrilMarcha { get; set; }
     public int MinutosCarrilConDatos { get; set; }
 }
+
+// Eficiencia por turno (Dashboard, reunión 03/11): espejo de los DTO de la API.
+
+public class EficienciaCamaraDiaDto
+{
+    public DateOnly Fecha { get; set; }
+    public List<EficienciaCamaraPuntoDto> Camaras { get; set; } = [];
+}
+
+public class EficienciaCamaraPuntoDto
+{
+    public int PuntoControlCalidadId { get; set; }
+    public string Codigo { get; set; } = string.Empty;
+    public string Nombre { get; set; } = string.Empty;
+    public int LineaId { get; set; }
+    public string LineaNombre { get; set; } = string.Empty;
+    public int? NumeroCamara { get; set; }
+    public string? MetodoConteo { get; set; }
+    public string Unidad { get; set; } = string.Empty;
+    public decimal? ObjetivoPorHora { get; set; }
+    public int MinutosUmbralDetencion { get; set; }
+    public List<EficienciaTurnoDto> Turnos { get; set; } = [];
+}
+
+public class EficienciaTurnoDto
+{
+    public int TurnoId { get; set; }
+    public string TurnoCodigo { get; set; } = string.Empty;
+    public string TurnoNombre { get; set; } = string.Empty;
+    public DateTimeOffset Inicio { get; set; }
+    public DateTimeOffset Fin { get; set; }
+    public int MinutosProgramados { get; set; }
+    public decimal Contadas { get; set; }
+    public decimal? Objetivo { get; set; }
+    public decimal? Porcentaje { get; set; }
+    public string Estado { get; set; } = string.Empty;
+    public string Momento { get; set; } = string.Empty;
+    public decimal? ObjetivoHastaAhora { get; set; }
+    public int MinutosParada { get; set; }
+    public int Microcortes { get; set; }
+    public int ParadasLargas { get; set; }
+    public int MinutosConDatos { get; set; }
+    public int MinutosMarcha { get; set; }
+}

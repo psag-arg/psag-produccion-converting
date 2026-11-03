@@ -188,3 +188,82 @@ public class ProduccionCamaraHoraDto
     public int MinutosCarrilMarcha { get; set; }
     public int MinutosCarrilConDatos { get; set; }
 }
+
+// ===================== Eficiencia por turno (Dashboard, reunión 03/11) =====================
+
+/// <summary>
+/// Eficiencia de las cámaras que cuentan producción, para los turnos de un día de planta. Un turno nocturno es del
+/// día en que empieza (21:00 del día a 05:00 del siguiente).
+/// </summary>
+public class EficienciaCamaraDiaDto
+{
+    public DateOnly Fecha { get; set; }
+    public List<EficienciaCamaraPuntoDto> Camaras { get; set; } = [];
+}
+
+public class EficienciaCamaraPuntoDto
+{
+    public int PuntoControlCalidadId { get; set; }
+    public string Codigo { get; set; } = string.Empty;
+    public string Nombre { get; set; } = string.Empty;
+    public int LineaId { get; set; }
+    public string LineaNombre { get; set; } = string.Empty;
+    public int? NumeroCamara { get; set; }
+
+    /// <summary>CARRILES, MANGAS o null (sin cargar en Maestros: la unidad se dedujo de los datos).</summary>
+    public string? MetodoConteo { get; set; }
+
+    /// <summary>rollos, mangas o unidades.</summary>
+    public string Unidad { get; set; } = string.Empty;
+
+    public decimal? ObjetivoPorHora { get; set; }
+
+    /// <summary>Umbral de detención de la cámara: las paradas más cortas son microcortes.</summary>
+    public int MinutosUmbralDetencion { get; set; }
+
+    public List<EficienciaTurnoDto> Turnos { get; set; } = [];
+}
+
+public class EficienciaTurnoDto
+{
+    public int TurnoId { get; set; }
+    public string TurnoCodigo { get; set; } = string.Empty;
+    public string TurnoNombre { get; set; } = string.Empty;
+
+    /// <summary>Inicio y fin del turno en hora de la planta.</summary>
+    public DateTimeOffset Inicio { get; set; }
+    public DateTimeOffset Fin { get; set; }
+
+    /// <summary>Horas programadas del turno (calendario de la línea y excepciones del día), en minutos.</summary>
+    public int MinutosProgramados { get; set; }
+
+    /// <summary>Unidades contadas por la cámara en el turno (minutos con ese turno materializado, dentro de la ventana).</summary>
+    public decimal Contadas { get; set; }
+
+    /// <summary>ObjetivoPorHora x horas programadas. Null si la cámara no tiene objetivo cargado.</summary>
+    public decimal? Objetivo { get; set; }
+
+    /// <summary>Contadas / objetivo x 100. Null sin objetivo o con objetivo 0 (turno no programado).</summary>
+    public decimal? Porcentaje { get; set; }
+
+    /// <summary>OK, SIN_OBJETIVO o NO_PROGRAMADO.</summary>
+    public string Estado { get; set; } = string.Empty;
+
+    /// <summary>SIN_EMPEZAR, EN_CURSO o TERMINADO.</summary>
+    public string Momento { get; set; } = string.Empty;
+
+    /// <summary>Turno en curso: parte del objetivo que corresponde al tiempo transcurrido.</summary>
+    public decimal? ObjetivoHastaAhora { get; set; }
+
+    /// <summary>Minutos de parada detectados por la cámara dentro del turno (todas las paradas, recortadas al turno).</summary>
+    public int MinutosParada { get; set; }
+
+    /// <summary>Paradas de la cámara que empezaron en el turno y duraron menos que el umbral (sólo log).</summary>
+    public int Microcortes { get; set; }
+
+    /// <summary>Paradas que empezaron en el turno y llegaron al umbral.</summary>
+    public int ParadasLargas { get; set; }
+
+    public int MinutosConDatos { get; set; }
+    public int MinutosMarcha { get; set; }
+}

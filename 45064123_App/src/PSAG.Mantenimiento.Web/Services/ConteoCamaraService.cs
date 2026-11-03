@@ -13,6 +13,9 @@ public interface IConteoCamaraService
 
     /// <summary>Alertas de cámara congelada o sin video: abiertas y las cerradas en las últimas horas.</summary>
     Task<List<AlertaCamaraDto>> GetAlertasAsync(int? lineaId = null, int horas = 24);
+
+    /// <summary>Eficiencia por turno de las cámaras que cuentan producción, en un día de planta (Dashboard).</summary>
+    Task<EficienciaCamaraDiaDto> GetEficienciaAsync(DateOnly fecha, int? lineaId = null);
 }
 
 public class ConteoCamaraService : IConteoCamaraService
@@ -42,6 +45,14 @@ public class ConteoCamaraService : IConteoCamaraService
         var response = await _httpClient.GetAsync(url);
         await ApiErrores.AsegurarExitoAsync(response);
         return await response.Content.ReadFromJsonAsync<ProduccionCamaraDto>() ?? new ProduccionCamaraDto();
+    }
+
+    public async Task<EficienciaCamaraDiaDto> GetEficienciaAsync(DateOnly fecha, int? lineaId = null)
+    {
+        var url = $"{Base}/eficiencia?fecha={Fecha(fecha)}" + (lineaId.HasValue ? $"&lineaId={lineaId}" : "");
+        var response = await _httpClient.GetAsync(url);
+        await ApiErrores.AsegurarExitoAsync(response);
+        return await response.Content.ReadFromJsonAsync<EficienciaCamaraDiaDto>() ?? new EficienciaCamaraDiaDto { Fecha = fecha };
     }
 
     public async Task<List<AlertaCamaraDto>> GetAlertasAsync(int? lineaId = null, int horas = 24)
