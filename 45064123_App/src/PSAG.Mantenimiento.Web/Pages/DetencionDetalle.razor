@@ -10,6 +10,7 @@
 @inject ICatalogosService CatalogosService
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
 
 <PageTitle>Detención @(detencion?.Codigo ?? "") - PSAG Produccion</PageTitle>
 
@@ -31,15 +32,22 @@
     }
     else
     {
-        <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3 mb-md-4 flex-wrap gap-2">
             <div>
-                <h2>@detencion.Codigo</h2>
+                <h2 class="mb-1">@detencion.Codigo</h2>
                 <span class="@EstadoUi.BadgeClass(detencion.EstadoActual, detencion.AnalisisPendiente) fs-6"
                       style="@EstadoUi.BadgeStyle(detencion.EstadoActual, detencion.AnalisisPendiente)">
                     @EstadoUi.Texto(detencion.EstadoActualDescripcion, detencion.EstadoAnalisisDescripcion)
                 </span>
             </div>
-            <div class="d-flex align-items-center">
+            <div class="d-flex align-items-center flex-wrap gap-2">
+                @if (PuedeAnalizar)
+                {
+                    @* En el celular el análisis queda abajo: este botón lo trae sin tener que buscarlo. *@
+                    <button class="btn btn-warning fw-semibold" id="btn-analizar" @onclick="IrAlAnalisis">
+                        <i class="bi bi-tools me-1"></i>Analizar
+                    </button>
+                }
                 @if (detencion.EstadoActual != "CERRADA" && !detencion.RequiereAnalisis)
                 {
                     @if (puedeCerrarDetencion)
@@ -55,11 +63,11 @@
                 }
                 @if (puedeEditar)
                 {
-                    <button class="btn btn-outline-primary ms-2" @onclick="EditarDetencion">
+                    <button class="btn btn-outline-primary" @onclick="EditarDetencion">
                         <i class="bi bi-pencil me-1"></i>Editar
                     </button>
                 }
-                <button class="btn btn-outline-secondary ms-2" @onclick="VolverAlListado">
+                <button class="btn btn-outline-secondary" @onclick="VolverAlListado">
                     Volver
                 </button>
             </div>
@@ -70,7 +78,7 @@
                 <div class="row g-3">
                     @foreach (var (paso, indice) in ObtenerPasos().Select((p, i) => (p, i)))
                     {
-                        <div class="col">
+                        <div class="col-6 col-md">
                             <div class="d-flex align-items-start">
                                 <span class="badge rounded-pill me-2 @(paso.Actual ? "bg-primary" : paso.Hecho ? "bg-success" : "bg-secondary")">
                                     @if (paso.Hecho)
@@ -214,7 +222,7 @@
 
                 @if (detencion.RequiereAnalisis)
                 {
-                    <div class="card mb-4">
+                    <div class="card mb-4" id="analisis">
                         <div class="card-header">
                             <h5 class="mb-0"><i class="bi bi-clipboard2-pulse me-2"></i>Identificación de fallas</h5>
                         </div>
@@ -236,7 +244,13 @@
                                 }
 
                                 <div class="mb-4">
-                                    <h6 class="mb-1">Solución (para resolver la falla) @if (analisis.PuedeEditar) { <span class="text-danger">*</span> }</h6>
+                                    <div class="d-flex justify-content-between align-items-end gap-2 mb-1">
+                                        <h6 class="mb-0">Solución (para resolver la falla) @if (analisis.PuedeEditar) { <span class="text-danger">*</span> }</h6>
+                                        @if (analisis.PuedeEditar)
+                                        {
+                                            <BotonDictado Value="@solucionTexto" ValueChanged="@((string v) => { solucionTexto = v; LimpiarFaltantes(); })" MaxLength="@LargosAnalisis.Solucion" Campo="la solución" />
+                                        }
+                                    </div>
                                     @if (analisis.PuedeEditar)
                                     {
                                         <textarea class="form-control @(faltaSolucion ? "is-invalid" : "")" rows="3" maxlength="@LargosAnalisis.Solucion"
@@ -251,7 +265,13 @@
                                 </div>
 
                                 <div class="mb-4">
-                                    <h6 class="mb-1">Causa de falla @if (analisis.PuedeEditar) { <span class="text-danger">*</span> }</h6>
+                                    <div class="d-flex justify-content-between align-items-end gap-2 mb-1">
+                                        <h6 class="mb-0">Causa de falla @if (analisis.PuedeEditar) { <span class="text-danger">*</span> }</h6>
+                                        @if (analisis.PuedeEditar)
+                                        {
+                                            <BotonDictado Value="@causaTexto" ValueChanged="@((string v) => { causaTexto = v; LimpiarFaltantes(); })" MaxLength="@LargosAnalisis.CausaYPlan" Campo="la causa de la falla" />
+                                        }
+                                    </div>
                                     @if (analisis.PuedeEditar)
                                     {
                                         <textarea class="form-control @(faltaCausa ? "is-invalid" : "")" rows="3" maxlength="@LargosAnalisis.CausaYPlan"
@@ -266,7 +286,13 @@
                                 </div>
 
                                 <div class="mb-4">
-                                    <h6 class="mb-1">Plan de acción @if (!AnalisisCerrado) { <span class="text-muted small fw-normal">(opcional)</span> }</h6>
+                                    <div class="d-flex justify-content-between align-items-end gap-2 mb-1">
+                                        <h6 class="mb-0">Plan de acción @if (!AnalisisCerrado) { <span class="text-muted small fw-normal">(opcional)</span> }</h6>
+                                        @if (analisis.PuedeEditar)
+                                        {
+                                            <BotonDictado @bind-Value="planTexto" MaxLength="@LargosAnalisis.CausaYPlan" Campo="el plan de acción" />
+                                        }
+                                    </div>
                                     @if (analisis.PuedeEditar)
                                     {
                                         <textarea class="form-control" rows="3" maxlength="@LargosAnalisis.CausaYPlan"
@@ -479,11 +505,17 @@
                                 <div class="alert alert-danger py-2">@errorCerrar</div>
                             }
                             <div class="mb-3">
-                                <label class="form-label">Acciones realizadas</label>
+                                <div class="d-flex justify-content-between align-items-end gap-2 mb-1">
+                                    <label class="form-label mb-0">Acciones realizadas</label>
+                                    <BotonDictado @bind-Value="cerrarRequest.AccionesRealizadas" Campo="las acciones realizadas" />
+                                </div>
                                 <textarea class="form-control" @bind="cerrarRequest.AccionesRealizadas" rows="3"></textarea>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label">Resolución *</label>
+                                <div class="d-flex justify-content-between align-items-end gap-2 mb-1">
+                                    <label class="form-label mb-0">Resolución *</label>
+                                    <BotonDictado @bind-Value="cerrarRequest.ResolucionDescripcion" Campo="la resolución" />
+                                </div>
                                 <textarea class="form-control" @bind="cerrarRequest.ResolucionDescripcion" @bind:event="oninput" rows="3"></textarea>
                                 @if (string.IsNullOrWhiteSpace(cerrarRequest.ResolucionDescripcion))
                                 {
@@ -519,6 +551,14 @@
     [SupplyParameterFromQuery(Name = "volver")]
     public string? Volver { get; set; }
 
+    /// <summary>?analizar=1: se abrió tocando la fila de un pendiente; la vista va directo al análisis.</summary>
+    [SupplyParameterFromQuery(Name = "analizar")]
+    public string? Analizar { get; set; }
+
+    private bool AnalizarPedido => Analizar is "1" or "true";
+
+    private bool yaFueAlAnalisis;
+
     private DetencionDetalleDto? detencion;
     private AnalisisDetencionDto? analisis;
     private AnalisisDetencionDto? analisisSinRegla;
@@ -544,6 +584,26 @@
     private ClaimsPrincipal? usuario;
 
     private bool AnalisisCerrado => detencion?.EstadoActual == "CERRADA";
+    private bool PuedeAnalizar => detencion?.RequiereAnalisis == true && analisis?.PuedeEditar == true && !AnalisisCerrado;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (AnalizarPedido && !yaFueAlAnalisis && !isLoading && PuedeAnalizar)
+        {
+            yaFueAlAnalisis = true;
+            await IrAlAnalisis();
+        }
+    }
+
+    private async Task IrAlAnalisis()
+    {
+        try
+        {
+            await using var ui = await JS.InvokeAsync<IJSObjectReference>("import", "./js/ui.js");
+            await ui.InvokeVoidAsync("irA", "analisis");
+        }
+        catch (JSException) { }
+    }
     private bool FormularioVacio =>
         string.IsNullOrWhiteSpace(solucionTexto) && string.IsNullOrWhiteSpace(causaTexto) && string.IsNullOrWhiteSpace(planTexto);
 

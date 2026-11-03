@@ -36,13 +36,18 @@
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">Cuerpo</label>
-                    <select class="form-select" @bind="filtro.EquipoId" @bind:after="@(async () => await AplicarFiltros())" disabled="@(!filtro.LineaId.HasValue)">
-                        <option value="">Todos</option>
-                        @foreach (var equipo in equipos)
-                        {
-                            <option value="@equipo.EquipoId">@equipo.Nombre</option>
-                        }
-                    </select>
+                    <AutocompleteSelect TItem="EquipoDto"
+                                        TValue="int?"
+                                        Items="equipos"
+                                        @bind-SelectedValue="filtro.EquipoId"
+                                        OnValueChanged="@(async () => await AplicarFiltros())"
+                                        ValueSelector="@(e => (int?)e.EquipoId)"
+                                        TextSelector="@(e => e.Nombre)"
+                                        Disabled="@(!filtro.LineaId.HasValue)"
+                                        EmptyText="Esta línea no tiene cuerpos cargados."
+                                        Placeholder="@(filtro.LineaId.HasValue ? "Todos (escribí para buscar)" : "Elegí primero la línea")">
+                        <ItemTemplate Context="equipo">@equipo.Nombre</ItemTemplate>
+                    </AutocompleteSelect>
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">Criticidad</label>

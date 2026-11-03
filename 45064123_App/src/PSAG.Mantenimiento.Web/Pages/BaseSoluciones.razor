@@ -40,13 +40,17 @@
                 </div>
                 <div class="col-lg-2 col-md-4">
                     <label class="form-label">Equipo</label>
-                    <select class="form-select" @bind="equipoId" @bind:after="@(async () => await Buscar())">
-                        <option value="">Todos</option>
-                        @foreach (var equipo in equipos)
-                        {
-                            <option value="@equipo.EquipoId">@(lineaId.HasValue ? equipo.Nombre : $"{equipo.Nombre} ({equipo.LineaNombre})")</option>
-                        }
-                    </select>
+                    <AutocompleteSelect TItem="EquipoDto"
+                                        TValue="int?"
+                                        Items="equipos"
+                                        @bind-SelectedValue="equipoId"
+                                        OnValueChanged="@(async () => await Buscar())"
+                                        ValueSelector="@(e => (int?)e.EquipoId)"
+                                        TextSelector="@(e => lineaId.HasValue ? e.Nombre : $"{e.Nombre} ({e.LineaNombre})")"
+                                        EmptyText="No hay equipos cargados."
+                                        Placeholder="Todos (escribí para buscar)">
+                        <ItemTemplate Context="equipo">@(lineaId.HasValue ? equipo.Nombre : $"{equipo.Nombre} ({equipo.LineaNombre})")</ItemTemplate>
+                    </AutocompleteSelect>
                     @if (!lineaId.HasValue)
                     {
                         <div class="form-text">Elegí una línea para ver sólo sus equipos.</div>
@@ -54,13 +58,16 @@
                 </div>
                 <div class="col-lg-2 col-md-4">
                     <label class="form-label">Tipo de falla</label>
-                    <select class="form-select" @bind="tipoFallaId" @bind:after="@(async () => await Buscar())">
-                        <option value="">Todos</option>
-                        @foreach (var tipo in tiposFalla)
-                        {
-                            <option value="@tipo.TipoFallaId">@tipo.Nombre</option>
-                        }
-                    </select>
+                    <AutocompleteSelect TItem="TipoFallaDto"
+                                        TValue="int?"
+                                        Items="tiposFalla"
+                                        @bind-SelectedValue="tipoFallaId"
+                                        OnValueChanged="@(async () => await Buscar())"
+                                        ValueSelector="@(t => (int?)t.TipoFallaId)"
+                                        TextSelector="@(t => t.Nombre)"
+                                        Placeholder="Todos (escribí para buscar)">
+                        <ItemTemplate Context="tipo">@tipo.Nombre</ItemTemplate>
+                    </AutocompleteSelect>
                 </div>
                 <div class="col-lg-2 col-md-4">
                     <label class="form-label d-none d-md-block invisible" aria-hidden="true">Limpiar</label>
@@ -145,16 +152,19 @@
                             }
                             <div class="mb-3">
                                 <label class="form-label fw-semibold mb-1">Solución <span class="text-danger">*</span></label>
+                                <div class="text-end mb-1"><BotonDictado @bind-Value="solucionTexto" MaxLength="@LargosAnalisis.Solucion" Campo="la solución" /></div>
                                 <textarea class="form-control" rows="3" maxlength="@LargosAnalisis.Solucion" @bind="solucionTexto" @bind:event="oninput"></textarea>
                                 <div class="form-text">@solucionTexto.Length de @LargosAnalisis.Solucion caracteres como máximo.</div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label fw-semibold mb-1">Causa de falla <span class="text-danger">*</span></label>
+                                <div class="text-end mb-1"><BotonDictado @bind-Value="causaTexto" MaxLength="@LargosAnalisis.CausaYPlan" Campo="la causa" /></div>
                                 <textarea class="form-control" rows="3" maxlength="@LargosAnalisis.CausaYPlan" @bind="causaTexto" @bind:event="oninput"></textarea>
                                 <div class="form-text">@causaTexto.Length de @LargosAnalisis.CausaYPlan caracteres como máximo.</div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label fw-semibold mb-1">Plan de acción <span class="text-muted small fw-normal">(opcional)</span></label>
+                                <div class="text-end mb-1"><BotonDictado @bind-Value="planTexto" MaxLength="@LargosAnalisis.CausaYPlan" Campo="el plan de acción" /></div>
                                 <textarea class="form-control" rows="3" maxlength="@LargosAnalisis.CausaYPlan" @bind="planTexto" @bind:event="oninput"></textarea>
                                 <div class="form-text">@planTexto.Length de @LargosAnalisis.CausaYPlan caracteres como máximo.</div>
                             </div>

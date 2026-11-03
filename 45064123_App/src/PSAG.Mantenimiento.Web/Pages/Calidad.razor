@@ -434,7 +434,10 @@
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Observaciones</label>
+                        <div class="d-flex justify-content-between align-items-end gap-2 mb-1">
+                            <label class="form-label mb-0">Observaciones</label>
+                            <BotonDictado @bind-Value="nuevo.Observaciones" MaxLength="1000" Campo="las observaciones" />
+                        </div>
                         <textarea class="form-control" rows="3" maxlength="1000" @bind="nuevo.Observaciones"></textarea>
                     </div>
                     <div class="form-text">Queda confirmado a tu nombre: lo viste vos.</div>

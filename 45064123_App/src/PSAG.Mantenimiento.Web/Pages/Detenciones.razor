@@ -17,7 +17,7 @@
 <PageTitle>Detenciones - PSAG Produccion</PageTitle>
 
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3 mb-md-4 flex-wrap gap-2">
         <div>
             <h2 class="mb-0">Detenciones</h2>
             @if (!puedeCargar)
@@ -26,7 +26,10 @@
             }
         </div>
         <div class="d-flex gap-2">
-            <button class="btn btn-outline-success" @onclick="ExportarExcel">
+            <button class="btn btn-outline-secondary d-md-none" @onclick="() => mostrarFiltros = !mostrarFiltros" aria-expanded="@(mostrarFiltros ? "true" : "false")">
+                <i class="bi bi-funnel me-1"></i>Filtros
+            </button>
+            <button class="btn btn-outline-success d-none d-md-inline-block" @onclick="ExportarExcel">
                 <i class="bi bi-file-earmark-excel me-2"></i>Exportar Excel
             </button>
             @if (puedeCargar)
@@ -47,8 +50,8 @@
         <div class="alert alert-warning">@mensajeAviso</div>
     }
 
-    <!-- Filtros -->
-    <div class="card mb-4">
+    <!-- Filtros (en el celular, plegados detrás del botón "Filtros") -->
+    <div class="card mb-3 mb-md-4 @(mostrarFiltros ? "" : "filtros-plegables")">
         <div class="card-body">
             <div class="row g-3">
                 <!-- Buscador universal -->
@@ -135,7 +138,48 @@
     }
     else if (detenciones.Items.Any())
     {
-        <div class="card">
+        <div class="d-md-none lista-celular">
+            @foreach (var det in detenciones.Items)
+            {
+                <div class="card mb-2 @(det.Eliminada ? "opacity-50" : "fila-tocable")" @onclick="() => AbrirFila(det)">
+                    <div class="card-body py-2 px-3">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                            <div>
+                                <strong>@det.Codigo</strong>
+                                <div class="small text-muted">
+                                    @det.Fecha.ToString("dd/MM")
+                                    @if (HoraReal(det) is { } horaCel)
+                                    {
+                                        <span>@horaCel.ToString("HH:mm", CultureInfo.InvariantCulture)</span>
+                                    }
+                                    · @det.LineaNombre · @det.TurnoNombre
+                                </div>
+                            </div>
+                            <span class="badge bg-secondary">@det.MinutosEfectivos min</span>
+                        </div>
+                        <div class="small mt-1">@(det.EquipoNombre ?? "Sin equipo") · @(det.TipoFallaNombre ?? "sin tipo de falla")</div>
+                        <div class="d-flex justify-content-between align-items-center mt-2 gap-2">
+                            <span class="@EstadoUi.BadgeClass(det.EstadoActual, det.AnalisisPendiente)"
+                                  style="@EstadoUi.BadgeStyle(det.EstadoActual, det.AnalisisPendiente)">
+                                @EstadoUi.Texto(det.EstadoActualDescripcion, det.EstadoAnalisisDescripcion)
+                            </span>
+                            @if (det.Eliminada)
+                            {
+                                <span class="badge bg-dark">Eliminada</span>
+                            }
+                            else if (det.AnalisisPendiente)
+                            {
+                                <button class="btn btn-sm btn-warning fw-semibold" @onclick="() => AbrirFila(det)" @onclick:stopPropagation="true">
+                                    <i class="bi bi-tools me-1"></i>Analizar
+                                </button>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="card d-none d-md-block">
             <div class="table-responsive">
                 <table class="table table-hover mb-0">
                     <thead class="table-light">
@@ -201,7 +245,7 @@
                                         @if (det.AnalisisPendiente)
                                         {
                                             <button class="btn btn-sm me-1" title="@TituloAnalisis(det)" style="color: var(--bs-orange); border: 1px solid var(--bs-orange);"
-                                                    @onclick="() => VerDetalle(det.DetencionId)">
+                                                    @onclick="() => AbrirFila(det)">
                                                 <i class="bi bi-tools"></i>
                                             </button>
                                         }
@@ -271,7 +315,7 @@
 @if (showModal)
 {
     <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
-        <div class="modal-dialog modal-xl">
+        <div class="modal-dialog modal-xl modal-fullscreen-sm-down modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">@(editando ? "Editar detención" : "Nueva detención")</h5>
@@ -376,13 +420,20 @@
                                         else if (puedeSeleccionarMaquinista)
                                         {
                                             @* Admin/Supervisor eligen cualquier maquinista de la línea *@
-                                            <select class="form-select" @bind="selectedMaquinistaId" @bind:after="OnMaquinistaChanged">
-                                                <option value="0">-- Elegí el maquinista --</option>
-                                                @foreach (var maq in maquinistasLinea)
-                                                {
-                                                    <option value="@maq.UsuarioLineaId">@maq.NombreUsuario · @(string.IsNullOrEmpty(maq.TurnoNombre) ? "sin turno" : maq.TurnoNombre)</option>
-                                                }
-                                            </select>
+                                            @* Buscador con tipeo: la lista de maquinistas crece con las líneas. *@
+                                            <AutocompleteSelect TItem="MaquinistaDto"
+                                                                TValue="int"
+                                                                Items="maquinistasLinea"
+                                                                @bind-SelectedValue="selectedMaquinistaId"
+                                                                OnValueChanged="OnMaquinistaChanged"
+                                                                ValueSelector="@(m => m.UsuarioLineaId)"
+                                                                TextSelector="@(m => $"{m.NombreUsuario} · {(string.IsNullOrEmpty(m.TurnoNombre) ? "sin turno" : m.TurnoNombre)}")"
+                                                                EmptyText="Esta línea no tiene maquinistas asignados."
+                                                                Placeholder="Buscar maquinista...">
+                                                <ItemTemplate Context="maq">
+                                                    @maq.NombreUsuario <small class="text-muted">· @(string.IsNullOrEmpty(maq.TurnoNombre) ? "sin turno" : maq.TurnoNombre)</small>
+                                                </ItemTemplate>
+                                            </AutocompleteSelect>
                                             @if (!maquinistasLinea.Any())
                                             {
                                                 <div class="form-text text-danger">Esta línea no tiene maquinistas asignados. Pedile al administrador que los cargue en Configuración → Maquinistas.</div>
@@ -498,7 +549,10 @@
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label">Descripción *</label>
+                                <div class="d-flex justify-content-between align-items-end gap-2 mb-1">
+                                    <label class="form-label mb-0">Descripción *</label>
+                                    <BotonDictado Value="@model.Descripcion" ValueChanged="@((string v) => { model.Descripcion = v; errorMessage = null; })" Campo="la descripción" />
+                                </div>
                                 <textarea class="form-control" @bind="model.Descripcion" rows="4"
                                     @bind:after="@(() => errorMessage = null)"
                                     placeholder="Describí qué pasó y la causa de la detención..."></textarea>
@@ -627,7 +681,10 @@
                         No se borra de la base. Queda marcada como eliminada, con usuario, fecha y motivo, y deja de contar en indicadores y reportes.
                         Se puede ver con el filtro <em>Incluir eliminadas</em> y restaurar.
                     </div>
-                    <label class="form-label">Motivo <span class="text-danger">*</span></label>
+                    <div class="d-flex justify-content-between align-items-end gap-2 mb-1">
+                        <label class="form-label mb-0">Motivo <span class="text-danger">*</span></label>
+                        <BotonDictado @bind-Value="motivoEliminacion" MaxLength="500" Campo="el motivo" />
+                    </div>
                     <textarea class="form-control" rows="3" maxlength="500" @bind="motivoEliminacion" @bind:event="oninput"
                               placeholder="Por qué se elimina la detención..."></textarea>
                     @if (errorEliminar)
@@ -674,6 +731,7 @@
     private ResumenTurnoResponse resumenTurno = new();
 
     private bool isLoading = true;
+    private bool mostrarFiltros;   // celular: los filtros arrancan plegados
     private bool showModal = false;
     private bool editando = false;
     private bool isSubmitting = false;
@@ -1346,7 +1404,7 @@
         // Las eliminadas no tienen detalle para el usuario común; sólo se restauran.
         if (!det.Eliminada)
         {
-            VerDetalle(det.DetencionId);
+            Navigation.NavigateTo(det.AnalisisPendiente ? $"/detenciones/{det.DetencionId}?analizar=1" : $"/detenciones/{det.DetencionId}");
         }
     }
 

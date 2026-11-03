@@ -154,7 +154,7 @@
                         <tbody>
                             @foreach (var item in ListaActual())
                             {
-                                <tr>
+                                <tr class="fila-tocable" @onclick="() => AbrirDetencion(item.DetencionId)">
                                     <td><strong>@item.Codigo</strong></td>
                                     <td>@item.Fecha.ToString("dd/MM/yyyy")</td>
                                     <td>
@@ -189,7 +189,7 @@
                                     {
                                         <td>@(item.FechaHoraAnalisis?.ToString("dd/MM/yyyy HH:mm") ?? "-")</td>
                                     }
-                                    <td class="text-end">
+                                    <td class="text-end" @onclick:stopPropagation="true">
                                         <button class="btn btn-sm @(pestania == Pestania.Cerradas ? "btn-outline-primary" : "btn-primary")"
                                                 @onclick="() => AbrirDetencion(item.DetencionId)">
                                             @(pestania == Pestania.Cerradas ? "Ver" : "Analizar")
@@ -356,7 +356,9 @@
 
     private void AbrirDetencion(long detencionId)
     {
-        Navigation.NavigateTo($"detenciones/{detencionId}?volver=/detenciones/pendientes");
+        // Desde un pendiente abierto se va directo al bloque de análisis (en el celular queda abajo).
+        var analizar = pestania == Pestania.Cerradas ? "" : "&analizar=1";
+        Navigation.NavigateTo($"detenciones/{detencionId}?volver=/detenciones/pendientes{analizar}");
     }
 
     private static string ValorOpcion(ResponsableOpcionDto opcion) =>

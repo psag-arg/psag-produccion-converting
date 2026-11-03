@@ -281,7 +281,10 @@
                     {
                         <!-- Modo edicion (resolver) -->
                         <div class="mb-3">
-                            <label class="form-label">Observacion de Resolucion <span class="text-danger">*</span></label>
+                            <div class="d-flex justify-content-between align-items-end gap-2 mb-1">
+                                <label class="form-label mb-0">Observacion de Resolucion <span class="text-danger">*</span></label>
+                                <BotonDictado @bind-Value="observacionResolucion" Campo="la observación de resolución" />
+                            </div>
                             <textarea class="form-control" rows="3" @bind="observacionResolucion"
                                       placeholder="Describa como se resolvio el hallazgo..."></textarea>
                         </div>
@@ -297,7 +300,10 @@
                         @if (requiereAccionCorrectiva)
                         {
                             <div class="mb-3">
-                                <label class="form-label">Descripcion de la Accion Correctiva <span class="text-danger">*</span></label>
+                                <div class="d-flex justify-content-between align-items-end gap-2 mb-1">
+                                    <label class="form-label mb-0">Descripcion de la Accion Correctiva <span class="text-danger">*</span></label>
+                                    <BotonDictado @bind-Value="accionCorrectivaDescripcion" Campo="la acción correctiva" />
+                                </div>
                                 <textarea class="form-control" rows="2" @bind="accionCorrectivaDescripcion"
                                           placeholder="Describa la accion correctiva a tomar..."></textarea>
                             </div>
