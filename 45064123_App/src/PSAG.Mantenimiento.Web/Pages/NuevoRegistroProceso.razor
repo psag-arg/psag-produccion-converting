@@ -34,25 +34,41 @@
 
                     <div class="mb-4">
                         <label class="form-label fw-bold">Línea *</label>
-                        <select class="form-select form-select-lg" @bind="selectedLineaId" @bind:after="OnLineaChanged">
-                            <option value="0">-- Elegí una línea --</option>
-                            @foreach (var linea in lineas)
-                            {
-                                <option value="@linea.LineaId">@linea.Nombre</option>
-                            }
-                        </select>
+                        <AutocompleteSelect TItem="LineaDto"
+                                            TValue="int"
+                                            Items="lineas"
+                                            @bind-SelectedValue="selectedLineaId"
+                                            OnValueChanged="OnLineaChanged"
+                                            ValueSelector="@(l => l.LineaId)"
+                                            TextSelector="@(l => l.Nombre)"
+                                            EmptyText="No hay líneas cargadas."
+                                            Placeholder="Escribí para buscar la línea...">
+                            <ItemTemplate Context="linea">@linea.Nombre</ItemTemplate>
+                        </AutocompleteSelect>
                     </div>
 
                     <div class="mb-4">
                         <label class="form-label fw-bold">Producto</label>
-                        <select class="form-select form-select-lg" @bind="selectedProductoId" @bind:after="@(async () => await CargarGrupos())" disabled="@(selectedLineaId == 0)">
-                            <option value="0">-- Sin producto / no aplica --</option>
-                            @foreach (var producto in productos)
-                            {
-                                <option value="@producto.ProductoId">@producto.Nombre</option>
-                            }
-                        </select>
-                        <small class="text-muted">Opcional: si el producto tiene estándares propios, se controla contra esos.</small>
+                        <AutocompleteSelect TItem="ProductoDto"
+                                            TValue="int"
+                                            Items="productos"
+                                            @bind-SelectedValue="selectedProductoId"
+                                            OnValueChanged="OnProductoChanged"
+                                            ValueSelector="@(p => p.ProductoId)"
+                                            TextSelector="@(p => p.Nombre)"
+                                            FilterPredicate="@((p, q) => BusquedaTexto.Coincide(p.Nombre + " " + p.Codigo, q))"
+                                            Disabled="@(selectedLineaId == 0)"
+                                            EmptyText="Esta línea no tiene productos cargados."
+                                            Placeholder="@(selectedLineaId == 0 ? "Elegí primero la línea" : "Escribí para buscar el producto (ej.: hig 30)")">
+                            <ItemTemplate Context="producto">
+                                @producto.Nombre
+                                @if (!string.IsNullOrEmpty(producto.Codigo) && producto.Codigo != producto.Nombre)
+                                {
+                                    <small class="text-muted ms-1">@producto.Codigo</small>
+                                }
+                            </ItemTemplate>
+                        </AutocompleteSelect>
+                        <small class="text-muted">Opcional: si el producto tiene estándares propios, se controla contra esos. Vacío = sin producto.</small>
                     </div>
 
                     @if (selectedLineaId > 0)
@@ -128,6 +144,11 @@
         try
         {
             lineas = await CatalogosService.GetLineasAsync();
+            if (lineas.Count == 1)
+            {
+                selectedLineaId = lineas[0].LineaId;
+                await OnLineaChanged();
+            }
         }
         catch (Exception ex)
         {

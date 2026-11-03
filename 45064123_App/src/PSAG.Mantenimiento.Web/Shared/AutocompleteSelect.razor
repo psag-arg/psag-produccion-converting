@@ -105,9 +105,7 @@
         }
         else
         {
-            var lowerSearch = searchText.ToLowerInvariant();
-            filteredItems = Items.Where(i =>
-                TextSelector(i).ToLowerInvariant().Contains(lowerSearch)).ToList();
+            filteredItems = Items.Where(i => BusquedaTexto.Coincide(TextSelector(i), searchText)).ToList();
         }
         highlightedIndex = 0;
     }

@@ -209,7 +209,11 @@ app.UseMiddleware<ExceptionHandlingMiddleware>();
 // Middleware de correlación ID
 app.UseMiddleware<CorrelationIdMiddleware>();
 
-app.UseHttpsRedirection();
+// Con HTTPS opcional (puerto aparte) el HTTP de siempre tiene que seguir andando: solo se redirige si se pide.
+if (configuration.GetValue<bool>("Https:RedirigirHttp"))
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseCors("AllowBlazorClient");
 

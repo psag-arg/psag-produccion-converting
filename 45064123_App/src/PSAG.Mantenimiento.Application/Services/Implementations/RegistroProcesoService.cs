@@ -426,6 +426,9 @@ public class RegistroProcesoService : IRegistroProcesoService
             ValorReal = detalle?.ValorReal,
             ValorRealTexto = detalle?.ValorRealTexto,
             FueraDeEstandar = detalle?.FueraDeEstandar ?? false,
+            TieneRango = punto.Rango.TieneLimites,
+            Evaluacion = PuntoControlValidador.Codigo(PuntoControlValidador.Evaluar(
+                p.TipoDato, punto.Rango, detalle?.ValorReal, detalle?.ValorRealTexto, detalle?.FueraDeEstandar ?? false)),
             Observacion = detalle?.Observacion,
             FechaHoraRegistro = detalle?.FechaHoraRegistro ?? DateTimeOffset.MinValue
         });

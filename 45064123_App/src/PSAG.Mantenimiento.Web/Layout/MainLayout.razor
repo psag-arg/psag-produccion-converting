@@ -9,16 +9,24 @@
 <div class="page">
     <AuthorizeView>
         <Authorized>
-            <div class="sidebar">
+            <div class="sidebar @(menuAbierto ? "abierto" : "")" id="menu-lateral">
                 <NavMenu />
             </div>
+            @if (menuAbierto)
+            {
+                <div class="sidebar-fondo" @onclick="() => menuAbierto = false"></div>
+            }
 
             <main>
-                <div class="top-row px-4">
+                <div class="top-row px-3 px-md-4">
+                    <button class="btn btn-outline-secondary btn-sm boton-menu me-auto" @onclick="() => menuAbierto = !menuAbierto"
+                            aria-controls="menu-lateral" aria-expanded="@(menuAbierto ? "true" : "false")" title="Menú">
+                        <i class="bi bi-list"></i> Menú
+                    </button>
                     <button class="btn btn-outline-secondary btn-sm me-3" @onclick="ToggleTheme" title="@(isDarkMode ? "Cambiar a modo claro" : "Cambiar a modo oscuro")">
                         <i class="bi @(isDarkMode ? "bi-sun-fill" : "bi-moon-stars-fill")"></i>
                     </button>
-                    <span class="me-3 text-dark">@context.User.Identity?.Name</span>
+                    <span class="me-3 text-dark nombre-usuario">@context.User.Identity?.Name</span>
                     <button class="btn btn-outline-secondary btn-sm" @onclick="Logout">
                         Cerrar sesión
                     </button>
@@ -38,6 +46,20 @@
 
 @code {
     private bool isDarkMode;
+    private bool menuAbierto;
+
+    protected override void OnInitialized()
+    {
+        Navigation.LocationChanged += AlNavegar;
+    }
+
+    // En el celular el menú tapa la pantalla: se cierra solo al elegir una opción.
+    private void AlNavegar(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        if (!menuAbierto) return;
+        menuAbierto = false;
+        InvokeAsync(StateHasChanged);
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -71,5 +93,6 @@
     public void Dispose()
     {
         ThemeService.OnThemeChanged -= OnThemeChanged;
+        Navigation.LocationChanged -= AlNavegar;
     }
 }

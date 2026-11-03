@@ -160,6 +160,43 @@ public class PlantillaTango2Tests : IDisposable
         Assert.Equal("202", g["T2-LARGO-PERF"].ValorEstandarSnapshot);
         Assert.Equal("> 10mm", g["T2-RABO-LS"].ValorEstandarSnapshot);
         Assert.Equal("PARCIAL", guardado.Estado);
+
+        // Columna Estado (reunión 03/11 [76:32]): las referencias sin tolerancia y los puntos sin estándar
+        // NO dan OK, dan "falta estándar". Los de rango dan OK o fuera.
+        Assert.Equal("FUERA_DE_RANGO", g["T2-ROTURAS"].Evaluacion);
+        Assert.Equal("OK", g["T2-RABO-C"].Evaluacion);
+        Assert.Equal("OK", g["T2-DIAM-LOG"].Evaluacion);
+        Assert.All(new[] { "T2-LARGO-PERF", "T2-DIAM-TAMPON", "T2-SR7-MARCHA", "T2-VEL-MAQ" },
+            c => Assert.Equal("SIN_ESTANDAR", g[c].Evaluacion));
+        Assert.False(g["T2-SR7-MARCHA"].TieneRango);
+        Assert.True(g["T2-ROTURAS"].TieneRango);
+        Assert.Equal("SIN_VALOR", g["T2-SR7-PASAJE"].Evaluacion);
+    }
+
+    [Fact]
+    public async Task Demo031126_CincoContraMenosCeroSiete_Y_CuarentaYCincoContraCero_SonFaltaEstandar()
+    {
+        await CargarPlantillaAsync();
+        var inicio = await _carga.IniciarRegistroAsync(
+            new IniciarRegistroProcesoRequest { LineaId = _tango2.LineaId, ProductoId = _higienico.ProductoId }, Maquinista);
+        var control = (await _carga.ObtenerCompletoAsync(inicio.Value!.RegistroProcesoId)).Value!;
+
+        var r = await _carga.GuardarValoresAsync(new GuardarValoresRequest
+        {
+            RegistroProcesoId = control.RegistroProcesoId,
+            RowVersion = control.RowVersion,
+            Valores =
+            {
+                new() { ParametroId = _parametroPorCodigo["T2-SR7-MARCHA"], ValorReal = 5m },
+                new() { ParametroId = _parametroPorCodigo["T2-SR7-PASAJE"], ValorReal = 45m }
+            }
+        }, Maquinista);
+        Assert.True(r.IsSuccess, r.Error);
+
+        var d = (await _carga.ObtenerCompletoAsync(control.RegistroProcesoId)).Value!
+            .Grupos.SelectMany(x => x.Detalles).ToDictionary(x => x.ParametroCodigo);
+        Assert.Equal(("-0,7", "SIN_ESTANDAR"), (d["T2-SR7-MARCHA"].ValorEstandarSnapshot, d["T2-SR7-MARCHA"].Evaluacion));
+        Assert.Equal(("0", "SIN_ESTANDAR"), (d["T2-SR7-PASAJE"].ValorEstandarSnapshot, d["T2-SR7-PASAJE"].Evaluacion));
     }
 
     // ---------------------------------------------------------------------------------------------

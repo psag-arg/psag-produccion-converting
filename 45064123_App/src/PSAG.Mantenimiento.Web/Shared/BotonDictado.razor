@@ -1,0 +1,153 @@
+@using Microsoft.Extensions.Configuration
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject IConfiguration Configuration
+
+@* Botón "Dictar": se toca, se habla y el texto se agrega al campo. Se corta solo al dejar de hablar;
+   si se vuelve a tocar, sigue escribiendo al final. Si el navegador no tiene dictado, no se muestra. *@
+@if (soporte != null && soporte != "sin-api")
+{
+    <span class="dictado d-inline-flex flex-column align-items-end">
+        <button type="button"
+                class="btn btn-sm @(escuchando ? "btn-danger dictado-escuchando" : soporte == "ok" ? "btn-outline-primary" : "btn-outline-secondary")"
+                title="@Titulo"
+                aria-label="@Titulo"
+                aria-pressed="@(escuchando ? "true" : "false")"
+                disabled="@Disabled"
+                data-dictado="@(soporte)"
+                @onclick="Alternar"
+                @onclick:stopPropagation="true">
+            <i class="bi @(escuchando ? "bi-mic-fill" : "bi-mic")"></i>
+            <span class="@(Compacto ? "visually-hidden" : "ms-1")">@(escuchando ? "Escuchando… tocá para cortar" : "Dictar")</span>
+        </button>
+        @if (escuchando && !string.IsNullOrEmpty(parcial))
+        {
+            <small class="text-muted fst-italic dictado-parcial">@parcial</small>
+        }
+        @if (!string.IsNullOrEmpty(mensaje))
+        {
+            <small class="text-danger dictado-mensaje" role="alert">@mensaje</small>
+        }
+    </span>
+}
+
+@code {
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    /// <summary>Largo máximo del campo: lo dictado se corta para no pasarse.</summary>
+    [Parameter] public int? MaxLength { get; set; }
+    /// <summary>Para qué campo es (lo lee el lector de pantalla y el tooltip): "Dictar la solución".</summary>
+    [Parameter] public string? Campo { get; set; }
+    /// <summary>Solo el ícono del micrófono (para campos angostos).</summary>
+    [Parameter] public bool Compacto { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+
+    private IJSObjectReference? modulo;
+    private DotNetObjectReference<BotonDictado>? referencia;
+    private string? soporte;          // null hasta el primer render; "ok" | "sin-https" | "sin-api"
+    private bool escuchando;
+    private string? parcial;
+    private string? mensaje;
+    private int sesion;
+
+    private string Titulo => soporte == "sin-https"
+        ? DictadoTexto.MensajeError("sin-https")
+        : string.IsNullOrEmpty(Campo) ? "Dictar por voz" : $"Dictar {Campo}";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            modulo = await JS.InvokeAsync<IJSObjectReference>("import", "./js/dictado.js");
+            soporte = await modulo.InvokeAsync<string>("estado");
+        }
+        catch
+        {
+            soporte = "sin-api";
+        }
+        StateHasChanged();
+    }
+
+    private async Task Alternar()
+    {
+        mensaje = null;
+        if (modulo == null) return;
+        if (soporte != "ok")
+        {
+            mensaje = DictadoTexto.MensajeError(soporte);
+            return;
+        }
+
+        if (escuchando)
+        {
+            await modulo.InvokeVoidAsync("detener", sesion);
+            return;
+        }
+
+        referencia ??= DotNetObjectReference.Create(this);
+        var soloLocal = string.Equals(Configuration["Dictado:SoloEnDispositivo"], "true", StringComparison.OrdinalIgnoreCase);
+        escuchando = true;
+        parcial = null;
+        sesion = await modulo.InvokeAsync<int>("iniciar", referencia, "es-AR", soloLocal);
+        if (sesion == 0) escuchando = false;
+    }
+
+    [JSInvokable]
+    public Task AlEscuchar()
+    {
+        escuchando = true;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task AlParcial(string texto)
+    {
+        parcial = texto;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public async Task AlFinal(string texto)
+    {
+        var nuevo = DictadoTexto.Agregar(Value, texto, MaxLength);
+        if (nuevo != (Value ?? string.Empty))
+        {
+            Value = nuevo;
+            await ValueChanged.InvokeAsync(nuevo);
+        }
+        parcial = null;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task AlError(string codigo)
+    {
+        // "aborted" lo provoca el propio usuario al cortar: no es un error para mostrar.
+        if (codigo != "aborted") mensaje = DictadoTexto.MensajeError(codigo);
+        escuchando = false;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task AlTerminar()
+    {
+        escuchando = false;
+        parcial = null;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (modulo != null)
+            {
+                if (escuchando) await modulo.InvokeVoidAsync("detener", sesion);
+                await modulo.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException) { }
+        referencia?.Dispose();
+    }
+}

@@ -36,6 +36,28 @@ public readonly record struct RangoControl(decimal? Min, decimal? Max)
 }
 
 /// <summary>
+/// Qué muestra la columna Estado de un punto de control (reunión 03/11/2026 [76:32]):
+/// el estado sale de comparar el valor contra el estándar, y si no hay contra qué comparar
+/// NO se muestra OK sino "falta estándar".
+/// </summary>
+public enum EvaluacionPunto
+{
+    /// <summary>Todavía sin valor cargado.</summary>
+    SinValor,
+    /// <summary>Dentro del rango del estándar (o OK en un punto OK / NO OK).</summary>
+    Ok,
+    /// <summary>Fuera del rango del estándar (o NO OK): desvío, observación obligatoria.</summary>
+    FueraDeRango,
+    /// <summary>
+    /// Punto numérico sin rango: no tiene estándar ("-" en la planilla) o tiene solo un valor de
+    /// referencia sin tolerancia ("-0,7 (ref.)"). No se puede decir si está bien: alerta "falta estándar".
+    /// </summary>
+    SinEstandar,
+    /// <summary>Punto de texto libre: se carga, no se compara contra nada.</summary>
+    Informativo
+}
+
+/// <summary>
 /// Resultado de validar lo que cargó el maquinista en un punto de control.
 /// </summary>
 public sealed record ResultadoPuntoControl(
@@ -121,6 +143,46 @@ public static class PuntoControlValidador
 
         return new ResultadoPuntoControl(null, false, fuera, numero, textoFinal);
     }
+
+    /// <summary>
+    /// Estado de un punto ya cargado. <paramref name="fueraDeEstandar"/> es lo que decidió la API al
+    /// guardar (manda siempre: es lo que quedó registrado ese día). Si no fue desvío, un punto numérico
+    /// sin rango contra el que comparar es "falta estándar", nunca OK.
+    /// </summary>
+    public static EvaluacionPunto Evaluar(
+        TipoDatoParametro tipo,
+        RangoControl rango,
+        decimal? valorReal,
+        string? valorRealTexto,
+        bool fueraDeEstandar)
+    {
+        var tieneValor = tipo.EsNumerico() ? valorReal.HasValue : !string.IsNullOrWhiteSpace(valorRealTexto);
+        if (!tieneValor)
+            return EvaluacionPunto.SinValor;
+        if (fueraDeEstandar)
+            return EvaluacionPunto.FueraDeRango;
+
+        if (tipo.EsNumerico())
+        {
+            // No se recompara contra el rango de hoy: el desvío es el que quedó guardado (snapshot).
+            return rango.TieneLimites ? EvaluacionPunto.Ok : EvaluacionPunto.SinEstandar;
+        }
+
+        if (tipo == TipoDatoParametro.OK_NOOK)
+            return NormalizarOkNoOk(valorRealTexto) == NoOk ? EvaluacionPunto.FueraDeRango : EvaluacionPunto.Ok;
+
+        return EvaluacionPunto.Informativo;
+    }
+
+    /// <summary>Código que viaja en el DTO (OK, FUERA_DE_RANGO, SIN_ESTANDAR, INFORMATIVO, SIN_VALOR).</summary>
+    public static string Codigo(EvaluacionPunto evaluacion) => evaluacion switch
+    {
+        EvaluacionPunto.Ok => "OK",
+        EvaluacionPunto.FueraDeRango => "FUERA_DE_RANGO",
+        EvaluacionPunto.SinEstandar => "SIN_ESTANDAR",
+        EvaluacionPunto.Informativo => "INFORMATIVO",
+        _ => "SIN_VALOR"
+    };
 
     /// <summary>
     /// "OK", "ok", "NO OK", "no_ok", "NOOK" → "OK" / "NO OK". Cualquier otra cosa → null.

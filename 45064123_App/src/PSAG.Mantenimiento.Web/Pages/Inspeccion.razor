@@ -192,7 +192,10 @@
             <div class="card mt-4">
                 <div class="card-body">
                     <div class="mb-3">
-                        <label class="form-label">Observaciones Generales</label>
+                        <div class="d-flex justify-content-between align-items-end gap-2 mb-1">
+                            <label class="form-label mb-0">Observaciones Generales</label>
+                            <BotonDictado @bind-Value="observacionesGenerales" Campo="las observaciones generales" />
+                        </div>
                         <textarea class="form-control" rows="2" @bind="observacionesGenerales"
                                   placeholder="Observaciones adicionales sobre la inspeccion..."></textarea>
                     </div>

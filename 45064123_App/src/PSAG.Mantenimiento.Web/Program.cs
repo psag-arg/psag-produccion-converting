@@ -17,6 +17,13 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 
 // Configurar HttpClient con la URL de la API
 var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "http://localhost:5000/";
+// HTTPS opcional (dictado por voz): si la página se abrió por https y hay ApiBaseUrlHttps, la API se llama por https
+// (el navegador bloquea llamar http desde una página https). Por http sigue todo igual que antes.
+if (builder.HostEnvironment.BaseAddress.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+    && !string.IsNullOrWhiteSpace(builder.Configuration["ApiBaseUrlHttps"]))
+{
+    apiBaseUrl = builder.Configuration["ApiBaseUrlHttps"]!;
+}
 // Un 401 de la API cierra la sesión y lleva al login avisando que venció.
 builder.Services.AddScoped(sp => new HttpClient(new SesionVencidaHandler(sp) { InnerHandler = new HttpClientHandler() })
 {

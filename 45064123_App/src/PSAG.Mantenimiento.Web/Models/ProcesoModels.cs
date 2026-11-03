@@ -94,6 +94,9 @@ public class RegistroProcesoDetalleDto
     public decimal? ValorReal { get; set; }
     public string? ValorRealTexto { get; set; }
     public bool FueraDeEstandar { get; set; }
+    /// <summary>OK, FUERA_DE_RANGO, SIN_ESTANDAR, INFORMATIVO o SIN_VALOR (lo calcula la API).</summary>
+    public string Evaluacion { get; set; } = "SIN_VALOR";
+    public bool TieneRango { get; set; }
     public string? Observacion { get; set; }
     public DateTimeOffset FechaHoraRegistro { get; set; }
 }

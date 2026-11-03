@@ -51,6 +51,15 @@ public class RegistroProcesoDetalleDto
     public decimal? ValorReal { get; set; }
     public string? ValorRealTexto { get; set; }
     public bool FueraDeEstandar { get; set; }
+
+    /// <summary>
+    /// Estado del punto para la columna Estado: OK, FUERA_DE_RANGO, SIN_ESTANDAR (numérico sin rango:
+    /// sin estándar o solo valor de referencia), INFORMATIVO (texto) o SIN_VALOR.
+    /// </summary>
+    public string Evaluacion { get; set; } = "SIN_VALOR";
+
+    /// <summary>El punto numérico tiene rango (mín y/o máx) contra el que comparar.</summary>
+    public bool TieneRango { get; set; }
     public string? Observacion { get; set; }
     public DateTimeOffset FechaHoraRegistro { get; set; }
 }

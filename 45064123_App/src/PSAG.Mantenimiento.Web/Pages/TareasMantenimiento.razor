@@ -8,6 +8,7 @@
 @inject ITareasMantenimientoService TareasService
 @inject ICatalogosService CatalogosService
 @inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
 
 <PageTitle>Tareas de mantenimiento - PSAG Produccion</PageTitle>
 
@@ -205,7 +206,7 @@
 @if (showModal)
 {
     <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
-        <div class="modal-dialog modal-lg">
+        <div class="modal-dialog modal-lg modal-fullscreen-sm-down modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Nueva tarea de mantenimiento</h5>
@@ -286,7 +287,10 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Detalle de la tarea a realizar *</label>
+                        <div class="d-flex justify-content-between align-items-end gap-2 mb-1">
+                            <label class="form-label mb-0">Detalle de la tarea a realizar *</label>
+                            <BotonDictado @bind-Value="model.Detalle" MaxLength="2000" Campo="el detalle de la tarea" />
+                        </div>
                         <textarea class="form-control" rows="4" maxlength="2000" @bind="model.Detalle"
                                   placeholder="Describí qué hay que hacer..."></textarea>
                     </div>
@@ -379,6 +383,23 @@
         ? $"tareas-mantenimiento/imprimir?lineaId={filtroLineaId}"
         : "tareas-mantenimiento/imprimir";
 
+    /// <summary>?nueva=1: el menú "Tareas de mantenimiento → Nueva tarea" abre directo el alta.</summary>
+    [SupplyParameterFromQuery(Name = "nueva")]
+    public string? Nueva { get; set; }
+
+    private bool NuevaPedido => Nueva is "1" or "true";
+
+    private bool inicializado;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // También cuando ya se está en la pantalla y se toca "Nueva tarea" en el menú.
+        if (inicializado && NuevaPedido && !showModal && puedeCargar)
+        {
+            await AbrirModalNueva();
+        }
+    }
+
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
@@ -389,6 +410,11 @@
 
         // Catálogos y tareas no dependen entre sí: se piden juntos.
         await Task.WhenAll(CargarCatalogos(esSoloOperario), CargarTareas());
+        inicializado = true;
+        if (NuevaPedido && puedeCargar)
+        {
+            await AbrirModalNueva();
+        }
     }
 
     private async Task CargarCatalogos(bool esSoloOperario)
@@ -532,6 +558,16 @@
     private void CerrarModal()
     {
         showModal = false;
+        LimpiarPedidoDeNueva();
+    }
+
+    /// <summary>Saca el ?nueva=1 de la dirección para que el alta no se vuelva a abrir sola.</summary>
+    private void LimpiarPedidoDeNueva()
+    {
+        if (NuevaPedido)
+        {
+            Navigation.NavigateTo("tareas-mantenimiento", replace: true);
+        }
     }
 
     private async Task OnLineaChanged()
@@ -565,6 +601,7 @@
             if (creada != null)
             {
                 showModal = false;
+                LimpiarPedidoDeNueva();
                 mensajeError = null;
                 mensajeExito = "Tarea cargada. Queda pendiente hasta que mantenimiento la programe.";
                 await CargarTareas();
