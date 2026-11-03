@@ -63,3 +63,29 @@ public class ParadaCamaraRepository : RepositoryBase<ParadaCamara>, IParadaCamar
         return lista.OrderByDescending(p => p.FechaHoraInicio).ThenByDescending(p => p.ParadaCamaraId).ToList();
     }
 }
+
+public class AlertaCamaraRepository : RepositoryBase<AlertaCamara>, IAlertaCamaraRepository
+{
+    public AlertaCamaraRepository(MantenimientoDbContext context) : base(context)
+    {
+    }
+
+    public async Task<IReadOnlyList<AlertaCamara>> GetPorIdentificadoresAsync(IReadOnlyCollection<string> identificadores, CancellationToken cancellationToken = default)
+    {
+        if (identificadores.Count == 0)
+            return [];
+        return await _dbSet.Where(a => identificadores.Contains(a.IdentificadorExterno)).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<AlertaCamara>> GetRecientesAsync(DateTimeOffset cerradasDesde, int? lineaId = null, CancellationToken cancellationToken = default)
+    {
+        var query = _dbSet.AsNoTracking()
+            .Include(a => a.PuntoControl)
+            .Include(a => a.Linea)
+            .Where(a => a.FechaHoraFin == null || a.FechaHoraFin >= cerradasDesde);
+        if (lineaId.HasValue)
+            query = query.Where(a => a.LineaId == lineaId.Value);
+        var lista = await query.ToListAsync(cancellationToken);
+        return lista.OrderByDescending(a => a.FechaHoraInicio).ToList();
+    }
+}

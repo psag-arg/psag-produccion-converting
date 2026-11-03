@@ -21,3 +21,15 @@ public interface IParadaCamaraRepository : IRepository<ParadaCamara>
     Task<IReadOnlyList<ParadaCamara>> GetRangoAsync(
         DateTimeOffset desde, DateTimeOffset hasta, int? lineaId = null, CancellationToken cancellationToken = default);
 }
+
+public interface IAlertaCamaraRepository : IRepository<AlertaCamara>
+{
+    /// <summary>Alertas con esos identificadores, con seguimiento (para completar el fin).</summary>
+    Task<IReadOnlyList<AlertaCamara>> GetPorIdentificadoresAsync(IReadOnlyCollection<string> identificadores, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Alertas abiertas, más las cerradas que terminaron desde <paramref name="cerradasDesde"/>, con punto y línea,
+    /// de la más reciente a la más vieja. Sólo lectura.
+    /// </summary>
+    Task<IReadOnlyList<AlertaCamara>> GetRecientesAsync(DateTimeOffset cerradasDesde, int? lineaId = null, CancellationToken cancellationToken = default);
+}

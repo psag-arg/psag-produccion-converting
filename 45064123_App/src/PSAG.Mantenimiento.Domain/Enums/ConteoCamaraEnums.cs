@@ -23,7 +23,12 @@ public enum TipoParadaCamara
     /// <summary>En algún momento quedaron quietos todos los carriles: paró la cortadora.</summary>
     PARADA = 1,
     /// <summary>Nunca pararon todos: uno o más carriles quietos o irregulares mientras otros seguían.</summary>
-    ACUMULACION = 2
+    ACUMULACION = 2,
+    /// <summary>
+    /// Cámara de la rebobinadora (T-610, cámara 10): el rodillo siguió girando pero no pasó ninguna manga por la
+    /// mesa (manga trabada o máquina vacía). Cuenta como parada; el empalme no llega acá porque siguen pasando mangas.
+    /// </summary>
+    SIN_MANGAS = 3
 }
 
 /// <summary>
@@ -38,4 +43,16 @@ public enum CruceDetencionCamara
     POSIBLE = 2,
     /// <summary>No hay ninguna detención que la explique: el supervisor la tiene que revisar.</summary>
     SIN_DETENCION = 3
+}
+
+/// <summary>
+/// Alerta de la cámara (T-610): no hay imagen confiable. Mientras dura, el servicio no detecta paradas
+/// (no crea detenciones falsas); queda registrada para que se vea en la app.
+/// </summary>
+public enum TipoAlertaCamara
+{
+    /// <summary>La imagen quedó congelada: el reloj de la cámara no avanza o el cuadro es idéntico.</summary>
+    CONGELADA = 1,
+    /// <summary>No llega video del grabador (pérdida de conexión).</summary>
+    SIN_VIDEO = 2
 }

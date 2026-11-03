@@ -24,7 +24,8 @@ public enum EstadoDetencion
     CERRADA = 3,
 
     /// <summary>
-    /// Detención creada automáticamente por PLC, pendiente de justificación (Fase 2).
+    /// Detención creada automáticamente (cámara, T-610; PLC en Fase 2), pendiente de que el operador la
+    /// declare: equipo, tipo y detalle de falla, descripción y hora de arranque. En pantalla: "Pendiente de declaración".
     /// </summary>
     PENDIENTE_JUSTIFICACION = 4
 }
@@ -56,7 +57,7 @@ public static class EstadoDetencionExtensions
             EstadoDetencion.REGISTRADA => "Registrada",
             EstadoDetencion.EN_SEGUIMIENTO => "En análisis",
             EstadoDetencion.CERRADA => "Cerrada",
-            EstadoDetencion.PENDIENTE_JUSTIFICACION => "Pendiente de justificación",
+            EstadoDetencion.PENDIENTE_JUSTIFICACION => "Pendiente de declaración",
             _ => estado.ToString()
         };
     }

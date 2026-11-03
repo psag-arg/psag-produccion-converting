@@ -166,6 +166,16 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
         return $"DET-{fecha}-{siguienteNumero:D6}";
     }
 
+    public async Task<IReadOnlyList<Detencion>> GetPorParadasCamaraAsync(IReadOnlyCollection<string> identificadores, CancellationToken cancellationToken = default)
+    {
+        if (identificadores.Count == 0)
+            return [];
+        return await _dbSet
+            .IgnoreQueryFilters()
+            .Where(d => d.IdentificadorParadaCamara != null && identificadores.Contains(d.IdentificadorParadaCamara))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<int>> GetLineasConDetencionesAsync(DateOnly desde, DateOnly hasta, CancellationToken cancellationToken = default)
     {
         return await _dbSet

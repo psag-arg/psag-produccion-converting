@@ -12,6 +12,8 @@ public sealed class ResumenConsola : ISalidaConteo
     public List<ResultadoVentana> Ventanas { get; } = [];
     public List<ConteoMinuto> MinutosRecibidos { get; } = [];
     public List<ParadaDetectada> Paradas { get; } = [];
+    public List<AlertaVideo> Alertas { get; } = [];
+    public ParadaEnCurso? UltimaEnCurso { get; private set; }
 
     public ResumenConsola(ISalidaConteo? tambien = null, bool eco = false)
     {
@@ -40,6 +42,20 @@ public sealed class ResumenConsola : ISalidaConteo
         if (_eco)
             Console.WriteLine($"  >> {parada.Tipo} {parada.Inicio:HH:mm:ss}-{parada.Fin:HH:mm:ss} ({parada.DuracionSegundos} s) carriles {string.Join(",", parada.Carriles)}");
         _tambien?.Parada(parada);
+    }
+
+    public void ParadaEnCurso(ParadaEnCurso parada)
+    {
+        UltimaEnCurso = parada;
+        _tambien?.ParadaEnCurso(parada);
+    }
+
+    public void Alerta(AlertaVideo alerta)
+    {
+        Alertas.Add(alerta);
+        if (_eco)
+            Console.WriteLine($"  !! ALERTA {alerta.Tipo} {alerta.Inicio:HH:mm:ss}" + (alerta.Fin is { } f ? $" a {f:HH:mm:ss} (cerrada)" : " (abierta)"));
+        _tambien?.Alerta(alerta);
     }
 
     private static string Corto(EstadoCarril e) => e switch
@@ -76,6 +92,12 @@ public sealed class ResumenConsola : ISalidaConteo
                 c => $"carril{c}",
                 c => Math.Round(Ventanas.Sum(v => v.Carriles.First(x => x.Carril == c).RollosPorSegundo * v.Segundos))),
             rollosMinPorVentana = porVentana,
+            alertas = Alertas.Select(a => new
+            {
+                tipo = a.Tipo.ToString(),
+                inicio = a.Inicio.ToString("yyyy-MM-ddTHH:mm:sszzz", CultureInfo.InvariantCulture),
+                fin = a.Fin?.ToString("yyyy-MM-ddTHH:mm:sszzz", CultureInfo.InvariantCulture)
+            }),
             paradas = Paradas.Select(p => new
             {
                 tipo = p.Tipo.ToString(),

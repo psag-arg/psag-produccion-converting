@@ -26,6 +26,14 @@ public class PuntoControlCalidadConfiguration : IEntityTypeConfiguration<PuntoCo
             .HasForeignKey(x => x.LineaId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // Cámara asociada (T-610, script 26)
+        builder.Property(x => x.CreaDetenciones).IsRequired().HasDefaultValue(false);
+        builder.Property(x => x.MinutosUmbralDetencion).IsRequired().HasDefaultValue(5);
+        builder.HasOne(x => x.Equipo)
+            .WithMany()
+            .HasForeignKey(x => x.EquipoId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasIndex(x => x.Codigo).IsUnique();
         builder.HasIndex(x => x.LineaId);
     }

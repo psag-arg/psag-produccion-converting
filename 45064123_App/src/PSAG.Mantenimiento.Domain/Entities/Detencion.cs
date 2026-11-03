@@ -97,6 +97,26 @@ public class Detencion : EntityBase
     /// </summary>
     public string? CerradoPorUsuarioId { get; set; }
 
+    // ========== ORIGEN (T-610) ==========
+
+    /// <summary>MANUAL (Nueva detención) o CAMARA (creada por el servicio de cámara, pendiente de declaración).</summary>
+    public OrigenRegistroDetencion OrigenRegistro { get; set; } = OrigenRegistroDetencion.MANUAL;
+
+    /// <summary>
+    /// Parada de cámara que originó la detención (punto + hora de inicio, el mismo IdentificadorExterno de
+    /// ParadasCamara). Único: un reenvío del servicio no duplica la detención.
+    /// </summary>
+    public string? IdentificadorParadaCamara { get; set; }
+
+    /// <summary>Cámara (punto de control) que detectó la parada.</summary>
+    public int? PuntoControlCalidadId { get; set; }
+
+    /// <summary>
+    /// Hora en que la cámara vio arrancar la máquina. Es sólo una sugerencia para el operador: la hora de
+    /// arranque oficial (FechaHoraArranque) la declara él.
+    /// </summary>
+    public DateTimeOffset? FechaHoraArranqueDetectada { get; set; }
+
     // ========== ELIMINACIÓN LÓGICA ==========
 
     /// <summary>
@@ -156,6 +176,7 @@ public class Detencion : EntityBase
     public virtual Turno Turno { get; set; } = null!;
     public virtual UsuarioLinea? UsuarioLinea { get; set; }
     public virtual ReglaAnalisis? ReglaAnalisis { get; set; }
+    public virtual PuntoControlCalidad? PuntoControl { get; set; }
     public virtual ICollection<DetencionEstadoHistorial> HistorialEstados { get; set; } = new List<DetencionEstadoHistorial>();
     public virtual ICollection<DetencionNota> Notas { get; set; } = new List<DetencionNota>();
     public virtual ICollection<AnalisisCambio> CambiosAnalisis { get; set; } = new List<AnalisisCambio>();
@@ -194,6 +215,9 @@ public class Detencion : EntityBase
     /// Verifica si la detención está cerrada.
     /// </summary>
     public bool EstaCerrada => EstadoActual == EstadoDetencion.CERRADA;
+
+    /// <summary>Creada por la cámara y todavía sin declarar por el operador.</summary>
+    public bool EsPendienteDeclaracion => EstadoActual == EstadoDetencion.PENDIENTE_JUSTIFICACION;
 
     /// <summary>
     /// Verifica si la detención puede ser editada.

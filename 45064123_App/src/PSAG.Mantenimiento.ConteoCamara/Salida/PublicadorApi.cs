@@ -53,6 +53,26 @@ public sealed class PublicadorApi : ISalidaConteo
         lock (_lock) _actual.Paradas.Add(lote);
     }
 
+    public void ParadaEnCurso(ParadaEnCurso parada)
+    {
+        var lote = ParadaEnCursoLote.Desde(_opciones.PuntoControl, parada);
+        lock (_lock)
+        {
+            // Sólo interesa la última vista de cada parada abierta.
+            _actual.ParadasEnCurso.RemoveAll(p => p.IdentificadorExterno == lote.IdentificadorExterno);
+            _actual.ParadasEnCurso.Add(lote);
+        }
+    }
+
+    public void Alerta(AlertaVideo alerta)
+    {
+        if (alerta.Fin == null)
+            _logger.LogWarning("Alerta de cámara {Punto}: {Tipo} desde {Inicio:HH:mm:ss}", _opciones.PuntoControl, alerta.Tipo, alerta.Inicio);
+        else
+            _logger.LogInformation("Alerta de cámara {Punto} cerrada: {Tipo} de {Inicio:HH:mm:ss} a {Fin:HH:mm:ss}", _opciones.PuntoControl, alerta.Tipo, alerta.Inicio, alerta.Fin);
+        lock (_lock) _actual.Alertas.Add(AlertaLote.Desde(alerta));
+    }
+
     /// <summary>Pasa lo juntado a un archivo de pendientes (escritura atómica: .tmp y rename).</summary>
     public void GuardarPendiente()
     {

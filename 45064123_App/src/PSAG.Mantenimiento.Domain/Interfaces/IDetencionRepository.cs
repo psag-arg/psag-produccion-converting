@@ -31,6 +31,12 @@ public interface IDetencionRepository : IRepository<Detencion>
     Task<IEnumerable<Detencion>> GetDetencionesPorFechaAsync(DateOnly desde, DateOnly hasta, CancellationToken cancellationToken = default);
     Task<IEnumerable<Detencion>> GetDetencionesTurnoActualAsync(int lineaId, int turnoId, DateOnly fecha, CancellationToken cancellationToken = default);
     Task<string> GenerarCodigoDetencionAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Detenciones creadas por la cámara para esas paradas (IdentificadorParadaCamara), incluidas las eliminadas
+    /// (una eliminada no se vuelve a crear). Con seguimiento, para completar la hora de arranque detectada.
+    /// </summary>
+    Task<IReadOnlyList<Detencion>> GetPorParadasCamaraAsync(IReadOnlyCollection<string> identificadores, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<int>> GetLineasConDetencionesAsync(DateOnly desde, DateOnly hasta, CancellationToken cancellationToken = default);
 
     /// <summary>

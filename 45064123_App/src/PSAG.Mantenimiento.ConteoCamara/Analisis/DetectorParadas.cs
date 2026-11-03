@@ -5,8 +5,13 @@ public enum TipoParada
     /// <summary>En algún momento estuvieron quietos los 4 carriles (la cortadora paró).</summary>
     PARADA,
     /// <summary>Nunca pararon todos: uno o más carriles quietos o irregulares mientras otros seguían.</summary>
-    ACUMULACION
+    ACUMULACION,
+    /// <summary>Cámara 10: el rodillo siguió girando pero no pasaron mangas por la mesa.</summary>
+    SIN_MANGAS
 }
+
+/// <summary>Parada que sigue abierta: la máquina todavía no arrancó. Se informa para crear la detención sin esperar el fin.</summary>
+public sealed record ParadaEnCurso(DateTimeOffset Inicio, DateTimeOffset Hasta, TipoParada Tipo, bool InicioIncierto);
 
 /// <summary>Una parada detectada por la cámara, ya cerrada.</summary>
 public sealed record ParadaDetectada(
@@ -29,6 +34,7 @@ public sealed record ParadaDetectada(
 public sealed class DetectorParadas
 {
     private readonly OpcionesAnalisis _opciones;
+    private readonly TipoParada _tipoParcial;
 
     private bool? _detenida;                  // null = todavía no se confirmó nada (arranque o después de un corte)
     private bool _candidatoDetenida;
@@ -43,9 +49,20 @@ public sealed class DetectorParadas
     private readonly SortedSet<int> _carriles = [];
     private DateTimeOffset _ultimoFin;
 
-    public DetectorParadas(OpcionesAnalisis opciones) => _opciones = opciones;
+    /// <param name="tipoParcial">Tipo de la parada si nunca hubo una ventana PARADA: ACUMULACION en la cortadora,
+    /// SIN_MANGAS en la rebobinadora.</param>
+    public DetectorParadas(OpcionesAnalisis opciones, TipoParada tipoParcial = TipoParada.ACUMULACION)
+    {
+        _opciones = opciones;
+        _tipoParcial = tipoParcial;
+    }
 
     public bool? Detenida => _detenida;
+
+    /// <summary>La parada confirmada que sigue abierta, con la última hora vista, o null.</summary>
+    public ParadaEnCurso? Abierta => _detenida == true
+        ? new ParadaEnCurso(_inicioParada, _ultimoFin, _huboParadaTotal ? TipoParada.PARADA : _tipoParcial, _inicioIncierto)
+        : null;
 
     /// <summary>Procesa una ventana; devuelve la parada si con esta ventana se confirmó el fin de una.</summary>
     public ParadaDetectada? Procesar(ResultadoVentana ventana)
@@ -138,7 +155,7 @@ public sealed class DetectorParadas
     {
         var parada = new ParadaDetectada(
             _inicioParada, fin,
-            _huboParadaTotal ? TipoParada.PARADA : TipoParada.ACUMULACION,
+            _huboParadaTotal ? TipoParada.PARADA : _tipoParcial,
             _carriles.ToList(), _inicioIncierto, finIncierto);
         _carriles.Clear();
         return parada.DuracionSegundos >= _opciones.SegundosMinimosParada ? parada : null;

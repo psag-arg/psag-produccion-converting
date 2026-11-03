@@ -12,8 +12,9 @@ using PSAG.Mantenimiento.ConteoCamara.Herramientas;
 using PSAG.Mantenimiento.ConteoCamara.Salida;
 using PSAG.Mantenimiento.ConteoCamara.Video;
 
-// T-610 · Conteo de producción y paradas con la cámara 09 (salida de la cortadora).
-//   (sin argumentos)                    servicio (lo corre NSSM)
+// T-610 · Conteo de producción y paradas por cámara: 09 (carriles de la cortadora) y 10 (mangas y rodillo de
+// la rebobinadora). Con varias cámaras en ConteoCamara:Camaras, las herramientas usan --camara CODIGO (o la primera).
+//   (sin argumentos)                    servicio (lo corre NSSM): todas las cámaras configuradas
 //   procesar --archivo X.mp4 --inicio 2026-10-28T10:15:00-03:00 [--json salida.json] [--eco] [--enviar]
 //   vivo --segundos 300 [--json salida.json]          prueba en vivo contra el NVR, sin mandar a la API
 //   foto --salida foto.jpg [--archivo X.mp4 --segundo 30]  foto a resolución completa (NVR o video)
@@ -28,7 +29,11 @@ var configuracion = new ConfigurationBuilder()
     .AddJsonFile("appsettings.local.json", optional: true)
     .AddEnvironmentVariables()
     .Build();
-var opciones = configuracion.GetSection(OpcionesConteo.Seccion).Get<OpcionesConteo>() ?? new OpcionesConteo();
+var camaras = OpcionesConteo.CargarCamaras(configuracion);
+var opciones = argumentos.Valor("camara") is { } codigoCamara
+    ? camaras.FirstOrDefault(c => string.Equals(c.PuntoControl, codigoCamara, StringComparison.OrdinalIgnoreCase))
+      ?? throw new ArgumentException($"No hay una cámara {codigoCamara} en ConteoCamara:Camaras.")
+    : camaras[0];
 var zona = ZonaPlanta(configuracion["ConteoCamara:ZonaHoraria"]);
 
 if (argumentos.Comando is null or "servicio")
@@ -37,7 +42,7 @@ if (argumentos.Comando is null or "servicio")
     builder.Configuration.AddConfiguration(configuracion);
     builder.Logging.ClearProviders();
     builder.Logging.AddSimpleConsole(o => { o.SingleLine = true; o.TimestampFormat = "yyyy-MM-dd HH:mm:ss "; });
-    builder.Services.Configure<OpcionesConteo>(configuracion.GetSection(OpcionesConteo.Seccion));
+    builder.Services.AddSingleton<IReadOnlyList<OpcionesConteo>>(camaras);
     builder.Services.AddSingleton(zona);
     builder.Services.AddHttpClient("api", c =>
     {
@@ -91,7 +96,7 @@ async Task<int> ProcesarAsync()
     if (argumentos.Tiene("enviar"))
         publicador = new PublicadorApi(opciones, new HttpClient { BaseAddress = new Uri(opciones.Api.UrlBase.TrimEnd('/') + "/") }, logger);
     var resumen = new ResumenConsola(publicador, eco: argumentos.Tiene("eco"));
-    var procesador = new ProcesadorConteo(opciones, resumen);
+    var procesador = Analizadores.Crear(opciones, resumen);
 
     var reloj = Stopwatch.StartNew();
     long n = 0;
@@ -109,7 +114,7 @@ async Task<int> VivoAsync()
     var credenciales = CredencialesNvr.Leer(opciones.Fuente.ArchivoCredenciales);
     var fuente = new FuenteFfmpeg(opciones.Fuente, logger, credenciales.Ocultar);
     var resumen = new ResumenConsola(eco: true);
-    var procesador = new ProcesadorConteo(opciones, resumen);
+    var procesador = Analizadores.Crear(opciones, resumen);
     var relojCuadros = new RelojCuadros(opciones.Fuente.Fps, zona);
     Console.WriteLine($"En vivo desde {credenciales} {opciones.Fuente.RutaRtsp} durante {segundos} s (sólo lectura, una conexión)...");
 

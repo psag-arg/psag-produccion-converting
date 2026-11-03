@@ -47,7 +47,7 @@ public class ParadaCamaraConfiguration : IEntityTypeConfiguration<ParadaCamara>
     {
         builder.ToTable("ParadasCamara", "mnt", t =>
         {
-            t.HasCheckConstraint("CK_ParadasCamara_Tipo", "[Tipo] IN ('PARADA', 'ACUMULACION')");
+            t.HasCheckConstraint("CK_ParadasCamara_Tipo", "[Tipo] IN ('PARADA', 'ACUMULACION', 'SIN_MANGAS')");
             t.HasCheckConstraint("CK_ParadasCamara_Duracion", "[DuracionSegundos] > 0");
         });
 
@@ -66,5 +66,33 @@ public class ParadaCamaraConfiguration : IEntityTypeConfiguration<ParadaCamara>
 
         builder.HasIndex(x => x.IdentificadorExterno).IsUnique().HasDatabaseName("UX_ParadasCamara_IdentificadorExterno");
         builder.HasIndex(x => new { x.LineaId, x.FechaHoraInicio }).HasDatabaseName("IX_ParadasCamara_Linea_Inicio");
+    }
+}
+
+public class AlertaCamaraConfiguration : IEntityTypeConfiguration<AlertaCamara>
+{
+    public void Configure(EntityTypeBuilder<AlertaCamara> builder)
+    {
+        builder.ToTable("AlertasCamara", "mnt", t =>
+        {
+            t.HasCheckConstraint("CK_AlertasCamara_Tipo", "[Tipo] IN ('CONGELADA', 'SIN_VIDEO')");
+            t.HasCheckConstraint("CK_AlertasCamara_Fin", "[FechaHoraFin] IS NULL OR [FechaHoraFin] >= [FechaHoraInicio]");
+        });
+
+        builder.HasKey(x => x.AlertaCamaraId);
+        builder.Ignore(x => x.Activa);
+
+        builder.Property(x => x.Tipo)
+            .IsRequired()
+            .HasConversion(v => v.ToString(), v => Enum.Parse<TipoAlertaCamara>(v))
+            .HasMaxLength(20);
+        builder.Property(x => x.IdentificadorExterno).IsRequired().HasMaxLength(100);
+        builder.Property(x => x.Detalle).HasMaxLength(500);
+
+        builder.HasOne(x => x.PuntoControl).WithMany().HasForeignKey(x => x.PuntoControlCalidadId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.Linea).WithMany().HasForeignKey(x => x.LineaId).OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(x => x.IdentificadorExterno).IsUnique().HasDatabaseName("UX_AlertasCamara_IdentificadorExterno");
+        builder.HasIndex(x => new { x.PuntoControlCalidadId, x.FechaHoraInicio }).HasDatabaseName("IX_AlertasCamara_Punto_Inicio");
     }
 }

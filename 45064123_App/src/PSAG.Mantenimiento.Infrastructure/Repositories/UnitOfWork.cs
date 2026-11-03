@@ -45,6 +45,7 @@ public class UnitOfWork : IUnitOfWork
     // Conteo por cámara
     private IConteoCamaraMinutoRepository? _conteosCamaraMinuto;
     private IParadaCamaraRepository? _paradasCamara;
+    private IAlertaCamaraRepository? _alertasCamara;
 
     public UnitOfWork(MantenimientoDbContext context)
     {
@@ -87,6 +88,7 @@ public class UnitOfWork : IUnitOfWork
     // Conteo por cámara
     public IConteoCamaraMinutoRepository ConteosCamaraMinuto => _conteosCamaraMinuto ??= new ConteoCamaraMinutoRepository(_context);
     public IParadaCamaraRepository ParadasCamara => _paradasCamara ??= new ParadaCamaraRepository(_context);
+    public IAlertaCamaraRepository AlertasCamara => _alertasCamara ??= new AlertaCamaraRepository(_context);
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {

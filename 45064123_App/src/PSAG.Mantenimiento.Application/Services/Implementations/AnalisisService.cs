@@ -140,7 +140,7 @@ public class AnalisisService : IAnalisisService
             && d.FechaHoraAnalisis >= inicioMes,
             cancellationToken);
 
-        var veDeclaracion = roles.Contains(RolesSistema.Operario);
+        var veDeclaracion = DetencionCamaraReglas.VeDeclaracion(roles);
         var dto = new MisPendientesDto
         {
             EsAdministrador = esAdministrador,
@@ -163,7 +163,7 @@ public class AnalisisService : IAnalisisService
         };
 
         if (veDeclaracion)
-            dto.ParaDeclarar = await ObtenerParaDeclararAsync(usuarioId, cancellationToken);
+            dto.ParaDeclarar = await ObtenerParaDeclararAsync(usuarioId, roles, cancellationToken);
 
         return Result<MisPendientesDto>.Success(dto);
     }
@@ -177,8 +177,8 @@ public class AnalisisService : IAnalisisService
             ? await _unitOfWork.Detenciones.CountAsync(AnalisisFallaReglas.EstaAbiertoExpr, cancellationToken)
             : await _unitOfWork.Detenciones.CountAnalisisAbiertosParaAsync(usuarioId, roles, cancellationToken);
 
-        if (roles.Contains(RolesSistema.Operario))
-            total += await ContarParaDeclararAsync(usuarioId, cancellationToken);
+        if (DetencionCamaraReglas.VeDeclaracion(roles))
+            total += await ContarParaDeclararAsync(usuarioId, roles, cancellationToken);
 
         return total;
     }
@@ -239,31 +239,44 @@ public class AnalisisService : IAnalisisService
         return Result<Detencion>.Success(detencion);
     }
 
-    private async Task<int> ContarParaDeclararAsync(string usuarioId, CancellationToken cancellationToken)
+    private async Task<int> ContarParaDeclararAsync(string usuarioId, IReadOnlyCollection<string> roles, CancellationToken cancellationToken)
     {
-        var lineasIds = await LineasDelUsuarioAsync(usuarioId, cancellationToken);
-        if (lineasIds.Length == 0)
+        var lineasIds = await LineasParaDeclararAsync(usuarioId, roles, cancellationToken);
+        if (lineasIds is { Length: 0 })
             return 0;
 
-        return await _unitOfWork.Detenciones.CountAsync(
-            d => d.EstadoActual == EstadoDetencion.PENDIENTE_JUSTIFICACION && lineasIds.Contains(d.LineaId),
-            cancellationToken);
+        return lineasIds == null
+            ? await _unitOfWork.Detenciones.CountAsync(d => d.EstadoActual == EstadoDetencion.PENDIENTE_JUSTIFICACION, cancellationToken)
+            : await _unitOfWork.Detenciones.CountAsync(
+                d => d.EstadoActual == EstadoDetencion.PENDIENTE_JUSTIFICACION && lineasIds.Contains(d.LineaId),
+                cancellationToken);
     }
 
+    /// <summary>
+    /// Pendientes de declaración (detenciones automáticas de la cámara) de las líneas del usuario; el administrador
+    /// y el supervisor sin líneas asignadas ven todas. De la más vieja a la más nueva.
+    /// </summary>
     private async Task<List<PendienteDeclaracionDto>> ObtenerParaDeclararAsync(
         string usuarioId,
+        IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken)
     {
-        var lineasIds = await LineasDelUsuarioAsync(usuarioId, cancellationToken);
-        if (lineasIds.Length == 0)
+        var lineasIds = await LineasParaDeclararAsync(usuarioId, roles, cancellationToken);
+        if (lineasIds is { Length: 0 })
             return new List<PendienteDeclaracionDto>();
 
         var nombresLineas = (await _unitOfWork.Lineas.GetAllAsync(cancellationToken))
             .ToDictionary(l => l.LineaId, l => l.Nombre);
+        var nombresTurnos = (await _unitOfWork.Turnos.GetAllAsync(cancellationToken))
+            .ToDictionary(t => t.TurnoId, t => t.Nombre);
+        var camaras = (await _unitOfWork.PuntosControlCalidad.GetAllAsync(cancellationToken))
+            .ToDictionary(p => p.PuntoControlCalidadId, p => p.Codigo);
 
-        var pendientes = await _unitOfWork.Detenciones.FindAsync(
-            d => d.EstadoActual == EstadoDetencion.PENDIENTE_JUSTIFICACION && lineasIds.Contains(d.LineaId),
-            cancellationToken);
+        var pendientes = lineasIds == null
+            ? await _unitOfWork.Detenciones.FindAsync(d => d.EstadoActual == EstadoDetencion.PENDIENTE_JUSTIFICACION, cancellationToken)
+            : await _unitOfWork.Detenciones.FindAsync(
+                d => d.EstadoActual == EstadoDetencion.PENDIENTE_JUSTIFICACION && lineasIds.Contains(d.LineaId),
+                cancellationToken);
 
         return pendientes
             .OrderBy(d => d.Fecha)
@@ -274,12 +287,23 @@ public class AnalisisService : IAnalisisService
                 Codigo = d.Codigo,
                 Fecha = d.Fecha,
                 LineaNombre = nombresLineas.GetValueOrDefault(d.LineaId, string.Empty),
+                TurnoNombre = nombresTurnos.GetValueOrDefault(d.TurnoId, string.Empty),
                 FechaHoraParada = d.FechaHoraParada,
                 FechaHoraArranque = d.FechaHoraArranque,
+                FechaHoraArranqueDetectada = d.FechaHoraArranqueDetectada,
+                OrigenRegistro = d.OrigenRegistro.ToString(),
+                CamaraCodigo = d.PuntoControlCalidadId is { } p ? camaras.GetValueOrDefault(p) : null,
                 MinutosEfectivos = d.MinutosEfectivos,
                 EstadoActualDescripcion = d.EstadoActual.ObtenerDescripcion()
             })
             .ToList();
+    }
+
+    /// <summary>Líneas cuyas pendientes de declaración ve el usuario; null = todas.</summary>
+    private async Task<int[]?> LineasParaDeclararAsync(string usuarioId, IReadOnlyCollection<string> roles, CancellationToken cancellationToken)
+    {
+        var lineas = await LineasDelUsuarioAsync(usuarioId, cancellationToken);
+        return DetencionCamaraReglas.VeTodasLasLineasParaDeclarar(roles, lineas.Length) ? null : lineas;
     }
 
     private Task<int[]> LineasDelUsuarioAsync(string usuarioId, CancellationToken cancellationToken) =>

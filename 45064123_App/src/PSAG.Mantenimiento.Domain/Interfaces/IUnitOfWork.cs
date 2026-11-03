@@ -41,6 +41,7 @@ public interface IUnitOfWork : IDisposable
     // Conteo de producción y paradas por cámara (T-610)
     IConteoCamaraMinutoRepository ConteosCamaraMinuto { get; }
     IParadaCamaraRepository ParadasCamara { get; }
+    IAlertaCamaraRepository AlertasCamara { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     Task BeginTransactionAsync(CancellationToken cancellationToken = default);

@@ -57,6 +57,7 @@ public class MantenimientoDbContext : IdentityDbContext<ApplicationUser>
     // Conteo de producción y paradas por cámara (T-610)
     public DbSet<ConteoCamaraMinuto> ConteosCamaraMinuto => Set<ConteoCamaraMinuto>();
     public DbSet<ParadaCamara> ParadasCamara => Set<ParadaCamara>();
+    public DbSet<AlertaCamara> AlertasCamara => Set<AlertaCamara>();
 
     private bool EsSqlite => Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true;
 

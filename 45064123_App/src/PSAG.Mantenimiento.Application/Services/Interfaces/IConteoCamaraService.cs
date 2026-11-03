@@ -14,6 +14,9 @@ public interface IConteoCamaraService
     /// <summary>Paradas de la cámara cruzadas con las detenciones cargadas.</summary>
     Task<Result<ParadasCamaraResultado>> ObtenerParadasAsync(ParadasCamaraFiltroRequest filtro, CancellationToken cancellationToken = default);
 
-    /// <summary>Rollos por hora y carril de un día de planta.</summary>
-    Task<Result<ProduccionCamaraDto>> ObtenerProduccionAsync(DateOnly fecha, int? lineaId, CancellationToken cancellationToken = default);
+    /// <summary>Rollos (o mangas) por hora, carril y turno de un día de planta, de una línea o de una cámara.</summary>
+    Task<Result<ProduccionCamaraDto>> ObtenerProduccionAsync(DateOnly fecha, int? lineaId, int? puntoControlCalidadId = null, CancellationToken cancellationToken = default);
+
+    /// <summary>Alertas de cámara abiertas y las cerradas en las últimas horas.</summary>
+    Task<IReadOnlyList<AlertaCamaraDto>> ObtenerAlertasAsync(int? lineaId, int horas = 24, CancellationToken cancellationToken = default);
 }

@@ -6,13 +6,31 @@ public interface ISalidaConteo
     void Ventana(ResultadoVentana ventana);
     void Minutos(IReadOnlyList<ConteoMinuto> minutos);
     void Parada(ParadaDetectada parada);
+
+    /// <summary>La máquina sigue parada (se llama en cada ventana mientras dura la parada confirmada).</summary>
+    void ParadaEnCurso(ParadaEnCurso parada) { }
+
+    /// <summary>Se abrió o se cerró una alerta de video (congelado, sin video).</summary>
+    void Alerta(AlertaVideo alerta) { }
+}
+
+/// <summary>
+/// Analiza cuadros grises de una cámara (cualquier método). No sabe de dónde vienen (RTSP o archivo).
+/// </summary>
+public interface IAnalizadorCuadros
+{
+    double Fps { get; }
+    void Cuadro(ReadOnlySpan<byte> cuadro, DateTimeOffset hora);
+
+    /// <summary>Se cortó (o se congeló) el video: se descarta la ventana a medias y se cierra la parada abierta.</summary>
+    void CortarSenal(bool final);
 }
 
 /// <summary>
 /// Une todo: cuadro gris reducido → brillo de la zona de cada carril → ventana de 10 s → estimador →
 /// minutos por carril y paradas con histéresis. No sabe de dónde vienen los cuadros (RTSP o archivo).
 /// </summary>
-public sealed class ProcesadorConteo
+public sealed class ProcesadorConteo : IAnalizadorCuadros
 {
     private readonly EstimadorVentana _estimador;
     private readonly DetectorParadas _detector;
@@ -109,6 +127,7 @@ public sealed class ProcesadorConteo
 
         var parada = _detector.Procesar(ventana);
         if (parada != null) _salida.Parada(parada);
+        if (_detector.Abierta is { } abierta) _salida.ParadaEnCurso(abierta);
 
         var minutos = _minutos.Agregar(ventana);
         if (minutos.Count > 0) _salida.Minutos(minutos);

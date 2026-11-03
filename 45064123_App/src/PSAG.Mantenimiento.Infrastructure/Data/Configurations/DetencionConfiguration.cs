@@ -96,6 +96,20 @@ public class DetencionConfiguration : IEntityTypeConfiguration<Detencion>
         builder.Property(x => x.AnalisisPorUsuarioId)
             .HasMaxLength(450);
 
+        // Origen (T-610, script 26)
+        builder.Property(x => x.OrigenRegistro)
+            .IsRequired()
+            .HasConversion(v => v.ToString(), v => Enum.Parse<OrigenRegistroDetencion>(v))
+            .HasMaxLength(20);
+
+        builder.Property(x => x.IdentificadorParadaCamara)
+            .HasMaxLength(100);
+
+        builder.HasOne(x => x.PuntoControl)
+            .WithMany()
+            .HasForeignKey(x => x.PuntoControlCalidadId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         // Relaciones
         builder.HasOne(x => x.Linea)
             .WithMany(x => x.Detenciones)
@@ -145,5 +159,10 @@ public class DetencionConfiguration : IEntityTypeConfiguration<Detencion>
         builder.HasIndex(x => new { x.LineaId, x.EstadoActual });
         builder.HasIndex(x => new { x.Fecha, x.EstadoActual });
         builder.HasIndex(x => new { x.Fecha, x.LineaId, x.TurnoId });
+        // Idempotencia de la detención automática: una sola detención por parada de cámara (incluye eliminadas).
+        builder.HasIndex(x => x.IdentificadorParadaCamara)
+            .IsUnique()
+            .HasFilter("[IdentificadorParadaCamara] IS NOT NULL")
+            .HasDatabaseName("UX_Detenciones_IdentificadorParadaCamara");
     }
 }

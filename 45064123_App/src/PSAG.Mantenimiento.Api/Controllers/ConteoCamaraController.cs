@@ -35,11 +35,17 @@ public class ConteoCamaraController : ApiControllerBase
     /// <summary>Rollos por hora y carril de un día de planta.</summary>
     [HttpGet("produccion")]
     [ProducesResponseType(typeof(ProduccionCamaraDto), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetProduccion([FromQuery] DateOnly fecha, [FromQuery] int? lineaId)
+    public async Task<IActionResult> GetProduccion([FromQuery] DateOnly fecha, [FromQuery] int? lineaId, [FromQuery] int? puntoControlCalidadId)
     {
-        var resultado = await _servicio.ObtenerProduccionAsync(fecha, lineaId);
+        var resultado = await _servicio.ObtenerProduccionAsync(fecha, lineaId, puntoControlCalidadId);
         return resultado.IsFailure ? ErrorResult(resultado) : Ok(resultado.Value);
     }
+
+    /// <summary>Alertas de cámara congelada o sin video: abiertas y las cerradas en las últimas <c>horas</c> (24 por defecto).</summary>
+    [HttpGet("alertas")]
+    [ProducesResponseType(typeof(IReadOnlyList<AlertaCamaraDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAlertas([FromQuery] int? lineaId, [FromQuery] int horas = 24) =>
+        Ok(await _servicio.ObtenerAlertasAsync(lineaId, horas));
 
     private IActionResult ErrorResult(Result resultado) => ProblemaDe(resultado, "Error de validación");
 }

@@ -11,6 +11,37 @@ public class IngestaConteoCamaraRequest
     public string PuntoControl { get; set; } = string.Empty;
     public List<MinutoCamaraIngesta> Minutos { get; set; } = [];
     public List<ParadaCamaraIngesta> Paradas { get; set; } = [];
+
+    /// <summary>
+    /// Paradas todavía abiertas (la máquina sigue parada), con la última hora en que se la vio parada. Si la cámara
+    /// crea detenciones y la parada llega al umbral, se da de alta la detención sin esperar el arranque.
+    /// </summary>
+    public List<ParadaEnCursoIngesta> ParadasEnCurso { get; set; } = [];
+
+    /// <summary>Alertas de cámara congelada o sin video: se abren con inicio y se cierran reenviando con fin.</summary>
+    public List<AlertaCamaraIngesta> Alertas { get; set; } = [];
+}
+
+public class ParadaEnCursoIngesta
+{
+    /// <summary>El mismo identificador que tendrá la parada cuando cierre (punto + inicio).</summary>
+    public string IdentificadorExterno { get; set; } = string.Empty;
+    public DateTimeOffset Inicio { get; set; }
+
+    /// <summary>Última hora en que la cámara vio la máquina parada.</summary>
+    public DateTimeOffset Hasta { get; set; }
+
+    public string Tipo { get; set; } = string.Empty;
+    public bool InicioIncierto { get; set; }
+}
+
+public class AlertaCamaraIngesta
+{
+    /// <summary>CONGELADA o SIN_VIDEO.</summary>
+    public string Tipo { get; set; } = string.Empty;
+    public DateTimeOffset Inicio { get; set; }
+    public DateTimeOffset? Fin { get; set; }
+    public string? Detalle { get; set; }
 }
 
 public class MinutoCamaraIngesta
@@ -42,6 +73,18 @@ public class IngestaConteoCamaraRespuesta
     public int MinutosDuplicados { get; set; }
     public int ParadasNuevas { get; set; }
     public int ParadasDuplicadas { get; set; }
+
+    /// <summary>Detenciones automáticas creadas con este lote (pendientes de declaración).</summary>
+    public int DetencionesCreadas { get; set; }
+
+    /// <summary>Detenciones automáticas que ya existían (reenvío o parada que sigue): no se duplican.</summary>
+    public int DetencionesExistentes { get; set; }
+
+    /// <summary>Paradas que llegaron al umbral pero no se pudieron dar de alta (sin turno para la hora).</summary>
+    public int DetencionesSinTurno { get; set; }
+
+    public int AlertasNuevas { get; set; }
+    public int AlertasCerradas { get; set; }
 }
 
 // ===================== Consultas =====================
@@ -58,6 +101,9 @@ public class ParadasCamaraFiltroRequest
 
     /// <summary>Duración mínima en segundos (para ocultar microparadas). 0 = todas.</summary>
     public int SegundosMinimos { get; set; }
+
+    /// <summary>Sólo las de esa cámara (la 09 y la 10 son de la misma línea).</summary>
+    public int? PuntoControlCalidadId { get; set; }
 }
 
 public class ParadaCamaraDto
@@ -74,6 +120,9 @@ public class ParadaCamaraDto
     public string Carriles { get; set; } = string.Empty;
     public bool InicioIncierto { get; set; }
     public bool FinIncierto { get; set; }
+
+    /// <summary>La parada llegó al umbral de detención de su cámara (las demás son microcortes, sólo log).</summary>
+    public bool SuperaUmbral { get; set; }
 
     /// <summary>CON_DETENCION, POSIBLE o SIN_DETENCION (calculado al consultar).</summary>
     public string Cruce { get; set; } = string.Empty;
@@ -98,6 +147,34 @@ public class ProduccionCamaraDto
     public decimal TotalRollos { get; set; }
     public int MinutosConDatos { get; set; }
     public int MinutosMarcha { get; set; }
+
+    /// <summary>Total por turno materializado (para la eficiencia: mangas del turno / mangas objetivo).</summary>
+    public List<ProduccionCamaraTurnoDto> Turnos { get; set; } = [];
+}
+
+public class ProduccionCamaraTurnoDto
+{
+    public int? TurnoId { get; set; }
+    public string TurnoNombre { get; set; } = string.Empty;
+    public decimal Total { get; set; }
+    public int MinutosConDatos { get; set; }
+    public int MinutosMarcha { get; set; }
+}
+
+/// <summary>Alerta de cámara congelada o sin video (abierta o cerrada hace poco).</summary>
+public class AlertaCamaraDto
+{
+    public long AlertaCamaraId { get; set; }
+    public string PuntoControlCodigo { get; set; } = string.Empty;
+    public string PuntoControlNombre { get; set; } = string.Empty;
+    public int LineaId { get; set; }
+    public string LineaNombre { get; set; } = string.Empty;
+    public string Tipo { get; set; } = string.Empty;
+    public string TipoDescripcion { get; set; } = string.Empty;
+    public DateTimeOffset FechaHoraInicio { get; set; }
+    public DateTimeOffset? FechaHoraFin { get; set; }
+    public bool Activa { get; set; }
+    public string? Detalle { get; set; }
 }
 
 public class ProduccionCamaraHoraDto

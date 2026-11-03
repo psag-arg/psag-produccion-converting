@@ -14,8 +14,14 @@ public sealed class LoteConteo
     public List<MinutoLote> Minutos { get; set; } = [];
     public List<ParadaLote> Paradas { get; set; } = [];
 
+    /// <summary>Paradas que siguen abiertas (la última vista de cada una): la API crea la detención al llegar al umbral.</summary>
+    public List<ParadaEnCursoLote> ParadasEnCurso { get; set; } = [];
+
+    /// <summary>Alertas de cámara congelada o sin video (abiertas y cierres).</summary>
+    public List<AlertaLote> Alertas { get; set; } = [];
+
     [JsonIgnore]
-    public bool Vacio => Minutos.Count == 0 && Paradas.Count == 0;
+    public bool Vacio => Minutos.Count == 0 && Paradas.Count == 0 && ParadasEnCurso.Count == 0 && Alertas.Count == 0;
 
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
@@ -59,9 +65,13 @@ public sealed class ParadaLote
     public bool InicioIncierto { get; set; }
     public bool FinIncierto { get; set; }
 
+    /// <summary>Punto + inicio en UTC. Lo comparten la parada en curso y la cerrada: es la clave de la detención.</summary>
+    public static string Identificador(string puntoControl, DateTimeOffset inicio) =>
+        $"{puntoControl}-{inicio.ToUniversalTime():yyyyMMdd'T'HHmmss'Z'}";
+
     public static ParadaLote Desde(string puntoControl, ParadaDetectada p) => new()
     {
-        IdentificadorExterno = $"{puntoControl}-{p.Inicio.ToUniversalTime():yyyyMMdd'T'HHmmss'Z'}",
+        IdentificadorExterno = Identificador(puntoControl, p.Inicio),
         Inicio = p.Inicio,
         Fin = p.Fin,
         Tipo = p.Tipo.ToString(),
@@ -69,4 +79,32 @@ public sealed class ParadaLote
         InicioIncierto = p.InicioIncierto,
         FinIncierto = p.FinIncierto
     };
+}
+
+public sealed class ParadaEnCursoLote
+{
+    public string IdentificadorExterno { get; set; } = string.Empty;
+    public DateTimeOffset Inicio { get; set; }
+    public DateTimeOffset Hasta { get; set; }
+    public string Tipo { get; set; } = string.Empty;
+    public bool InicioIncierto { get; set; }
+
+    public static ParadaEnCursoLote Desde(string puntoControl, ParadaEnCurso p) => new()
+    {
+        IdentificadorExterno = ParadaLote.Identificador(puntoControl, p.Inicio),
+        Inicio = p.Inicio,
+        Hasta = p.Hasta,
+        Tipo = p.Tipo.ToString(),
+        InicioIncierto = p.InicioIncierto
+    };
+}
+
+public sealed class AlertaLote
+{
+    public string Tipo { get; set; } = string.Empty;
+    public DateTimeOffset Inicio { get; set; }
+    public DateTimeOffset? Fin { get; set; }
+    public string? Detalle { get; set; }
+
+    public static AlertaLote Desde(AlertaVideo a) => new() { Tipo = a.Tipo.ToString(), Inicio = a.Inicio, Fin = a.Fin, Detalle = a.Detalle };
 }
