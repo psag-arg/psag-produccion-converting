@@ -322,7 +322,7 @@ PRINT CONCAT(N'Puntos insertados: ', @@ROWCOUNT, N' (de 13).');
 
 COMMIT TRANSACTION;
 
-PRINT CONCAT(N'Plan INS-T2-EMP-TMC: ',
-    (SELECT COUNT(*) FROM [mnt].[ItemsPlanInspeccion] WHERE [PlanInspeccionId] = @PlanId AND [Activo] = 1), N' puntos activos.');
+DECLARE @Activos INT = (SELECT COUNT(*) FROM [mnt].[ItemsPlanInspeccion] WHERE [PlanInspeccionId] = @PlanId AND [Activo] = 1);
+PRINT CONCAT(N'Plan INS-T2-EMP-TMC: ', @Activos, N' puntos activos.');
 PRINT N'Script 27 completado.';
 GO
