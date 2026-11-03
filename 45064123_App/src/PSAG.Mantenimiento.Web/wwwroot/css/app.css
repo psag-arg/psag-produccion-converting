@@ -201,3 +201,12 @@ html {
 .estado-punto .badge {
     white-space: normal;
 }
+
+/* Detalle de detención: el encabezado (código + botones Analizar/Editar/Volver) baja de renglón en el celular */
+@media (max-width: 767.98px) {
+    .detalle-detencion > .d-flex.justify-content-between {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 1rem !important;
+    }
+}

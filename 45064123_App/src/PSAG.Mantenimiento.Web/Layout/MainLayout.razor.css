@@ -57,6 +57,11 @@ main {
         display: none;
     }
 
+    article.content {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+    }
+
     /* El menú lateral es un cajón: oculto hasta que se toca "Menú" */
     .sidebar {
         position: fixed;
