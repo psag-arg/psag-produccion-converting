@@ -58,7 +58,7 @@
             }
         </ul>
 
-        @if (pestania == Pestania.Declarar && !pendientes.VeAnalisis && !esOperario)
+        @if (pestania == Pestania.Declarar && !pendientes.VeAnalisis && !pendientes.VeDeclaracion && !esOperario)
         {
             <div class="alert alert-info">
                 Tu usuario no tiene análisis asignados. Para ver cómo vienen, entrá a
@@ -67,44 +67,8 @@
         }
         else if (pestania == Pestania.Declarar)
         {
-            <div class="card">
-                <div class="table-responsive">
-                    <table class="table table-hover mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Código</th>
-                                <th>Línea</th>
-                                <th>Intervalo</th>
-                                <th>Minutos</th>
-                                <th>Estado</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var item in pendientes.ParaDeclarar)
-                            {
-                                <tr>
-                                    <td><strong>@item.Codigo</strong></td>
-                                    <td>@item.LineaNombre</td>
-                                    <td>@TextoIntervalo(item)</td>
-                                    <td><span class="badge bg-secondary">@item.MinutosEfectivos min</span></td>
-                                    <td><span class="badge bg-warning text-dark">@item.EstadoActualDescripcion</span></td>
-                                </tr>
-                            }
-                            @if (!pendientes.ParaDeclarar.Any())
-                            {
-                                <tr>
-                                    <td colspan="5" class="text-center text-muted py-4">No hay detenciones para declarar.</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            <div class="alert alert-light border mt-3 mb-0">
-                Hasta que esté la lectura del PLC esta lista queda vacía: el operario carga la detención a mano como hoy.
-                Cuando llegue la señal, la detención se crea sola con hora y minutos, y el operario completa equipo,
-                tipo de falla y descripción.
-            </div>
+            @* T-610: detenciones automáticas de la cámara (componente aparte, para no tocar las solapas de análisis). *@
+            <PSAG.Mantenimiento.Web.Shared.PendientesDeclaracion Items="pendientes.ParaDeclarar" />
         }
         else
         {
@@ -242,7 +206,10 @@
         subtitulo = pendientes?.EsAdministrador == true
             ? "Rol: Administrador · ves los análisis abiertos de todos los responsables"
             : $"Rol: {string.Join(", ", roles)} · ves solo lo que te toca a vos";
-        pestania = pendientes?.VeAnalisis == true ? Pestania.Analizar : Pestania.Declarar;
+        // "Pendiente de declaración" va primera: se abre ahí si hay detenciones por declarar o si no ve análisis.
+        pestania = pendientes is { VeDeclaracion: true } p && (p.ParaDeclarar.Count > 0 || !p.VeAnalisis)
+            ? Pestania.Declarar
+            : pendientes?.VeAnalisis == true ? Pestania.Analizar : Pestania.Declarar;
     }
 
     private async Task CargarPendientes()
@@ -294,7 +261,7 @@
 
         if (pendientes.VeDeclaracion)
         {
-            indicadores.Add(new("Para declarar", pendientes.ParaDeclarar.Count.ToString()));
+            indicadores.Add(new("Pendiente de declaración", pendientes.ParaDeclarar.Count.ToString()));
         }
 
         return indicadores;
@@ -308,16 +275,16 @@
             return pestanias;
         }
 
+        if (pendientes.VeDeclaracion)
+        {
+            pestanias.Add(new(Pestania.Declarar, "Pendiente de declaración", pendientes.ParaDeclarar.Count));
+        }
+
         if (pendientes.VeAnalisis)
         {
             pestanias.Add(new(Pestania.Analizar, "Para analizar", pendientes.ParaAnalizar.Count));
             pestanias.Add(new(Pestania.EnAnalisis, "En análisis", pendientes.EnAnalisis.Count));
             pestanias.Add(new(Pestania.Cerradas, "Cerradas por mí", null));
-        }
-
-        if (pendientes.VeDeclaracion)
-        {
-            pestanias.Add(new(Pestania.Declarar, "Para declarar", pendientes.ParaDeclarar.Count));
         }
 
         return pestanias;
@@ -368,17 +335,4 @@
         1 => "hace 1 día",
         _ => $"hace {dias} días"
     };
-
-    private static string TextoIntervalo(PendienteDeclaracionDto item)
-    {
-        if (!item.FechaHoraParada.HasValue)
-        {
-            return "Sin hora";
-        }
-
-        var inicio = item.FechaHoraParada.Value.ToString("dd/MM HH:mm");
-        return item.FechaHoraArranque.HasValue
-            ? $"{inicio} → {item.FechaHoraArranque.Value:HH:mm}"
-            : inicio;
-    }
 }

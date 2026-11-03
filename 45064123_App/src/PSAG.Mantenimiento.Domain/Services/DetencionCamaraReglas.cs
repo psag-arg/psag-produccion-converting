@@ -21,6 +21,9 @@ public static class DetencionCamaraReglas
     /// <summary>Minutos antes del fin del turno en que se avisa al operador que le quedan detenciones sin declarar.</summary>
     public const int MinutosAvisoFinTurnoPorDefecto = 30;
 
+    /// <summary>Duración máxima que se acepta al declarar con hora de arranque.</summary>
+    public const int MaximoHorasDeclaradas = 12;
+
     /// <summary>Usuario técnico con el que queda creada la detención automática (CreadoPorUsuarioId).</summary>
     public const string UsuarioSistemaCamara = "SISTEMA-CAMARA";
 
@@ -94,6 +97,9 @@ public static class DetencionCamaraReglas
         {
             if (detencion.FechaHoraParada is { } p && a <= p)
                 return "La hora de arranque tiene que ser posterior a la hora de parada.";
+            // HH:mm menor que la parada se toma como del día siguiente; más de 12 h es casi seguro un error de tipeo.
+            if (detencion.FechaHoraParada is { } p2 && a - p2 > TimeSpan.FromHours(MaximoHorasDeclaradas))
+                return $"La hora de arranque es anterior a la de parada o la parada duraría más de {MaximoHorasDeclaradas} h. Revisala.";
             if (a > ahora.AddMinutes(10))
                 return "La hora de arranque no puede ser futura.";
             return null;

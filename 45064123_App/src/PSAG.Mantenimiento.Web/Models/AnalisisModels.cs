@@ -126,8 +126,12 @@ public class PendienteDeclaracionDto
     public string Codigo { get; set; } = string.Empty;
     public DateOnly Fecha { get; set; }
     public string LineaNombre { get; set; } = string.Empty;
+    public string TurnoNombre { get; set; } = string.Empty;
     public DateTimeOffset? FechaHoraParada { get; set; }
     public DateTimeOffset? FechaHoraArranque { get; set; }
+    public DateTimeOffset? FechaHoraArranqueDetectada { get; set; }
+    public string OrigenRegistro { get; set; } = string.Empty;
+    public string? CamaraCodigo { get; set; }
     public int MinutosEfectivos { get; set; }
     public string EstadoActualDescripcion { get; set; } = string.Empty;
 }

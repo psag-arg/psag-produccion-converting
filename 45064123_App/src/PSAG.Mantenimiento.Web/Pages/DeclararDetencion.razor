@@ -1,0 +1,245 @@
+@page "/detenciones/{DetencionId:long}/declarar"
+@using Microsoft.AspNetCore.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize]
+@inject IDeclaracionDetencionService DeclaracionService
+@inject ICatalogosService CatalogosService
+@inject NavigationManager Navigation
+
+<PageTitle>Declarar detención - PSAG Produccion</PageTitle>
+
+@* T-610: el operador completa la detención que creó la cámara. Línea, fecha, turno, maquinista y hora de parada
+   ya vienen; él carga equipo, tipo y detalle de falla, descripción y la hora de arranque (la de la cámara es sólo
+   una sugerencia). Al guardar pasa a REGISTRADA y sigue el flujo normal (reglas de análisis incluidas). *@
+
+<div class="container-fluid">
+    <div class="mb-3">
+        <a href="@Volver" class="text-decoration-none"><i class="bi bi-arrow-left me-1"></i>Volver</a>
+    </div>
+
+    @if (cargando)
+    {
+        <div class="text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Cargando...</span></div></div>
+    }
+    else if (detencion == null)
+    {
+        <div class="alert alert-warning">@(errorCarga ?? "No se encontró la detención.")</div>
+    }
+    else
+    {
+        <div class="card" style="max-width: 900px;">
+            <div class="card-header d-flex flex-wrap align-items-center gap-2">
+                <h4 class="mb-0 me-auto">Declarar detención <span class="font-monospace">@detencion.Codigo</span></h4>
+                @if (detencion.OrigenRegistro == "CAMARA")
+                {
+                    <span class="badge bg-info-subtle text-info-emphasis"><i class="bi bi-camera-video me-1"></i>Creada por la cámara @detencion.PuntoControlCodigo</span>
+                }
+                <span class="badge @(detencion.PendienteDeclaracion ? "bg-warning text-dark" : "bg-success")">@detencion.EstadoActualDescripcion</span>
+            </div>
+            <div class="card-body">
+                @if (resultado != null)
+                {
+                    <div class="alert alert-success" data-testid="declarada-ok">
+                        Detención @resultado.Codigo declarada: @resultado.MinutosEfectivos min.
+                        @if (resultado.RequiereAnalisis)
+                        {
+                            <span>Cumple una regla de análisis: le llega al responsable.</span>
+                        }
+                        <button class="btn btn-sm btn-success ms-2" @onclick="() => Navigation.NavigateTo(Volver)">Volver a mis pendientes</button>
+                    </div>
+                }
+                else if (!detencion.PendienteDeclaracion)
+                {
+                    <div class="alert alert-info">Esta detención ya fue declarada. <a href="detenciones/@detencion.DetencionId">Ver la detención</a>.</div>
+                }
+
+                <h6 class="text-muted text-uppercase small">Lo completó el sistema</h6>
+                <div class="row g-2 mb-4">
+                    <div class="col-6 col-md-3"><div class="small text-muted">Línea</div><div class="form-control bg-light">@detencion.LineaNombre</div></div>
+                    <div class="col-6 col-md-3"><div class="small text-muted">Fecha</div><div class="form-control bg-light">@detencion.Fecha.ToString("dd/MM/yyyy")</div></div>
+                    <div class="col-6 col-md-3"><div class="small text-muted">Turno</div><div class="form-control bg-light">@detencion.TurnoNombre</div></div>
+                    <div class="col-6 col-md-3"><div class="small text-muted">Hora de parada</div><div class="form-control bg-light" data-testid="hora-parada">@(detencion.FechaHoraParada?.ToString("HH:mm:ss") ?? "-")</div></div>
+                    <div class="col-12 col-md-6"><div class="small text-muted">Maquinista</div><div class="form-control bg-light">@(detencion.MaquinistaNombre ?? "Sin asignar (quedás vos al declarar si estás asignado a la línea)")</div></div>
+                    <div class="col-12 col-md-6"><div class="small text-muted">Cámara / cuerpo donde se detectó</div><div class="form-control bg-light">@(detencion.PuntoControlNombre ?? "-")@(detencion.CuerpoCamaraNombre is { } c ? $" · {c}" : "")</div></div>
+                </div>
+
+                @if (detencion.PendienteDeclaracion && resultado == null)
+                {
+                    <h6 class="text-muted text-uppercase small">Lo completás vos</h6>
+                    @if (!string.IsNullOrEmpty(error))
+                    {
+                        <div class="alert alert-danger" data-testid="error-declaracion">@error</div>
+                    }
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Equipo</label>
+                            <select class="form-select" @bind="equipoId" @bind:after="@(async () => await CargarDetalles())">
+                                <option value="">-- Sin especificar --</option>
+                                @foreach (var e in equipos)
+                                {
+                                    <option value="@e.EquipoId">@e.Nombre</option>
+                                }
+                            </select>
+                            <div class="form-text">Puede ser otro equipo que el de la cámara (por ejemplo, se llenó la empaquetadora).</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Tipo de falla</label>
+                            <select class="form-select" @bind="tipoFallaId" @bind:after="@(async () => await CargarDetalles())">
+                                <option value="">-- Sin especificar --</option>
+                                @foreach (var t in tiposFalla)
+                                {
+                                    <option value="@t.TipoFallaId">@t.Nombre</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Detalle de falla</label>
+                            <select class="form-select" @bind="detalleFallaId">
+                                <option value="">-- Sin especificar --</option>
+                                @foreach (var d in detalles)
+                                {
+                                    <option value="@d.DetalleFallaId">@d.Nombre</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Hora de arranque *</label>
+                            <div class="input-group">
+                                <input type="time" class="form-control" @bind="horaArranque" data-testid="hora-arranque" />
+                                @if (detencion.FechaHoraArranqueDetectada is { } sugerida)
+                                {
+                                    <button type="button" class="btn btn-outline-secondary" @onclick="UsarSugerida"
+                                            title="La cámara vio arrancar la máquina a esa hora">
+                                        Usar la de la cámara (@sugerida.ToString("HH:mm"))
+                                    </button>
+                                }
+                            </div>
+                            <div class="form-text">
+                                @if (detencion.FechaHoraArranqueDetectada == null)
+                                {
+                                    <span>La cámara todavía no vio arrancar la máquina.</span>
+                                }
+                                Si no sabés la hora, dejala vacía y cargá los minutos.
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Minutos de parada (si no cargás la hora)</label>
+                            <input type="number" min="1" class="form-control" @bind="minutos" disabled="@(horaArranque != null)" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Descripción *</label>
+                            <textarea class="form-control" rows="3" maxlength="2000" @bind="descripcion" data-testid="descripcion"
+                                      placeholder="Qué pasó y qué se hizo..."></textarea>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between mt-4">
+                        <button type="button" class="btn btn-outline-secondary" @onclick="() => Navigation.NavigateTo(Volver)">Cancelar</button>
+                        <button type="button" class="btn btn-primary" disabled="@guardando" @onclick="@(async () => await Guardar())" data-testid="guardar-declaracion">
+                            @(guardando ? "Guardando..." : "Declarar detención")
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public long DetencionId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "volver")]
+    public string? VolverA { get; set; }
+
+    private string Volver => string.IsNullOrWhiteSpace(VolverA) || !VolverA.StartsWith('/') ? "detenciones/pendientes" : VolverA.TrimStart('/');
+
+    private DeclaracionDetencionDto? detencion;
+    private DeclararDetencionResponse? resultado;
+    private List<EquipoDto> equipos = new();
+    private List<TipoFallaDto> tiposFalla = new();
+    private List<DetalleFallaDto> detalles = new();
+    private int? equipoId;
+    private int? tipoFallaId;
+    private int? detalleFallaId;
+    private TimeOnly? horaArranque;
+    private int? minutos;
+    private string? descripcion;
+    private string? error;
+    private string? errorCarga;
+    private bool cargando = true;
+    private bool guardando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            detencion = await DeclaracionService.GetAsync(DetencionId);
+            if (detencion != null)
+            {
+                var equiposTask = CatalogosService.GetEquiposAsync(detencion.LineaId);
+                var tiposTask = CatalogosService.GetTiposFallaAsync();
+                await Task.WhenAll(equiposTask, tiposTask);
+                equipos = equiposTask.Result;
+                tiposFalla = tiposTask.Result;
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            errorCarga = ex.Message;
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    /// <summary>Copia la hora que vio la cámara; el operador la puede cambiar antes de guardar.</summary>
+    private void UsarSugerida()
+    {
+        if (detencion?.FechaHoraArranqueDetectada is { } s)
+            horaArranque = new TimeOnly(s.Hour, s.Minute);
+    }
+
+    private async Task CargarDetalles()
+    {
+        detalleFallaId = null;
+        detalles = tipoFallaId.HasValue
+            ? await CatalogosService.GetDetallesFallaAsync(tipoFallaId, equipoId)
+            : new List<DetalleFallaDto>();
+    }
+
+    private async Task Guardar()
+    {
+        if (detencion == null) return;
+        error = null;
+        var hora = horaArranque is { } h ? new TimeOnly(h.Hour, h.Minute) : (TimeOnly?)null;
+
+        guardando = true;
+        try
+        {
+            var (ok, mensaje) = await DeclaracionService.DeclararAsync(DetencionId, new DeclararDetencionRequest
+            {
+                EquipoId = equipoId,
+                TipoFallaId = tipoFallaId,
+                DetalleFallaId = detalleFallaId,
+                Descripcion = descripcion ?? string.Empty,
+                HoraArranque = hora,
+                MinutosDeclarados = hora == null ? minutos : null,
+                RowVersion = detencion.RowVersion
+            });
+            if (ok != null)
+            {
+                resultado = ok;
+                detencion = await DeclaracionService.GetAsync(DetencionId);
+            }
+            else
+            {
+                error = mensaje;
+            }
+        }
+        finally
+        {
+            guardando = false;
+        }
+    }
+}

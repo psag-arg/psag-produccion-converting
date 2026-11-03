@@ -54,6 +54,10 @@ public class CalidadMaestrosService : ICalidadMaestrosService
             Nombre = request.Nombre.Trim(),
             Descripcion = Limpiar(request.Descripcion),
             Activo = request.Activo,
+            EquipoId = request.EquipoId,
+            NumeroCamara = request.NumeroCamara,
+            CreaDetenciones = request.CreaDetenciones,
+            MinutosUmbralDetencion = request.MinutosUmbralDetencion,
             CreadoPorUsuarioId = usuarioId,
             ModificadoPorUsuarioId = usuarioId
         };
@@ -87,6 +91,10 @@ public class CalidadMaestrosService : ICalidadMaestrosService
         punto.Nombre = request.Nombre.Trim();
         punto.Descripcion = Limpiar(request.Descripcion);
         punto.Activo = request.Activo;
+        punto.EquipoId = request.EquipoId;
+        punto.NumeroCamara = request.NumeroCamara;
+        punto.CreaDetenciones = request.CreaDetenciones;
+        punto.MinutosUmbralDetencion = request.MinutosUmbralDetencion;
         punto.ModificadoPorUsuarioId = usuarioId;
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -113,6 +121,17 @@ public class CalidadMaestrosService : ICalidadMaestrosService
         var linea = await _unitOfWork.Lineas.GetByIdAsync(request.LineaId, cancellationToken);
         if (linea == null)
             return Result<Linea>.Failure("VALIDATION", "La línea no existe.");
+
+        if (DetencionCamaraReglas.MotivoUmbralInvalido(request.MinutosUmbralDetencion) is { } motivoUmbral)
+            return Result<Linea>.Failure("VALIDATION", motivoUmbral);
+        if (request.NumeroCamara is < 1 or > 999)
+            return Result<Linea>.Failure("VALIDATION", "El número de cámara tiene que estar entre 1 y 999.");
+        if (request.EquipoId is { } equipoId)
+        {
+            var equipo = await _unitOfWork.Equipos.GetByIdAsync(equipoId, cancellationToken);
+            if (equipo == null || equipo.LineaId != request.LineaId)
+                return Result<Linea>.Failure("VALIDATION", "El cuerpo (equipo) tiene que ser de la misma línea que la cámara.");
+        }
 
         var codigo = CalidadReglas.NormalizarCodigo(request.Codigo);
         var existente = await _unitOfWork.PuntosControlCalidad.GetByCodigoAsync(codigo, cancellationToken);
@@ -236,7 +255,12 @@ public class CalidadMaestrosService : ICalidadMaestrosService
         Codigo = p.Codigo,
         Nombre = p.Nombre,
         Descripcion = p.Descripcion,
-        Activo = p.Activo
+        Activo = p.Activo,
+        EquipoId = p.EquipoId,
+        EquipoNombre = p.Equipo?.Nombre,
+        NumeroCamara = p.NumeroCamara,
+        CreaDetenciones = p.CreaDetenciones,
+        MinutosUmbralDetencion = p.MinutosUmbralDetencion
     };
 
     private static TipoDefectoCalidadDto ADto(TipoDefectoCalidad t) => new()

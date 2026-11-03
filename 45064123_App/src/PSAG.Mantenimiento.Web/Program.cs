@@ -44,6 +44,7 @@ builder.Services.AddScoped<IInspeccionService, InspeccionService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<ICalidadService, CalidadService>();
 builder.Services.AddScoped<IConteoCamaraService, ConteoCamaraService>();
+builder.Services.AddScoped<IDeclaracionDetencionService, DeclaracionDetencionService>();
 
 // Servicio de temas
 builder.Services.AddScoped<IThemeService, ThemeService>();

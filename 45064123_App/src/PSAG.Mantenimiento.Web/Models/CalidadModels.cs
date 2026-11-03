@@ -9,6 +9,13 @@ public class PuntoControlCalidadDto
     public string Nombre { get; set; } = string.Empty;
     public string? Descripcion { get; set; }
     public bool Activo { get; set; } = true;
+
+    // Cámara asociada (T-610)
+    public int? EquipoId { get; set; }
+    public string? EquipoNombre { get; set; }
+    public int? NumeroCamara { get; set; }
+    public bool CreaDetenciones { get; set; }
+    public int MinutosUmbralDetencion { get; set; } = 5;
 }
 
 public class TipoDefectoCalidadDto

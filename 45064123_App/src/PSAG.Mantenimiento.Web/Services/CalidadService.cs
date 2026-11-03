@@ -156,7 +156,11 @@ public class CalidadService : ICalidadService
 
     public async Task<(PuntoControlCalidadDto? Punto, string? Error)> GuardarPuntoControlAsync(PuntoControlCalidadDto punto)
     {
-        var cuerpo = new { punto.LineaId, punto.Codigo, punto.Nombre, punto.Descripcion, punto.Activo };
+        var cuerpo = new
+        {
+            punto.LineaId, punto.Codigo, punto.Nombre, punto.Descripcion, punto.Activo,
+            punto.EquipoId, punto.NumeroCamara, punto.CreaDetenciones, punto.MinutosUmbralDetencion
+        };
         var response = punto.PuntoControlCalidadId == 0
             ? await _httpClient.PostAsJsonAsync($"{Base}/puntos-control", cuerpo)
             : await _httpClient.PutAsJsonAsync($"{Base}/puntos-control/{punto.PuntoControlCalidadId}", cuerpo);

@@ -13,6 +13,13 @@ public class PuntoControlCalidadDto
     public string Nombre { get; set; } = string.Empty;
     public string? Descripcion { get; set; }
     public bool Activo { get; set; }
+
+    // Cámara asociada (T-610)
+    public int? EquipoId { get; set; }
+    public string? EquipoNombre { get; set; }
+    public int? NumeroCamara { get; set; }
+    public bool CreaDetenciones { get; set; }
+    public int MinutosUmbralDetencion { get; set; } = 5;
 }
 
 /// <summary>
@@ -25,6 +32,18 @@ public class GuardarPuntoControlCalidadRequest
     public string Nombre { get; set; } = string.Empty;
     public string? Descripcion { get; set; }
     public bool Activo { get; set; } = true;
+
+    /// <summary>Cuerpo de la línea que mira la cámara (referencia; no se copia a la detención).</summary>
+    public int? EquipoId { get; set; }
+
+    /// <summary>Número de cámara en el grabador (ej.: 10).</summary>
+    public int? NumeroCamara { get; set; }
+
+    /// <summary>Si crea detenciones automáticas (pendientes de declaración).</summary>
+    public bool CreaDetenciones { get; set; }
+
+    /// <summary>Minutos de parada para crear la detención (1 a 240, por defecto 5).</summary>
+    public int MinutosUmbralDetencion { get; set; } = 5;
 }
 
 public class TipoDefectoCalidadDto

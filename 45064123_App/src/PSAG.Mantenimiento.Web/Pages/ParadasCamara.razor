@@ -5,6 +5,7 @@
 @attribute [Authorize]
 @inject IConteoCamaraService ConteoCamaraService
 @inject ICatalogosService CatalogosService
+@inject ICalidadService CalidadService
 
 <PageTitle>Paradas por cámara - PSAG Produccion</PageTitle>
 
@@ -12,8 +13,9 @@
     <div class="mb-4">
         <h2 class="mb-0">Paradas y producción según la cámara</h2>
         <small class="text-muted">
-            Paradas detectadas por la cámara de salida de la cortadora y si tienen una detención cargada.
-            La cámara solo informa: las detenciones se siguen cargando como siempre.
+            Todas las paradas que detectan las cámaras (también los microcortes) y si tienen una detención cargada.
+            La cámara 09 (cortadora) solo informa. La cámara 10 (rebobinadora) crea sola la detención cuando la parada
+            llega al umbral de Maestros → Calidad (5 min por defecto) y queda pendiente de declaración.
         </small>
     </div>
 
@@ -39,6 +41,16 @@
                     </select>
                 </div>
                 <div class="col-6 col-md-2">
+                    <label class="form-label">Cámara</label>
+                    <select class="form-select" @bind="puntoId" @bind:after="@(async () => await Buscar())" data-testid="filtro-camara">
+                        <option value="">Todas</option>
+                        @foreach (var c in camaras)
+                        {
+                            <option value="@c.PuntoControlCalidadId">@c.Codigo</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
                     <label class="form-label">Duración mínima</label>
                     <select class="form-select" @bind="segundosMinimos" @bind:after="@(async () => await Buscar())">
                         <option value="0">Todas</option>
@@ -47,7 +59,7 @@
                         <option value="600">10 min o más</option>
                     </select>
                 </div>
-                <div class="col-12 col-md-4">
+                <div class="col-12 col-md-2">
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="soloSin" @bind="soloSinDetencion" @bind:after="@(async () => await Buscar())" />
                         <label class="form-check-label" for="soloSin">Solo las que no tienen detención cargada</label>
@@ -60,6 +72,22 @@
     @if (error != null)
     {
         <div class="alert alert-danger">@error</div>
+    }
+
+    @foreach (var a in alertas)
+    {
+        <div class="alert @(a.Activa ? "alert-danger" : "alert-secondary") py-2" data-testid="alerta-camara">
+            <i class="bi bi-camera-video-off me-1"></i>
+            <strong>@a.TipoDescripcion</strong> · @a.PuntoControlCodigo (@a.LineaNombre) desde @a.FechaHoraInicio.ToString("dd/MM HH:mm:ss")
+            @if (a.FechaHoraFin is { } fin)
+            {
+                <span>hasta @fin.ToString("HH:mm:ss") (resuelta).</span>
+            }
+            else
+            {
+                <span>· sigue activa: no se detectan paradas de esa cámara mientras dure.</span>
+            }
+        </div>
     }
 
     @if (isLoading)
@@ -101,6 +129,7 @@
                                 <th>Línea</th>
                                 <th>Turno</th>
                                 <th>Tipo</th>
+                                <th>Cámara</th>
                                 <th>Carriles</th>
                                 <th>Detención</th>
                             </tr>
@@ -126,7 +155,8 @@
                                     <td class="text-end">@Duracion(p.DuracionSegundos)</td>
                                     <td>@p.LineaNombre</td>
                                     <td>@p.TurnoNombre</td>
-                                    <td>@(p.Tipo == "PARADA" ? "Parada" : "Acumulación")</td>
+                                    <td>@TipoTexto(p.Tipo)</td>
+                                    <td class="font-monospace small">@p.PuntoControlCodigo</td>
                                     <td>@p.Carriles</td>
                                     <td>
                                         @switch (p.Cruce)
@@ -143,6 +173,10 @@
                                                 <span class="badge text-bg-danger">Sin detención</span>
                                                 break;
                                         }
+                                        @if (p.SuperaUmbral)
+                                        {
+                                            <span class="badge bg-info-subtle text-info-emphasis ms-1" title="Llegó al umbral: la cámara crea la detención automática">Automática</span>
+                                        }
                                     </td>
                                 </tr>
                             }
@@ -154,8 +188,22 @@
 
         <h5 class="mt-4">Producción del @hasta.ToString("dd/MM/yyyy") según la cámara</h5>
         <small class="text-muted d-block mb-2">
-            Rollos estimados por la frecuencia de paso en cada carril. Validar contra el contador de la cortadora antes de usarlo como dato oficial.
+            Cámara 09: rollos estimados por la frecuencia de paso en cada carril. Cámara 10: mangas contadas al cruzar la mesa
+            (carril 1). Elegí la cámara arriba para no mezclarlas. Validar contra el contador de la máquina antes de usarlo como dato oficial.
         </small>
+        @if (produccion.Turnos.Count > 0)
+        {
+            <div class="d-flex flex-wrap gap-2 mb-2" data-testid="totales-turno">
+                @foreach (var t in produccion.Turnos)
+                {
+                    <div class="border rounded px-3 py-2">
+                        <div class="small text-muted">@t.TurnoNombre</div>
+                        <div class="fw-semibold">@t.Total.ToString("N0") @(EsMangas ? "mangas" : "rollos")</div>
+                        <div class="small text-muted">@t.MinutosMarcha de @t.MinutosConDatos min en marcha</div>
+                    </div>
+                }
+            </div>
+        }
         @if (produccion.Horas.Count == 0)
         {
             <div class="alert alert-info">Sin datos de la cámara para ese día.</div>
@@ -170,7 +218,7 @@
                                 <th>Hora</th>
                                 @foreach (var c in produccion.Carriles)
                                 {
-                                    <th class="text-end">Carril @c</th>
+                                    <th class="text-end">@(EsMangas ? "Mangas" : $"Carril {c}")</th>
                                 }
                                 <th class="text-end">Total</th>
                                 <th class="text-end" title="Minutos-carril en marcha sobre minutos-carril con video">En marcha</th>
@@ -212,6 +260,10 @@
     private DateTime desde = DateTime.Today.AddDays(-7);
     private DateTime hasta = DateTime.Today;
     private int? lineaId;
+    private int? puntoId;
+    private List<PuntoControlCalidadDto> camaras = [];
+    private List<AlertaCamaraDto> alertas = [];
+    private bool EsMangas => produccion.Carriles.Count == 1 && puntoId != null;
     private int segundosMinimos = 60;
     private bool soloSinDetencion = true;
     private bool isLoading = true;
@@ -225,6 +277,7 @@
         try
         {
             lineas = await CatalogosService.GetLineasAsync();
+            camaras = await CalidadService.GetPuntosControlAsync(incluirInactivos: false);
         }
         catch (Exception ex)
         {
@@ -241,10 +294,12 @@
         {
             var d = DateOnly.FromDateTime(desde);
             var h = DateOnly.FromDateTime(hasta);
-            var paradas = ConteoCamaraService.GetParadasAsync(d, h, lineaId, soloSinDetencion, segundosMinimos);
-            var prod = ConteoCamaraService.GetProduccionAsync(h, lineaId);
+            var paradas = ConteoCamaraService.GetParadasAsync(d, h, lineaId, soloSinDetencion, segundosMinimos, puntoId);
+            var prod = ConteoCamaraService.GetProduccionAsync(h, lineaId, puntoId);
+            var al = ConteoCamaraService.GetAlertasAsync(lineaId, horas: 24);
             resultado = await paradas;
             produccion = await prod;
+            alertas = await al;
         }
         catch (Exception ex)
         {
@@ -257,6 +312,13 @@
             isLoading = false;
         }
     }
+
+    private static string TipoTexto(string tipo) => tipo switch
+    {
+        "PARADA" => "Parada",
+        "SIN_MANGAS" => "Sin mangas",
+        _ => "Acumulación"
+    };
 
     private static string Duracion(int segundos) =>
         segundos >= 3600 ? $"{segundos / 3600} h {segundos % 3600 / 60} min"

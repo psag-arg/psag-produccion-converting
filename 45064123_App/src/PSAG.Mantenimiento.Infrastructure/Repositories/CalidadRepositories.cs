@@ -16,7 +16,7 @@ public class PuntoControlCalidadRepository : RepositoryBase<PuntoControlCalidad>
         bool incluirInactivos = false,
         CancellationToken cancellationToken = default)
     {
-        var query = _dbSet.AsNoTracking().Include(p => p.Linea).AsQueryable();
+        var query = _dbSet.AsNoTracking().Include(p => p.Linea).Include(p => p.Equipo).AsQueryable();
         if (lineaId.HasValue)
             query = query.Where(p => p.LineaId == lineaId.Value);
         if (!incluirInactivos)

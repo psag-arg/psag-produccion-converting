@@ -33,7 +33,7 @@
                 <div class="card-body p-0">
                     <table class="table table-hover mb-0 align-middle">
                         <thead class="table-light">
-                            <tr><th>Código</th><th>Nombre</th><th>Línea</th><th class="text-center">Activo</th><th></th></tr>
+                            <tr><th>Código</th><th>Nombre</th><th>Línea</th><th>Cámara asociada</th><th class="text-center">Activo</th><th></th></tr>
                         </thead>
                         <tbody>
                             @if (puntos.Any())
@@ -50,6 +50,24 @@
                                             }
                                         </td>
                                         <td>@punto.LineaNombre</td>
+                                        <td class="small">
+                                            @if (punto.NumeroCamara is { } numero)
+                                            {
+                                                <div>Cámara @numero.ToString("00")@(punto.EquipoNombre is { } cuerpo ? $" · {cuerpo}" : "")</div>
+                                            }
+                                            else if (punto.EquipoNombre != null)
+                                            {
+                                                <div>@punto.EquipoNombre</div>
+                                            }
+                                            @if (punto.CreaDetenciones)
+                                            {
+                                                <span class="badge bg-warning text-dark" title="Crea una detención pendiente de declaración cuando la máquina para este tiempo o más">Crea detenciones desde @punto.MinutosUmbralDetencion min</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">Sólo informa paradas</span>
+                                            }
+                                        </td>
                                         <td class="text-center"><span class="badge @(punto.Activo ? "bg-success" : "bg-secondary")">@(punto.Activo ? "Activo" : "Inactivo")</span></td>
                                         <td class="text-end">
                                             <button class="btn btn-sm btn-outline-primary" @onclick="() => EditarPunto(punto)"><i class="bi bi-pencil"></i></button>
@@ -59,7 +77,7 @@
                             }
                             else
                             {
-                                <tr><td colspan="5" class="text-center text-muted py-4">No hay puntos de control cargados.</td></tr>
+                                <tr><td colspan="6" class="text-center text-muted py-4">No hay puntos de control cargados.</td></tr>
                             }
                         </tbody>
                     </table>
@@ -127,7 +145,7 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Línea *</label>
-                        <select class="form-select" @bind="puntoActual.LineaId">
+                        <select class="form-select" @bind="puntoActual.LineaId" @bind:after="@(async () => await CargarEquiposPunto(limpiar: true))">
                             <option value="0">-- Elegí la línea --</option>
                             @foreach (var linea in lineas)
                             {
@@ -152,6 +170,36 @@
                         <input type="checkbox" class="form-check-input" id="puntoActivo" @bind="puntoActual.Activo" />
                         <label class="form-check-label" for="puntoActivo">Activo</label>
                     </div>
+
+                    @* T-610: cámara asociada (línea + cuerpo) y detención automática *@
+                    <hr />
+                    <h6 class="mb-2">Cámara asociada</h6>
+                    <div class="row g-2 mb-2">
+                        <div class="col-4">
+                            <label class="form-label">N.º de cámara</label>
+                            <input type="number" min="1" max="999" class="form-control" placeholder="Ej.: 10" @bind="puntoActual.NumeroCamara" />
+                        </div>
+                        <div class="col-8">
+                            <label class="form-label">Cuerpo / equipo que mira</label>
+                            <select class="form-select" @bind="puntoActual.EquipoId">
+                                <option value="">-- Sin especificar --</option>
+                                @foreach (var e in equiposPunto)
+                                {
+                                    <option value="@e.EquipoId">@e.Nombre</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input type="checkbox" class="form-check-input" id="creaDetenciones" @bind="puntoActual.CreaDetenciones" />
+                        <label class="form-check-label" for="creaDetenciones">Crea detenciones automáticas (pendientes de declaración)</label>
+                    </div>
+                    <div class="input-group" style="max-width: 320px;">
+                        <span class="input-group-text">Desde</span>
+                        <input type="number" min="1" max="240" class="form-control" @bind="puntoActual.MinutosUmbralDetencion" disabled="@(!puntoActual.CreaDetenciones)" />
+                        <span class="input-group-text">min de parada</span>
+                    </div>
+                    <div class="form-text">Las paradas más cortas (microcortes) sólo quedan en el log de paradas de la cámara. El cuerpo es de referencia: el equipo de la detención lo elige el operador.</div>
                     @if (!string.IsNullOrEmpty(errorModal))
                     {
                         <div class="alert alert-danger mt-3 mb-0">@errorModal</div>
@@ -256,6 +304,17 @@
     {
         errorModal = null;
         puntoActual = new PuntoControlCalidadDto { Activo = true, LineaId = lineas.Count == 1 ? lineas[0].LineaId : 0 };
+        _ = CargarEquiposPunto(limpiar: false);
+    }
+
+    private List<EquipoDto> equiposPunto = new();
+
+    private async Task CargarEquiposPunto(bool limpiar)
+    {
+        if (puntoActual == null) return;
+        if (limpiar) puntoActual.EquipoId = null;
+        equiposPunto = puntoActual.LineaId > 0 ? await CatalogosService.GetEquiposAsync(puntoActual.LineaId) : new List<EquipoDto>();
+        StateHasChanged();
     }
 
     private void EditarPunto(PuntoControlCalidadDto p)
@@ -264,8 +323,11 @@
         puntoActual = new PuntoControlCalidadDto
         {
             PuntoControlCalidadId = p.PuntoControlCalidadId, LineaId = p.LineaId, Codigo = p.Codigo,
-            Nombre = p.Nombre, Descripcion = p.Descripcion, Activo = p.Activo
+            Nombre = p.Nombre, Descripcion = p.Descripcion, Activo = p.Activo,
+            EquipoId = p.EquipoId, NumeroCamara = p.NumeroCamara, CreaDetenciones = p.CreaDetenciones,
+            MinutosUmbralDetencion = p.MinutosUmbralDetencion
         };
+        _ = CargarEquiposPunto(limpiar: false);
     }
 
     private void NuevoTipo()

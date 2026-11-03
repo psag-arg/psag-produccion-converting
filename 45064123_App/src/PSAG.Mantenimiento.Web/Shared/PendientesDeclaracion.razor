@@ -1,0 +1,103 @@
+@* T-610: solapa "Pendiente de declaración" de Mis pendientes. Detenciones que creó la cámara y el operador
+   todavía no completó, de las líneas del usuario (el filtro lo hace la API). Arriba, las alertas de cámara
+   abiertas: mientras una cámara está congelada o sin video no se crean detenciones automáticas. *@
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@inject IConteoCamaraService ConteoCamaraService
+@inject NavigationManager Navigation
+
+@foreach (var alerta in alertasActivas)
+{
+    <div class="alert alert-danger d-flex align-items-center gap-2" role="alert" data-testid="alerta-camara">
+        <i class="bi bi-camera-video-off fs-5"></i>
+        <div>
+            <strong>@alerta.TipoDescripcion</strong>: @alerta.PuntoControlNombre (@alerta.PuntoControlCodigo, @alerta.LineaNombre)
+            desde las @alerta.FechaHoraInicio.ToString("HH:mm"). Mientras dure, las paradas no se detectan solas: cargalas a mano.
+        </div>
+    </div>
+}
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" data-testid="tabla-pendientes-declaracion">
+            <thead class="table-light">
+                <tr>
+                    <th>Código</th>
+                    <th>Línea</th>
+                    <th>Turno</th>
+                    <th>Parada desde</th>
+                    <th>Arranque (cámara)</th>
+                    <th>Origen</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Items)
+                {
+                    <tr role="button" @onclick="() => Declarar(item.DetencionId)">
+                        <td><strong>@item.Codigo</strong></td>
+                        <td>@item.LineaNombre</td>
+                        <td>@item.TurnoNombre</td>
+                        <td>@(item.FechaHoraParada?.ToString("dd/MM HH:mm") ?? "Sin hora")</td>
+                        <td>
+                            @if (item.FechaHoraArranqueDetectada is { } arranque)
+                            {
+                                <span title="Hora en que la cámara vio arrancar la máquina. La hora de arranque la declarás vos.">@arranque.ToString("HH:mm")</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger-subtle text-danger-emphasis">Sigue parada</span>
+                            }
+                        </td>
+                        <td>
+                            @if (item.OrigenRegistro == "CAMARA")
+                            {
+                                <span class="badge bg-info-subtle text-info-emphasis"><i class="bi bi-camera-video me-1"></i>@(item.CamaraCodigo ?? "Cámara")</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">@item.OrigenRegistro</span>
+                            }
+                        </td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-primary" @onclick:stopPropagation="true" @onclick="() => Declarar(item.DetencionId)">Declarar</button>
+                        </td>
+                    </tr>
+                }
+                @if (!Items.Any())
+                {
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">No hay detenciones pendientes de declaración.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+<div class="alert alert-light border mt-3 mb-0 small">
+    La cámara crea la detención cuando la máquina queda parada <strong>5 minutos o más</strong> (el umbral se cambia en
+    Maestros → Calidad → Cámaras). Ya vienen la línea, la fecha, el turno, el maquinista y la hora de parada; vos
+    completás el equipo, el tipo y detalle de falla, la descripción y la hora de arranque. Las paradas más cortas
+    (microcortes) no crean detención: quedan en <a href="paradas-camara">Paradas y producción (cámara)</a>.
+</div>
+
+@code {
+    [Parameter] public List<PendienteDeclaracionDto> Items { get; set; } = new();
+
+    private List<AlertaCamaraDto> alertasActivas = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            alertasActivas = (await ConteoCamaraService.GetAlertasAsync(horas: 1)).Where(a => a.Activa).ToList();
+        }
+        catch (HttpRequestException)
+        {
+            alertasActivas = new();
+        }
+    }
+
+    private void Declarar(long detencionId) =>
+        Navigation.NavigateTo($"detenciones/{detencionId}/declarar?volver=/detenciones/pendientes");
+}
