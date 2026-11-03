@@ -437,12 +437,122 @@ public class ConteoCamaraService : IConteoCamaraService
                     TurnoId = g.Key,
                     TurnoNombre = g.Key is { } t ? nombresTurno.GetValueOrDefault(t, $"Turno {t}") : "Sin turno",
                     Total = Math.Round(g.Sum(m => m.Rollos)),
-                    MinutosConDatos = g.GroupBy(m => m.Minuto).Count(x => x.Any(m => m.Estado != EstadoCarrilCamara.SIN_SENAL)),
-                    MinutosMarcha = g.GroupBy(m => m.Minuto).Count(x => x.All(m => m.Estado == EstadoCarrilCamara.MARCHA))
+                    MinutosConDatos = MinutosConDatos(g),
+                    MinutosMarcha = MinutosMarcha(g)
                 })
                 .OrderBy(t => t.TurnoNombre)
                 .ToList()
         });
+    }
+
+    /// <summary>Minutos (no minutos-carril) con datos de algún carril: lo mismo que suma la producción por turno.</summary>
+    private static int MinutosConDatos(IEnumerable<ConteoCamaraMinuto> minutos) =>
+        minutos.GroupBy(m => m.Minuto).Count(x => x.Any(m => m.Estado != EstadoCarrilCamara.SIN_SENAL));
+
+    /// <summary>Minutos con todos los carriles en marcha.</summary>
+    private static int MinutosMarcha(IEnumerable<ConteoCamaraMinuto> minutos) =>
+        minutos.GroupBy(m => m.Minuto).Count(x => x.All(m => m.Estado == EstadoCarrilCamara.MARCHA));
+
+    // ===================== Eficiencia por turno =====================
+
+    public async Task<Result<EficienciaCamaraDiaDto>> ObtenerEficienciaAsync(
+        DateOnly fecha, int? lineaId, DateTimeOffset? ahora = null, CancellationToken cancellationToken = default)
+    {
+        var momento = ahora ?? DateTimeOffset.UtcNow;
+        var turnos = (await _unitOfWork.Turnos.GetAllAsync(cancellationToken))
+            .Where(t => t.Activo)
+            .OrderBy(t => t.Orden).ThenBy(t => t.HoraInicio)
+            .ToList();
+
+        // Los turnos del día pueden terminar al día siguiente (nocturno): se leen dos días. Las paradas, desde el
+        // día anterior, para recortar las que vienen del turno de antes.
+        var desde = InicioDelDia(fecha);
+        var hasta = InicioDelDia(fecha.AddDays(2));
+        var minutos = await _unitOfWork.ConteosCamaraMinuto.GetRangoAsync(desde, hasta, lineaId, cancellationToken);
+        var paradas = await _unitOfWork.ParadasCamara.GetRangoAsync(InicioDelDia(fecha.AddDays(-1)), hasta, lineaId, cancellationToken);
+
+        // Cámaras que cuentan producción: las que tienen datos en el rango o ya tienen objetivo o método cargado.
+        // Los puntos de control de defectos de calidad, sin conteo, no aparecen.
+        var conDatos = minutos.Select(m => m.PuntoControlCalidadId).ToHashSet();
+        var puntos = (await _unitOfWork.PuntosControlCalidad.GetListadoAsync(lineaId, incluirInactivos: false, cancellationToken))
+            .Where(p => conDatos.Contains(p.PuntoControlCalidadId) || p.ObjetivoPorHora != null || p.MetodoConteo != null)
+            .OrderBy(p => p.Linea?.Orden ?? 0).ThenBy(p => p.Linea?.Nombre)
+            .ThenBy(p => p.NumeroCamara ?? int.MaxValue).ThenBy(p => p.Codigo)
+            .ToList();
+
+        var calendarios = (await _unitOfWork.CalendariosLinea.GetActivosAsync(lineaId, cancellationToken)).ToList();
+        var excepciones = (await _unitOfWork.TiemposProgramadosDia.GetPorRangoAsync(fecha, fecha, lineaId, cancellationToken)).ToList();
+
+        var resultado = new EficienciaCamaraDiaDto { Fecha = fecha };
+        foreach (var punto in puntos)
+        {
+            var minutosPunto = minutos.Where(m => m.PuntoControlCalidadId == punto.PuntoControlCalidadId).ToList();
+            var paradasPunto = paradas.Where(p => p.PuntoControlCalidadId == punto.PuntoControlCalidadId).ToList();
+            var calendariosLinea = calendarios.Where(c => c.LineaId == punto.LineaId).ToList();
+            var excepcionesLinea = excepciones.Where(e => e.LineaId == punto.LineaId).ToList();
+            var carriles = minutosPunto.Select(m => m.Carril).Distinct().Count();
+
+            var dto = new EficienciaCamaraPuntoDto
+            {
+                PuntoControlCalidadId = punto.PuntoControlCalidadId,
+                Codigo = punto.Codigo,
+                Nombre = punto.Nombre,
+                LineaId = punto.LineaId,
+                LineaNombre = punto.Linea?.Nombre ?? string.Empty,
+                NumeroCamara = punto.NumeroCamara,
+                MetodoConteo = punto.MetodoConteo,
+                Unidad = EficienciaCamaraCalculador.Unidad(punto.MetodoConteo, carriles),
+                ObjetivoPorHora = punto.ObjetivoPorHora,
+                MinutosUmbralDetencion = DetencionCamaraReglas.UmbralValido(punto.MinutosUmbralDetencion)
+            };
+
+            foreach (var turno in turnos)
+            {
+                var (inicioPared, finPared) = EficienciaCamaraCalculador.VentanaTurno(fecha, turno);
+                var inicio = HoraPlanta.DesdeHoraDePared(inicioPared, _zonaPlanta);
+                var fin = HoraPlanta.DesdeHoraDePared(finPared, _zonaPlanta);
+
+                // Turno materializado (no se recalcula): la ventana sólo elige de qué día es ese turno.
+                var delTurno = minutosPunto
+                    .Where(m => m.TurnoId == turno.TurnoId && m.Minuto >= inicio && m.Minuto < fin)
+                    .ToList();
+                var paradasVentana = paradasPunto.Where(p => p.FechaHoraFin > inicio && p.FechaHoraInicio < fin).ToList();
+                var empezadas = paradasVentana.Where(p => p.FechaHoraInicio >= inicio).ToList();
+                var largas = empezadas.Count(p =>
+                    DetencionCamaraReglas.SuperaUmbral(p.FechaHoraInicio, p.FechaHoraFin, punto.MinutosUmbralDetencion));
+
+                var minutosProgramados = EficienciaCamaraCalculador.MinutosProgramadosTurno(
+                    fecha, turno, turnos, calendariosLinea, excepcionesLinea);
+                var contadas = Math.Round(delTurno.Sum(m => m.Rollos));
+                var objetivo = EficienciaCamaraCalculador.ObjetivoTurno(punto.ObjetivoPorHora, minutosProgramados);
+
+                dto.Turnos.Add(new EficienciaTurnoDto
+                {
+                    TurnoId = turno.TurnoId,
+                    TurnoCodigo = turno.Codigo,
+                    TurnoNombre = turno.Nombre,
+                    Inicio = inicio,
+                    Fin = fin,
+                    MinutosProgramados = minutosProgramados,
+                    Contadas = contadas,
+                    Objetivo = objetivo,
+                    Porcentaje = EficienciaCamaraCalculador.Porcentaje(contadas, objetivo),
+                    Estado = EficienciaCamaraCalculador.Estado(punto.ObjetivoPorHora, minutosProgramados),
+                    Momento = EficienciaCamaraCalculador.Momento(momento, inicio, fin),
+                    ObjetivoHastaAhora = EficienciaCamaraCalculador.ObjetivoHastaAhora(objetivo, momento, inicio, fin),
+                    MinutosParada = EficienciaCamaraCalculador.MinutosParadaEnVentana(
+                        paradasVentana.Select(p => (p.FechaHoraInicio, p.FechaHoraFin)), inicio, fin),
+                    Microcortes = empezadas.Count - largas,
+                    ParadasLargas = largas,
+                    MinutosConDatos = MinutosConDatos(delTurno),
+                    MinutosMarcha = MinutosMarcha(delTurno)
+                });
+            }
+
+            resultado.Camaras.Add(dto);
+        }
+
+        return Result<EficienciaCamaraDiaDto>.Success(resultado);
     }
 
     public async Task<IReadOnlyList<AlertaCamaraDto>> ObtenerAlertasAsync(int? lineaId, int horas = 24, CancellationToken cancellationToken = default)

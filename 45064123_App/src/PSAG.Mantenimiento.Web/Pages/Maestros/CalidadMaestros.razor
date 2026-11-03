@@ -30,7 +30,7 @@
                     <strong>Puntos de control</strong>
                     <button class="btn btn-primary btn-sm" @onclick="NuevoPunto"><i class="bi bi-plus-circle me-1"></i>Nuevo punto</button>
                 </div>
-                <div class="card-body p-0">
+                <div class="card-body p-0 table-responsive">
                     <table class="table table-hover mb-0 align-middle">
                         <thead class="table-light">
                             <tr><th>Código</th><th>Nombre</th><th>Línea</th><th>Cámara asociada</th><th class="text-center">Activo</th><th></th></tr>
@@ -67,6 +67,14 @@
                                             {
                                                 <span class="text-muted">Sólo informa paradas</span>
                                             }
+                                            @if (punto.ObjetivoPorHora is { } objetivo)
+                                            {
+                                                <div><span class="badge bg-info text-dark" title="Objetivo para la eficiencia del Dashboard">Objetivo @objetivo.ToString("N0") @UnidadMetodo(punto.MetodoConteo)/h</span></div>
+                                            }
+                                            else if (punto.MetodoConteo != null || punto.NumeroCamara != null)
+                                            {
+                                                <div class="text-muted">Sin objetivo de eficiencia</div>
+                                            }
                                         </td>
                                         <td class="text-center"><span class="badge @(punto.Activo ? "bg-success" : "bg-secondary")">@(punto.Activo ? "Activo" : "Inactivo")</span></td>
                                         <td class="text-end">
@@ -90,7 +98,7 @@
                     <strong>Tipos de defecto</strong>
                     <button class="btn btn-primary btn-sm" @onclick="NuevoTipo"><i class="bi bi-plus-circle me-1"></i>Nuevo defecto</button>
                 </div>
-                <div class="card-body p-0">
+                <div class="card-body p-0 table-responsive">
                     <table class="table table-hover mb-0 align-middle">
                         <thead class="table-light">
                             <tr><th>Código</th><th>Nombre</th><th>Unidad</th><th class="text-center">Activo</th><th></th></tr>
@@ -200,6 +208,27 @@
                         <span class="input-group-text">min de parada</span>
                     </div>
                     <div class="form-text">Las paradas más cortas (microcortes) sólo quedan en el log de paradas de la cámara. El cuerpo es de referencia: el equipo de la detención lo elige el operador.</div>
+
+                    @* Eficiencia por turno en el Dashboard (reunión 03/11, script 28) *@
+                    <h6 class="mt-3 mb-2">Eficiencia (Dashboard)</h6>
+                    <div class="row g-2">
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label" for="metodoConteo">Qué cuenta</label>
+                            <select id="metodoConteo" class="form-select" @bind="puntoActual.MetodoConteo">
+                                <option value="">-- Deducir de los datos --</option>
+                                <option value="CARRILES">Rollos (carriles, como la cámara 09)</option>
+                                <option value="MANGAS">Mangas (como la cámara 10)</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label" for="objetivoPorHora">Objetivo por hora</label>
+                            <div class="input-group">
+                                <input id="objetivoPorHora" type="number" min="1" max="100000" step="any" inputmode="decimal" class="form-control" placeholder="Vacío = sin cargar" @bind="puntoActual.ObjetivoPorHora" />
+                                <span class="input-group-text">@UnidadMetodo(puntoActual.MetodoConteo)/h</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-text">Unidades por hora con la máquina en marcha plena. El objetivo del turno es este valor por las horas programadas del turno. Si queda vacío, el Dashboard muestra "Falta cargar el objetivo".</div>
                     @if (!string.IsNullOrEmpty(errorModal))
                     {
                         <div class="alert alert-danger mt-3 mb-0">@errorModal</div>
@@ -325,10 +354,18 @@
             PuntoControlCalidadId = p.PuntoControlCalidadId, LineaId = p.LineaId, Codigo = p.Codigo,
             Nombre = p.Nombre, Descripcion = p.Descripcion, Activo = p.Activo,
             EquipoId = p.EquipoId, NumeroCamara = p.NumeroCamara, CreaDetenciones = p.CreaDetenciones,
-            MinutosUmbralDetencion = p.MinutosUmbralDetencion
+            MinutosUmbralDetencion = p.MinutosUmbralDetencion,
+            ObjetivoPorHora = p.ObjetivoPorHora, MetodoConteo = p.MetodoConteo
         };
         _ = CargarEquiposPunto(limpiar: false);
     }
+
+    private static string UnidadMetodo(string? metodo) => metodo switch
+    {
+        "MANGAS" => "mangas",
+        "CARRILES" => "rollos",
+        _ => "unid."
+    };
 
     private void NuevoTipo()
     {

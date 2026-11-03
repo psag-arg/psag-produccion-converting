@@ -41,6 +41,19 @@ public class ConteoCamaraController : ApiControllerBase
         return resultado.IsFailure ? ErrorResult(resultado) : Ok(resultado.Value);
     }
 
+    /// <summary>
+    /// Eficiencia por turno de las cámaras que cuentan producción, en un día de planta (Dashboard): contadas,
+    /// objetivo (objetivo por hora x horas programadas del turno), %, minutos de parada y microcortes.
+    /// Sin objetivo cargado el % viene vacío (estado SIN_OBJETIVO), nunca 0.
+    /// </summary>
+    [HttpGet("eficiencia")]
+    [ProducesResponseType(typeof(EficienciaCamaraDiaDto), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetEficiencia([FromQuery] DateOnly fecha, [FromQuery] int? lineaId)
+    {
+        var resultado = await _servicio.ObtenerEficienciaAsync(fecha, lineaId);
+        return resultado.IsFailure ? ErrorResult(resultado) : Ok(resultado.Value);
+    }
+
     /// <summary>Alertas de cámara congelada o sin video: abiertas y las cerradas en las últimas <c>horas</c> (24 por defecto).</summary>
     [HttpGet("alertas")]
     [ProducesResponseType(typeof(IReadOnlyList<AlertaCamaraDto>), StatusCodes.Status200OK)]

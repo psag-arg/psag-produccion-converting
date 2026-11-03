@@ -58,6 +58,8 @@ public class CalidadMaestrosService : ICalidadMaestrosService
             NumeroCamara = request.NumeroCamara,
             CreaDetenciones = request.CreaDetenciones,
             MinutosUmbralDetencion = request.MinutosUmbralDetencion,
+            ObjetivoPorHora = request.ObjetivoPorHora,
+            MetodoConteo = MetodoNormalizado(request.MetodoConteo),
             CreadoPorUsuarioId = usuarioId,
             ModificadoPorUsuarioId = usuarioId
         };
@@ -95,6 +97,8 @@ public class CalidadMaestrosService : ICalidadMaestrosService
         punto.NumeroCamara = request.NumeroCamara;
         punto.CreaDetenciones = request.CreaDetenciones;
         punto.MinutosUmbralDetencion = request.MinutosUmbralDetencion;
+        punto.ObjetivoPorHora = request.ObjetivoPorHora;
+        punto.MetodoConteo = MetodoNormalizado(request.MetodoConteo);
         punto.ModificadoPorUsuarioId = usuarioId;
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -124,6 +128,10 @@ public class CalidadMaestrosService : ICalidadMaestrosService
 
         if (DetencionCamaraReglas.MotivoUmbralInvalido(request.MinutosUmbralDetencion) is { } motivoUmbral)
             return Result<Linea>.Failure("VALIDATION", motivoUmbral);
+        if (EficienciaCamaraCalculador.MotivoObjetivoInvalido(request.ObjetivoPorHora) is { } motivoObjetivo)
+            return Result<Linea>.Failure("VALIDATION", motivoObjetivo);
+        if (!EficienciaCamaraCalculador.TryNormalizarMetodo(request.MetodoConteo, out _))
+            return Result<Linea>.Failure("VALIDATION", "Qué cuenta la cámara: CARRILES (rollos) o MANGAS, o vacío.");
         if (request.NumeroCamara is < 1 or > 999)
             return Result<Linea>.Failure("VALIDATION", "El número de cámara tiene que estar entre 1 y 999.");
         if (request.EquipoId is { } equipoId)
@@ -245,6 +253,9 @@ public class CalidadMaestrosService : ICalidadMaestrosService
         return null;
     }
 
+    private static string? MetodoNormalizado(string? metodo) =>
+        EficienciaCamaraCalculador.TryNormalizarMetodo(metodo, out var normalizado) ? normalizado : null;
+
     private static string? Limpiar(string? texto) => string.IsNullOrWhiteSpace(texto) ? null : texto.Trim();
 
     private static PuntoControlCalidadDto ADto(PuntoControlCalidad p) => new()
@@ -260,7 +271,9 @@ public class CalidadMaestrosService : ICalidadMaestrosService
         EquipoNombre = p.Equipo?.Nombre,
         NumeroCamara = p.NumeroCamara,
         CreaDetenciones = p.CreaDetenciones,
-        MinutosUmbralDetencion = p.MinutosUmbralDetencion
+        MinutosUmbralDetencion = p.MinutosUmbralDetencion,
+        ObjetivoPorHora = p.ObjetivoPorHora,
+        MetodoConteo = p.MetodoConteo
     };
 
     private static TipoDefectoCalidadDto ADto(TipoDefectoCalidad t) => new()

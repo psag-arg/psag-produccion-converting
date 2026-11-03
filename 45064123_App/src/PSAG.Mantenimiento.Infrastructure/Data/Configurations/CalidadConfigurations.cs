@@ -29,6 +29,10 @@ public class PuntoControlCalidadConfiguration : IEntityTypeConfiguration<PuntoCo
         // Cámara asociada (T-610, script 26)
         builder.Property(x => x.CreaDetenciones).IsRequired().HasDefaultValue(false);
         builder.Property(x => x.MinutosUmbralDetencion).IsRequired().HasDefaultValue(5);
+
+        // Eficiencia (script 28): objetivo por hora y qué cuenta la cámara. Vacíos = sin cargar.
+        builder.Property(x => x.ObjetivoPorHora).HasPrecision(10, 2);
+        builder.Property(x => x.MetodoConteo).HasMaxLength(20);
         builder.HasOne(x => x.Equipo)
             .WithMany()
             .HasForeignKey(x => x.EquipoId)

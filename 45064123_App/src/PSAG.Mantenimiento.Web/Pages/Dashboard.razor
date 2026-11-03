@@ -154,6 +154,10 @@
             </div>
         </div>
 
+        <!-- Eficiencia por turno según la cámara (reunión 03/11) -->
+        @* Se vuelve a crear (y a cargar) con cada Actualizar o cambio de línea, como el resto del Dashboard. *@
+        <EficienciaCamara LineaId="@(filtroLineaId > 0 ? filtroLineaId : null)" />
+
         <!-- Detenciones por Linea y Tipo de Falla -->
         <div class="row mb-4">
             <div class="col-lg-6 mb-3">

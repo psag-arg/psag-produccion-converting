@@ -20,6 +20,10 @@ public class PuntoControlCalidadDto
     public int? NumeroCamara { get; set; }
     public bool CreaDetenciones { get; set; }
     public int MinutosUmbralDetencion { get; set; } = 5;
+
+    // Eficiencia (script 28)
+    public decimal? ObjetivoPorHora { get; set; }
+    public string? MetodoConteo { get; set; }
 }
 
 /// <summary>
@@ -44,6 +48,12 @@ public class GuardarPuntoControlCalidadRequest
 
     /// <summary>Minutos de parada para crear la detención (1 a 240, por defecto 5).</summary>
     public int MinutosUmbralDetencion { get; set; } = 5;
+
+    /// <summary>Unidades por hora en marcha plena (rollos o mangas). Vacío = todavía no se cargó.</summary>
+    public decimal? ObjetivoPorHora { get; set; }
+
+    /// <summary>CARRILES (rollos, cámara 09) o MANGAS (cámara 10). Vacío = se deduce de los datos.</summary>
+    public string? MetodoConteo { get; set; }
 }
 
 public class TipoDefectoCalidadDto

@@ -44,6 +44,21 @@ public class PuntoControlCalidad : CatalogoBase
     /// </summary>
     public int MinutosUmbralDetencion { get; set; } = 5;
 
+    // ===== Eficiencia (reunión 03/11, script 28) =====
+
+    /// <summary>
+    /// Unidades por hora con la máquina en marcha plena (rollos para la 09, mangas para la 10). Vacío = todavía no
+    /// se cargó: el Dashboard muestra "Falta cargar el objetivo" en lugar de un 0 %. El objetivo del turno es
+    /// ObjetivoPorHora x horas programadas del turno (ver EficienciaCamaraCalculador).
+    /// </summary>
+    public decimal? ObjetivoPorHora { get; set; }
+
+    /// <summary>
+    /// Qué cuenta la cámara: CARRILES (rollos de los carriles, cámara 09) o MANGAS (cámara 10). Es el mismo método
+    /// que tiene la cámara en el servicio de conteo. Vacío = se deduce de los datos (1 carril = mangas).
+    /// </summary>
+    public string? MetodoConteo { get; set; }
+
     // Navegación
     public virtual Linea Linea { get; set; } = null!;
     public virtual Equipo? Equipo { get; set; }

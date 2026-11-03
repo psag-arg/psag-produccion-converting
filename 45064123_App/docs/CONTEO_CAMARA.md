@@ -257,3 +257,22 @@ Probar sin instalar: `.\PSAG.Mantenimiento.ConteoCamara.exe vivo --camara T2-CAM
 `procesar --camara T2-CAM10 --archivo c10.mp4 --inicio 2026-11-03T02:25:00-03:00 --eco`.
 
 **Umbral, cuerpo y número de cámara**: Web → Maestros → Calidad → editar `T2-CAM10` → *Cámara asociada*.
+
+## 9. Eficiencia por turno en el Dashboard (reunión 03/11, script 28)
+
+- **Fórmula** [8:31]: eficiencia = contadas en el turno / objetivo del turno; objetivo = `ObjetivoPorHora` (Maestros →
+  Calidad → cámara) x horas programadas del turno.
+- **Horas programadas del turno** (`EficienciaCamaraCalculador.MinutosProgramadosTurno`): misma regla que las horas del
+  día (T-541/T-542). Duración del turno si el calendario de la línea lo incluye ese día (sin calendario, todos los
+  turnos activos); 0 si no. Con excepción del día (EXCEPCION/HISTORICO), las horas del día se reparten entre los turnos
+  en proporción a su duración, sin pasar la duración del turno; 0 h = no programado.
+- **Turno de noche**: es del día en que empieza (21:00 del día a 05:00 del siguiente). Se cuentan los minutos con ese
+  `TurnoId` materializado dentro de esa ventana (no se recalcula el turno).
+- **Sin objetivo** (`ObjetivoPorHora` vacío): estado `SIN_OBJETIVO`, el % viene vacío y el Dashboard dice "Falta cargar
+  el objetivo" (nunca 0 %). Objetivo 0 (turno no programado): `NO_PROGRAMADO`, sin dividir por cero.
+- **Paradas y microcortes**: minutos de todas las paradas de la cámara recortadas al turno; microcortes = paradas que
+  empezaron en el turno y duraron menos que `MinutosUmbralDetencion`.
+- **Unidad**: `MetodoConteo` del punto (`CARRILES` = rollos, `MANGAS` = mangas). Vacío: 1 carril con datos = mangas,
+  más = rollos.
+- **API**: `GET api/conteo-camara/eficiencia?fecha=YYYY-MM-DD&lineaId=` (el Dashboard pide hoy y ayer). Aparecen las
+  cámaras con conteo en esos días o con objetivo o método cargado.

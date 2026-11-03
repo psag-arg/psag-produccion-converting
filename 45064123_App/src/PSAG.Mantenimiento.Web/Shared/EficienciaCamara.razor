@@ -1,0 +1,176 @@
+@* Dashboard: eficiencia por turno según la cámara (reunión 03/11 [8:31]). Contadas / objetivo del turno, con
+   objetivo = objetivo por hora (Maestros → Calidad) x horas programadas del turno. Hoy y ayer. *@
+@inject IConteoCamaraService ConteoCamaraService
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-info">
+            <div class="card-header text-bg-info d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="bi bi-camera-video me-2"></i>Eficiencia (cámara)</h6>
+                <small class="d-none d-sm-inline">Contadas / objetivo del turno</small>
+            </div>
+            <div class="card-body p-2 p-md-3">
+                @if (cargando)
+                {
+                    <div class="text-center py-3"><div class="spinner-border spinner-border-sm text-info" role="status"></div> Cargando...</div>
+                }
+                else if (error)
+                {
+                    <div class="text-danger small">No se pudo cargar la eficiencia de las cámaras. Tocá Actualizar.</div>
+                }
+                else if (!camaras.Any())
+                {
+                    <p class="text-muted text-center py-2 mb-0">Ninguna cámara contó producción hoy ni ayer.</p>
+                }
+                else
+                {
+                    <div class="row g-3">
+                        @foreach (var camara in camaras)
+                        {
+                            <div class="col-12">
+                                <div class="border rounded p-2 h-100">
+                                    <div class="d-flex flex-wrap justify-content-between align-items-baseline gap-1 mb-1">
+                                        <strong>@EficienciaUi.Titulo(camara)</strong>
+                                        @if (camara.ObjetivoPorHora is { } porHora)
+                                        {
+                                            <small class="text-muted">Objetivo @EficienciaUi.Numero(porHora) @camara.Unidad/h</small>
+                                        }
+                                        else
+                                        {
+                                            <small class="text-warning-emphasis">@EficienciaUi.TextoSinObjetivo</small>
+                                        }
+                                    </div>
+
+                                    @foreach (var (etiqueta, dia) in DiasDe(camara.PuntoControlCalidadId))
+                                    {
+                                        <div class="small text-uppercase text-muted fw-semibold mt-2">@etiqueta @dia.Fecha.ToString("dd/MM")</div>
+                                        @foreach (var t in dia.Turnos)
+                                        {
+                                            var momento = EficienciaUi.TextoMomento(t.Momento);
+                                            <div class="row g-1 align-items-center py-2 border-bottom text-center eficiencia-turno">
+                                                <div class="col-12 col-md-3 text-start">
+                                                    <span class="fw-semibold">@t.TurnoNombre</span>
+                                                    @if (momento != null)
+                                                    {
+                                                        <span class="badge @(t.Momento == "EN_CURSO" ? "bg-primary" : "bg-secondary") ms-1">@momento</span>
+                                                    }
+                                                    <div class="small text-muted">@EficienciaUi.Horario(t)</div>
+                                                </div>
+                                                @if (t.Momento == "SIN_EMPEZAR")
+                                                {
+                                                    <div class="col-12 col-md-9 small text-muted">Todavía no empezó.</div>
+                                                }
+                                                else
+                                                {
+                                                <div class="col-4 col-md-2">
+                                                    <div class="fs-5 fw-semibold lh-1">@EficienciaUi.Numero(t.Contadas)</div>
+                                                    <small class="text-muted">Contadas</small>
+                                                </div>
+                                                @if (t.Estado == "OK")
+                                                {
+                                                    <div class="col-4 col-md-2">
+                                                        <div class="fs-5 lh-1">@EficienciaUi.Numero(t.Objetivo ?? 0)</div>
+                                                        <small class="text-muted">Objetivo</small>
+                                                    </div>
+                                                    <div class="col-4 col-md-2">
+                                                        <div class="fs-5 fw-bold lh-1 @EficienciaUi.ColorPorcentaje(t.Porcentaje)">@EficienciaUi.TextoPorcentaje(t)</div>
+                                                        <div class="progress mt-1" style="height: 4px;" role="progressbar" aria-label="Eficiencia del turno">
+                                                            <div class="progress-bar @EficienciaUi.ColorBarra(t.Porcentaje)" style="width: @EficienciaUi.AnchoBarra(t.Porcentaje)"></div>
+                                                        </div>
+                                                        @if (t.ObjetivoHastaAhora is { } aHora)
+                                                        {
+                                                            <small class="text-muted" title="Parte del objetivo que corresponde a lo que va del turno">A esta hora: @EficienciaUi.Numero(aHora)</small>
+                                                        }
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="col-8 col-md-4">
+                                                        <span class="badge @(t.Estado == "SIN_OBJETIVO" ? "text-bg-warning" : "text-bg-secondary") text-wrap">@EficienciaUi.TextoPorcentaje(t)</span>
+                                                    </div>
+                                                }
+                                                <div class="col-6 col-md-2">
+                                                    <div class="fw-semibold @(t.MinutosParada > 0 ? "text-danger" : "")">@EficienciaUi.Minutos(t.MinutosParada)</div>
+                                                    <small class="text-muted">Parada</small>
+                                                </div>
+                                                <div class="col-6 col-md-1">
+                                                    <div class="fw-semibold" title="Paradas de menos de @camara.MinutosUmbralDetencion min">@t.Microcortes</div>
+                                                    <small class="text-muted">Microcortes</small>
+                                                </div>
+                                                }
+                                            </div>
+                                        }
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    <div class="small text-muted mt-2">
+                        Objetivo del turno = objetivo por hora × horas programadas del turno (Maestros → Calidad).
+                        Microcortes: paradas de la cámara más cortas que el umbral de detención.
+                        <a href="/paradas-camara">Ver paradas y producción</a>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>Línea elegida en el Dashboard (null = todas).</summary>
+    [Parameter] public int? LineaId { get; set; }
+
+    private EficienciaCamaraDiaDto hoy = new();
+    private EficienciaCamaraDiaDto ayer = new();
+    private List<EficienciaCamaraPuntoDto> camaras = new();
+    private bool cargando = true;
+    private bool error;
+    private int? lineaCargada = -1;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (lineaCargada != LineaId)
+            await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        lineaCargada = LineaId;
+        cargando = true;
+        error = false;
+        try
+        {
+            var fechaHoy = DateOnly.FromDateTime(DateTime.Now);
+            var tareaHoy = ConteoCamaraService.GetEficienciaAsync(fechaHoy, LineaId);
+            var tareaAyer = ConteoCamaraService.GetEficienciaAsync(fechaHoy.AddDays(-1), LineaId);
+            hoy = await tareaHoy;
+            ayer = await tareaAyer;
+            // Una tarjeta por cámara, aunque sólo tenga datos uno de los dos días.
+            camaras = hoy.Camaras.Concat(ayer.Camaras)
+                .GroupBy(c => c.PuntoControlCalidadId)
+                .Select(g => g.First())
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error cargando eficiencia: {ex.Message}");
+            error = true;
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private IEnumerable<(string Etiqueta, DiaCamara Dia)> DiasDe(int puntoId)
+    {
+        foreach (var (etiqueta, dia) in new[] { ("Hoy", hoy), ("Ayer", ayer) })
+        {
+            var camara = dia.Camaras.FirstOrDefault(c => c.PuntoControlCalidadId == puntoId);
+            if (camara != null)
+                yield return (etiqueta, new DiaCamara(dia.Fecha, camara.Turnos));
+        }
+    }
+
+    private sealed record DiaCamara(DateOnly Fecha, List<EficienciaTurnoDto> Turnos);
+}
