@@ -1,3 +1,5 @@
+using PSAG.Mantenimiento.Domain.Enums;
+
 namespace PSAG.Mantenimiento.Domain.Entities;
 
 /// <summary>
@@ -24,6 +26,17 @@ public class EjecucionInspeccion
     /// Usuario que realizó la inspección.
     /// </summary>
     public string UsuarioId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Quién realiza esta inspección (filtro "Quién realiza" al empezarla): solo entran los puntos de ese puesto.
+    /// Null = todos los puntos del plan.
+    /// </summary>
+    public TipoPuesto? Puesto { get; set; }
+
+    /// <summary>
+    /// Quién la cerró ("firma del Op. Packaging" al pie de la planilla).
+    /// </summary>
+    public string? UsuarioCierreId { get; set; }
 
     /// <summary>
     /// Fecha de la inspección.

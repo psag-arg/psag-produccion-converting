@@ -18,6 +18,9 @@ public class EjecucionInspeccionDetalleConfiguration : IEntityTypeConfiguration<
         builder.Property(d => d.Observacion)
             .HasMaxLength(500);
 
+        builder.Property(d => d.EstandarSnapshot)
+            .HasMaxLength(300);
+
         builder.HasOne(d => d.ItemPlanInspeccion)
             .WithMany()
             .HasForeignKey(d => d.ItemPlanInspeccionId)

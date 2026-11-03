@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using PSAG.Mantenimiento.Application.Common;
 using PSAG.Mantenimiento.Application.DTOs.Inspeccion;
 using PSAG.Mantenimiento.Application.Services.Interfaces;
+using PSAG.Mantenimiento.Infrastructure.Identity;
 
 namespace PSAG.Mantenimiento.Api.Controllers;
 
@@ -16,13 +18,46 @@ public class InspeccionesController : ApiControllerBase
 {
     private readonly IInspeccionService _inspeccionService;
     private readonly ILogger<InspeccionesController> _logger;
+    private readonly UserManager<ApplicationUser> _userManager;
 
     public InspeccionesController(
         IInspeccionService inspeccionService,
-        ILogger<InspeccionesController> logger)
+        ILogger<InspeccionesController> logger,
+        UserManager<ApplicationUser> userManager)
     {
         _inspeccionService = inspeccionService;
         _logger = logger;
+        _userManager = userManager;
+    }
+
+    /// <summary>
+    /// Planes activos de la línea con sus puntos y si cada uno vence hoy (pantalla "Nueva inspección").
+    /// </summary>
+    [HttpGet("planes-linea/{lineaId:int}")]
+    [ProducesResponseType(typeof(IReadOnlyList<PlanInspeccionConItemsDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPlanesLinea(int lineaId)
+    {
+        var result = await _inspeccionService.ObtenerPlanesLineaAsync(lineaId);
+        return result.IsSuccess ? Ok(result.Value) : ProblemaDe(result, "Error al obtener los planes de inspección");
+    }
+
+    /// <summary>
+    /// Cierra (firma) la inspección: pide respondidos los puntos que vencen hoy. Lo hace quien inspecciona
+    /// (al pie de la planilla firma el Op. Packaging), por eso alcanza con poder cargar.
+    /// </summary>
+    [HttpPost("ejecuciones/{id:long}/cerrar")]
+    [Authorize(Policy = "CanCreateDetenciones")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> CerrarEjecucion(long id, [FromBody] CerrarEjecucionRequest request)
+    {
+        if (string.IsNullOrEmpty(CurrentUserId))
+            return Unauthorized();
+
+        request.EjecucionInspeccionId = id;
+        var result = await _inspeccionService.CerrarEjecucionAsync(request, CurrentUserId);
+        return result.IsSuccess ? NoContent() : ProblemaDe(result, "Error al cerrar la inspección", "Inspección no encontrada");
     }
 
     /// <summary>
@@ -104,7 +139,7 @@ public class InspeccionesController : ApiControllerBase
         if (!result.IsSuccess)
             return BadRequest(new ProblemDetails
             {
-                Title = "Error al iniciar ejecución",
+                Title = "Error al iniciar la inspección",
                 Detail = result.Error,
                 Status = StatusCodes.Status400BadRequest
             });
@@ -125,11 +160,12 @@ public class InspeccionesController : ApiControllerBase
         if (!result.IsSuccess)
             return NotFound(new ProblemDetails
             {
-                Title = "Ejecución no encontrada",
+                Title = "Inspección no encontrada",
                 Detail = result.Error,
                 Status = StatusCodes.Status404NotFound
             });
 
+        await CompletarNombresAsync(new[] { result.Value! });
         return Ok(result.Value);
     }
 
@@ -182,11 +218,12 @@ public class InspeccionesController : ApiControllerBase
         if (!result.IsSuccess)
             return BadRequest(new ProblemDetails
             {
-                Title = "Error al obtener ejecuciones",
+                Title = "Error al obtener inspecciones",
                 Detail = result.Error,
                 Status = StatusCodes.Status400BadRequest
             });
 
+        await CompletarNombresAsync(result.Value!.Items);
         return Ok(result.Value);
     }
 
@@ -267,5 +304,17 @@ public class InspeccionesController : ApiControllerBase
         }
 
         return NoContent();
+    }
+
+    /// <summary>Quién la hizo y quién la firmó (nombres de Identity, una consulta).</summary>
+    private async Task CompletarNombresAsync(IEnumerable<EjecucionInspeccionDto> ejecuciones)
+    {
+        var lista = ejecuciones.ToList();
+        var nombres = await _userManager.NombresVisiblesAsync(lista.SelectMany(e => new[] { e.UsuarioId, e.UsuarioCierreId }));
+        foreach (var e in lista)
+        {
+            e.UsuarioNombre = nombres.NombreDe(e.UsuarioId);
+            e.UsuarioCierreNombre = nombres.NombreDe(e.UsuarioCierreId);
+        }
     }
 }

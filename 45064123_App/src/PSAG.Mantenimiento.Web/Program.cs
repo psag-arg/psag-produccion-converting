@@ -48,6 +48,7 @@ builder.Services.AddScoped<IUsuariosService, UsuariosService>();
 builder.Services.AddScoped<IRegistroProcesoService, RegistroProcesoService>();
 builder.Services.AddScoped<IControlProcesoPlantillaService, ControlProcesoPlantillaService>();
 builder.Services.AddScoped<IInspeccionService, InspeccionService>();
+builder.Services.AddScoped<IInspeccionPlantillaService, InspeccionPlantillaService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<ICalidadService, CalidadService>();
 builder.Services.AddScoped<IConteoCamaraService, ConteoCamaraService>();

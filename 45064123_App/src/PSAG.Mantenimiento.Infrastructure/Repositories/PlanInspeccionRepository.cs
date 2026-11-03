@@ -112,6 +112,36 @@ public class PlanInspeccionRepository : IPlanInspeccionRepository
         await _context.PlanesInspeccion.AddAsync(planInspeccion, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<PlanInspeccion>> GetPlantillaLineaAsync(int lineaId, bool incluirInactivos, CancellationToken cancellationToken = default)
+    {
+        var planes = await _context.PlanesInspeccion
+            .Include(p => p.Linea)
+            .Include(p => p.Equipo)
+            .Include(p => p.Items.Where(i => incluirInactivos || i.Activo))
+            .Where(p => p.LineaId == lineaId && (incluirInactivos || p.Activo))
+            .ToListAsync(cancellationToken);
+
+        return planes.OrderBy(p => p.Orden).ThenBy(p => p.Nombre).ToList();
+    }
+
+    public async Task<int> CountByLineaAsync(int lineaId, CancellationToken cancellationToken = default) =>
+        await _context.PlanesInspeccion.CountAsync(p => p.LineaId == lineaId, cancellationToken);
+
+    public async Task<bool> ExisteCodigoAsync(string codigo, int? excluirPlanId, CancellationToken cancellationToken = default) =>
+        await _context.PlanesInspeccion.AnyAsync(p => p.Codigo == codigo && p.PlanInspeccionId != excluirPlanId, cancellationToken);
+
+    public async Task<ItemPlanInspeccion?> GetItemByIdAsync(int itemPlanInspeccionId, CancellationToken cancellationToken = default) =>
+        await _context.ItemsPlanInspeccion.FirstOrDefaultAsync(i => i.ItemPlanInspeccionId == itemPlanInspeccionId, cancellationToken);
+
+    public async Task<IReadOnlyList<ItemPlanInspeccion>> GetItemsAsync(int planInspeccionId, CancellationToken cancellationToken = default) =>
+        await _context.ItemsPlanInspeccion.Where(i => i.PlanInspeccionId == planInspeccionId).ToListAsync(cancellationToken);
+
+    public async Task AddItemAsync(ItemPlanInspeccion item, CancellationToken cancellationToken = default) =>
+        await _context.ItemsPlanInspeccion.AddAsync(item, cancellationToken);
+
+    public async Task<bool> ItemTieneRespuestasAsync(int itemPlanInspeccionId, CancellationToken cancellationToken = default) =>
+        await _context.EjecucionesInspeccionDetalle.AnyAsync(d => d.ItemPlanInspeccionId == itemPlanInspeccionId, cancellationToken);
+
     public async Task<IReadOnlyList<PlanInspeccion>> GetAllActivosAsync(CancellationToken cancellationToken = default)
     {
         return await _context.PlanesInspeccion

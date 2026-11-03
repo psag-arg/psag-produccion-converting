@@ -8,7 +8,12 @@ public enum TipoPuesto
 {
     MAQUINISTA = 1,
     AYUDANTE = 2,
-    PACKAGING = 3
+    PACKAGING = 3,
+
+    /// <summary>
+    /// Mecánico de la línea (planilla de inspección de la empaquetadora TMC: cadena y carro pente cada 10 días).
+    /// </summary>
+    MECANICO = 4
 }
 
 public static class TipoPuestoExtensions
@@ -18,6 +23,7 @@ public static class TipoPuestoExtensions
         TipoPuesto.MAQUINISTA => "Maquinista",
         TipoPuesto.AYUDANTE => "Ayudante",
         TipoPuesto.PACKAGING => "Operador Packaging",
+        TipoPuesto.MECANICO => "Mecánico",
         _ => tipo.ToString()
     };
 }

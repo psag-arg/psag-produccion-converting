@@ -183,6 +183,15 @@ html {
     background-color: var(--bs-warning-bg-subtle);
 }
 
+/* Inspecciones: las tareas de la planilla vienen en varias líneas; un punto que no vence hoy se ve más tenue */
+.tareas {
+    white-space: pre-line;
+}
+
+.inspeccion .punto-no-vence {
+    opacity: 0.75;
+}
+
 .punto-sin-estandar {
     border-left: 4px solid var(--bs-danger) !important;
 }

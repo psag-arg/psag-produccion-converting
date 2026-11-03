@@ -82,10 +82,22 @@ Filtros: `lineaId`, `productoId`, `fechaDesde`, `fechaHasta`
 ### GET /inspecciones/planes
 ### GET /inspecciones/pendientes
 Según puesto, línea y frecuencia.
+### GET /inspecciones/planes-linea/{lineaId}
+Planes activos de la línea (uno por equipo) con sus puntos y, por punto, `venceHoy`, `ultimaRespuesta` y `proximoVencimiento` según su frecuencia.
 ### GET /inspecciones/ejecuciones
+Historial. Filtros: `lineaId`, `planInspeccionId`, `equipoId`, `puesto` (quién realiza: PACKAGING, MECANICO...), `frecuenciaDias` (1, 10...), `estado` (EN_CURSO / CERRADA), `fechaDesde`, `fechaHasta`, `soloConNoOk`.
 ### POST /inspecciones/ejecuciones
+Inicia o retoma la del día: `{ planInspeccionId, puesto }` (puesto vacío = todos los puntos). Una por plan + fecha + puesto.
+### GET /inspecciones/ejecuciones/{id}
+### POST /inspecciones/ejecuciones/guardar
+Autoguardado: `{ ejecucionInspeccionId, rowVersion, resultados: [{ itemPlanInspeccionId, resultado: OK|NO_OK, observacion }] }`. NO OK pide observación y abre un hallazgo en el Panel NO OK (si vuelve a OK, el hallazgo queda resuelto). Todo o nada.
+### POST /inspecciones/ejecuciones/{id}/cerrar
+Cierra y firma (`usuarioCierreId`). Pide respondidos los puntos que vencen hoy. Política CanCreateDetenciones (firma el operador).
 ### GET /inspecciones/no-ok
 ### POST /inspecciones/no-ok/{id}/resolver
+
+### Maestro (CanManageCatalogs): /inspecciones/maestro/...
+`GET plantilla/{lineaId}`, `POST planes`, `PUT planes/{id}`, `POST puntos`, `PUT puntos/{id}`. Sin DELETE: se desactiva.
 
 ## Catálogos
 

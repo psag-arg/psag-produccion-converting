@@ -19,6 +19,12 @@ public class EjecucionInspeccionConfiguration : IEntityTypeConfiguration<Ejecuci
         builder.Property(e => e.ObservacionesGenerales)
             .HasMaxLength(1000);
 
+        builder.Property(e => e.Puesto)
+            .HasConversion<byte?>();
+
+        builder.Property(e => e.UsuarioCierreId)
+            .HasMaxLength(450);
+
         builder.Property(e => e.RowVersion)
             .IsRowVersion();
 

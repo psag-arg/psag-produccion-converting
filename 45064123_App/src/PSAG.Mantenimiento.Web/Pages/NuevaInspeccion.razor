@@ -1,0 +1,224 @@
+@page "/inspecciones/nueva"
+@using Microsoft.AspNetCore.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize]
+@inject IInspeccionService InspeccionService
+@inject ICatalogosService CatalogosService
+@inject NavigationManager Navigation
+
+<PageTitle>Nueva inspección - PSAG Produccion</PageTitle>
+
+@* Igual que "Nuevo control" de Control de Proceso: línea + equipo + quién realiza; si ya hay una del día, se retoma. *@
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-lg-8 col-xl-7">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Nueva inspección</h4>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-4">
+                        Elegí la línea, el equipo y quién realiza la inspección. Si ya hay una empezada hoy para esa combinación, se retoma.
+                    </p>
+
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger">@errorMessage</div>
+                    }
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Línea *</label>
+                        <AutocompleteSelect TItem="LineaDto"
+                                            TValue="int"
+                                            Items="lineas"
+                                            @bind-SelectedValue="selectedLineaId"
+                                            OnValueChanged="OnLineaChanged"
+                                            ValueSelector="@(l => l.LineaId)"
+                                            TextSelector="@(l => l.Nombre)"
+                                            EmptyText="No hay líneas cargadas."
+                                            Placeholder="Escribí para buscar la línea...">
+                            <ItemTemplate Context="linea">@linea.Nombre</ItemTemplate>
+                        </AutocompleteSelect>
+                    </div>
+
+                    @if (selectedLineaId > 0)
+                    {
+                        @if (isLoadingPlanes)
+                        {
+                            <div class="spinner-border spinner-border-sm text-primary"></div>
+                        }
+                        else if (!planes.Any())
+                        {
+                            <div class="alert alert-warning">
+                                Esta línea todavía no tiene planes de inspección cargados.
+                                Los carga un administrador desde Maestros &gt; Planes de inspección.
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Equipo *</label>
+                                <select class="form-select" @bind="selectedPlanId">
+                                    @foreach (var plan in planes)
+                                    {
+                                        <option value="@plan.PlanInspeccionId">@plan.Nombre (@plan.CantidadItems puntos)</option>
+                                    }
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-bold d-block">Quién realiza</label>
+                                <div class="btn-group flex-wrap" role="group" aria-label="Quién realiza">
+                                    @foreach (var (codigo, nombre) in PuestosDelPlan)
+                                    {
+                                        var c = codigo;
+                                        <button type="button" class="btn @(selectedPuesto == c ? "btn-primary" : "btn-outline-primary")" @onclick="() => selectedPuesto = c">@nombre</button>
+                                    }
+                                    <button type="button" class="btn @(string.IsNullOrEmpty(selectedPuesto) ? "btn-primary" : "btn-outline-primary")" @onclick="() => selectedPuesto = null">Todos</button>
+                                </div>
+                            </div>
+
+                            @if (PlanActual is { } planActual)
+                            {
+                                var items = planActual.Items.Where(i => InspeccionUi.Coincide(i, null, selectedPuesto)).ToList();
+                                var vencen = items.Count(i => i.VenceHoy);
+                                <h6 class="mt-4">Puntos a inspeccionar: @items.Count <small class="text-muted">(@vencen vencen hoy)</small></h6>
+                                <ul class="list-group mb-2">
+                                    @foreach (var item in items)
+                                    {
+                                        <li class="list-group-item d-flex justify-content-between align-items-start gap-2">
+                                            <div>
+                                                <strong>@item.NumeroItem. @item.ParteEquipo</strong>
+                                                <div class="small text-muted">@item.QuienRealizaDescripcion · @item.FrecuenciaDescripcion</div>
+                                            </div>
+                                            <span class="badge @(item.VenceHoy ? "bg-primary" : "bg-light text-muted border") text-nowrap">
+                                                @InspeccionUi.TextoVencimiento(item.VenceHoy, item.ProximoVencimiento)
+                                            </span>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                        }
+                    }
+
+                    <hr />
+
+                    <div class="d-flex justify-content-between">
+                        <button type="button" class="btn btn-outline-secondary" @onclick="@(() => Navigation.NavigateTo("/inspecciones"))">
+                            Cancelar
+                        </button>
+                        <button type="button" class="btn btn-primary btn-lg"
+                                @onclick="@(async () => await Empezar())"
+                                disabled="@(isSubmitting || PlanActual == null)">
+                            @if (isSubmitting)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                <span>Iniciando...</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-play-fill me-2"></i>
+                                <span>Empezar inspección</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<LineaDto> lineas = new();
+    private List<PlanInspeccionDto> planes = new();
+    private int selectedLineaId;
+    private int selectedPlanId;
+    private string? selectedPuesto = "PACKAGING";
+    private bool isLoadingPlanes;
+    private bool isSubmitting;
+    private string? errorMessage;
+
+    private PlanInspeccionDto? PlanActual => planes.FirstOrDefault(p => p.PlanInspeccionId == selectedPlanId);
+
+    /// <summary>Quién realiza: los puestos que tiene el plan, en el orden de la planilla.</summary>
+    private IEnumerable<(string Codigo, string Nombre)> PuestosDelPlan =>
+        InspeccionUi.Puestos.Where(p => PlanActual?.Items.Any(i => i.QuienRealiza == p.Codigo) ?? false);
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            lineas = await CatalogosService.GetLineasAsync();
+            if (lineas.Count == 1)
+            {
+                selectedLineaId = lineas[0].LineaId;
+                await OnLineaChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error al cargar líneas: {ex.Message}";
+        }
+    }
+
+    private async Task OnLineaChanged()
+    {
+        planes.Clear();
+        selectedPlanId = 0;
+        if (selectedLineaId == 0) return;
+
+        isLoadingPlanes = true;
+        errorMessage = null;
+        try
+        {
+            planes = await InspeccionService.GetPlanesLineaAsync(selectedLineaId);
+            selectedPlanId = planes.FirstOrDefault()?.PlanInspeccionId ?? 0;
+            if (PlanActual != null && !PuestosDelPlan.Any(p => p.Codigo == selectedPuesto))
+            {
+                selectedPuesto = PuestosDelPlan.FirstOrDefault().Codigo;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error al cargar los planes: {ex.Message}";
+        }
+        finally
+        {
+            isLoadingPlanes = false;
+        }
+    }
+
+    private async Task Empezar()
+    {
+        if (PlanActual == null) return;
+
+        isSubmitting = true;
+        errorMessage = null;
+        try
+        {
+            var (resultado, error) = await InspeccionService.IniciarEjecucionAsync(new IniciarEjecucionRequest
+            {
+                PlanInspeccionId = selectedPlanId,
+                Puesto = string.IsNullOrEmpty(selectedPuesto) ? null : selectedPuesto
+            });
+
+            if (resultado != null)
+            {
+                Navigation.NavigateTo($"/inspecciones/{resultado.EjecucionInspeccionId}");
+            }
+            else
+            {
+                errorMessage = error ?? "No se pudo empezar la inspección. Verificá que haya un turno configurado para la hora actual.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+}

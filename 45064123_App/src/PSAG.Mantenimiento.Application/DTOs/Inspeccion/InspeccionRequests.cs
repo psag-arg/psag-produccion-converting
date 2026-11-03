@@ -6,6 +6,9 @@ namespace PSAG.Mantenimiento.Application.DTOs.Inspeccion;
 public class IniciarEjecucionRequest
 {
     public int PlanInspeccionId { get; set; }
+
+    /// <summary>Quién realiza (PACKAGING, MECANICO...). Vacío = todos los puntos del plan.</summary>
+    public string? Puesto { get; set; }
 }
 
 /// <summary>
@@ -18,7 +21,19 @@ public class IniciarEjecucionResponse
     public string TurnoNombre { get; set; } = string.Empty;
     public DateOnly Fecha { get; set; }
     public int CantidadItems { get; set; }
+    public bool EsNuevo { get; set; }
+    public bool Completada { get; set; }
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+}
+
+/// <summary>
+/// Cerrar (firmar) una inspección: después no se edita. Pide respondidos todos los puntos que vencen hoy.
+/// </summary>
+public class CerrarEjecucionRequest
+{
+    public long EjecucionInspeccionId { get; set; }
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+    public string? ObservacionesGenerales { get; set; }
 }
 
 /// <summary>
@@ -69,6 +84,16 @@ public class EjecucionInspeccionFiltroRequest
     public DateOnly? FechaDesde { get; set; }
     public DateOnly? FechaHasta { get; set; }
     public bool? SoloConNoOk { get; set; }
+    public int? EquipoId { get; set; }
+
+    /// <summary>Quién realiza: PACKAGING, MECANICO...</summary>
+    public string? Puesto { get; set; }
+
+    /// <summary>Frecuencia en días (1 = diaria, 10 = cada 10 días).</summary>
+    public int? FrecuenciaDias { get; set; }
+
+    /// <summary>EN_CURSO o CERRADA.</summary>
+    public string? Estado { get; set; }
 }
 
 /// <summary>

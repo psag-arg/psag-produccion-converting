@@ -30,7 +30,23 @@ public interface IInspeccionService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Inicia una nueva ejecución de inspección.
+    /// Planes activos de la línea con sus puntos y, por punto, si vence hoy según su frecuencia
+    /// (pantalla "Nueva inspección").
+    /// </summary>
+    Task<Result<IReadOnlyList<PlanInspeccionConItemsDto>>> ObtenerPlanesLineaAsync(
+        int lineaId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Cierra (firma) la inspección. Pide respondidos todos los puntos que vencen hoy.
+    /// </summary>
+    Task<Result> CerrarEjecucionAsync(
+        CerrarEjecucionRequest request,
+        string usuarioId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Inicia o retoma la inspección del día de un plan para un "quién realiza".
     /// </summary>
     Task<Result<IniciarEjecucionResponse>> IniciarEjecucionAsync(
         IniciarEjecucionRequest request,

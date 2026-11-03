@@ -1,0 +1,441 @@
+@page "/maestros/inspecciones"
+@using Microsoft.AspNetCore.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize(Roles = "ADMINISTRADOR")]
+@inject ICatalogosService CatalogosService
+@inject IInspeccionPlantillaService PlantillaService
+
+<PageTitle>Planes de inspección - PSAG Produccion</PageTitle>
+
+@* Mismo esquema que "Puntos de control de proceso": un plan por equipo (como los grupos) con sus puntos. *@
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <h3 class="mb-0">Planes de inspección</h3>
+        <button class="btn btn-primary" @onclick="NuevoPlan" disabled="@(lineaId == 0)">
+            <i class="bi bi-plus-circle me-2"></i>Nuevo plan (equipo)
+        </button>
+    </div>
+
+    <p class="text-muted">
+        Planillas de <strong>Inspecciones</strong>. Cada equipo de la línea tiene su plan (por ejemplo, EMPAQUETADORA TMC) con
+        sus puntos: parte / equipo, tareas, estándar, método, quién realiza y frecuencia. El operador responde OK / NO OK.
+        Nada se borra: un punto que ya no se inspecciona se desactiva y sus respuestas se siguen viendo.
+    </p>
+
+    <AvisoDescartable @bind-Mensaje="mensajeLista" />
+
+    <div class="row g-3 mb-3">
+        <div class="col-md-4">
+            <label class="form-label">Línea</label>
+            <select class="form-select" @bind="lineaId" @bind:after="@(async () => await CargarPlantilla())">
+                <option value="0">-- Elegí una línea --</option>
+                @foreach (var linea in lineas)
+                {
+                    <option value="@linea.LineaId">@linea.Nombre</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+        </div>
+    }
+    else if (lineaId > 0 && !planes.Any())
+    {
+        <div class="alert alert-info">
+            Esta línea todavía no tiene planes de inspección. Creá uno por equipo y cargale los puntos.
+        </div>
+    }
+    else
+    {
+        @foreach (var plan in planes)
+        {
+            var planLocal = plan;
+            <div class="card mb-3 @(plan.Activo ? "" : "opacity-75")">
+                <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div>
+                        <strong>@plan.Nombre</strong>
+                        <small class="text-muted ms-2">@plan.Codigo · @(plan.EquipoNombre ?? "sin equipo") · responsable @plan.PuestoResponsableDescripcion</small>
+                        @if (!plan.Activo)
+                        {
+                            <span class="badge bg-secondary ms-2">Inactivo</span>
+                        }
+                    </div>
+                    <div>
+                        <button class="btn btn-sm btn-outline-primary me-1" title="Editar plan" @onclick="() => EditarPlan(planLocal)">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-primary" @onclick="() => NuevoItem(planLocal)">
+                            <i class="bi bi-plus-circle me-1"></i>Punto
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0 align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>N°</th>
+                                    <th>Parte / Equipo</th>
+                                    <th>Tareas</th>
+                                    <th>Estándar</th>
+                                    <th>Método</th>
+                                    <th>Quién realiza</th>
+                                    <th>Frecuencia</th>
+                                    <th class="text-center">Activo</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (!plan.Items.Any())
+                                {
+                                    <tr><td colspan="9" class="text-center text-muted py-3">Sin puntos cargados.</td></tr>
+                                }
+                                @foreach (var item in plan.Items)
+                                {
+                                    var itemLocal = item;
+                                    <tr class="@(item.Activo ? "" : "text-muted")">
+                                        <td>@item.NumeroItem</td>
+                                        <td><strong>@item.ParteEquipo</strong><br /><small class="text-muted">@item.Codigo</small></td>
+                                        <td class="tareas small">@item.Descripcion</td>
+                                        <td class="small">@item.CondicionEstandar</td>
+                                        <td class="small">@item.MetodoDetalle</td>
+                                        <td>@item.QuienRealizaDescripcion</td>
+                                        <td>@item.FrecuenciaDescripcion</td>
+                                        <td class="text-center">
+                                            <span class="badge @(item.Activo ? "bg-success" : "bg-secondary")">@(item.Activo ? "Activo" : "Inactivo")</span>
+                                        </td>
+                                        <td class="text-end">
+                                            <button class="btn btn-sm btn-outline-primary" title="Editar punto" @onclick="() => EditarItem(itemLocal)">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@* Modal de plan *@
+@if (planActual != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(planEditandoId > 0 ? "Editar plan" : "Nuevo plan")</h5>
+                    <button type="button" class="btn-close" @onclick="CerrarModales"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nombre *</label>
+                        <input type="text" class="form-control" maxlength="100" placeholder="Ej.: EMPAQUETADORA TMC" @bind="planActual.Nombre" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Equipo</label>
+                        <select class="form-select" @bind="planActual.EquipoId">
+                            <option value="">(sin equipo)</option>
+                            @foreach (var e in equipos)
+                            {
+                                <option value="@e.EquipoId">@e.Nombre</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label">Código</label>
+                            <input type="text" class="form-control" maxlength="20" placeholder="Se genera si queda vacío" @bind="planActual.Codigo" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Responsable</label>
+                            <select class="form-select" @bind="planActual.PuestoResponsable">
+                                @foreach (var (codigo, nombre) in InspeccionUi.Puestos)
+                                {
+                                    <option value="@codigo">@nombre</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descripción (título de la planilla)</label>
+                        <input type="text" class="form-control" maxlength="500" @bind="planActual.Descripcion" />
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label">Orden</label>
+                            <input type="number" class="form-control" @bind="planActual.Orden" />
+                        </div>
+                        <div class="col-6 d-flex align-items-end">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="planActivo" @bind="planActual.Activo" />
+                                <label class="form-check-label" for="planActivo">Activo</label>
+                            </div>
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger mt-3 mb-0">@errorMessage</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CerrarModales">Cancelar</button>
+                    <button type="button" class="btn btn-primary" @onclick="@(async () => await GuardarPlan())" disabled="@isSaving">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* Modal de punto *@
+@if (itemActual != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(itemEditandoId > 0 ? "Editar punto de inspección" : "Nuevo punto de inspección")</h5>
+                    <button type="button" class="btn-close" @onclick="CerrarModales"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-3 col-md-2">
+                            <label class="form-label">N°</label>
+                            <input type="number" class="form-control" min="0" @bind="itemActual.NumeroItem" />
+                        </div>
+                        <div class="col-9 col-md-6">
+                            <label class="form-label">Parte / Equipo *</label>
+                            <input type="text" class="form-control" maxlength="150" @bind="itemActual.ParteEquipo" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Código</label>
+                            <input type="text" class="form-control" maxlength="50" placeholder="Se genera si queda vacío" @bind="itemActual.Codigo" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Tareas *</label>
+                            <textarea class="form-control" rows="3" maxlength="300" @bind="itemActual.Tareas"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Estándar *</label>
+                            <textarea class="form-control" rows="2" maxlength="300" @bind="itemActual.Estandar"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Método</label>
+                            <textarea class="form-control" rows="2" maxlength="200" placeholder="Ej.: Control visual / tacto" @bind="itemActual.Metodo"></textarea>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Quién realiza *</label>
+                            <select class="form-select" @bind="itemActual.QuienRealiza">
+                                @foreach (var (codigo, nombre) in InspeccionUi.Puestos)
+                                {
+                                    <option value="@codigo">@nombre</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Frecuencia (días) *</label>
+                            <input type="number" class="form-control" min="1" max="365" @bind="itemActual.FrecuenciaDias" />
+                            <small class="text-muted">1 = diaria, 10 = cada 10 días. Hoy: @InspeccionUi.DescribirFrecuencia(itemActual.FrecuenciaDias).</small>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Plan</label>
+                            <select class="form-select" @bind="itemActual.PlanInspeccionId">
+                                @foreach (var p in planes)
+                                {
+                                    <option value="@p.PlanInspeccionId">@p.Nombre</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Orden</label>
+                            <input type="number" class="form-control" @bind="itemActual.Orden" />
+                            <small class="text-muted">0 = igual al N°.</small>
+                        </div>
+                        <div class="col-md-8 d-flex align-items-end">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="itemActivo" @bind="itemActual.Activo" />
+                                <label class="form-check-label" for="itemActivo">Activo</label>
+                            </div>
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger mt-3 mb-0">@errorMessage</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CerrarModales">Cancelar</button>
+                    <button type="button" class="btn btn-primary" @onclick="@(async () => await GuardarItem())" disabled="@isSaving">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<LineaDto> lineas = new();
+    private List<EquipoDto> equipos = new();
+    private List<PlanInspeccionDto> planes = new();
+    private int lineaId;
+    private bool isLoading;
+    private bool isSaving;
+    private string? errorMessage;
+    private string? mensajeLista;
+
+    private GuardarPlanInspeccionRequest? planActual;
+    private int planEditandoId;
+    private GuardarItemInspeccionRequest? itemActual;
+    private int itemEditandoId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            lineas = await CatalogosService.GetLineasAsync();
+        }
+        catch (Exception ex)
+        {
+            mensajeLista = $"No se pudieron cargar las líneas: {ex.Message}";
+        }
+    }
+
+    private async Task CargarPlantilla()
+    {
+        planes.Clear();
+        equipos.Clear();
+        if (lineaId == 0) return;
+
+        isLoading = true;
+        try
+        {
+            planes = await PlantillaService.GetPlantillaAsync(lineaId);
+            equipos = await CatalogosService.GetEquiposAsync(lineaId);
+        }
+        catch (Exception ex)
+        {
+            mensajeLista = $"No se pudieron cargar los planes: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void NuevoPlan()
+    {
+        planEditandoId = 0;
+        planActual = new GuardarPlanInspeccionRequest
+        {
+            LineaId = lineaId,
+            Orden = planes.Count == 0 ? 1 : planes.Max(p => p.Orden) + 1
+        };
+        errorMessage = null;
+    }
+
+    private void EditarPlan(PlanInspeccionDto p)
+    {
+        planEditandoId = p.PlanInspeccionId;
+        planActual = new GuardarPlanInspeccionRequest
+        {
+            LineaId = lineaId, EquipoId = p.EquipoId, Codigo = p.Codigo, Nombre = p.Nombre, Descripcion = p.Descripcion,
+            PuestoResponsable = p.PuestoResponsable, FrecuenciaDias = p.FrecuenciaDias, Orden = p.Orden, Activo = p.Activo
+        };
+        errorMessage = null;
+    }
+
+    private void NuevoItem(PlanInspeccionDto p)
+    {
+        itemEditandoId = 0;
+        itemActual = new GuardarItemInspeccionRequest
+        {
+            PlanInspeccionId = p.PlanInspeccionId,
+            NumeroItem = p.Items.Count == 0 ? 1 : p.Items.Max(i => i.NumeroItem) + 1,
+            QuienRealiza = p.PuestoResponsable,
+            FrecuenciaDias = Math.Max(1, p.FrecuenciaDias)
+        };
+        errorMessage = null;
+    }
+
+    private void EditarItem(ItemPlanInspeccionDto i)
+    {
+        itemEditandoId = i.ItemPlanInspeccionId;
+        itemActual = new GuardarItemInspeccionRequest
+        {
+            PlanInspeccionId = i.PlanInspeccionId, NumeroItem = i.NumeroItem, Codigo = i.Codigo, ParteEquipo = i.ParteEquipo ?? string.Empty,
+            Tareas = i.Descripcion, Estandar = i.CondicionEstandar, Metodo = i.MetodoDetalle, QuienRealiza = i.QuienRealiza,
+            FrecuenciaDias = i.FrecuenciaDias, Orden = i.Orden, Activo = i.Activo
+        };
+        errorMessage = null;
+    }
+
+    private void CerrarModales()
+    {
+        planActual = null;
+        itemActual = null;
+        errorMessage = null;
+    }
+
+    private async Task GuardarPlan()
+    {
+        if (planActual == null) return;
+        if (string.IsNullOrWhiteSpace(planActual.Nombre))
+        {
+            errorMessage = "Completá el nombre.";
+            return;
+        }
+
+        await Guardar(() => planEditandoId > 0
+            ? PlantillaService.ActualizarPlanAsync(planEditandoId, planActual)
+            : PlantillaService.CrearPlanAsync(planActual));
+    }
+
+    private async Task GuardarItem()
+    {
+        if (itemActual == null) return;
+        if (string.IsNullOrWhiteSpace(itemActual.ParteEquipo) || string.IsNullOrWhiteSpace(itemActual.Tareas) || string.IsNullOrWhiteSpace(itemActual.Estandar))
+        {
+            errorMessage = "Completá parte / equipo, tareas y estándar.";
+            return;
+        }
+
+        await Guardar(() => itemEditandoId > 0
+            ? PlantillaService.ActualizarItemAsync(itemEditandoId, itemActual)
+            : PlantillaService.CrearItemAsync(itemActual));
+    }
+
+    private async Task Guardar(Func<Task<(bool Success, string? Error)>> accion)
+    {
+        isSaving = true;
+        errorMessage = null;
+        try
+        {
+            var (ok, error) = await accion();
+            if (!ok)
+            {
+                errorMessage = error;
+                return;
+            }
+
+            CerrarModales();
+            await CargarPlantilla();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

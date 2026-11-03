@@ -22,5 +22,19 @@ public class ItemPlanInspeccionConfiguration : IEntityTypeConfiguration<ItemPlan
 
         builder.Property(i => i.Metodo)
             .HasConversion<byte>();
+
+        // Script 27: columnas de la planilla "Estándares de inspección".
+        builder.Property(i => i.Codigo)
+            .HasMaxLength(50);
+
+        builder.Property(i => i.ParteEquipo)
+            .HasMaxLength(150);
+
+        builder.Property(i => i.MetodoDetalle)
+            .HasMaxLength(200);
+
+        builder.Property(i => i.QuienRealiza)
+            .HasConversion<byte>();
+        // FrecuenciaDias: INT NOT NULL DEFAULT 1 en el script; EF siempre manda el valor.
     }
 }

@@ -1,4 +1,5 @@
 using PSAG.Mantenimiento.Domain.Entities;
+using PSAG.Mantenimiento.Domain.Enums;
 
 namespace PSAG.Mantenimiento.Domain.Interfaces;
 
@@ -43,7 +44,22 @@ public interface IEjecucionInspeccionRepository
         DateOnly? fechaDesde = null,
         DateOnly? fechaHasta = null,
         bool? soloConNoOk = null,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        int? equipoId = null,
+        TipoPuesto? puesto = null,
+        int? frecuenciaDias = null,
+        bool? completada = null);
+
+    /// <summary>
+    /// Inspección de un plan para una fecha y un "quién realiza" (null = todos). Si existe, se retoma.
+    /// </summary>
+    Task<EjecucionInspeccion?> GetByPlanFechaPuestoAsync(int planInspeccionId, DateOnly fecha, TipoPuesto? puesto, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Última fecha en que se respondió cada ítem del plan, en inspecciones anteriores a <paramref name="antesDe"/>.
+    /// Es lo que define si un punto con frecuencia (cada 10 días) vence hoy.
+    /// </summary>
+    Task<Dictionary<int, DateOnly>> GetUltimasRespuestasPorItemAsync(int planInspeccionId, DateOnly antesDe, CancellationToken cancellationToken = default);
 
     Task AddAsync(EjecucionInspeccion ejecucion, CancellationToken cancellationToken = default);
 }

@@ -37,4 +37,7 @@ public interface IHallazgoNoOkRepository
         CancellationToken cancellationToken = default);
 
     Task AddAsync(HallazgoNoOk hallazgo, CancellationToken cancellationToken = default);
+
+    /// <summary>Hallazgos abiertos por las respuestas de una inspección (uno por punto NO OK).</summary>
+    Task<IReadOnlyList<HallazgoNoOk>> GetByEjecucionAsync(long ejecucionInspeccionId, CancellationToken cancellationToken = default);
 }

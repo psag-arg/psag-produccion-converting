@@ -9,40 +9,97 @@
 
 <PageTitle>Inspecciones - PSAG Produccion</PageTitle>
 
+@* Historial de inspecciones: mismo formato que "Ver controles" de Control de Proceso (reunión 03/11 [78:17]). *@
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>Inspecciones de Maquina</h2>
-        <a href="/inspecciones/hallazgos" class="btn btn-warning">
-            <i class="bi bi-exclamation-triangle"></i> Panel NO OK
-        </a>
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <h2 class="mb-0">Inspecciones</h2>
+        <div class="d-flex gap-2">
+            <a href="/inspecciones/hallazgos" class="btn btn-outline-warning">
+                <i class="bi bi-exclamation-triangle"></i> Panel NO OK
+            </a>
+            <button class="btn btn-primary" @onclick="@(() => Navigation.NavigateTo("/inspecciones/nueva"))">
+                <i class="bi bi-plus-lg"></i> Nueva inspección
+            </button>
+        </div>
     </div>
 
-    <!-- Selector de Linea y Puesto -->
+    <!-- Filtros -->
     <div class="card mb-4">
         <div class="card-body">
             <div class="row g-3">
-                <div class="col-md-4">
-                    <label class="form-label">Linea</label>
-                    <select class="form-select" @bind="selectedLineaId" @bind:after="CargarPendientes">
-                        <option value="0">-- Seleccione --</option>
+                <div class="col-6 col-md-3 col-xl-2">
+                    <label class="form-label">Línea</label>
+                    <select class="form-select" @bind="filtro.LineaId" @bind:after="@(async () => await OnLineaChanged())">
+                        <option value="">Todas</option>
                         @foreach (var linea in lineas)
                         {
                             <option value="@linea.LineaId">@linea.Nombre</option>
                         }
                     </select>
                 </div>
-                <div class="col-md-4">
-                    <label class="form-label">Puesto Operativo</label>
-                    <select class="form-select" @bind="selectedPuesto" @bind:after="CargarPendientes">
-                        <option value="">-- Seleccione --</option>
-                        <option value="MAQUINISTA">Maquinista</option>
-                        <option value="AYUDANTE">Ayudante</option>
-                        <option value="PACKAGING">Operador Packaging</option>
+                <div class="col-6 col-md-3 col-xl-2">
+                    <label class="form-label">Equipo</label>
+                    <select class="form-select" @bind="filtro.PlanInspeccionId" @bind:after="@(async () => await Buscar())" disabled="@(!filtro.LineaId.HasValue)">
+                        <option value="">Todos</option>
+                        @foreach (var plan in planes)
+                        {
+                            <option value="@plan.PlanInspeccionId">@plan.Nombre</option>
+                        }
                     </select>
+                </div>
+                <div class="col-6 col-md-3 col-xl-2">
+                    <label class="form-label">Quién realiza</label>
+                    <select class="form-select" @bind="filtro.Puesto" @bind:after="@(async () => await Buscar())">
+                        <option value="">Todos</option>
+                        @foreach (var (codigo, nombre) in InspeccionUi.Puestos.Take(2))
+                        {
+                            <option value="@codigo">@nombre</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-6 col-md-3 col-xl-2">
+                    <label class="form-label">Frecuencia</label>
+                    <select class="form-select" @bind="filtro.FrecuenciaDias" @bind:after="@(async () => await Buscar())">
+                        <option value="">Todas</option>
+                        @foreach (var (dias, nombre) in frecuencias)
+                        {
+                            <option value="@dias">@nombre</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-6 col-md-3 col-xl-2">
+                    <label class="form-label">Estado</label>
+                    <select class="form-select" @bind="filtro.Estado" @bind:after="@(async () => await Buscar())">
+                        <option value="">Todos</option>
+                        <option value="@InspeccionUi.EnCurso">En curso</option>
+                        <option value="@InspeccionUi.Cerrada">Cerrada</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-3 col-xl-2 d-flex align-items-end">
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="soloNoOk" @bind="filtro.SoloConNoOk" @bind:after="@(async () => await Buscar())" />
+                        <label class="form-check-label" for="soloNoOk">Solo con NO OK</label>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3 col-xl-2">
+                    <label class="form-label">Fecha desde</label>
+                    <InputDate class="form-control" @bind-Value="filtro.FechaDesde" @bind-Value:after="@(async () => await Buscar())" />
+                </div>
+                <div class="col-6 col-md-3 col-xl-2">
+                    <label class="form-label">Fecha hasta</label>
+                    <InputDate class="form-control" @bind-Value="filtro.FechaHasta" @bind-Value:after="@(async () => await Buscar())" />
+                </div>
+                <div class="col-12 col-md-3 col-xl-2 d-flex align-items-end">
+                    <button class="btn btn-outline-secondary" @onclick="@(async () => await LimpiarFiltros())">Limpiar filtros</button>
                 </div>
             </div>
         </div>
     </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
 
     @if (isLoading)
     {
@@ -52,142 +109,115 @@
             </div>
         </div>
     }
-    else if (selectedLineaId > 0 && !string.IsNullOrEmpty(selectedPuesto))
+    else if (ejecuciones.Items.Any())
     {
-        @if (planesPendientes.Any())
-        {
-            <div class="alert alert-info mb-4">
-                <i class="bi bi-clock me-2"></i>
-                Tiene <strong>@planesPendientes.Count</strong> inspeccion(es) pendiente(s) para hoy.
-            </div>
-
-            <div class="row">
-                @foreach (var plan in planesPendientes)
-                {
-                    <div class="col-md-6 col-lg-4 mb-4">
-                        <div class="card h-100 border-primary">
-                            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                                <span>@plan.Codigo</span>
-                                <span class="badge bg-light text-primary">@plan.CantidadItems items</span>
-                            </div>
-                            <div class="card-body">
-                                <h5 class="card-title">@plan.Nombre</h5>
-                                <p class="card-text text-muted">@plan.Descripcion</p>
-                                <div class="mb-2">
-                                    @if (plan.EquipoNombre != null)
-                                    {
-                                        <small class="text-muted">
-                                            <i class="bi bi-gear me-1"></i> @plan.EquipoNombre
-                                        </small>
-                                    }
-                                </div>
-                                <div class="mb-2">
-                                    <small class="text-muted">
-                                        <i class="bi bi-calendar3 me-1"></i>
-                                        Frecuencia: @(plan.FrecuenciaDias == 1 ? "Diaria" : $"Cada {plan.FrecuenciaDias} dias")
-                                    </small>
-                                </div>
-                            </div>
-                            <div class="card-footer bg-transparent">
-                                <button class="btn btn-primary w-100" @onclick="() => IniciarInspeccion(plan.PlanInspeccionId)">
-                                    <i class="bi bi-play-fill me-1"></i> Iniciar Inspeccion
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                }
-            </div>
-        }
-        else
-        {
-            <div class="alert alert-success">
-                <i class="bi bi-check-circle me-2"></i>
-                No tiene inspecciones pendientes para hoy. Todas las inspecciones estan al dia.
-            </div>
-        }
-
-        <!-- Historial de ejecuciones -->
-        <div class="card mt-4">
-            <div class="card-header">
-                <h5 class="mb-0">Historial de Ejecuciones</h5>
-            </div>
-            <div class="card-body">
-                @if (ejecuciones.Items.Any())
-                {
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Fecha</th>
-                                    <th>Plan</th>
-                                    <th>Turno</th>
-                                    <th>OK</th>
-                                    <th>NO OK</th>
-                                    <th>Estado</th>
-                                    <th></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var ej in ejecuciones.Items)
-                                {
-                                    <tr>
-                                        <td>@ej.Fecha.ToString("dd/MM/yyyy")</td>
-                                        <td>@ej.PlanNombre</td>
-                                        <td>@ej.TurnoNombre</td>
-                                        <td><span class="badge bg-success">@ej.CantidadOk</span></td>
-                                        <td>
-                                            @if (ej.CantidadNoOk > 0)
-                                            {
-                                                <span class="badge bg-warning text-dark">@ej.CantidadNoOk</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="badge bg-secondary">0</span>
-                                            }
-                                        </td>
-                                        <td>
-                                            @if (ej.Completada)
-                                            {
-                                                <span class="badge bg-success">Completada</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="badge bg-warning text-dark">En Progreso</span>
-                                            }
-                                        </td>
-                                        <td>
-                                            <button class="btn btn-sm btn-outline-primary" @onclick="() => VerEjecucion(ej.EjecucionInspeccionId)">
-                                                @(ej.Completada ? "Ver" : "Continuar")
-                                            </button>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-                else
-                {
-                    <p class="text-muted mb-0">No hay ejecuciones registradas para esta linea.</p>
-                }
+        <!-- PC y tablet: tabla -->
+        <div class="card d-none d-md-block">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Línea</th>
+                            <th>Equipo</th>
+                            <th>Quién realiza</th>
+                            <th>Turno</th>
+                            <th>OK</th>
+                            <th>NO OK</th>
+                            <th>Estado</th>
+                            <th>Realizó / firmó</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var ej in ejecuciones.Items)
+                        {
+                            var id = ej.EjecucionInspeccionId;
+                            <tr>
+                                <td>@ej.Fecha.ToString("dd/MM/yyyy")</td>
+                                <td>@ej.LineaNombre</td>
+                                <td>@ej.PlanNombre</td>
+                                <td>@ej.PuestoDescripcion</td>
+                                <td>@ej.TurnoNombre</td>
+                                <td><span class="badge bg-success">@ej.CantidadOk</span></td>
+                                <td><span class="badge @(ej.CantidadNoOk > 0 ? "bg-danger" : "bg-secondary")">@ej.CantidadNoOk</span></td>
+                                <td><span class="badge @EstadoBadge(ej.Estado)">@ej.EstadoDescripcion</span></td>
+                                <td class="small">@QuienFirmo(ej)</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => Ver(id)">
+                                        @(ej.Completada ? "Ver" : "Continuar")
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
             </div>
         </div>
+
+        <!-- Celular: tarjetas -->
+        <div class="list-group d-md-none">
+            @foreach (var ej in ejecuciones.Items)
+            {
+                var id = ej.EjecucionInspeccionId;
+                <button type="button" class="list-group-item list-group-item-action py-3" @onclick="() => Ver(id)">
+                    <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div>
+                            <div class="fw-semibold">@ej.PlanNombre</div>
+                            <div class="small text-muted">@ej.Fecha.ToString("dd/MM/yyyy") · @ej.TurnoNombre · @ej.PuestoDescripcion</div>
+                            <div class="small text-muted">@QuienFirmo(ej)</div>
+                        </div>
+                        <span class="badge @EstadoBadge(ej.Estado)">@ej.EstadoDescripcion</span>
+                    </div>
+                    <div class="mt-2 d-flex gap-2">
+                        <span class="badge bg-success">@ej.CantidadOk OK</span>
+                        <span class="badge @(ej.CantidadNoOk > 0 ? "bg-danger" : "bg-secondary")">@ej.CantidadNoOk NO OK</span>
+                    </div>
+                </button>
+            }
+        </div>
+
+        @if (ejecuciones.TotalPages > 1)
+        {
+            <nav class="mt-3">
+                <ul class="pagination justify-content-center flex-wrap">
+                    <li class="page-item @(filtro.Page == 1 ? "disabled" : "")">
+                        <button class="page-link" @onclick="@(async () => await CambiarPagina(filtro.Page - 1))">Anterior</button>
+                    </li>
+                    @for (int i = 1; i <= ejecuciones.TotalPages; i++)
+                    {
+                        var pageNum = i;
+                        <li class="page-item @(filtro.Page == pageNum ? "active" : "")">
+                            <button class="page-link" @onclick="@(async () => await CambiarPagina(pageNum))">@pageNum</button>
+                        </li>
+                    }
+                    <li class="page-item @(filtro.Page == ejecuciones.TotalPages ? "disabled" : "")">
+                        <button class="page-link" @onclick="@(async () => await CambiarPagina(filtro.Page + 1))">Siguiente</button>
+                    </li>
+                </ul>
+            </nav>
+        }
+
+        <p class="text-muted text-center mt-2">
+            Mostrando @ejecuciones.Items.Count de @ejecuciones.TotalCount inspecciones
+        </p>
     }
     else
     {
-        <div class="alert alert-secondary">
-            Seleccione una linea y puesto operativo para ver las inspecciones pendientes.
+        <div class="alert alert-info">
+            No se encontraron inspecciones con los filtros seleccionados.
         </div>
     }
 </div>
 
 @code {
-    private List<LineaDto> lineas = new();
-    private List<PlanInspeccionDto> planesPendientes = new();
     private PagedResult<EjecucionInspeccionDto> ejecuciones = new();
-    private int selectedLineaId;
-    private string selectedPuesto = string.Empty;
-    private bool isLoading;
+    private List<LineaDto> lineas = new();
+    private List<PlanInspeccionDto> planes = new();
+    private List<(int Dias, string Nombre)> frecuencias = InspeccionUi.Frecuencias(new[] { 1, 10 });
+    private FiltroInspecciones filtro = new();
+    private bool isLoading = true;
+    private string? errorMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -195,26 +225,43 @@
         {
             lineas = await CatalogosService.GetLineasAsync();
         }
-        catch { }
+        catch (Exception ex)
+        {
+            errorMessage = $"No se pudieron cargar las líneas: {ex.Message}";
+        }
+        await Buscar();
     }
 
-    private async Task CargarPendientes()
+    private async Task OnLineaChanged()
     {
-        if (selectedLineaId == 0 || string.IsNullOrEmpty(selectedPuesto))
+        filtro.PlanInspeccionId = null;
+        planes.Clear();
+        if (filtro.LineaId.HasValue)
         {
-            planesPendientes.Clear();
-            return;
+            try
+            {
+                planes = await InspeccionService.GetPlanesLineaAsync(filtro.LineaId.Value);
+                var dias = planes.SelectMany(p => p.Items).Select(i => i.FrecuenciaDias).ToList();
+                if (dias.Any()) frecuencias = InspeccionUi.Frecuencias(dias);
+            }
+            catch { /* el filtro de equipo queda vacío */ }
         }
+        await Buscar();
+    }
 
+    private async Task Buscar(bool mantenerPagina = false)
+    {
+        if (!mantenerPagina) filtro.Page = 1;
         isLoading = true;
+        errorMessage = null;
         try
         {
-            planesPendientes = await InspeccionService.GetPendientesAsync(selectedLineaId, selectedPuesto);
-            ejecuciones = await InspeccionService.GetEjecucionesAsync(lineaId: selectedLineaId, pageSize: 5);
+            ejecuciones = await InspeccionService.GetEjecucionesAsync(filtro);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error: {ex.Message}");
+            errorMessage = $"No se pudieron cargar las inspecciones: {ex.Message}";
+            ejecuciones = new();
         }
         finally
         {
@@ -222,26 +269,26 @@
         }
     }
 
-    private async Task IniciarInspeccion(int planId)
+    private async Task CambiarPagina(int page)
     {
-        try
-        {
-            var request = new IniciarEjecucionRequest { PlanInspeccionId = planId };
-            var result = await InspeccionService.IniciarEjecucionAsync(request);
-
-            if (result != null)
-            {
-                Navigation.NavigateTo($"/inspecciones/{result.EjecucionInspeccionId}");
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error: {ex.Message}");
-        }
+        if (page < 1 || page > ejecuciones.TotalPages) return;
+        filtro.Page = page;
+        await Buscar(mantenerPagina: true);
     }
 
-    private void VerEjecucion(long ejecucionId)
+    private async Task LimpiarFiltros()
     {
-        Navigation.NavigateTo($"/inspecciones/{ejecucionId}");
+        filtro = new FiltroInspecciones();
+        planes.Clear();
+        await Buscar();
     }
+
+    private void Ver(long id) => Navigation.NavigateTo($"/inspecciones/{id}");
+
+    private static string QuienFirmo(EjecucionInspeccionDto e) =>
+        e.Completada
+            ? $"Firmó {e.UsuarioCierreNombre ?? e.UsuarioNombre ?? "-"}"
+            : $"Empezó {e.UsuarioNombre ?? "-"}";
+
+    private static string EstadoBadge(string estado) => estado == InspeccionUi.Cerrada ? "bg-success" : "bg-warning text-dark";
 }

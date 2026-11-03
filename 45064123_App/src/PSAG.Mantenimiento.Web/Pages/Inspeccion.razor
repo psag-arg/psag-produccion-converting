@@ -3,12 +3,15 @@
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
 @attribute [Authorize]
+@implements IAsyncDisposable
 @inject IInspeccionService InspeccionService
 @inject NavigationManager Navigation
 
-<PageTitle>Ejecutar Inspeccion - PSAG Produccion</PageTitle>
+<PageTitle>Inspección - PSAG Produccion</PageTitle>
 
-<div class="container-fluid">
+@* Carga de la inspección: igual que Control de Proceso (avance fijo arriba, autoguardado, observación obligatoria en
+   NO OK, cerrar al final). Columnas de la planilla: N°, Parte / Equipo, Tareas, Estándar, Método, Quién, Frecuencia, Estado. *@
+<div class="container-fluid control-proceso inspeccion">
     @if (isLoading)
     {
         <div class="text-center py-5">
@@ -20,56 +23,42 @@
     else if (ejecucion == null)
     {
         <div class="alert alert-danger">
-            Ejecucion no encontrada.
-            <button class="btn btn-link" @onclick="Volver">Volver</button>
+            @(errorMessage ?? "Inspección no encontrada.")
+            <button class="btn btn-link" @onclick="@(async () => await Volver())">Volver al listado</button>
         </div>
     }
     else
     {
         <!-- Encabezado -->
-        <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex justify-content-between align-items-start mb-2 flex-wrap gap-2">
             <div>
-                <h2 class="mb-1">@ejecucion.PlanNombre</h2>
+                <h2 class="mb-1">Inspección · @ejecucion.PlanNombre</h2>
                 <p class="text-muted mb-0">
-                    @ejecucion.LineaNombre
-                    @if (ejecucion.EquipoNombre != null)
-                    {
-                        <text> - @ejecucion.EquipoNombre</text>
-                    }
-                    | @ejecucion.Fecha.ToString("dd/MM/yyyy") - @ejecucion.TurnoNombre
+                    @ejecucion.LineaNombre · @ejecucion.Fecha.ToString("dd/MM/yyyy") · @ejecucion.TurnoNombre · Realiza: @ejecucion.PuestoDescripcion
                 </p>
             </div>
-            <div>
-                @if (ejecucion.Completada)
-                {
-                    <span class="badge bg-success fs-6 me-2">Completada</span>
-                }
-                else
-                {
-                    <span class="badge bg-warning text-dark fs-6 me-2">En Progreso</span>
-                }
-                <button class="btn btn-outline-secondary" @onclick="Volver">
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge @(Cerrada ? "bg-success" : "bg-warning text-dark") fs-6">@ejecucion.EstadoDescripcion</span>
+                <button class="btn btn-outline-secondary" @onclick="@(async () => await Volver())">
                     <i class="bi bi-arrow-left"></i> Volver
                 </button>
             </div>
         </div>
+        @if (!string.IsNullOrEmpty(ejecucion.PlanDescripcion))
+        {
+            <p class="small text-muted mb-2">@ejecucion.PlanDescripcion</p>
+        }
 
-        <!-- Resumen -->
-        <div class="card mb-4">
-            <div class="card-body">
-                <div class="row text-center">
-                    <div class="col-md-4">
-                        <h4 class="mb-0 text-success">@ejecucion.CantidadOk</h4>
-                        <small class="text-muted">OK</small>
-                    </div>
-                    <div class="col-md-4">
-                        <h4 class="mb-0 text-warning">@ejecucion.CantidadNoOk</h4>
-                        <small class="text-muted">NO OK</small>
-                    </div>
-                    <div class="col-md-4">
-                        <h4 class="mb-0">@(ejecucion.CantidadOk + ejecucion.CantidadNoOk) / @ejecucion.CantidadTotal</h4>
-                        <small class="text-muted">Completados</small>
-                    </div>
+        <!-- Avance: queda fijo arriba mientras se recorre el equipo -->
+        <div class="avance-control card mb-3" id="avance">
+            <div class="card-body py-2">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-1 small">
+                    <span><strong>@Respondidos / @VencenHoy</strong> puntos de hoy</span>
+                    <span class="@(NoOks > 0 ? "text-danger fw-semibold" : "text-muted")">@NoOks NO OK</span>
+                    <span class="estado-guardado @ClaseGuardado" role="status">@TextoGuardado</span>
+                </div>
+                <div class="progress mt-1" style="height: 8px;" role="progressbar" aria-valuenow="@Porcentaje" aria-valuemin="0" aria-valuemax="100" aria-label="Avance de la inspección">
+                    <div class="progress-bar @(Porcentaje == 100 ? "bg-success" : "bg-info")" style="width: @Porcentaje%"></div>
                 </div>
             </div>
         </div>
@@ -90,126 +79,186 @@
             </div>
         }
 
-        <!-- Items de inspeccion -->
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Items de Inspeccion</h5>
-                @if (!ejecucion.Completada)
+        <!-- Filtros: Frecuencia y Quién realiza (reunión 03/11) -->
+        @if (Frecuencias.Count > 1 || Puestos.Count > 1)
+        {
+            <div class="d-flex flex-wrap gap-3 mb-3 filtros-inspeccion">
+                @if (Frecuencias.Count > 1)
                 {
-                    <button class="btn btn-primary" @onclick="@(async () => await GuardarResultados())" disabled="@isSaving">
-                        @if (isSaving)
-                        {
-                            <span class="spinner-border spinner-border-sm me-1"></span>
-                        }
-                        <i class="bi bi-save me-1"></i> Guardar
-                    </button>
+                    <div>
+                        <div class="small text-muted mb-1">Frecuencia</div>
+                        <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Filtrar por frecuencia">
+                            <button type="button" class="btn @(filtroFrecuencia == null ? "btn-secondary" : "btn-outline-secondary")" @onclick="() => filtroFrecuencia = null">Todas</button>
+                            @foreach (var (dias, nombre) in Frecuencias)
+                            {
+                                var d = dias;
+                                <button type="button" class="btn @(filtroFrecuencia == d ? "btn-secondary" : "btn-outline-secondary")" @onclick="() => filtroFrecuencia = d">@nombre</button>
+                            }
+                        </div>
+                    </div>
+                }
+                @if (Puestos.Count > 1)
+                {
+                    <div>
+                        <div class="small text-muted mb-1">Quién realiza</div>
+                        <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Filtrar por quién realiza">
+                            <button type="button" class="btn @(string.IsNullOrEmpty(filtroQuien) ? "btn-secondary" : "btn-outline-secondary")" @onclick="() => filtroQuien = null">Todos</button>
+                            @foreach (var (codigo, nombre) in Puestos)
+                            {
+                                var c = codigo;
+                                <button type="button" class="btn @(filtroQuien == c ? "btn-secondary" : "btn-outline-secondary")" @onclick="() => filtroQuien = c">@nombre</button>
+                            }
+                        </div>
+                    </div>
                 }
             </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th style="width: 5%">#</th>
-                                <th style="width: 30%">Punto a Inspeccionar</th>
-                                <th style="width: 20%">Condicion Estandar</th>
-                                <th style="width: 10%">Metodo</th>
-                                <th style="width: 15%">Resultado</th>
-                                <th style="width: 20%">Observacion</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var detalle in ejecucion.Detalles)
-                            {
-                                var localDetalle = detalle;
-                                var resultado = resultados.FirstOrDefault(r => r.ItemPlanInspeccionId == detalle.ItemPlanInspeccionId);
+        }
 
-                                <tr class="@GetRowClass(resultado?.Resultado ?? detalle.Resultado)">
-                                    <td><strong>@detalle.NumeroItem</strong></td>
-                                    <td>@detalle.ItemDescripcion</td>
-                                    <td><small class="text-muted">@detalle.CondicionEstandar</small></td>
-                                    <td>
-                                        <span class="badge bg-secondary">@detalle.Metodo</span>
-                                    </td>
-                                    <td>
-                                        @if (ejecucion.Completada)
-                                        {
-                                            @if (detalle.Resultado == "OK")
-                                            {
-                                                <span class="badge bg-success">OK</span>
-                                            }
-                                            else if (detalle.Resultado == "NO_OK")
-                                            {
-                                                <span class="badge bg-warning text-dark">NO OK</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="badge bg-secondary">-</span>
-                                            }
-                                        }
-                                        else
-                                        {
-                                            <div class="btn-group btn-group-sm" role="group">
-                                                <input type="radio" class="btn-check" name="resultado_@detalle.ItemPlanInspeccionId"
-                                                       id="ok_@detalle.ItemPlanInspeccionId"
-                                                       checked="@((resultado?.Resultado ?? detalle.Resultado) == "OK")"
-                                                       @onchange="@(() => SetResultado(localDetalle.ItemPlanInspeccionId, "OK"))" />
-                                                <label class="btn btn-outline-success" for="ok_@detalle.ItemPlanInspeccionId">OK</label>
-
-                                                <input type="radio" class="btn-check" name="resultado_@detalle.ItemPlanInspeccionId"
-                                                       id="nook_@detalle.ItemPlanInspeccionId"
-                                                       checked="@((resultado?.Resultado ?? detalle.Resultado) == "NO_OK")"
-                                                       @onchange="@(() => SetResultado(localDetalle.ItemPlanInspeccionId, "NO_OK"))" />
-                                                <label class="btn btn-outline-warning" for="nook_@detalle.ItemPlanInspeccionId">NO OK</label>
-                                            </div>
-                                        }
-                                    </td>
-                                    <td>
-                                        @if (ejecucion.Completada)
-                                        {
-                                            <small>@(detalle.Observacion ?? "-")</small>
-                                        }
-                                        else
-                                        {
-                                            var requiereObs = (resultado?.Resultado ?? detalle.Resultado) == "NO_OK";
-                                            <input type="text" class="form-control form-control-sm @(requiereObs ? "border-warning" : "")"
-                                                   value="@(resultado?.Observacion ?? detalle.Observacion)"
-                                                   placeholder="@(requiereObs ? "Obligatorio" : "")"
-                                                   @onchange="e => SetObservacion(localDetalle.ItemPlanInspeccionId, e.Value?.ToString())" />
-                                        }
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
+        <div class="card">
+            <div class="card-body pt-0">
+                <div class="punto-encabezado row g-2 d-none d-lg-flex text-muted small fw-semibold border-bottom py-2">
+                    <div class="col-lg-4">N° · Parte / Equipo · Tareas</div>
+                    <div class="col-lg-2">Estándar</div>
+                    <div class="col-lg-2">Método</div>
+                    <div class="col-lg-2">Estado</div>
+                    <div class="col-lg-2">Observación</div>
                 </div>
+
+                @if (!Visibles.Any())
+                {
+                    <p class="text-muted text-center py-4 mb-0">No hay puntos con esos filtros.</p>
+                }
+
+                @foreach (var detalle in Visibles)
+                {
+                    var local = detalle;
+                    var soloLectura = Cerrada || detalle.FueraDePlantilla;
+                    var verObservacion = !string.IsNullOrEmpty(detalle.Observacion) || detalle.Resultado == InspeccionUi.NoOk
+                                         || observacionesAbiertas.Contains(detalle.ItemPlanInspeccionId);
+
+                    <div class="punto row g-2 align-items-start border-bottom py-3 @(detalle.Resultado == InspeccionUi.NoOk ? "punto-fuera" : "") @(detalle.VenceHoy ? "" : "punto-no-vence")"
+                         data-codigo="@detalle.Codigo">
+                        <div class="col-12 col-lg-4">
+                            <div><strong>@detalle.NumeroItem. @detalle.ParteEquipo</strong></div>
+                            <div class="tareas small">@detalle.ItemDescripcion</div>
+                            <div class="mt-1 d-flex flex-wrap gap-1">
+                                <span class="badge bg-light text-dark border"><i class="bi bi-person"></i> @detalle.QuienRealizaDescripcion</span>
+                                <span class="badge bg-light text-dark border"><i class="bi bi-calendar3"></i> @detalle.FrecuenciaDescripcion</span>
+                                @if (!detalle.VenceHoy && !detalle.FueraDePlantilla)
+                                {
+                                    <span class="badge bg-secondary" title="@(detalle.UltimaRespuesta.HasValue ? $"Última: {detalle.UltimaRespuesta:dd/MM/yyyy}" : "")">
+                                        @InspeccionUi.TextoVencimiento(false, detalle.ProximoVencimiento)
+                                    </span>
+                                }
+                                @if (detalle.FueraDePlantilla)
+                                {
+                                    <span class="badge bg-secondary">Ya no está en el plan</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6 col-lg-2 small">
+                            <span class="d-lg-none text-muted">Estándar: </span>@detalle.CondicionEstandar
+                        </div>
+                        <div class="col-12 col-md-6 col-lg-2 small">
+                            <span class="d-lg-none text-muted">Método: </span>@detalle.Metodo
+                        </div>
+                        <div class="col-12 col-lg-2">
+                            <div class="btn-group w-100" role="group" aria-label="@($"Estado de {detalle.ParteEquipo}")">
+                                <button type="button"
+                                        class="btn @(detalle.Resultado == InspeccionUi.Ok ? "btn-success" : "btn-outline-success")"
+                                        @onclick="() => OnResultado(local, InspeccionUi.Ok)"
+                                        disabled="@soloLectura">OK</button>
+                                <button type="button"
+                                        class="btn @(detalle.Resultado == InspeccionUi.NoOk ? "btn-danger" : "btn-outline-danger")"
+                                        @onclick="() => OnResultado(local, InspeccionUi.NoOk)"
+                                        disabled="@soloLectura">NO OK</button>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-2">
+                            @if (verObservacion)
+                            {
+                                <div class="d-flex gap-1 align-items-start">
+                                    <input type="text"
+                                           maxlength="500"
+                                           class="form-control form-control-sm @(InspeccionUi.FaltaObservacion(detalle) ? "border-danger" : "")"
+                                           aria-label="@($"Observación de {detalle.ParteEquipo}")"
+                                           value="@detalle.Observacion"
+                                           placeholder="@(detalle.Resultado == InspeccionUi.NoOk ? "Obligatoria: qué se encontró" : "Observación")"
+                                           @onchange="e => OnObservacion(local, e.Value?.ToString())"
+                                           disabled="@soloLectura" />
+                                    @if (!soloLectura)
+                                    {
+                                        <BotonDictado Value="@detalle.Observacion" ValueChanged="@((string v) => OnObservacion(local, v))"
+                                                      MaxLength="500" Compacto="true" Campo="@($"la observación de {detalle.ParteEquipo}")" />
+                                    }
+                                </div>
+                            }
+                            else if (!soloLectura)
+                            {
+                                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" @onclick="() => observacionesAbiertas.Add(local.ItemPlanInspeccionId)">
+                                    <i class="bi bi-plus"></i> Observación
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (!Cerrada)
+                {
+                    <small class="text-muted d-block mt-3">Se guarda solo a medida que cargás.</small>
+                }
             </div>
         </div>
 
-        <!-- Observaciones generales y acciones -->
-        @if (!ejecucion.Completada)
-        {
-            <div class="card mt-4">
-                <div class="card-body">
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between align-items-end gap-2 mb-1">
-                            <label class="form-label mb-0">Observaciones Generales</label>
-                            <BotonDictado @bind-Value="observacionesGenerales" Campo="las observaciones generales" />
-                        </div>
-                        <textarea class="form-control" rows="2" @bind="observacionesGenerales"
-                                  placeholder="Observaciones adicionales sobre la inspeccion..."></textarea>
-                    </div>
-                    <div class="d-flex justify-content-between">
-                        <button class="btn btn-outline-primary" @onclick="() => GuardarResultados(false)" disabled="@isSaving">
-                            <i class="bi bi-save me-1"></i> Guardar Parcial
-                        </button>
-                        <button class="btn btn-success" @onclick="() => GuardarResultados(true)" disabled="@(isSaving || !TodosRespondidos)">
-                            <i class="bi bi-check-circle me-1"></i> Completar Inspeccion
-                        </button>
-                    </div>
+        <!-- Pie de la planilla: observaciones y firma -->
+        <div class="card mt-3">
+            <div class="card-body">
+                <label class="form-label fw-semibold" for="obsGenerales">Observaciones generales</label>
+                <div class="d-flex gap-1 align-items-start mb-3">
+                    <textarea id="obsGenerales" class="form-control" rows="2" maxlength="1000"
+                              value="@observacionesGenerales"
+                              @onchange="e => observacionesGenerales = e.Value?.ToString()"
+                              disabled="@Cerrada"></textarea>
+                    @if (!Cerrada)
+                    {
+                        <BotonDictado Value="@observacionesGenerales" ValueChanged="@((string v) => observacionesGenerales = v)" MaxLength="1000" Compacto="true" Campo="las observaciones generales" />
+                    }
                 </div>
+
+                @if (Cerrada)
+                {
+                    <div class="firma border-top pt-2">
+                        <i class="bi bi-pen me-1"></i>
+                        Firmada por <strong>@(ejecucion.UsuarioCierreNombre ?? ejecucion.UsuarioCierreId ?? "-")</strong>
+                        @if (ejecucion.FechaHoraFin.HasValue)
+                        {
+                            @(" el " + ejecucion.FechaHoraFin.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm"))
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <button class="btn btn-outline-primary" @onclick="@(async () => await GuardarAhora())" disabled="@(guardando || !HayPendientes)">
+                            <i class="bi bi-save me-1"></i> Guardar ahora
+                        </button>
+
+                        @if (FaltanParaCerrar == 0 && Respondidos > 0)
+                        {
+                            <button class="btn btn-success" @onclick="@(async () => await Cerrar())" disabled="@guardando">
+                                <i class="bi bi-pen me-1"></i> Cerrar y firmar
+                            </button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-outline-success" disabled title="Respondé todos los puntos que vencen hoy para poder cerrar">
+                                <i class="bi bi-pen me-1"></i> Cerrar y firmar (faltan @FaltanParaCerrar)
+                            </button>
+                        }
+                    </div>
+                }
             </div>
-        }
+        </div>
     }
 </div>
 
@@ -218,49 +267,71 @@
     public long Id { get; set; }
 
     private EjecucionInspeccionDto? ejecucion;
-    private List<ResultadoItemRequest> resultados = new();
-    private string observacionesGenerales = string.Empty;
     private bool isLoading = true;
-    private bool isSaving;
     private string? errorMessage;
     private string? successMessage;
+    private string? observacionesGenerales;
 
-    private bool TodosRespondidos => resultados.Count >= (ejecucion?.CantidadTotal ?? 0) &&
-                                      resultados.All(r => !string.IsNullOrEmpty(r.Resultado));
+    private int? filtroFrecuencia;
+    private string? filtroQuien;
+
+    // Autoguardado: cada cambio queda pendiente y se manda solo al rato.
+    private readonly Dictionary<int, int> versionPendiente = new();   // ItemPlanInspeccionId → versión local
+    private int versionLocal;
+    private bool guardando;
+    private bool guardarOtraVez;
+    private string? errorGuardado;
+    private DateTime? ultimoGuardado;
+    private CancellationTokenSource? demora;
+    private static readonly TimeSpan DemoraAutoguardado = TimeSpan.FromSeconds(1.2);
+
+    private readonly HashSet<int> observacionesAbiertas = new();
+
+    private bool Cerrada => ejecucion?.Completada == true;
+    private IEnumerable<EjecucionInspeccionDetalleDto> Todos => ejecucion?.Detalles ?? Enumerable.Empty<EjecucionInspeccionDetalleDto>();
+    private IEnumerable<EjecucionInspeccionDetalleDto> Visibles => Todos.Where(d => InspeccionUi.Coincide(d, filtroFrecuencia, filtroQuien));
+    private List<(int Dias, string Nombre)> Frecuencias => InspeccionUi.Frecuencias(Todos.Where(d => !d.FueraDePlantilla).Select(d => d.FrecuenciaDias));
+    private List<(string Codigo, string Nombre)> Puestos =>
+        InspeccionUi.Puestos.Where(p => Todos.Any(d => !d.FueraDePlantilla && d.QuienRealiza == p.Codigo)).ToList();
+    private int VencenHoy => Todos.Count(d => !d.FueraDePlantilla && d.VenceHoy);
+    private int Respondidos => Todos.Count(d => !d.FueraDePlantilla && d.VenceHoy && InspeccionUi.TieneRespuesta(d));
+    private int FaltanParaCerrar => InspeccionUi.FaltanParaCerrar(Todos);
+    private int NoOks => Todos.Count(d => d.Resultado == InspeccionUi.NoOk);
+    private int Porcentaje => VencenHoy > 0 ? Respondidos * 100 / VencenHoy : 100;
+    private bool HayPendientes => versionPendiente.Count > 0;
+    private int EsperanObservacion => versionPendiente.Keys.Count(id => Buscar(id) is { } d && InspeccionUi.FaltaObservacion(d));
+
+    private string TextoGuardado
+    {
+        get
+        {
+            if (Cerrada) return "Cerrada";
+            if (guardando) return "Guardando…";
+            if (errorGuardado != null) return "No se guardó: " + errorGuardado;
+            if (EsperanObservacion > 0) return $"Falta la observación en {EsperanObservacion} punto(s) NO OK para guardarlos";
+            if (HayPendientes) return "Sin guardar…";
+            return ultimoGuardado.HasValue ? $"Guardado {ultimoGuardado.Value:HH:mm}" : "Todo guardado";
+        }
+    }
+
+    private string ClaseGuardado => guardando || HayPendientes ? "text-muted" : errorGuardado != null || EsperanObservacion > 0 ? "text-danger" : "text-success";
 
     protected override async Task OnInitializedAsync()
     {
-        await CargarEjecucion();
+        await Cargar();
     }
 
-    private async Task CargarEjecucion()
+    private async Task Cargar()
     {
-        isLoading = true;
-        errorMessage = null;
-
+        isLoading = ejecucion == null;
         try
         {
             ejecucion = await InspeccionService.GetEjecucionAsync(Id);
-
-            if (ejecucion != null)
-            {
-                observacionesGenerales = ejecucion.ObservacionesGenerales ?? string.Empty;
-
-                // Inicializar resultados con valores existentes
-                resultados = ejecucion.Detalles
-                    .Where(d => !string.IsNullOrEmpty(d.Resultado))
-                    .Select(d => new ResultadoItemRequest
-                    {
-                        ItemPlanInspeccionId = d.ItemPlanInspeccionId,
-                        Resultado = d.Resultado ?? string.Empty,
-                        Observacion = d.Observacion
-                    })
-                    .ToList();
-            }
+            observacionesGenerales = ejecucion?.ObservacionesGenerales;
         }
         catch (Exception ex)
         {
-            errorMessage = $"Error al cargar ejecucion: {ex.Message}";
+            errorMessage = $"Error al cargar la inspección: {ex.Message}";
         }
         finally
         {
@@ -268,82 +339,177 @@
         }
     }
 
-    private void SetResultado(int itemId, string resultado)
+    private EjecucionInspeccionDetalleDto? Buscar(int itemId) =>
+        Todos.FirstOrDefault(d => d.ItemPlanInspeccionId == itemId && !d.FueraDePlantilla);
+
+    // ---------- Cambios ----------
+
+    private void OnResultado(EjecucionInspeccionDetalleDto detalle, string resultado)
     {
-        var existing = resultados.FirstOrDefault(r => r.ItemPlanInspeccionId == itemId);
-        if (existing != null)
+        detalle.Resultado = resultado;
+        if (resultado == InspeccionUi.NoOk) observacionesAbiertas.Add(detalle.ItemPlanInspeccionId);
+        RegistrarCambio(detalle);
+    }
+
+    private void OnObservacion(EjecucionInspeccionDetalleDto detalle, string? valor)
+    {
+        detalle.Observacion = valor;
+        RegistrarCambio(detalle);
+    }
+
+    private void RegistrarCambio(EjecucionInspeccionDetalleDto detalle)
+    {
+        versionPendiente[detalle.ItemPlanInspeccionId] = ++versionLocal;
+        errorGuardado = null;
+        ProgramarAutoguardado();
+    }
+
+    // ---------- Autoguardado (mismo esquema que Control de Proceso) ----------
+
+    private void ProgramarAutoguardado()
+    {
+        demora?.Cancel();
+        demora = new CancellationTokenSource();
+        var token = demora.Token;
+        _ = Task.Run(async () =>
         {
-            existing.Resultado = resultado;
-        }
-        else
-        {
-            resultados.Add(new ResultadoItemRequest
+            try
             {
-                ItemPlanInspeccionId = itemId,
-                Resultado = resultado
-            });
+                await Task.Delay(DemoraAutoguardado, token);
+                await InvokeAsync(async () =>
+                {
+                    await GuardarPendientes();
+                    StateHasChanged();
+                });
+            }
+            catch (TaskCanceledException) { }
+        });
+    }
+
+    private async Task GuardarAhora()
+    {
+        demora?.Cancel();
+        await GuardarPendientes();
+    }
+
+    /// <summary>
+    /// Manda lo pendiente que está listo. Un NO OK sin observación espera (la API lo rechazaría y con él todo el lote).
+    /// </summary>
+    private async Task GuardarPendientes()
+    {
+        if (ejecucion == null || Cerrada) return;
+        if (guardando)
+        {
+            guardarOtraVez = true;
+            return;
+        }
+
+        guardando = true;
+        try
+        {
+            do
+            {
+                guardarOtraVez = false;
+                var lote = versionPendiente
+                    .Select(p => (Detalle: Buscar(p.Key), Version: p.Value))
+                    .Where(x => x.Detalle != null && InspeccionUi.TieneRespuesta(x.Detalle) && !InspeccionUi.FaltaObservacion(x.Detalle))
+                    .ToList();
+
+                if (lote.Count == 0) break;
+
+                var request = new GuardarResultadosInspeccionRequest
+                {
+                    EjecucionInspeccionId = ejecucion.EjecucionInspeccionId,
+                    RowVersion = ejecucion.RowVersion,
+                    ObservacionesGenerales = observacionesGenerales,
+                    Resultados = lote.Select(x => new ResultadoItemRequest
+                    {
+                        ItemPlanInspeccionId = x.Detalle!.ItemPlanInspeccionId,
+                        Resultado = x.Detalle.Resultado!,
+                        Observacion = x.Detalle.Observacion
+                    }).ToList()
+                };
+
+                var (success, error) = await InspeccionService.GuardarResultadosAsync(request);
+                if (!success)
+                {
+                    errorGuardado = error ?? "error al guardar";
+                    break;
+                }
+
+                foreach (var (detalle, version) in lote)
+                {
+                    if (versionPendiente.TryGetValue(detalle!.ItemPlanInspeccionId, out var actual) && actual == version)
+                    {
+                        versionPendiente.Remove(detalle.ItemPlanInspeccionId);
+                    }
+                }
+
+                ultimoGuardado = DateTime.Now;
+                errorGuardado = null;
+                await RefrescarDesdeApi();
+            } while (guardarOtraVez || versionPendiente.Keys.Any(id => Buscar(id) is { } d && InspeccionUi.TieneRespuesta(d) && !InspeccionUi.FaltaObservacion(d)));
+        }
+        catch (Exception ex)
+        {
+            errorGuardado = ex.Message;
+        }
+        finally
+        {
+            guardando = false;
         }
     }
 
-    private void SetObservacion(int itemId, string? observacion)
+    /// <summary>Trae lo guardado (RowVersion nuevo) sin perder lo que se está cargando.</summary>
+    private async Task RefrescarDesdeApi()
     {
-        var existing = resultados.FirstOrDefault(r => r.ItemPlanInspeccionId == itemId);
-        if (existing != null)
+        var nuevo = await InspeccionService.GetEjecucionAsync(Id);
+        if (nuevo == null || ejecucion == null) return;
+
+        var locales = Todos.Where(d => versionPendiente.ContainsKey(d.ItemPlanInspeccionId) && !d.FueraDePlantilla)
+            .ToDictionary(d => d.ItemPlanInspeccionId);
+        foreach (var d in nuevo.Detalles.Where(d => !d.FueraDePlantilla))
         {
-            existing.Observacion = observacion;
-        }
-        else
-        {
-            resultados.Add(new ResultadoItemRequest
+            if (locales.TryGetValue(d.ItemPlanInspeccionId, out var local))
             {
-                ItemPlanInspeccionId = itemId,
-                Observacion = observacion
-            });
+                d.Resultado = local.Resultado;
+                d.Observacion = local.Observacion;
+            }
         }
+
+        ejecucion = nuevo;
     }
 
-    private async Task GuardarResultados(bool completar = false)
+    private async Task Cerrar()
     {
         if (ejecucion == null) return;
 
-        // Validar NO_OK con observacion
-        foreach (var r in resultados.Where(r => r.Resultado == "NO_OK"))
+        demora?.Cancel();
+        await GuardarPendientes();
+        if (HayPendientes || errorGuardado != null)
         {
-            if (string.IsNullOrWhiteSpace(r.Observacion))
-            {
-                var item = ejecucion.Detalles.FirstOrDefault(d => d.ItemPlanInspeccionId == r.ItemPlanInspeccionId);
-                errorMessage = $"El item '{item?.ItemDescripcion}' tiene resultado NO OK. La observacion es obligatoria.";
-                return;
-            }
+            errorMessage = "Antes de cerrar hay puntos sin guardar. " + TextoGuardado;
+            return;
         }
 
-        isSaving = true;
+        guardando = true;
         errorMessage = null;
-        successMessage = null;
-
         try
         {
-            var request = new GuardarResultadosInspeccionRequest
+            var (success, error) = await InspeccionService.CerrarEjecucionAsync(Id, new CerrarEjecucionRequest
             {
                 EjecucionInspeccionId = ejecucion.EjecucionInspeccionId,
                 RowVersion = ejecucion.RowVersion,
-                Resultados = resultados.Where(r => !string.IsNullOrEmpty(r.Resultado)).ToList(),
-                ObservacionesGenerales = observacionesGenerales,
-                Completar = completar
-            };
-
-            var (success, error) = await InspeccionService.GuardarResultadosAsync(request);
-
+                ObservacionesGenerales = observacionesGenerales
+            });
             if (success)
             {
-                successMessage = completar
-                    ? "Inspeccion completada exitosamente."
-                    : "Resultados guardados correctamente.";
-                await CargarEjecucion();
+                successMessage = "Inspección cerrada y firmada.";
+                await Cargar();
             }
             else
             {
-                errorMessage = error ?? "Error al guardar resultados.";
+                errorMessage = error ?? "Error al cerrar la inspección.";
             }
         }
         catch (Exception ex)
@@ -352,19 +518,23 @@
         }
         finally
         {
-            isSaving = false;
+            guardando = false;
         }
     }
 
-    private void Volver()
+    private async Task Volver()
     {
+        demora?.Cancel();
+        await GuardarPendientes();
         Navigation.NavigateTo("/inspecciones");
     }
 
-    private string GetRowClass(string? resultado) => resultado switch
+    public async ValueTask DisposeAsync()
     {
-        "OK" => "",
-        "NO_OK" => "table-warning",
-        _ => ""
-    };
+        demora?.Cancel();
+        if (HayPendientes && !guardando)
+        {
+            try { await GuardarPendientes(); } catch { /* best effort */ }
+        }
+    }
 }

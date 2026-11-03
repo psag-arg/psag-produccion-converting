@@ -23,6 +23,12 @@ public class EjecucionInspeccionDetalle
     public ItemPlanInspeccion ItemPlanInspeccion { get; set; } = null!;
 
     /// <summary>
+    /// SNAPSHOT del estándar del punto al momento de responderlo: si mañana cambian el estándar
+    /// en Maestros, esta respuesta sigue mostrando contra qué se inspeccionó ESE día.
+    /// </summary>
+    public string? EstandarSnapshot { get; set; }
+
+    /// <summary>
     /// Resultado de la inspección.
     /// </summary>
     public ResultadoInspeccion Resultado { get; set; }

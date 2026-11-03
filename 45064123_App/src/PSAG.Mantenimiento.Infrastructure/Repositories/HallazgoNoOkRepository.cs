@@ -44,6 +44,9 @@ public class HallazgoNoOkRepository : IHallazgoNoOkRepository
             .Include(h => h.Equipo)
             .Include(h => h.EjecucionInspeccionDetalle)
                 .ThenInclude(d => d.ItemPlanInspeccion)
+            .Include(h => h.EjecucionInspeccionDetalle)
+                .ThenInclude(d => d.EjecucionInspeccion)
+                    .ThenInclude(e => e.PlanInspeccion)
             .Where(h => h.LineaId == lineaId && !h.Resuelto)
             .OrderByDescending(h => h.FechaHoraHallazgo)
             .ToListAsync(cancellationToken);
@@ -57,6 +60,9 @@ public class HallazgoNoOkRepository : IHallazgoNoOkRepository
             .Include(h => h.Equipo)
             .Include(h => h.EjecucionInspeccionDetalle)
                 .ThenInclude(d => d.ItemPlanInspeccion)
+            .Include(h => h.EjecucionInspeccionDetalle)
+                .ThenInclude(d => d.EjecucionInspeccion)
+                    .ThenInclude(e => e.PlanInspeccion)
             .Where(h => !h.Resuelto)
             .OrderByDescending(h => h.FechaHoraHallazgo)
             .ToListAsync(cancellationToken);
@@ -77,6 +83,9 @@ public class HallazgoNoOkRepository : IHallazgoNoOkRepository
             .Include(h => h.Equipo)
             .Include(h => h.EjecucionInspeccionDetalle)
                 .ThenInclude(d => d.ItemPlanInspeccion)
+            .Include(h => h.EjecucionInspeccionDetalle)
+                .ThenInclude(d => d.EjecucionInspeccion)
+                    .ThenInclude(e => e.PlanInspeccion)
             .AsQueryable();
 
         if (lineaId.HasValue)
@@ -112,6 +121,11 @@ public class HallazgoNoOkRepository : IHallazgoNoOkRepository
 
         return (items, totalCount);
     }
+
+    public async Task<IReadOnlyList<HallazgoNoOk>> GetByEjecucionAsync(long ejecucionInspeccionId, CancellationToken cancellationToken = default) =>
+        await _context.HallazgosNoOk
+            .Where(h => h.EjecucionInspeccionDetalle.EjecucionInspeccionId == ejecucionInspeccionId)
+            .ToListAsync(cancellationToken);
 
     public async Task AddAsync(HallazgoNoOk hallazgo, CancellationToken cancellationToken = default)
     {

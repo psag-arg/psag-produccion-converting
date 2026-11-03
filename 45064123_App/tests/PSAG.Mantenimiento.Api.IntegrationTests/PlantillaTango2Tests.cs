@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -252,96 +251,16 @@ public class PlantillaTango2Tests : IDisposable
 
     private static (List<GrupoScript> Grupos, List<PuntoScript> Puntos) LeerScript()
     {
-        var lineas = File.ReadAllLines(RutaScript(), Encoding.UTF8);
+        var lineas = ScriptSql.Lineas(Script);
 
-        var grupos = FilasDe(lineas, "INSERT INTO @Grupos")
+        var grupos = ScriptSql.FilasDe(lineas, "INSERT INTO @Grupos", Script)
             .Select(v => new GrupoScript(v[0]!, v[1]!, int.Parse(v[2]!, CultureInfo.InvariantCulture)))
             .ToList();
-        var puntos = FilasDe(lineas, "INSERT INTO @Puntos")
+        var puntos = ScriptSql.FilasDe(lineas, "INSERT INTO @Puntos", Script)
             .Select(v => new PuntoScript(v[0]!, v[1], v[2]!, v[3]!, v[4]!, v[5], int.Parse(v[6]!, CultureInfo.InvariantCulture), v[7],
                 v[8] == null ? null : decimal.Parse(v[8]!, CultureInfo.InvariantCulture),
                 v[9] == null ? null : decimal.Parse(v[9]!, CultureInfo.InvariantCulture)))
             .ToList();
         return (grupos, puntos);
-    }
-
-    /// <summary>Filas "(...)," que siguen al INSERT indicado, hasta la que termina en ";".</summary>
-    private static IEnumerable<List<string?>> FilasDe(string[] lineas, string insert)
-    {
-        var desde = Array.FindIndex(lineas, l => l.TrimStart().StartsWith(insert, StringComparison.Ordinal));
-        Assert.True(desde >= 0, $"No se encontró '{insert}' en {Script}.");
-
-        for (var i = desde + 1; i < lineas.Length; i++)
-        {
-            var linea = lineas[i].Trim();
-            if (linea.Length == 0)
-                continue;
-            Assert.StartsWith("(", linea);
-            var fin = linea.EndsWith(';');
-            var cuerpo = linea.TrimEnd(',', ';');
-            Assert.EndsWith(")", cuerpo);
-            yield return Valores(cuerpo[1..^1]);
-            if (fin)
-                yield break;
-        }
-    }
-
-    /// <summary>
-    /// Valores T-SQL separados por coma: NULL, números, y textos N'...' concatenados con NCHAR(n).
-    /// </summary>
-    private static List<string?> Valores(string fila)
-    {
-        var valores = new List<string?>();
-        var i = 0;
-        while (i < fila.Length)
-        {
-            while (i < fila.Length && fila[i] == ' ') i++;
-            var texto = new StringBuilder();
-            string? crudo = null;
-            var esTexto = false;
-            while (i < fila.Length && fila[i] != ',')
-            {
-                if (fila[i] == ' ' || fila[i] == '+') { i++; continue; }
-                if (fila[i] == 'N' && i + 1 < fila.Length && fila[i + 1] == '\'')
-                {
-                    esTexto = true;
-                    i += 2;
-                    while (true)
-                    {
-                        if (fila[i] == '\'' && i + 1 < fila.Length && fila[i + 1] == '\'') { texto.Append('\''); i += 2; }
-                        else if (fila[i] == '\'') { i++; break; }
-                        else texto.Append(fila[i++]);
-                    }
-                }
-                else if (fila.AsSpan(i).StartsWith("NCHAR("))
-                {
-                    esTexto = true;
-                    var cierre = fila.IndexOf(')', i);
-                    texto.Append((char)int.Parse(fila[(i + 6)..cierre], CultureInfo.InvariantCulture));
-                    i = cierre + 1;
-                }
-                else
-                {
-                    var j = i;
-                    while (j < fila.Length && fila[j] != ',' && fila[j] != ' ') j++;
-                    crudo = fila[i..j];
-                    i = j;
-                }
-            }
-            i++; // coma
-            valores.Add(esTexto ? texto.ToString() : crudo == "NULL" ? null : crudo);
-        }
-        return valores;
-    }
-
-    private static string RutaScript()
-    {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
-        {
-            var ruta = Path.Combine(dir.FullName, "database", Script);
-            if (File.Exists(ruta))
-                return ruta;
-        }
-        throw new FileNotFoundException($"No se encontró database/{Script} subiendo desde {AppContext.BaseDirectory}.");
     }
 }

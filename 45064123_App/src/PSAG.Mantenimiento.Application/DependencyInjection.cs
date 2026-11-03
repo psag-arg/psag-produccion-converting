@@ -25,6 +25,7 @@ public static class DependencyInjection
 
         // Registrar servicios de aplicación - Eje 3: Inspecciones de máquina
         services.AddScoped<IInspeccionService, InspeccionService>();
+        services.AddScoped<IInspeccionPlantillaService, InspeccionPlantillaService>();
 
         // Control de calidad por cámaras (T-611)
         services.AddScoped<ICalidadMaestrosService, CalidadMaestrosService>();
