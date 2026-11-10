@@ -69,8 +69,8 @@ Carpeta del servicio en el servidor: `C:\PSAG\ConteoCamara\`
 | `zonas-camara.json` | coordenadas de los carriles | sí (valores calibrados); el instalador conserva el del servidor |
 | `appsettings.local.json` | overrides del servidor (opcional) | no |
 | `pendientes\lote-*.json` | lotes que la API todavía no aceptó | no |
-| `pendientesechazados\` | lotes que la API rechazó 3 veces por su contenido (4xx), apartados para no trabar la cola | no |
-| `pendientes\minuto-en-curso.json` | minuto incompleto al detener el servicio; se suma al minuto si se reinicia dentro de él | no |
+| `pendientes\rechazados\` | lotes que la API rechazó 3 veces por su contenido (4xx), apartados para no trabar la cola | no |
+| `pendientes\minuto-en-curso.json` | minuto incompleto al detener el servicio; se suma si se reinicia dentro de ese minuto | no |
 | `logs\conteo.log` | salida del servicio (NSSM, rota a 10 MB) | no |
 | `C:\PSAG\secretos\nvr.env` | `NVR=172.16.9.67`, `NVR_USER=...`, `NVR_PASS=...` | **nunca** |
 
@@ -160,7 +160,7 @@ Las fotos y videos quedan en el servidor: no se mandan a ningún servicio extern
 }
 ```
 
-- Todo o nada: si un elemento es inválido el lote entero vuelve 400. El servicio sigue con los lotes siguientes y, después de 3 rechazos, lo aparta a `pendientesechazados\` (sólo si en ese ciclo la API aceptó otro lote). Si todos vuelven con el mismo motivo (por ejemplo, falta el punto de control en Maestros) es configuración: corta y no aparta nada. 5xx, red y timeout se reintentan en orden.
+- Todo o nada: si un elemento es inválido el lote entero vuelve 400. El servicio sigue con los lotes siguientes y, después de 3 rechazos, lo aparta a `pendientes\rechazados\` (sólo si en ese ciclo la API aceptó otro lote). Si todos vuelven con el mismo motivo (por ejemplo, falta el punto de control en Maestros) es configuración: corta y no aparta nada. 5xx, red y timeout se reintentan en orden.
 - Idempotente: minuto+carril por punto y `identificadorExterno` de la parada. Respuesta 200 con nuevos y repetidos.
 - Los segundos de cada minuto suman 60; minutos con segundos en cero; fechas no futuras (tolerancia 10 min).
 - 401 sin clave o clave incorrecta, 503 si la API no tiene `Calidad:ClaveIngesta`.
