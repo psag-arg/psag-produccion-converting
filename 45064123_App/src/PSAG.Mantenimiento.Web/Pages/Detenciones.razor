@@ -255,6 +255,13 @@
                                                 <i class="bi bi-pencil"></i>
                                             </button>
                                         }
+                                        else if (PuedeDeclarar(det))
+                                        {
+                                            @* La pendiente de declaración (de la cámara) no se edita: se declara. *@
+                                            <a class="btn btn-sm btn-warning me-1" title="Declarar" href="detenciones/@det.DetencionId/declarar?volver=/detenciones">
+                                                Declarar
+                                            </a>
+                                        }
                                         @if (esAdministrador)
                                         {
                                             <button class="btn btn-sm btn-outline-danger" title="Eliminar" @onclick="() => AbrirEliminar(det)">
@@ -835,6 +842,12 @@
             Console.WriteLine($"Error cargando la detención a editar: {ex.Message}");
         }
 
+        if (det?.EstadoActual == RolesCarga.PendienteDeclaracion)
+        {
+            mensajeAviso = "Esa detención está pendiente de declaración: no se edita. Declarala desde Mis pendientes.";
+            return;
+        }
+
         if (det == null || !PuedeEditar(det))
         {
             mensajeAviso = "No se puede editar esa detención: está cerrada, no existe o no es de tus líneas.";
@@ -847,6 +860,9 @@
 
     private bool PuedeEditar(DetencionDto det) =>
         usuario != null && RolesCarga.PuedeEditar(det, usuario.IsInRole, misAsignaciones.Select(a => a.LineaId));
+
+    private bool PuedeDeclarar(DetencionDto det) =>
+        usuario != null && RolesCarga.PuedeDeclarar(det, usuario.IsInRole, misAsignaciones.Select(a => a.LineaId));
 
     private void VolverAlDetalleSiCorresponde()
     {

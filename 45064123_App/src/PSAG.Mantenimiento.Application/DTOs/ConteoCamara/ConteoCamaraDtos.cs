@@ -137,18 +137,40 @@ public class ParadasCamaraResultado
     public int MinutosSinDetencion { get; set; }
 }
 
-/// <summary>Producción de un día de planta según la cámara, por hora y carril.</summary>
+/// <summary>
+/// Producción de un día de planta según las cámaras, por cámara (nunca se suman rollos de la 09 con mangas de la 10).
+/// El día de planta va del inicio del primer turno al fin del último, con las mismas ventanas que la eficiencia:
+/// el nocturno es del día en que empieza (con turnos 05-13-21-05, de 05:00 del día a 05:00 del siguiente).
+/// </summary>
 public class ProduccionCamaraDto
 {
     public DateOnly Fecha { get; set; }
     public int? LineaId { get; set; }
+
+    /// <summary>Ventana del día de planta, en hora de la planta.</summary>
+    public DateTimeOffset Inicio { get; set; }
+    public DateTimeOffset Fin { get; set; }
+
+    public List<ProduccionCamaraPuntoDto> Camaras { get; set; } = [];
+}
+
+/// <summary>Producción de una cámara: por hora y carril, y por turno.</summary>
+public class ProduccionCamaraPuntoDto
+{
+    public int PuntoControlCalidadId { get; set; }
+    public string Codigo { get; set; } = string.Empty;
+    public string Nombre { get; set; } = string.Empty;
+    public string LineaNombre { get; set; } = string.Empty;
+
+    /// <summary>rollos (cámara de carriles), mangas o unidades.</summary>
+    public string Unidad { get; set; } = string.Empty;
     public List<int> Carriles { get; set; } = [];
     public List<ProduccionCamaraHoraDto> Horas { get; set; } = [];
-    public decimal TotalRollos { get; set; }
+    public decimal Total { get; set; }
     public int MinutosConDatos { get; set; }
     public int MinutosMarcha { get; set; }
 
-    /// <summary>Total por turno materializado (para la eficiencia: mangas del turno / mangas objetivo).</summary>
+    /// <summary>Total por turno materializado dentro de la ventana del turno de ese día (igual que la eficiencia).</summary>
     public List<ProduccionCamaraTurnoDto> Turnos { get; set; } = [];
 }
 
@@ -156,6 +178,8 @@ public class ProduccionCamaraTurnoDto
 {
     public int? TurnoId { get; set; }
     public string TurnoNombre { get; set; } = string.Empty;
+    public DateTimeOffset? Inicio { get; set; }
+    public DateTimeOffset? Fin { get; set; }
     public decimal Total { get; set; }
     public int MinutosConDatos { get; set; }
     public int MinutosMarcha { get; set; }

@@ -82,6 +82,25 @@ public class EvaluacionPuntoTests
             PuntoControlValidador.Evaluar(TipoDatoParametro.NUMERICO, rangoDeHoy, 500m, null, fueraDeEstandar: false));
     }
 
+    [Theory]
+    // Auditoría C: el estado de un valor guardado sale del snapshot, nunca del estándar de hoy.
+    [InlineData(false, "-0,7", false)]       // ese día era referencia sin tolerancia; hoy tiene tolerancia: sigue faltando estándar
+    [InlineData(false, null, false)]         // ese día no había estándar; hoy hay 152 - 153: falta estándar, no OK
+    [InlineData(true, "152 - 153", true)]    // ese día había rango; hoy ya no: sigue OK (se comparó)
+    [InlineData(null, null, false)]          // dato anterior al snapshot sin texto de estándar: ese día no había
+    [InlineData(null, "152 - 153", true)]    // dato anterior al snapshot con texto: se usa el rango de hoy sólo para eso
+    public void ValorGuardado_SeEvaluaConElSnapshot(bool? estandarConRango, string? snapshot, bool esOk)
+    {
+        var rangoDeHoy = estandarConRango == true ? new RangoControl(null, null) : new RangoControl(152m, 153m);
+
+        var evaluacion = PuntoControlValidador.EvaluarGuardado(
+            TipoDatoParametro.NUMERICO, estandarConRango, snapshot, rangoDeHoy, 160m, null, fueraDeEstandar: false);
+
+        Assert.Equal(esOk ? EvaluacionPunto.Ok : EvaluacionPunto.SinEstandar, evaluacion);
+        Assert.Equal(EvaluacionPunto.FueraDeRango, PuntoControlValidador.EvaluarGuardado(
+            TipoDatoParametro.NUMERICO, estandarConRango, snapshot, rangoDeHoy, 160m, null, fueraDeEstandar: true));
+    }
+
     [Fact]
     public void OkNoOk_YTexto()
     {

@@ -6,11 +6,6 @@ namespace PSAG.Mantenimiento.Application.Services.Interfaces;
 
 public interface IDetencionService
 {
-    Task<Result<CrearDetencionResponse>> CrearDetencionAsync(
-        CrearDetencionRequest request,
-        string usuarioId,
-        CancellationToken cancellationToken = default);
-
     Task<Result<DetencionDto>> ObtenerPorIdAsync(
         long detencionId,
         CancellationToken cancellationToken = default);

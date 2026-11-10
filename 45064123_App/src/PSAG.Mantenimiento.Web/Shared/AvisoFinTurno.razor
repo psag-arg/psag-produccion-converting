@@ -1,19 +1,20 @@
 @* T-610: aviso al operador cuando se acerca el fin del turno y tiene detenciones automáticas sin declarar.
-   No bloquea nada (el cierre de turno sigue igual). Se consulta cada 2 minutos; se puede cerrar hasta el próximo turno. *@
+   No bloquea nada (el cierre de turno sigue igual). Se consulta cada 2 minutos; se puede cerrar hasta el próximo turno
+   (turno + día en que empezó: cerrarlo una noche no lo oculta la noche siguiente). Gerencia (sólo lectura) no lo ve. *@
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
 @inject IDeclaracionDetencionService DeclaracionService
+@inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
 @implements IDisposable
 
-@if (aviso is { Mostrar: true } && descartadoEnTurno != aviso.TurnoNombre)
+@if (aviso is { Mostrar: true } && descartado != RolesCarga.ClaveTurnoAviso(aviso))
 {
     <div class="alert alert-warning d-flex flex-wrap align-items-center gap-2 mb-3" role="alert" data-testid="aviso-fin-turno">
         <i class="bi bi-alarm fs-5"></i>
         <div class="flex-grow-1">
             <strong>Estás por terminar el turno</strong>
-            (faltan @aviso.MinutosParaFin min) y @(aviso.Pendientes == 1 ? "queda 1 detención" : $"quedan {aviso.Pendientes} detenciones")
-            sin declarar. Declaralas antes de irte.
+            (faltan @aviso.MinutosParaFin min) y @RolesCarga.TextoPendientesAviso(aviso). Declaralas antes de irte.
         </div>
         <button class="btn btn-sm btn-warning" @onclick="IrAPendientes">Declarar ahora</button>
         <button type="button" class="btn-close" aria-label="Cerrar" @onclick="Descartar"></button>
@@ -22,11 +23,15 @@
 
 @code {
     private AvisoFinTurnoDto? aviso;
-    private string? descartadoEnTurno;
+    private string? descartado;
     private Timer? timer;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
+        var usuario = (await AuthStateProvider.GetAuthenticationStateAsync()).User;
+        if (!RolesCarga.VeDeclaracion(usuario.IsInRole))
+            return;
+
         timer = new Timer(async _ =>
         {
             aviso = await DeclaracionService.GetAvisoFinTurnoAsync();
@@ -36,7 +41,7 @@
 
     private void IrAPendientes() => Navigation.NavigateTo("detenciones/pendientes");
 
-    private void Descartar() => descartadoEnTurno = aviso?.TurnoNombre;
+    private void Descartar() => descartado = RolesCarga.ClaveTurnoAviso(aviso);
 
     public void Dispose() => timer?.Dispose();
 }

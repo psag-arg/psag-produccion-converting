@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PSAG.Mantenimiento.Domain.Entities;
 using PSAG.Mantenimiento.Domain.Interfaces;
+using PSAG.Mantenimiento.Domain.Services;
 using PSAG.Mantenimiento.Infrastructure.Data;
 
 namespace PSAG.Mantenimiento.Infrastructure.Repositories;
@@ -31,9 +32,6 @@ public class TurnoRepository : RepositoryBase<Turno>, ITurnoRepository
         return turnos.FirstOrDefault(t => t.ContieneHora(hora));
     }
 
-    public async Task<Turno?> GetTurnoActualAsync(CancellationToken cancellationToken = default)
-    {
-        var horaActual = TimeOnly.FromDateTime(DateTime.Now);
-        return await GetTurnoPorHoraAsync(horaActual, cancellationToken);
-    }
+    public Task<Turno?> GetTurnoActualAsync(TimeZoneInfo zonaPlanta, CancellationToken cancellationToken = default) =>
+        GetTurnoPorHoraAsync(HoraPlanta.HoraMinuto(zonaPlanta), cancellationToken);
 }

@@ -63,8 +63,18 @@ public class DeclararDetencionResponse
 public class AvisoFinTurnoDto
 {
     public bool Mostrar { get; set; }
+
+    /// <summary>Pendientes de declaración de las líneas del usuario, de este turno y de turnos anteriores.</summary>
     public int Pendientes { get; set; }
+
+    /// <summary>De <see cref="Pendientes"/>, las que pararon en el turno en curso.</summary>
+    public int PendientesTurnoActual { get; set; }
+
     public int? MinutosParaFin { get; set; }
+    public int? TurnoId { get; set; }
     public string? TurnoNombre { get; set; }
+
+    /// <summary>Día en que empezó el turno en curso (el nocturno de las 02:00 empezó el día anterior). Turno + fecha identifican al turno.</summary>
+    public DateOnly? FechaInicioTurno { get; set; }
     public int MinutosAviso { get; set; }
 }

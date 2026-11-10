@@ -181,13 +181,16 @@ public class ConteoCamaraServiceTests : CalidadTestBase
         var r = await _conteo.ObtenerProduccionAsync(DateOnly.FromDateTime(_dia.DateTime), Tango2.LineaId);
 
         Assert.True(r.IsSuccess);
-        Assert.Equal(580, r.Value!.TotalRollos);
-        Assert.Equal([1, 2], r.Value.Carriles);
-        Assert.Equal(2, r.Value.Horas.Count);
-        Assert.Equal(260, r.Value.Horas[0].RollosPorCarril[1]);
-        Assert.Equal(170, r.Value.Horas[0].RollosPorCarril[2]);
-        Assert.Equal(_dia, r.Value.Horas[0].Hora);
-        Assert.Equal(3, r.Value.Horas[0].MinutosCarrilMarcha);
+        var cam = Assert.Single(r.Value!.Camaras);
+        Assert.Equal("TEST-CAM-T2", cam.Codigo);
+        Assert.Equal(580, cam.Total);
+        Assert.Equal([1, 2], cam.Carriles);
+        Assert.Equal("rollos", cam.Unidad);
+        Assert.Equal(2, cam.Horas.Count);
+        Assert.Equal(260, cam.Horas[0].RollosPorCarril[1]);
+        Assert.Equal(170, cam.Horas[0].RollosPorCarril[2]);
+        Assert.Equal(_dia, cam.Horas[0].Hora);
+        Assert.Equal(3, cam.Horas[0].MinutosCarrilMarcha);
     }
 
     [Fact]

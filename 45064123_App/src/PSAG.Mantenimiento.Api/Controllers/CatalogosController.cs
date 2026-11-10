@@ -20,15 +20,18 @@ public class CatalogosController : ApiControllerBase
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<CatalogosController> _logger;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly TimeZoneInfo _zonaPlanta;
 
     public CatalogosController(
         IUnitOfWork unitOfWork,
         ILogger<CatalogosController> logger,
-        UserManager<ApplicationUser> userManager)
+        UserManager<ApplicationUser> userManager,
+        TimeZoneInfo zonaPlanta)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
         _userManager = userManager;
+        _zonaPlanta = zonaPlanta;
     }
 
     private static readonly Regex ColorHexRegex = new(@"^#[0-9A-F]{6}$");
@@ -681,7 +684,7 @@ public class CatalogosController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetTurnoActual()
     {
-        var turno = await _unitOfWork.Turnos.GetTurnoActualAsync();
+        var turno = await _unitOfWork.Turnos.GetTurnoActualAsync(_zonaPlanta);
         if (turno == null)
             return NotFound(new ProblemDetails
             {
@@ -1472,8 +1475,8 @@ public class CatalogosController : ApiControllerBase
         if (maquinista == null)
             return NotFound();
 
-        // Validar que no tenga detenciones asociadas
-        var tieneDetenciones = await _unitOfWork.Detenciones.ExistsAsync(d => d.UsuarioLineaId == id);
+        // Validar que no tenga detenciones asociadas (también las eliminadas: la FK las sigue viendo)
+        var tieneDetenciones = (await _unitOfWork.Detenciones.GetUsuarioLineaIdsEnUsoAsync([id])).Count > 0;
         if (tieneDetenciones)
         {
             return BadRequest(new ProblemDetails

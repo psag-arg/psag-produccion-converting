@@ -97,6 +97,15 @@ public class DeclaracionDetencionService : IDeclaracionDetencionService
                 return Result<DeclararDetencionResponse>.Failure("VALIDATION", "El equipo no es de la línea de la detención.");
         }
 
+        if (request.TipoFallaId is { } tipoFallaId && await _unitOfWork.TiposFalla.GetByIdAsync(tipoFallaId, cancellationToken) == null)
+            return Result<DeclararDetencionResponse>.Failure("VALIDATION", "El tipo de falla elegido no existe.");
+
+        // El detalle tiene que corresponder al equipo y al tipo elegidos (los mismos que ofrece la pantalla).
+        if (request.DetalleFallaId is { } detalleFallaId
+            && !await _unitOfWork.DetallesFalla.EsCoherenteAsync(detalleFallaId, request.EquipoId, request.TipoFallaId, cancellationToken))
+            return Result<DeclararDetencionResponse>.Failure("VALIDATION",
+                "El detalle de falla no corresponde al equipo o al tipo de falla elegidos. Volvé a elegirlo.");
+
         var (origen, minutos) = DetencionCamaraReglas.TiempoDeclarado(detencion.FechaHoraParada, arranque, request.MinutosDeclarados);
         detencion.EquipoId = request.EquipoId;
         detencion.TipoFallaId = request.TipoFallaId;
@@ -141,13 +150,27 @@ public class DeclaracionDetencionService : IDeclaracionDetencionService
             : await _unitOfWork.Detenciones.CountAsync(
                 d => d.EstadoActual == EstadoDetencion.PENDIENTE_JUSTIFICACION && lineasIds.Contains(d.LineaId), cancellationToken);
 
-        var ahora = TimeZoneInfo.ConvertTime(_ahora(), _zonaPlanta);
+        var ahora = HoraPlanta.Ahora(_zonaPlanta, _ahora());
         var hora = TimeOnly.FromDateTime(ahora.DateTime);
         var turno = await _unitOfWork.Turnos.GetTurnoPorHoraAsync(new TimeOnly(hora.Hour, hora.Minute), cancellationToken);
         if (turno != null)
         {
+            var inicioPared = DetencionCamaraReglas.InicioTurnoEnCurso(turno, ahora.DateTime);
+            var inicio = HoraPlanta.DesdeHoraDePared(inicioPared, _zonaPlanta);
+            var turnoId = turno.TurnoId;
+            aviso.TurnoId = turnoId;
             aviso.TurnoNombre = turno.Nombre;
+            aviso.FechaInicioTurno = DateOnly.FromDateTime(inicioPared);
             aviso.MinutosParaFin = DetencionCamaraReglas.MinutosParaFinDeTurno(turno, hora);
+            if (aviso.Pendientes > 0)
+            {
+                // Las del turno en curso: pararon en este turno desde que empezó (no las de la noche anterior).
+                aviso.PendientesTurnoActual = await _unitOfWork.Detenciones.CountAsync(d =>
+                    d.EstadoActual == EstadoDetencion.PENDIENTE_JUSTIFICACION
+                    && (lineasIds == null || lineasIds.Contains(d.LineaId))
+                    && d.TurnoId == turnoId
+                    && d.FechaHoraParada >= inicio, cancellationToken);
+            }
         }
         aviso.Mostrar = DetencionCamaraReglas.CorrespondeAvisoFinTurno(aviso.MinutosParaFin, aviso.Pendientes, minutosAviso);
         return aviso;

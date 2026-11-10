@@ -243,6 +243,25 @@ public class UsuariosController : ApiControllerBase
             return OperarioSinLinea();
         }
 
+        // Una línea que el usuario usó como maquinista en alguna detención no se le puede quitar (la FK de
+        // Detenciones.UsuarioLineaId lo impide). Se revisa antes de guardar nada: o se guarda todo o nada.
+        var lineasActuales = (await _unitOfWork.UsuariosLineas.FindAsync(ul => ul.UsuarioId == id)).ToList();
+        var aQuitar = lineasActuales.Where(ul => !request.LineasAsignadas.Contains(ul.LineaId)).ToList();
+        var enUso = await _unitOfWork.Detenciones.GetUsuarioLineaIdsEnUsoAsync(aQuitar.Select(ul => ul.UsuarioLineaId).ToList());
+        if (enUso.Count > 0)
+        {
+            var nombres = new List<string>();
+            foreach (var ul in aQuitar.Where(ul => enUso.Contains(ul.UsuarioLineaId)))
+                nombres.Add((await _unitOfWork.Lineas.GetByIdAsync(ul.LineaId))?.Nombre ?? $"línea {ul.LineaId}");
+            return BadRequest(new ProblemDetails
+            {
+                Title = "No se puede quitar la línea",
+                Detail = $"No se puede quitar {string.Join(", ", nombres)}: el usuario tiene detenciones registradas como maquinista en esa línea. "
+                    + "Dejala asignada (si ya no trabaja ahí, desactivá el usuario o cambiale el turno en Configuración → Maquinistas).",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
         user.Email = request.Email;
         user.NombreCompleto = request.NombreCompleto;
         user.Activo = request.Activo;
@@ -273,11 +292,10 @@ public class UsuariosController : ApiControllerBase
         }
 
         // Actualizar lineas asignadas
-        var lineasActuales = await _unitOfWork.UsuariosLineas.FindAsync(ul => ul.UsuarioId == id);
         var lineasActualesIds = lineasActuales.Select(ul => ul.LineaId).ToList();
 
-        // Remover lineas que ya no estan
-        foreach (var ul in lineasActuales.Where(ul => !request.LineasAsignadas.Contains(ul.LineaId)))
+        // Remover lineas que ya no estan (ninguna está en uso: se revisó arriba)
+        foreach (var ul in aQuitar)
         {
             _unitOfWork.UsuariosLineas.DeleteAsync(ul);
         }
@@ -369,7 +387,13 @@ public class UsuariosController : ApiControllerBase
         // Verificamos detenciones que es lo mas importante para trazabilidad
         var tieneDetenciones = await _unitOfWork.Detenciones.ExistsAsync(d => d.CreadoPorUsuarioId == id);
 
-        bool tieneMovimientos = tieneDetenciones;
+        // También cuenta ser el maquinista de una detención (por ejemplo, una que creó la cámara): esas
+        // asignaciones no se pueden borrar (FK Detenciones.UsuarioLineaId), así que se desactiva.
+        var asignaciones = (await _unitOfWork.UsuariosLineas.FindAsync(ul => ul.UsuarioId == id)).ToList();
+        var esMaquinistaDeDetenciones = (await _unitOfWork.Detenciones.GetUsuarioLineaIdsEnUsoAsync(
+            asignaciones.Select(a => a.UsuarioLineaId).ToList())).Count > 0;
+
+        bool tieneMovimientos = tieneDetenciones || esMaquinistaDeDetenciones;
 
         if (tieneMovimientos)
         {
@@ -400,7 +424,6 @@ public class UsuariosController : ApiControllerBase
         {
             // Eliminar fisicamente - no tiene movimientos
             // Primero eliminar asignaciones de lineas
-            var asignaciones = await _unitOfWork.UsuariosLineas.FindAsync(ul => ul.UsuarioId == id);
             foreach (var asignacion in asignaciones)
             {
                 _unitOfWork.UsuariosLineas.DeleteAsync(asignacion);

@@ -15,4 +15,22 @@ public static class HoraPlanta
     /// </summary>
     public static DateTimeOffset DesdeHoraDePared(DateTime horaDePared, TimeZoneInfo zona) =>
         new(horaDePared, zona.GetUtcOffset(horaDePared));
+
+    /// <summary>
+    /// Ahora en la planta (o <paramref name="instante"/>, para los tests): el turno actual y el "hoy" salen de
+    /// esta hora, nunca de DateTime.Now / DateTime.Today del servidor.
+    /// </summary>
+    public static DateTimeOffset Ahora(TimeZoneInfo zona, DateTimeOffset? instante = null) =>
+        TimeZoneInfo.ConvertTime(instante ?? DateTimeOffset.UtcNow, zona);
+
+    /// <summary>Fecha de hoy en la planta.</summary>
+    public static DateOnly Hoy(TimeZoneInfo zona, DateTimeOffset? instante = null) =>
+        DateOnly.FromDateTime(Ahora(zona, instante).DateTime);
+
+    /// <summary>Hora de pared de la planta, sin segundos (HH:mm), para buscar el turno.</summary>
+    public static TimeOnly HoraMinuto(TimeZoneInfo zona, DateTimeOffset? instante = null)
+    {
+        var ahora = Ahora(zona, instante);
+        return new TimeOnly(ahora.Hour, ahora.Minute);
+    }
 }

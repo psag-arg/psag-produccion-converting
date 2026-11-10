@@ -19,6 +19,13 @@ public class RegistroProcesoDetalle
     public string? ValorEstandarSnapshot { get; set; }
 
     /// <summary>
+    /// SNAPSHOT: ese día el estándar tenía rango (mín/máx o tolerancia) contra el que comparar. Sin rango
+    /// (sin estándar o sólo una referencia sin tolerancia) el valor es "falta estándar", aunque hoy haya uno.
+    /// NULL = guardado antes del script 29 (se decide por ValorEstandarSnapshot).
+    /// </summary>
+    public bool? EstandarConRango { get; set; }
+
+    /// <summary>
     /// Valor real numérico capturado.
     /// </summary>
     public decimal? ValorReal { get; set; }

@@ -154,6 +154,38 @@ public static class PuntoControlValidador
         RangoControl rango,
         decimal? valorReal,
         string? valorRealTexto,
+        bool fueraDeEstandar) =>
+        Evaluar(tipo, rango.TieneLimites, valorReal, valorRealTexto, fueraDeEstandar);
+
+    /// <summary>
+    /// Estado de un valor YA GUARDADO: se decide con lo que quedó registrado ese día, nunca con el estándar de hoy.
+    /// <paramref name="estandarConRango"/> es el snapshot de si ese día había rango contra el que comparar.
+    /// Los detalles guardados antes de que existiera ese snapshot (null) se deciden por el texto del estándar
+    /// guardado: sin texto, ese día no había estándar (falta estándar aunque hoy haya uno); con texto, se usa
+    /// <paramref name="rangoVigente"/> sólo para saber si era un rango o una referencia sin tolerancia.
+    /// </summary>
+    public static EvaluacionPunto EvaluarGuardado(
+        TipoDatoParametro tipo,
+        bool? estandarConRango,
+        string? estandarSnapshot,
+        RangoControl rangoVigente,
+        decimal? valorReal,
+        string? valorRealTexto,
+        bool fueraDeEstandar)
+    {
+        return Evaluar(tipo, TeniaRango(estandarConRango, estandarSnapshot, rangoVigente),
+            valorReal, valorRealTexto, fueraDeEstandar);
+    }
+
+    /// <summary>Si el día en que se guardó el valor había rango contra el que compararlo (ver <see cref="EvaluarGuardado"/>).</summary>
+    public static bool TeniaRango(bool? estandarConRango, string? estandarSnapshot, RangoControl rangoVigente) =>
+        estandarConRango ?? (!string.IsNullOrWhiteSpace(estandarSnapshot) && rangoVigente.TieneLimites);
+
+    private static EvaluacionPunto Evaluar(
+        TipoDatoParametro tipo,
+        bool tieneRango,
+        decimal? valorReal,
+        string? valorRealTexto,
         bool fueraDeEstandar)
     {
         var tieneValor = tipo.EsNumerico() ? valorReal.HasValue : !string.IsNullOrWhiteSpace(valorRealTexto);
@@ -164,8 +196,8 @@ public static class PuntoControlValidador
 
         if (tipo.EsNumerico())
         {
-            // No se recompara contra el rango de hoy: el desvío es el que quedó guardado (snapshot).
-            return rango.TieneLimites ? EvaluacionPunto.Ok : EvaluacionPunto.SinEstandar;
+            // No se recompara el valor contra el rango: el desvío es el que quedó guardado (snapshot).
+            return tieneRango ? EvaluacionPunto.Ok : EvaluacionPunto.SinEstandar;
         }
 
         if (tipo == TipoDatoParametro.OK_NOOK)

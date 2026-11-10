@@ -11,11 +11,16 @@ namespace PSAG.Mantenimiento.Application.Services.Implementations;
 public class DashboardService : IDashboardService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly TimeZoneInfo _zonaPlanta;
 
-    public DashboardService(IUnitOfWork unitOfWork)
+    public DashboardService(IUnitOfWork unitOfWork, TimeZoneInfo zonaPlanta)
     {
         _unitOfWork = unitOfWork;
+        _zonaPlanta = zonaPlanta;
     }
+
+    /// <summary>Hoy de la planta, no del servidor.</summary>
+    private DateOnly Hoy => HoraPlanta.Hoy(_zonaPlanta);
 
     public async Task<Result<DashboardCompletoDto>> ObtenerDashboardCompletoAsync(
         DashboardFiltroRequest filtro,
@@ -68,8 +73,8 @@ public class DashboardService : IDashboardService
         IEnumerable<int>? lineasPermitidas,
         CancellationToken cancellationToken = default)
     {
-        var fechaDesde = filtro.FechaDesde ?? DateOnly.FromDateTime(DateTime.Today.AddDays(-30));
-        var fechaHasta = filtro.FechaHasta ?? DateOnly.FromDateTime(DateTime.Today);
+        var fechaDesde = filtro.FechaDesde ?? Hoy.AddDays(-30);
+        var fechaHasta = filtro.FechaHasta ?? Hoy;
 
         var detenciones = await _unitOfWork.Detenciones.GetAllAsync(cancellationToken);
 
@@ -119,8 +124,8 @@ public class DashboardService : IDashboardService
         IEnumerable<int>? lineasPermitidas,
         CancellationToken cancellationToken = default)
     {
-        var fechaDesde = filtro.FechaDesde ?? DateOnly.FromDateTime(DateTime.Today.AddDays(-30));
-        var fechaHasta = filtro.FechaHasta ?? DateOnly.FromDateTime(DateTime.Today);
+        var fechaDesde = filtro.FechaDesde ?? Hoy.AddDays(-30);
+        var fechaHasta = filtro.FechaHasta ?? Hoy;
 
         var detenciones = await _unitOfWork.Detenciones.GetAllAsync(cancellationToken);
         var lineas = await _unitOfWork.Lineas.GetAllAsync(cancellationToken);
@@ -154,8 +159,8 @@ public class DashboardService : IDashboardService
         IEnumerable<int>? lineasPermitidas,
         CancellationToken cancellationToken = default)
     {
-        var fechaDesde = filtro.FechaDesde ?? DateOnly.FromDateTime(DateTime.Today.AddDays(-30));
-        var fechaHasta = filtro.FechaHasta ?? DateOnly.FromDateTime(DateTime.Today);
+        var fechaDesde = filtro.FechaDesde ?? Hoy.AddDays(-30);
+        var fechaHasta = filtro.FechaHasta ?? Hoy;
 
         var detenciones = await _unitOfWork.Detenciones.GetAllAsync(cancellationToken);
         var tiposFalla = await _unitOfWork.TiposFalla.GetAllAsync(cancellationToken);
@@ -192,8 +197,8 @@ public class DashboardService : IDashboardService
         int top = 10,
         CancellationToken cancellationToken = default)
     {
-        var fechaDesde = filtro.FechaDesde ?? DateOnly.FromDateTime(DateTime.Today.AddDays(-30));
-        var fechaHasta = filtro.FechaHasta ?? DateOnly.FromDateTime(DateTime.Today);
+        var fechaDesde = filtro.FechaDesde ?? Hoy.AddDays(-30);
+        var fechaHasta = filtro.FechaHasta ?? Hoy;
 
         var detenciones = await _unitOfWork.Detenciones.GetAllAsync(cancellationToken);
         var detallesFalla = await _unitOfWork.DetallesFalla.GetAllAsync(cancellationToken);
@@ -230,8 +235,8 @@ public class DashboardService : IDashboardService
         IEnumerable<int>? lineasPermitidas,
         CancellationToken cancellationToken = default)
     {
-        var fechaDesde = filtro.FechaDesde ?? DateOnly.FromDateTime(DateTime.Today.AddDays(-30));
-        var fechaHasta = filtro.FechaHasta ?? DateOnly.FromDateTime(DateTime.Today);
+        var fechaDesde = filtro.FechaDesde ?? Hoy.AddDays(-30);
+        var fechaHasta = filtro.FechaHasta ?? Hoy;
 
         var detenciones = await _unitOfWork.Detenciones.GetAllAsync(cancellationToken);
 
@@ -308,8 +313,8 @@ public class DashboardService : IDashboardService
         int top,
         CancellationToken cancellationToken)
     {
-        var fechaDesde = filtro.FechaDesde ?? DateOnly.FromDateTime(DateTime.Today.AddDays(-30));
-        var fechaHasta = filtro.FechaHasta ?? DateOnly.FromDateTime(DateTime.Today);
+        var fechaDesde = filtro.FechaDesde ?? Hoy.AddDays(-30);
+        var fechaHasta = filtro.FechaHasta ?? Hoy;
 
         var detenciones = await _unitOfWork.Detenciones.GetAllAsync(cancellationToken);
         var equipos = await _unitOfWork.Equipos.GetAllAsync(cancellationToken);
@@ -351,7 +356,7 @@ public class DashboardService : IDashboardService
         IEnumerable<int>? lineasPermitidas,
         CancellationToken cancellationToken)
     {
-        var hoy = DateOnly.FromDateTime(DateTime.Today);
+        var hoy = Hoy;
 
         // Usar paginado para obtener registros de hoy
         var (registros, _) = await _unitOfWork.RegistrosProceso.GetPaginadoAsync(
@@ -403,7 +408,7 @@ public class DashboardService : IDashboardService
         int top,
         CancellationToken cancellationToken)
     {
-        var hoy = DateOnly.FromDateTime(DateTime.Today);
+        var hoy = Hoy;
 
         var (registros, _) = await _unitOfWork.RegistrosProceso.GetPaginadoAsync(
             page: 1,
@@ -458,7 +463,7 @@ public class DashboardService : IDashboardService
         IEnumerable<int>? lineasPermitidas,
         CancellationToken cancellationToken)
     {
-        var hoy = DateOnly.FromDateTime(DateTime.Today);
+        var hoy = Hoy;
         var inicioSemana = hoy.AddDays(-(int)hoy.DayOfWeek);
 
         // Obtener ejecuciones de hoy y de la semana
@@ -572,7 +577,7 @@ public class DashboardService : IDashboardService
     {
         var desde = new DateOnly(anio, 1, 1);
         // El tiempo que todavía no pasó no se programó: el mes en curso se mide hasta hoy.
-        var hasta = TiempoProgramadoReporte.HastaHoy(anio, DateOnly.FromDateTime(DateTime.Today));
+        var hasta = TiempoProgramadoReporte.HastaHoy(anio, Hoy);
         if (hasta < desde)
             return Array.Empty<TiempoProgramadoDiaDto>();
         var excepcionesPorLinea = (await _unitOfWork.TiemposProgramadosDia.GetPorRangoAsync(desde, hasta, lineaId, cancellationToken))
@@ -654,7 +659,7 @@ public class DashboardService : IDashboardService
 
         var meses = TiempoProgramadoReporte.MesesDelReporte(
             anio, mesDesde, mesHasta, detencionesLista.Select(d => d.Fecha.Month),
-            minutosProgramadosPorMes, DateOnly.FromDateTime(DateTime.Today));
+            minutosProgramadosPorMes, Hoy);
 
         // Agrupar por mes
         foreach (var mes in meses)
@@ -787,7 +792,7 @@ public class DashboardService : IDashboardService
 
         var meses = TiempoProgramadoReporte.MesesDelReporte(
             anio, mesDesde, mesHasta, detencionesDelAnio.Select(d => d.Fecha.Month),
-            minutosProgramadosPorMes, DateOnly.FromDateTime(DateTime.Today));
+            minutosProgramadosPorMes, Hoy);
 
         // Agrupar por mes
         foreach (var mes in meses)
@@ -878,8 +883,8 @@ public class DashboardService : IDashboardService
         DashboardFiltroRequest filtro,
         CancellationToken cancellationToken = default)
     {
-        var fechaDesde = filtro.FechaDesde ?? DateOnly.FromDateTime(DateTime.Today.AddDays(-30));
-        var fechaHasta = filtro.FechaHasta ?? DateOnly.FromDateTime(DateTime.Today);
+        var fechaDesde = filtro.FechaDesde ?? Hoy.AddDays(-30);
+        var fechaHasta = filtro.FechaHasta ?? Hoy;
 
         var detenciones = await _unitOfWork.Detenciones.GetAllAsync(cancellationToken);
         var tiposFalla = await _unitOfWork.TiposFalla.GetAllAsync(cancellationToken);

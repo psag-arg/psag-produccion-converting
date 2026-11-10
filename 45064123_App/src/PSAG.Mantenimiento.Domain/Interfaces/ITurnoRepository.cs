@@ -13,7 +13,7 @@ public interface ITurnoRepository : IRepository<Turno>
     Task<Turno?> GetTurnoPorHoraAsync(TimeOnly hora, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Obtiene el turno actual basado en la hora del sistema.
+    /// Turno actual según la hora de la planta (<paramref name="zonaPlanta"/>), no la del servidor.
     /// </summary>
-    Task<Turno?> GetTurnoActualAsync(CancellationToken cancellationToken = default);
+    Task<Turno?> GetTurnoActualAsync(TimeZoneInfo zonaPlanta, CancellationToken cancellationToken = default);
 }

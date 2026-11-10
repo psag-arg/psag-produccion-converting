@@ -396,54 +396,106 @@ public class ConteoCamaraService : IConteoCamaraService
     public async Task<Result<ProduccionCamaraDto>> ObtenerProduccionAsync(
         DateOnly fecha, int? lineaId, int? puntoControlCalidadId = null, CancellationToken cancellationToken = default)
     {
-        var minutos = await _unitOfWork.ConteosCamaraMinuto.GetRangoAsync(
-            InicioDelDia(fecha), InicioDelDia(fecha.AddDays(1)), lineaId, cancellationToken);
-        if (puntoControlCalidadId is { } puntoId)
-            minutos = minutos.Where(m => m.PuntoControlCalidadId == puntoId).ToList();
-        var nombresTurno = (await _unitOfWork.Turnos.GetAllAsync(cancellationToken)).ToDictionary(t => t.TurnoId, t => t.Nombre);
-
-        var carriles = minutos.Select(m => (int)m.Carril).Distinct().OrderBy(c => c).ToList();
-        var horas = minutos
-            .GroupBy(m =>
+        // Mismas ventanas de turno que la eficiencia: el nocturno es del día en que empieza.
+        var ventanas = (await _unitOfWork.Turnos.GetAllAsync(cancellationToken))
+            .Where(t => t.Activo)
+            .OrderBy(t => t.Orden).ThenBy(t => t.HoraInicio)
+            .Select(t =>
             {
-                var local = HoraPlanta.En(m.Minuto, _zonaPlanta)!.Value;
-                return new DateTimeOffset(local.Year, local.Month, local.Day, local.Hour, 0, 0, local.Offset);
-            })
-            .OrderBy(g => g.Key)
-            .Select(g => new ProduccionCamaraHoraDto
-            {
-                Hora = g.Key,
-                RollosPorCarril = g.GroupBy(m => (int)m.Carril).ToDictionary(c => c.Key, c => Math.Round(c.Sum(m => m.Rollos))),
-                TotalRollos = Math.Round(g.Sum(m => m.Rollos)),
-                MinutosCarrilMarcha = g.Count(m => m.Estado == EstadoCarrilCamara.MARCHA),
-                MinutosCarrilConDatos = g.Count(m => m.Estado != EstadoCarrilCamara.SIN_SENAL)
+                var (inicioPared, finPared) = EficienciaCamaraCalculador.VentanaTurno(fecha, t);
+                return (Turno: t, Inicio: HoraPlanta.DesdeHoraDePared(inicioPared, _zonaPlanta), Fin: HoraPlanta.DesdeHoraDePared(finPared, _zonaPlanta));
             })
             .ToList();
+        var inicioDia = ventanas.Count > 0 ? ventanas.Min(v => v.Inicio) : InicioDelDia(fecha);
+        var finDia = ventanas.Count > 0 ? ventanas.Max(v => v.Fin) : InicioDelDia(fecha.AddDays(1));
 
-        var porMinuto = minutos.GroupBy(m => m.Minuto).ToList();
-        return Result<ProduccionCamaraDto>.Success(new ProduccionCamaraDto
+        var minutos = await _unitOfWork.ConteosCamaraMinuto.GetRangoAsync(inicioDia, finDia, lineaId, cancellationToken);
+        if (puntoControlCalidadId is { } puntoId)
+            minutos = minutos.Where(m => m.PuntoControlCalidadId == puntoId).ToList();
+        var puntos = (await _unitOfWork.PuntosControlCalidad.GetListadoAsync(lineaId, incluirInactivos: true, cancellationToken))
+            .ToDictionary(p => p.PuntoControlCalidadId);
+
+        var resultado = new ProduccionCamaraDto
         {
             Fecha = fecha,
             LineaId = lineaId,
-            Carriles = carriles,
-            Horas = horas,
-            TotalRollos = Math.Round(minutos.Sum(m => m.Rollos)),
-            MinutosConDatos = porMinuto.Count(g => g.Any(m => m.Estado != EstadoCarrilCamara.SIN_SENAL)),
-            MinutosMarcha = porMinuto.Count(g => g.All(m => m.Estado == EstadoCarrilCamara.MARCHA)),
-            Turnos = minutos
-                .GroupBy(m => m.TurnoId)
-                .Select(g => new ProduccionCamaraTurnoDto
-                {
-                    TurnoId = g.Key,
-                    TurnoNombre = g.Key is { } t ? nombresTurno.GetValueOrDefault(t, $"Turno {t}") : "Sin turno",
-                    Total = Math.Round(g.Sum(m => m.Rollos)),
-                    MinutosConDatos = MinutosConDatos(g),
-                    MinutosMarcha = MinutosMarcha(g)
-                })
-                .OrderBy(t => t.TurnoNombre)
-                .ToList()
-        });
+            Inicio = HoraPlanta.En(inicioDia, _zonaPlanta)!.Value,
+            Fin = HoraPlanta.En(finDia, _zonaPlanta)!.Value
+        };
+
+        // Una entrada por cámara: rollos (09) y mangas (10) no se suman, ni se mezcla el carril 1 de ambas.
+        foreach (var grupo in minutos.GroupBy(m => m.PuntoControlCalidadId))
+        {
+            var minutosPunto = grupo.ToList();
+            var punto = puntos.GetValueOrDefault(grupo.Key);
+            var carriles = minutosPunto.Select(m => (int)m.Carril).Distinct().OrderBy(c => c).ToList();
+
+            var turnos = new List<ProduccionCamaraTurnoDto>();
+            var contados = new HashSet<ConteoCamaraMinuto>();
+            foreach (var (turno, inicio, fin) in ventanas)
+            {
+                // Turno materializado (no se recalcula): la ventana sólo elige de qué día es ese turno.
+                var delTurno = minutosPunto.Where(m => m.TurnoId == turno.TurnoId && m.Minuto >= inicio && m.Minuto < fin).ToList();
+                if (delTurno.Count == 0)
+                    continue;
+                contados.UnionWith(delTurno);
+                turnos.Add(TotalTurno(turno.TurnoId, turno.Nombre, HoraPlanta.En(inicio, _zonaPlanta), HoraPlanta.En(fin, _zonaPlanta), delTurno));
+            }
+            var sinTurno = minutosPunto.Where(m => !contados.Contains(m)).ToList();
+            if (sinTurno.Count > 0)
+                turnos.Add(TotalTurno(null, "Sin turno", null, null, sinTurno));
+
+            resultado.Camaras.Add(new ProduccionCamaraPuntoDto
+            {
+                PuntoControlCalidadId = grupo.Key,
+                Codigo = punto?.Codigo ?? $"Cámara {grupo.Key}",
+                Nombre = punto?.Nombre ?? string.Empty,
+                LineaNombre = punto?.Linea?.Nombre ?? string.Empty,
+                Unidad = EficienciaCamaraCalculador.Unidad(punto?.MetodoConteo, carriles.Count),
+                Carriles = carriles,
+                Horas = minutosPunto
+                    .GroupBy(m =>
+                    {
+                        var local = HoraPlanta.En(m.Minuto, _zonaPlanta)!.Value;
+                        return new DateTimeOffset(local.Year, local.Month, local.Day, local.Hour, 0, 0, local.Offset);
+                    })
+                    .OrderBy(g => g.Key)
+                    .Select(g => new ProduccionCamaraHoraDto
+                    {
+                        Hora = g.Key,
+                        RollosPorCarril = g.GroupBy(m => (int)m.Carril).ToDictionary(c => c.Key, c => Math.Round(c.Sum(m => m.Rollos))),
+                        TotalRollos = Math.Round(g.Sum(m => m.Rollos)),
+                        MinutosCarrilMarcha = g.Count(m => m.Estado == EstadoCarrilCamara.MARCHA),
+                        MinutosCarrilConDatos = g.Count(m => m.Estado != EstadoCarrilCamara.SIN_SENAL)
+                    })
+                    .ToList(),
+                Total = Math.Round(minutosPunto.Sum(m => m.Rollos)),
+                MinutosConDatos = MinutosConDatos(minutosPunto),
+                MinutosMarcha = MinutosMarcha(minutosPunto),
+                Turnos = turnos
+            });
+        }
+
+        resultado.Camaras = resultado.Camaras
+            .OrderBy(c => puntos.GetValueOrDefault(c.PuntoControlCalidadId)?.Linea?.Orden ?? 0)
+            .ThenBy(c => c.LineaNombre)
+            .ThenBy(c => puntos.GetValueOrDefault(c.PuntoControlCalidadId)?.NumeroCamara ?? int.MaxValue)
+            .ThenBy(c => c.Codigo)
+            .ToList();
+        return Result<ProduccionCamaraDto>.Success(resultado);
     }
+
+    private static ProduccionCamaraTurnoDto TotalTurno(
+        int? turnoId, string nombre, DateTimeOffset? inicio, DateTimeOffset? fin, IReadOnlyCollection<ConteoCamaraMinuto> minutos) => new()
+    {
+        TurnoId = turnoId,
+        TurnoNombre = nombre,
+        Inicio = inicio,
+        Fin = fin,
+        Total = Math.Round(minutos.Sum(m => m.Rollos)),
+        MinutosConDatos = MinutosConDatos(minutos),
+        MinutosMarcha = MinutosMarcha(minutos)
+    };
 
     /// <summary>Minutos (no minutos-carril) con datos de algún carril: lo mismo que suma la producción por turno.</summary>
     private static int MinutosConDatos(IEnumerable<ConteoCamaraMinuto> minutos) =>

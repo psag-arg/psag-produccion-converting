@@ -27,6 +27,10 @@ public static class DetencionCamaraReglas
     /// <summary>Usuario técnico con el que queda creada la detención automática (CreadoPorUsuarioId).</summary>
     public const string UsuarioSistemaCamara = "SISTEMA-CAMARA";
 
+    /// <summary>Una detención pendiente de declaración no se edita: se declara.</summary>
+    public const string MensajeEditarPendiente =
+        "La detención está pendiente de declaración: no se edita. Declarala desde Mis pendientes (Declarar).";
+
     /// <summary>La detención sólo se crea si la parada llegó al umbral (a partir de 5 min, inclusive).</summary>
     public static bool SuperaUmbral(DateTimeOffset inicio, DateTimeOffset hasta, int minutosUmbral) =>
         hasta - inicio >= TimeSpan.FromMinutes(UmbralValido(minutosUmbral));
@@ -132,6 +136,17 @@ public static class DetencionCamaraReglas
         var fin = turno.HoraFin.ToTimeSpan();
         var falta = fin > ahora ? fin - ahora : TimeSpan.FromDays(1) - ahora + fin;
         return (int)Math.Ceiling(falta.TotalMinutes);
+    }
+
+    /// <summary>
+    /// Hora de pared en que empezó el turno en curso que contiene <paramref name="ahoraPared"/>. Un nocturno
+    /// (21:00 a 05:00) a las 02:00 empezó el día anterior: la fecha de inicio identifica a ESE turno (la noche
+    /// siguiente es otro), igual que la eficiencia, que asigna el nocturno al día en que empieza.
+    /// </summary>
+    public static DateTime InicioTurnoEnCurso(Turno turno, DateTime ahoraPared)
+    {
+        var inicio = ahoraPared.Date.Add(turno.HoraInicio.ToTimeSpan());
+        return TimeOnly.FromDateTime(ahoraPared) >= turno.HoraInicio ? inicio : inicio.AddDays(-1);
     }
 
     /// <summary>Hay que avisar: faltan <paramref name="minutosAntes"/> minutos o menos para el fin del turno y hay pendientes.</summary>
