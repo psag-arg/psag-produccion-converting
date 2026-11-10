@@ -80,6 +80,7 @@ public class DeclaracionDetencionDto
     public string? PuntoControlCodigo { get; set; }
     public string? PuntoControlNombre { get; set; }
     public string? CuerpoCamaraNombre { get; set; }
+    public int? CuerpoCamaraEquipoId { get; set; }
     public string? MaquinistaNombre { get; set; }
     public string EstadoActual { get; set; } = string.Empty;
     public string EstadoActualDescripcion { get; set; } = string.Empty;

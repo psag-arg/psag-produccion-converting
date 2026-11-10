@@ -20,8 +20,11 @@ public class DeclaracionDetencionDto
     public string? PuntoControlCodigo { get; set; }
     public string? PuntoControlNombre { get; set; }
 
-    /// <summary>Cuerpo que mira la cámara (referencia; el equipo lo elige el operador).</summary>
+    /// <summary>Cuerpo que mira la cámara. La pantalla lo trae elegido como equipo y el operador lo puede cambiar.</summary>
     public string? CuerpoCamaraNombre { get; set; }
+
+    /// <summary>Equipo del cuerpo de la cámara, para precargar el equipo (Ferretti 04/11: manda la rebobinadora).</summary>
+    public int? CuerpoCamaraEquipoId { get; set; }
 
     public string? MaquinistaUsuarioId { get; set; }
     public string? MaquinistaNombre { get; set; }

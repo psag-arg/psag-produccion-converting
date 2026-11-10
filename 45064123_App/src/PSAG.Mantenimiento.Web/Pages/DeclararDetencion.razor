@@ -81,7 +81,7 @@
                                     <option value="@e.EquipoId">@e.Nombre</option>
                                 }
                             </select>
-                            <div class="form-text">Puede ser otro equipo que el de la cámara (por ejemplo, se llenó la empaquetadora).</div>
+                            <div class="form-text">Viene elegido el equipo de la cámara. Cambialo si la causa fue otro equipo (por ejemplo, se llenó la empaquetadora).</div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Tipo de falla</label>
@@ -181,6 +181,9 @@
                 await Task.WhenAll(equiposTask, tiposTask);
                 equipos = equiposTask.Result;
                 tiposFalla = tiposTask.Result;
+                // Viene elegido el cuerpo de la cámara (la rebobinadora en la 10); el operador lo puede cambiar.
+                if (detencion.CuerpoCamaraEquipoId is { } cuerpo && equipos.Any(e => e.EquipoId == cuerpo))
+                    equipoId = cuerpo;
             }
         }
         catch (HttpRequestException ex)

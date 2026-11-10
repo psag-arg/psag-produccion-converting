@@ -64,6 +64,7 @@ public class DeclaracionDetencionService : IDeclaracionDetencionService
             PuntoControlCodigo = punto?.Codigo,
             PuntoControlNombre = punto?.Nombre,
             CuerpoCamaraNombre = cuerpo?.Nombre,
+            CuerpoCamaraEquipoId = cuerpo?.EquipoId,
             MaquinistaUsuarioId = maquinista?.UsuarioId,
             EstadoActual = d.EstadoActual.ToString(),
             EstadoActualDescripcion = d.EstadoActual.ObtenerDescripcion(),

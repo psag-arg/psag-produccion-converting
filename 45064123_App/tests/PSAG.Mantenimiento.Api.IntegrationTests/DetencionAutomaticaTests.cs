@@ -183,6 +183,27 @@ public class DetencionAutomaticaTests : CalidadTestBase
     }
 
     [Fact]
+    public async Task PantallaDeDeclarar_TraeElEquipoDelCuerpoDeLaCamaraParaPrecargarlo()
+    {
+        // Ferretti 04/11: el equipo que manda en la detención es la rebobinadora (el cuerpo de la cámara 10).
+        var rebobinadora = new Equipo { LineaId = Tango2.LineaId, Codigo = "REB", Nombre = "REBOBINADORA", CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin };
+        Context.Add(rebobinadora);
+        await Context.SaveChangesAsync();
+        var camara = await Context.PuntosControlCalidad.SingleAsync(p => p.PuntoControlCalidadId == CamaraTango.PuntoControlCalidadId);
+        camara.EquipoId = rebobinadora.EquipoId;
+        await Context.SaveChangesAsync();
+
+        await _conteo.IngestarAsync(EnCurso(_parada, 6 * 60));
+        var d = Assert.Single(await Automaticas());
+        Assert.Null(d.EquipoId);   // la detención queda sin equipo hasta que el operador declara
+
+        var pantalla = await _declaracion.ObtenerAsync(d.DetencionId);
+        Assert.True(pantalla.IsSuccess, pantalla.ErrorMessage);
+        Assert.Equal(rebobinadora.EquipoId, pantalla.Value!.CuerpoCamaraEquipoId);
+        Assert.Equal("REBOBINADORA", pantalla.Value.CuerpoCamaraNombre);
+    }
+
+    [Fact]
     public async Task SinMaquinistaDelTurno_QuedaVacioYLoCompletaQuienDeclara()
     {
         var tarde = new DateTimeOffset(_parada.Date.AddHours(15), _parada.Offset);   // turno tarde: nadie asignado
