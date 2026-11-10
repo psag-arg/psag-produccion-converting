@@ -241,7 +241,7 @@ public class DetencionesController : ApiControllerBase
         {
             FuenteTurno.HoraInicio => await _unitOfWork.Turnos.GetTurnoPorHoraAsync(request.HoraInicio!.Value),
             FuenteTurno.Maquinista => await _unitOfWork.Turnos.GetByIdAsync(maquinista!.TurnoId!.Value),
-            FuenteTurno.HoraActual => await _unitOfWork.Turnos.GetTurnoActualAsync(),
+            FuenteTurno.HoraActual => await _unitOfWork.Turnos.GetTurnoActualAsync(_zonaPlanta),
             _ => null
         };
 
@@ -529,6 +529,18 @@ public class DetencionesController : ApiControllerBase
             });
         }
 
+        // La pendiente de declaración (la creó la cámara) se completa declarándola, que valida hora de arranque,
+        // minutos y clasificación y la pasa a REGISTRADA. Editarla la dejaría a medias y sin declarar.
+        if (detencion.EstadoActual == EstadoDetencion.PENDIENTE_JUSTIFICACION)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Detención pendiente de declaración",
+                Detail = DetencionCamaraReglas.MensajeEditarPendiente,
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
         var asignada = await _unitOfWork.UsuariosLineas.GetByUsuarioYLineaAsync(CurrentUserId, detencion.LineaId) != null;
         if (!DetencionCargaReglas.PuedeCargarEnLinea(Roles, asignada))
         {
@@ -711,20 +723,21 @@ public class DetencionesController : ApiControllerBase
     public async Task<IActionResult> GetResumenTurno([FromQuery] int? lineaId = null)
     {
         // Obtener turno actual
-        var turno = await _unitOfWork.Turnos.GetTurnoActualAsync();
+        // Turno y fecha de la planta, no del servidor.
+        var turno = await _unitOfWork.Turnos.GetTurnoActualAsync(_zonaPlanta);
+        var fechaHoy = HoraPlanta.Hoy(_zonaPlanta);
         if (turno == null)
         {
             return Ok(new ResumenTurnoResponse
             {
                 TurnoNombre = "Sin turno",
-                Fecha = DateOnly.FromDateTime(DateTime.Today),
+                Fecha = fechaHoy,
                 Items = new List<ResumenTurnoItem>(),
                 TotalMinutos = 0
             });
         }
 
         // Obtener detenciones del día y turno actual
-        var fechaHoy = DateOnly.FromDateTime(DateTime.Today);
         var (detenciones, _) = await _unitOfWork.Detenciones.GetPaginadoAsync(
             page: 1,
             pageSize: 1000,
@@ -1012,8 +1025,7 @@ public class DetencionesController : ApiControllerBase
     /// </summary>
     private BadRequestObjectResult? FechaFutura(DateOnly? fecha)
     {
-        var hoyPlanta = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, _zonaPlanta).DateTime);
-        return fecha is { } f && DetencionCargaReglas.EsFechaFutura(f, hoyPlanta)
+        return fecha is { } f && DetencionCargaReglas.EsFechaFutura(f, HoraPlanta.Hoy(_zonaPlanta))
             ? BadRequest(new ProblemDetails
             {
                 Title = "Fecha no válida",

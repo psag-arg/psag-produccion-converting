@@ -22,14 +22,23 @@ public class InspeccionService : IInspeccionService
 
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<InspeccionService> _logger;
+    private readonly TimeZoneInfo _zonaPlanta;
 
+    /// <summary>Sin zona (tests): la del equipo.</summary>
     public InspeccionService(IUnitOfWork unitOfWork, ILogger<InspeccionService> logger)
+        : this(unitOfWork, TimeZoneInfo.Local, logger)
+    {
+    }
+
+    public InspeccionService(IUnitOfWork unitOfWork, TimeZoneInfo zonaPlanta, ILogger<InspeccionService> logger)
     {
         _unitOfWork = unitOfWork;
+        _zonaPlanta = zonaPlanta;
         _logger = logger;
     }
 
-    private static DateOnly Hoy => DateOnly.FromDateTime(DateTime.Today);
+    /// <summary>Hoy de la planta, no del servidor.</summary>
+    private DateOnly Hoy => HoraPlanta.Hoy(_zonaPlanta);
 
     public async Task<Result<IReadOnlyList<PlanInspeccionDto>>> ObtenerPlanesAsync(
         int lineaId,
@@ -119,7 +128,7 @@ public class InspeccionService : IInspeccionService
                     ? "El plan no tiene puntos de inspección cargados. Un administrador los carga desde Maestros > Planes de inspección."
                     : $"El plan no tiene puntos para {puesto.Value.ObtenerDescripcion()}.");
 
-        var turno = await _unitOfWork.Turnos.GetTurnoActualAsync(cancellationToken);
+        var turno = await _unitOfWork.Turnos.GetTurnoActualAsync(_zonaPlanta, cancellationToken);
         if (turno == null)
             return Result<IniciarEjecucionResponse>.Failure("NO_TURNO", "No hay turno configurado para la hora actual.");
 

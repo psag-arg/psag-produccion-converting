@@ -36,10 +36,16 @@ public class DeclaracionDetencionesController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetDeclaracion(long id)
     {
+        if (string.IsNullOrEmpty(CurrentUserId))
+            return Unauthorized();
+
         var resultado = await _servicio.ObtenerAsync(id);
         if (resultado.IsFailure)
             return ProblemaDe(resultado, "No se pudo abrir la detención", "Detención no encontrada");
         var dto = resultado.Value!;
+        // Misma restricción por línea que al declarar: el operario sólo ve las de sus líneas.
+        if (!await PuedeOperarLineaAsync(dto.LineaId))
+            return LineaNoAsignada();
         if (dto.MaquinistaUsuarioId != null)
             dto.MaquinistaNombre = (await _userManager.NombresVisiblesAsync([dto.MaquinistaUsuarioId])).NombreDe(dto.MaquinistaUsuarioId);
         return Ok(dto);
@@ -63,12 +69,7 @@ public class DeclaracionDetencionesController : ApiControllerBase
 
         var asignacion = await _unitOfWork.UsuariosLineas.GetByUsuarioYLineaAsync(CurrentUserId, detencion.LineaId);
         if (!DetencionCargaReglas.PuedeCargarEnLinea(Roles, asignacion != null))
-            return StatusCode(StatusCodes.Status403Forbidden, new ProblemDetails
-            {
-                Title = "Línea no asignada",
-                Detail = DetencionCargaReglas.MensajeLineaNoAsignada,
-                Status = StatusCodes.Status403Forbidden
-            });
+            return LineaNoAsignada();
 
         var resultado = await _servicio.DeclararAsync(id, request, CurrentUserId, asignacion);
         return resultado.IsFailure
@@ -84,8 +85,23 @@ public class DeclaracionDetencionesController : ApiControllerBase
     [ProducesResponseType(typeof(AvisoFinTurnoDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAvisoFinTurno([FromQuery] int minutosAviso = DetencionCamaraReglas.MinutosAvisoFinTurnoPorDefecto)
     {
+        // Gerencia (sólo lectura) y quien no declara no reciben el aviso.
+        if (!DetencionCamaraReglas.VeDeclaracion(Roles))
+            return Ok(new AvisoFinTurnoDto { MinutosAviso = minutosAviso });
+
         var lineas = await LineasAsignadasAsync(_unitOfWork.UsuariosLineas);
         var veTodas = lineas.Length == 0 && Roles.Any(r => r is RolesSistema.Administrador or RolesSistema.Supervisor);
         return Ok(await _servicio.ObtenerAvisoFinTurnoAsync(veTodas ? null : lineas, Math.Clamp(minutosAviso, 5, 120)));
     }
+
+    private async Task<bool> PuedeOperarLineaAsync(int lineaId) =>
+        DetencionCargaReglas.PuedeCargarEnLinea(Roles,
+            await _unitOfWork.UsuariosLineas.GetByUsuarioYLineaAsync(CurrentUserId!, lineaId) != null);
+
+    private ObjectResult LineaNoAsignada() => StatusCode(StatusCodes.Status403Forbidden, new ProblemDetails
+    {
+        Title = "Línea no asignada",
+        Detail = DetencionCargaReglas.MensajeLineaNoAsignada,
+        Status = StatusCodes.Status403Forbidden
+    });
 }

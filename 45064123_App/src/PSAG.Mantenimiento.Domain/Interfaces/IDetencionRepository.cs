@@ -40,6 +40,12 @@ public interface IDetencionRepository : IRepository<Detencion>
     Task<IReadOnlyList<int>> GetLineasConDetencionesAsync(DateOnly desde, DateOnly hasta, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// De esas asignaciones de maquinista (UsuarioLineaId), las que usa alguna detención, incluidas las eliminadas
+    /// (la FK no deja borrarlas: hay que revisarlo antes de quitar la asignación).
+    /// </summary>
+    Task<IReadOnlyList<int>> GetUsuarioLineaIdsEnUsoAsync(IReadOnlyCollection<int> usuarioLineaIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Detenciones que requieren análisis y todavía no están cerradas, más antiguas primero.
     /// </summary>
     Task<IEnumerable<Detencion>> GetAnalisisAbiertosAsync(CancellationToken cancellationToken = default);

@@ -668,7 +668,7 @@
                 <span class="badge bg-info">@d.ValorEstandarSnapshot</span>
             }
         }
-        else if (d.TieneRango || d.ValorMin.HasValue || d.ValorMax.HasValue)
+        else if (d.TieneRango) // con valor cargado: si había rango ESE día (snapshot), no el estándar de hoy
         {
             <span class="badge bg-info">@d.ValorEstandarSnapshot</span>
         }

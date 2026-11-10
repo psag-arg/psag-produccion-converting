@@ -167,6 +167,76 @@ public class ControlProcesoTests : IDisposable
         Assert.Equal("Lote 9", lote.ValorRealTexto);
     }
 
+    [Fact]
+    public async Task ValorCargadoSinEstandar_SigueFaltaEstandarAunqueDespuesSeCargueElEstandar()
+    {
+        // Auditoría C: 160 cargado sin estándar (sin desvío); después se carga 152 - 153. Reabrir el registro viejo
+        // no puede decir OK: ese día no había contra qué comparar.
+        var grupo = (await _plantilla.CrearGrupoAsync(new GuardarGrupoControlRequest { LineaId = _tango2.LineaId, Nombre = "Cortadora" }, Admin)).Value;
+        var velocidadId = (await _plantilla.CrearPuntoAsync(new GuardarPuntoControlRequest
+        {
+            GrupoParametroId = grupo, Nombre = "Velocidad", TipoDato = "NUMERICO", Orden = 1
+        }, Admin)).Value;
+        var otroId = (await _plantilla.CrearPuntoAsync(new GuardarPuntoControlRequest
+        {
+            GrupoParametroId = grupo, Nombre = "Tensión", TipoDato = "NUMERICO", Orden = 2
+        }, Admin)).Value;
+
+        var inicio = (await _carga.IniciarRegistroAsync(new IniciarRegistroProcesoRequest { LineaId = _tango2.LineaId }, Maquinista)).Value!;
+        var control = (await _carga.ObtenerCompletoAsync(inicio.RegistroProcesoId)).Value!;
+        var guardar = await _carga.GuardarValoresAsync(new GuardarValoresRequest
+        {
+            RegistroProcesoId = control.RegistroProcesoId,
+            RowVersion = control.RowVersion,
+            Valores = { new ValorParametroRequest { ParametroId = velocidadId, ValorReal = 160m } }
+        }, Maquinista);
+        Assert.True(guardar.IsSuccess, guardar.Error);
+
+        var conEstandar = await _plantilla.ActualizarPuntoAsync(velocidadId, new GuardarPuntoControlRequest
+        {
+            GrupoParametroId = grupo, Nombre = "Velocidad", TipoDato = "NUMERICO", ValorMin = 152m, ValorMax = 153m, Orden = 1
+        }, Admin);
+        Assert.True(conEstandar.IsSuccess, conEstandar.Error);
+        await _plantilla.ActualizarPuntoAsync(otroId, new GuardarPuntoControlRequest
+        {
+            GrupoParametroId = grupo, Nombre = "Tensión", TipoDato = "NUMERICO", ValorMin = 1m, ValorMax = 2m, Orden = 2
+        }, Admin);
+        _context.ChangeTracker.Clear();
+
+        var reabierto = (await _carga.ObtenerCompletoAsync(control.RegistroProcesoId)).Value!;
+        var velocidad = reabierto.Grupos.SelectMany(g => g.Detalles).Single(d => d.ParametroId == velocidadId);
+        Assert.Equal(160m, velocidad.ValorReal);
+        Assert.False(velocidad.FueraDeEstandar);
+        Assert.Null(velocidad.ValorEstandarSnapshot);
+        Assert.False(velocidad.TieneRango);
+        Assert.Equal("SIN_ESTANDAR", velocidad.Evaluacion);
+        // El punto sin valor sí muestra el estándar de hoy (todavía no se cargó).
+        Assert.True(reabierto.Grupos.SelectMany(g => g.Detalles).Single(d => d.ParametroId == otroId).TieneRango);
+
+        // Datos guardados antes del script 29 (EstandarConRango NULL): sin texto de estándar, tampoco es OK.
+        var detalle = _context.RegistrosProcesoDetalle.Single(d => d.ParametroId == velocidadId);
+        Assert.False(detalle.EstandarConRango);
+        detalle.EstandarConRango = null;
+        await _context.SaveChangesAsync();
+        _context.ChangeTracker.Clear();
+        var legado = (await _carga.ObtenerCompletoAsync(control.RegistroProcesoId)).Value!;
+        Assert.Equal("SIN_ESTANDAR", legado.Grupos.SelectMany(g => g.Detalles).Single(d => d.ParametroId == velocidadId).Evaluacion);
+
+        // Si el maquinista corrige el valor, se vuelve a comparar contra el estándar de ahora y queda ese snapshot.
+        var corregido = await _carga.GuardarValoresAsync(new GuardarValoresRequest
+        {
+            RegistroProcesoId = control.RegistroProcesoId,
+            RowVersion = legado.RowVersion,
+            Valores = { new ValorParametroRequest { ParametroId = velocidadId, ValorReal = 152.5m } }
+        }, Maquinista);
+        Assert.True(corregido.IsSuccess, corregido.Error);
+        _context.ChangeTracker.Clear();
+        var final = (await _carga.ObtenerCompletoAsync(control.RegistroProcesoId)).Value!
+            .Grupos.SelectMany(g => g.Detalles).Single(d => d.ParametroId == velocidadId);
+        Assert.Equal("152 - 153", final.ValorEstandarSnapshot);
+        Assert.Equal("OK", final.Evaluacion);
+    }
+
     private async Task<(int Presion, int Aire, int Lote)> CargarPlantillaAsync()
     {
         var grupo = await _plantilla.CrearGrupoAsync(new GuardarGrupoControlRequest { LineaId = _tango2.LineaId, Nombre = "Rebobinadora", Orden = 1 }, Admin);

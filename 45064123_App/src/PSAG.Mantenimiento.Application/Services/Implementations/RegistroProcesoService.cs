@@ -13,10 +13,18 @@ public class RegistroProcesoService : IRegistroProcesoService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<RegistroProcesoService> _logger;
+    private readonly TimeZoneInfo _zonaPlanta;
 
+    /// <summary>Sin zona (tests): la del equipo.</summary>
     public RegistroProcesoService(IUnitOfWork unitOfWork, ILogger<RegistroProcesoService> logger)
+        : this(unitOfWork, TimeZoneInfo.Local, logger)
+    {
+    }
+
+    public RegistroProcesoService(IUnitOfWork unitOfWork, TimeZoneInfo zonaPlanta, ILogger<RegistroProcesoService> logger)
     {
         _unitOfWork = unitOfWork;
+        _zonaPlanta = zonaPlanta;
         _logger = logger;
     }
 
@@ -38,11 +46,11 @@ public class RegistroProcesoService : IRegistroProcesoService
         }
 
         // Obtener turno actual
-        var turno = await _unitOfWork.Turnos.GetTurnoActualAsync(cancellationToken);
+        var turno = await _unitOfWork.Turnos.GetTurnoActualAsync(_zonaPlanta, cancellationToken);
         if (turno == null)
             return Result<IniciarRegistroProcesoResponse>.Failure("NO_TURNO", "No hay turno configurado para la hora actual.");
 
-        var fechaHoy = DateOnly.FromDateTime(DateTime.Today);
+        var fechaHoy = HoraPlanta.Hoy(_zonaPlanta);
 
         // Buscar registro existente para línea+producto+turno+fecha
         var registroExistente = await _unitOfWork.RegistrosProceso.GetByLineaProductoTurnoFechaAsync(
@@ -206,12 +214,15 @@ public class RegistroProcesoService : IRegistroProcesoService
                 detalle = new RegistroProcesoDetalle
                 {
                     RegistroProcesoId = registro.RegistroProcesoId,
-                    ParametroId = valor.ParametroId,
-                    ValorEstandarSnapshot = punto.EstandarTexto // SNAPSHOT
+                    ParametroId = valor.ParametroId
                 };
                 registro.Detalles.Add(detalle);
             }
 
+            // SNAPSHOT: el valor se acaba de comparar contra este estándar; queda guardado contra qué fue
+            // (también al corregir un valor ya cargado, que se vuelve a validar con el estándar de ahora).
+            detalle.ValorEstandarSnapshot = punto.EstandarTexto;
+            detalle.EstandarConRango = punto.Rango.TieneLimites;
             detalle.ValorReal = resultado.ValorReal;
             detalle.ValorRealTexto = resultado.ValorRealTexto;
             detalle.FueraDeEstandar = resultado.FueraDeEstandar;
@@ -426,9 +437,14 @@ public class RegistroProcesoService : IRegistroProcesoService
             ValorReal = detalle?.ValorReal,
             ValorRealTexto = detalle?.ValorRealTexto,
             FueraDeEstandar = detalle?.FueraDeEstandar ?? false,
-            TieneRango = punto.Rango.TieneLimites,
-            Evaluacion = PuntoControlValidador.Codigo(PuntoControlValidador.Evaluar(
-                p.TipoDato, punto.Rango, detalle?.ValorReal, detalle?.ValorRealTexto, detalle?.FueraDeEstandar ?? false)),
+            // Con valor cargado, si había rango y el estado salen de lo guardado ese día, nunca del estándar de hoy.
+            TieneRango = detalle != null
+                ? PuntoControlValidador.TeniaRango(detalle.EstandarConRango, detalle.ValorEstandarSnapshot, punto.Rango)
+                : punto.Rango.TieneLimites,
+            Evaluacion = PuntoControlValidador.Codigo(detalle != null
+                ? PuntoControlValidador.EvaluarGuardado(p.TipoDato, detalle.EstandarConRango, detalle.ValorEstandarSnapshot,
+                    punto.Rango, detalle.ValorReal, detalle.ValorRealTexto, detalle.FueraDeEstandar)
+                : PuntoControlValidador.Evaluar(p.TipoDato, punto.Rango, null, null, false)),
             Observacion = detalle?.Observacion,
             FechaHoraRegistro = detalle?.FechaHoraRegistro ?? DateTimeOffset.MinValue
         });

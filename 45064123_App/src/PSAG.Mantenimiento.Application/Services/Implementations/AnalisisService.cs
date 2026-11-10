@@ -20,10 +20,18 @@ public class AnalisisService : IAnalisisService
 
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<AnalisisService> _logger;
+    private readonly TimeZoneInfo _zonaPlanta;
 
+    /// <summary>Sin zona (tests): la del equipo.</summary>
     public AnalisisService(IUnitOfWork unitOfWork, ILogger<AnalisisService> logger)
+        : this(unitOfWork, TimeZoneInfo.Local, logger)
+    {
+    }
+
+    public AnalisisService(IUnitOfWork unitOfWork, TimeZoneInfo zonaPlanta, ILogger<AnalisisService> logger)
     {
         _unitOfWork = unitOfWork;
+        _zonaPlanta = zonaPlanta;
         _logger = logger;
     }
 
@@ -112,7 +120,7 @@ public class AnalisisService : IAnalisisService
         CancellationToken cancellationToken = default)
     {
         var esAdministrador = roles.Contains(RolesSistema.Administrador);
-        var hoy = DateOnly.FromDateTime(DateTime.Today);
+        var hoy = HoraPlanta.Hoy(_zonaPlanta);
 
         // Sólo el administrador carga todas las abiertas (filtro por responsable y lista de responsables).
         // El resto recibe las suyas filtradas en SQL con la misma condición que el conteo.
@@ -132,7 +140,7 @@ public class AnalisisService : IAnalisisService
         var cerradas = await _unitOfWork.Detenciones.GetAnalisisCerradosPorUsuarioAsync(
             usuarioId, LimiteCerradasPorUsuario, cancellationToken);
 
-        var inicioMes = new DateTimeOffset(DateTime.Today.Year, DateTime.Today.Month, 1, 0, 0, 0, DateTimeOffset.Now.Offset);
+        var inicioMes = HoraPlanta.DesdeHoraDePared(new DateTime(hoy.Year, hoy.Month, 1), _zonaPlanta);
         var cerradasEsteMes = await _unitOfWork.Detenciones.CountAsync(d =>
             d.RequiereAnalisis
             && d.EstadoActual == EstadoDetencion.CERRADA

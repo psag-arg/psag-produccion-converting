@@ -176,6 +176,18 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<int>> GetUsuarioLineaIdsEnUsoAsync(IReadOnlyCollection<int> usuarioLineaIds, CancellationToken cancellationToken = default)
+    {
+        if (usuarioLineaIds.Count == 0)
+            return [];
+        return await _dbSet
+            .IgnoreQueryFilters()
+            .Where(d => d.UsuarioLineaId != null && usuarioLineaIds.Contains(d.UsuarioLineaId.Value))
+            .Select(d => d.UsuarioLineaId!.Value)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<int>> GetLineasConDetencionesAsync(DateOnly desde, DateOnly hasta, CancellationToken cancellationToken = default)
     {
         return await _dbSet

@@ -29,12 +29,25 @@ public class ParadasCamaraResultado
     public int MinutosSinDetencion { get; set; }
 }
 
+/// <summary>Producción de un día de planta, una entrada por cámara (rollos y mangas no se suman).</summary>
 public class ProduccionCamaraDto
 {
     public DateOnly Fecha { get; set; }
+    public DateTimeOffset Inicio { get; set; }
+    public DateTimeOffset Fin { get; set; }
+    public List<ProduccionCamaraPuntoDto> Camaras { get; set; } = [];
+}
+
+public class ProduccionCamaraPuntoDto
+{
+    public int PuntoControlCalidadId { get; set; }
+    public string Codigo { get; set; } = string.Empty;
+    public string Nombre { get; set; } = string.Empty;
+    public string LineaNombre { get; set; } = string.Empty;
+    public string Unidad { get; set; } = string.Empty;
     public List<int> Carriles { get; set; } = [];
     public List<ProduccionCamaraHoraDto> Horas { get; set; } = [];
-    public decimal TotalRollos { get; set; }
+    public decimal Total { get; set; }
     public int MinutosConDatos { get; set; }
     public int MinutosMarcha { get; set; }
     public List<ProduccionCamaraTurnoDto> Turnos { get; set; } = [];
@@ -44,6 +57,8 @@ public class ProduccionCamaraTurnoDto
 {
     public int? TurnoId { get; set; }
     public string TurnoNombre { get; set; } = string.Empty;
+    public DateTimeOffset? Inicio { get; set; }
+    public DateTimeOffset? Fin { get; set; }
     public decimal Total { get; set; }
     public int MinutosConDatos { get; set; }
     public int MinutosMarcha { get; set; }
@@ -112,8 +127,11 @@ public class AvisoFinTurnoDto
 {
     public bool Mostrar { get; set; }
     public int Pendientes { get; set; }
+    public int PendientesTurnoActual { get; set; }
     public int? MinutosParaFin { get; set; }
+    public int? TurnoId { get; set; }
     public string? TurnoNombre { get; set; }
+    public DateOnly? FechaInicioTurno { get; set; }
     public int MinutosAviso { get; set; }
 }
 

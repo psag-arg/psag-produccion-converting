@@ -374,8 +374,9 @@ public class DetencionAutomaticaTests : CalidadTestBase
         });
 
         var p = await _conteo.ObtenerProduccionAsync(DateOnly.FromDateTime(minuto.DateTime), null, CamaraTango.PuntoControlCalidadId);
-        Assert.Equal(43, p.Value!.TotalRollos);
-        var t = Assert.Single(p.Value.Turnos);
+        var cam = Assert.Single(p.Value!.Camaras);
+        Assert.Equal(43, cam.Total);
+        var t = Assert.Single(cam.Turnos);
         Assert.Equal(TurnoManana.Nombre, t.TurnoNombre);
         Assert.Equal(43, t.Total);
         Assert.Equal(2, t.MinutosMarcha);
