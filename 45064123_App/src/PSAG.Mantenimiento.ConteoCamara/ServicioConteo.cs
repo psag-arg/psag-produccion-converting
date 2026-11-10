@@ -170,7 +170,8 @@ public sealed class ServicioConteo : BackgroundService
         finally
         {
             cadena.CortarSenal(final: true);
-            publicador.GuardarPendiente();
+            // El minuto de reloj en curso no se manda partido: se completa al volver a arrancar (ver PublicadorApi).
+            publicador.GuardarPendiente(apartarMinutoEnCurso: true);
             envios.Cancel();
             try { await tareaEnvios; } catch (OperationCanceledException) { }
             try
