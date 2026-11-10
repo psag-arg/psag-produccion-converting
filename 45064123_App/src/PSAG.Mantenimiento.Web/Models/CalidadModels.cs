@@ -17,6 +17,12 @@ public class PuntoControlCalidadDto
     public bool CreaDetenciones { get; set; }
     public int MinutosUmbralDetencion { get; set; } = 5;
 
+    /// <summary>Umbral en segundos (modo prueba), o null si se usan los minutos.</summary>
+    public int? SegundosUmbralDetencion { get; set; }
+
+    /// <summary>Umbral efectivo legible que arma la API ("5 min", "45 s").</summary>
+    public string UmbralTexto { get; set; } = "5 min";
+
     // Eficiencia (script 28)
     public decimal? ObjetivoPorHora { get; set; }
 

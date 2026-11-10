@@ -213,7 +213,9 @@ como microcorte (sólo log). Recién a los 5 minutos se crea la detención.
 
 1. Mientras la máquina sigue parada, cada lote lleva la parada **en curso** (`paradasEnCurso`: inicio y última hora
    vista). Cuando llega al umbral del punto de control (`MinutosUmbralDetencion`, 5 por defecto) y el punto tiene
-   `CreaDetenciones`, la API da de alta la detención **sin esperar el arranque**.
+   `CreaDetenciones`, la API da de alta la detención **sin esperar el arranque**. Para probar en planta el umbral se
+   puede cargar en segundos (`SegundosUmbralDetencion`, 30 a 14400, script 30; manda sobre los minutos si tiene
+   valor). El umbral efectivo lo decide `DetencionCamaraReglas.UmbralSegundos`.
 2. La detención nace en `PENDIENTE_JUSTIFICACION` ("Pendiente de declaración"), `OrigenRegistro = CAMARA`, con
    línea (la del punto), fecha y turno de la hora de parada, `FechaHoraParada` y **maquinista del turno**. Quedan
    vacíos el equipo, el tipo y detalle de falla, la descripción, la hora de arranque y los minutos (0).
@@ -273,7 +275,7 @@ Probar sin instalar: `.\PSAG.Mantenimiento.ConteoCamara.exe vivo --camara T2-CAM
 - **Sin objetivo** (`ObjetivoPorHora` vacío): estado `SIN_OBJETIVO`, el % viene vacío y el Dashboard dice "Falta cargar
   el objetivo" (nunca 0 %). Objetivo 0 (turno no programado): `NO_PROGRAMADO`, sin dividir por cero.
 - **Paradas y microcortes**: minutos de todas las paradas de la cámara recortadas al turno; microcortes = paradas que
-  empezaron en el turno y duraron menos que `MinutosUmbralDetencion`.
+  empezaron en el turno y duraron menos que el umbral efectivo (`SegundosUmbralDetencion` o `MinutosUmbralDetencion`).
 - **Unidad**: `MetodoConteo` del punto (`CARRILES` = rollos, `MANGAS` = mangas). Vacío: 1 carril con datos = mangas,
   más = rollos.
 - **API**: `GET api/conteo-camara/eficiencia?fecha=YYYY-MM-DD&lineaId=` (el Dashboard pide hoy y ayer). Aparecen las

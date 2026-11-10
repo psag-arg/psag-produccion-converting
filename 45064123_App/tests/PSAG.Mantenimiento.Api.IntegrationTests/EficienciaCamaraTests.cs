@@ -146,6 +146,37 @@ public class EficienciaCamaraTests : CalidadTestBase
     }
 
     [Fact]
+    public async Task Microcortes_UsanElUmbralEfectivoEnSegundos()
+    {
+        await CargarDatosAsync();
+        var punto = await Context.PuntosControlCalidad.SingleAsync(p => p.PuntoControlCalidadId == CamaraTango.PuntoControlCalidadId);
+        punto.SegundosUmbralDetencion = 100;   // 90 s sigue siendo microcorte; 4 y 6 min son largas
+        await Context.SaveChangesAsync();
+        Context.ChangeTracker.Clear();
+
+        var camara = await EficienciaAsync();
+        var manana = camara.Turnos.Single(t => t.TurnoCodigo == "T1");
+
+        Assert.Equal(1, manana.Microcortes);
+        Assert.Equal(2, manana.ParadasLargas);
+        Assert.Equal(100, camara.UmbralSegundos);
+        Assert.Equal(100, camara.SegundosUmbralDetencion);
+        Assert.Equal("100 s", camara.UmbralTexto);
+    }
+
+    [Fact]
+    public async Task SinUmbralEnSegundos_LaEficienciaInformaLosMinutos()
+    {
+        await CargarDatosAsync();
+
+        var camara = await EficienciaAsync();
+
+        Assert.Null(camara.SegundosUmbralDetencion);
+        Assert.Equal(camara.MinutosUmbralDetencion * 60, camara.UmbralSegundos);
+        Assert.Equal($"{camara.MinutosUmbralDetencion} min", camara.UmbralTexto);
+    }
+
+    [Fact]
     public async Task SinObjetivo_NoDaCeroPorCiento()
     {
         await CargarDatosAsync();

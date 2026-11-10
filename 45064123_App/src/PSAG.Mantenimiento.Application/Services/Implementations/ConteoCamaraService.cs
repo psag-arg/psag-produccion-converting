@@ -189,7 +189,7 @@ public class ConteoCamaraService : IConteoCamaraService
         PuntoControlCalidad punto, List<ParadaCamaraIngesta> cerradas, List<ParadaEnCursoIngesta> enCurso,
         Dictionary<TimeOnly, Turno?> turnos, IngestaConteoCamaraRespuesta respuesta, CancellationToken cancellationToken)
     {
-        var umbral = punto.MinutosUmbralDetencion;
+        var umbral = DetencionCamaraReglas.UmbralSegundos(punto);
         var candidatas = new Dictionary<string, (DateTimeOffset Inicio, DateTimeOffset? Arranque, bool InicioIncierto)>(StringComparer.Ordinal);
         foreach (var p in enCurso.Where(p => DetencionCamaraReglas.SuperaUmbral(p.Inicio, p.Hasta, umbral)))
             candidatas[p.IdentificadorExterno.Trim()] = (p.Inicio, null, p.InicioIncierto);
@@ -377,7 +377,8 @@ public class ConteoCamaraService : IConteoCamaraService
                 InicioIncierto = p.InicioIncierto,
                 FinIncierto = p.FinIncierto,
                 SuperaUmbral = p.PuntoControl?.CreaDetenciones == true
-                    && DetencionCamaraReglas.SuperaUmbral(p.FechaHoraInicio, p.FechaHoraFin, p.PuntoControl.MinutosUmbralDetencion),
+                    && DetencionCamaraReglas.SuperaUmbral(p.FechaHoraInicio, p.FechaHoraFin, DetencionCamaraReglas.UmbralSegundos(p.PuntoControl)),
+                UmbralTexto = p.PuntoControl == null ? null : DetencionCamaraReglas.TextoUmbral(p.PuntoControl),
                 Cruce = cruce.ToString(),
                 CodigosDetencion = codigos.ToList()
             });
@@ -543,6 +544,7 @@ public class ConteoCamaraService : IConteoCamaraService
             var calendariosLinea = calendarios.Where(c => c.LineaId == punto.LineaId).ToList();
             var excepcionesLinea = excepciones.Where(e => e.LineaId == punto.LineaId).ToList();
             var carriles = minutosPunto.Select(m => m.Carril).Distinct().Count();
+            var umbralSegundos = DetencionCamaraReglas.UmbralSegundos(punto);
 
             var dto = new EficienciaCamaraPuntoDto
             {
@@ -555,7 +557,10 @@ public class ConteoCamaraService : IConteoCamaraService
                 MetodoConteo = punto.MetodoConteo,
                 Unidad = EficienciaCamaraCalculador.Unidad(punto.MetodoConteo, carriles),
                 ObjetivoPorHora = punto.ObjetivoPorHora,
-                MinutosUmbralDetencion = DetencionCamaraReglas.UmbralValido(punto.MinutosUmbralDetencion)
+                MinutosUmbralDetencion = DetencionCamaraReglas.UmbralValido(punto.MinutosUmbralDetencion),
+                SegundosUmbralDetencion = punto.SegundosUmbralDetencion,
+                UmbralSegundos = umbralSegundos,
+                UmbralTexto = DetencionCamaraReglas.TextoUmbral(umbralSegundos)
             };
 
             foreach (var turno in turnos)
@@ -571,7 +576,7 @@ public class ConteoCamaraService : IConteoCamaraService
                 var paradasVentana = paradasPunto.Where(p => p.FechaHoraFin > inicio && p.FechaHoraInicio < fin).ToList();
                 var empezadas = paradasVentana.Where(p => p.FechaHoraInicio >= inicio).ToList();
                 var largas = empezadas.Count(p =>
-                    DetencionCamaraReglas.SuperaUmbral(p.FechaHoraInicio, p.FechaHoraFin, punto.MinutosUmbralDetencion));
+                    DetencionCamaraReglas.SuperaUmbral(p.FechaHoraInicio, p.FechaHoraFin, umbralSegundos));
 
                 var minutosProgramados = EficienciaCamaraCalculador.MinutosProgramadosTurno(
                     fecha, turno, turnos, calendariosLinea, excepcionesLinea);

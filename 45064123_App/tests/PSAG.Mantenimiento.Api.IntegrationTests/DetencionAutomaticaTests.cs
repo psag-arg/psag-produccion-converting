@@ -160,6 +160,97 @@ public class DetencionAutomaticaTests : CalidadTestBase
         Assert.False(invalido.IsSuccess);
     }
 
+    private Task<Application.Common.Result<Application.DTOs.Calidad.PuntoControlCalidadDto>> GuardarUmbralAsync(int minutos, int? segundos) =>
+        Maestros.ActualizarPuntoControlAsync(CamaraTango.PuntoControlCalidadId, new Application.DTOs.Calidad.GuardarPuntoControlCalidadRequest
+        {
+            LineaId = Tango2.LineaId, Codigo = "TEST-CAM-T2", Nombre = "Cámara 10", Activo = true,
+            NumeroCamara = 10, CreaDetenciones = true, MinutosUmbralDetencion = minutos, SegundosUmbralDetencion = segundos
+        }, Admin, [RolesSistema.Administrador]);
+
+    [Fact]
+    public async Task UmbralEnSegundos_ParadaDe40sCreaLaDetencion_De25sNo()
+    {
+        var guardado = await GuardarUmbralAsync(minutos: 5, segundos: 30);
+        Assert.True(guardado.IsSuccess, guardado.ErrorMessage);
+        Assert.Equal(30, guardado.Value!.SegundosUmbralDetencion);
+        Assert.Equal(5, guardado.Value.MinutosUmbralDetencion);   // los minutos quedan como estaban
+        Assert.Equal(30, guardado.Value.UmbralSegundos);
+        Assert.Equal("30 s", guardado.Value.UmbralTexto);
+
+        var corta = await _conteo.IngestarAsync(Cerrada(_parada, 25));
+        Assert.Equal(0, corta.Value!.DetencionesCreadas);
+        Assert.Empty(await Automaticas());
+
+        var larga = await _conteo.IngestarAsync(Cerrada(_parada.AddMinutes(10), 40));
+        Assert.Equal(1, larga.Value!.DetencionesCreadas);
+        var d = Assert.Single(await Automaticas());
+        Assert.Equal(_parada.AddMinutes(10), d.FechaHoraParada);
+
+        // En curso también: a los 30 s ya la crea, sin esperar el arranque.
+        var enCurso = await _conteo.IngestarAsync(EnCurso(_parada.AddMinutes(20), 30));
+        Assert.Equal(1, enCurso.Value!.DetencionesCreadas);
+
+        // El log de paradas marca cuáles llegaron al umbral y lo muestra legible.
+        var log = await _conteo.ObtenerParadasAsync(new ParadasCamaraFiltroRequest { FechaDesde = DiaPlanta(3), FechaHasta = DiaPlanta(0) });
+        var items = log.Value!.Items.OrderBy(i => i.FechaHoraInicio).ToList();
+        Assert.Equal([false, true], items.Select(i => i.SuperaUmbral));
+        Assert.All(items, i => Assert.Equal("30 s", i.UmbralTexto));
+    }
+
+    [Fact]
+    public async Task VolverAMinutos_BorraLosSegundosYUsaLosMinutosComoAntes()
+    {
+        Assert.True((await GuardarUmbralAsync(minutos: 5, segundos: 30)).IsSuccess);
+        var vuelta = await GuardarUmbralAsync(minutos: 5, segundos: null);
+        Assert.True(vuelta.IsSuccess, vuelta.ErrorMessage);
+        Assert.Null(vuelta.Value!.SegundosUmbralDetencion);
+        Assert.Equal("5 min", vuelta.Value.UmbralTexto);
+
+        Context.ChangeTracker.Clear();
+        Assert.Null((await Context.PuntosControlCalidad.SingleAsync(p => p.PuntoControlCalidadId == CamaraTango.PuntoControlCalidadId)).SegundosUmbralDetencion);
+
+        var r = await _conteo.IngestarAsync(Cerrada(_parada, 40));
+        Assert.Equal(0, r.Value!.DetencionesCreadas);
+        r = await _conteo.IngestarAsync(Cerrada(_parada.AddMinutes(10), 5 * 60));
+        Assert.Equal(1, r.Value!.DetencionesCreadas);
+    }
+
+    [Theory]
+    [InlineData(5, 29, false)]
+    [InlineData(5, 30, true)]
+    [InlineData(5, 14400, true)]
+    [InlineData(5, 14401, false)]
+    [InlineData(0, null, false)]
+    [InlineData(241, null, false)]
+    [InlineData(1, null, true)]
+    [InlineData(240, null, true)]
+    public async Task ValidacionDelUmbralEnMaestros_MinutosYSegundos(int minutos, int? segundos, bool valido)
+    {
+        var r = await GuardarUmbralAsync(minutos, segundos);
+
+        Assert.Equal(valido, r.IsSuccess);
+        if (!valido)
+        {
+            Assert.Equal("VALIDATION", r.ErrorCode);
+            Assert.Contains(segundos == null ? "minutos" : "segundos", r.ErrorMessage);
+        }
+    }
+
+    [Fact]
+    public async Task AltaDeCamaraEnSegundos_GuardaLosSegundosYMinutosPorDefecto()
+    {
+        var r = await Maestros.CrearPuntoControlAsync(new Application.DTOs.Calidad.GuardarPuntoControlCalidadRequest
+        {
+            LineaId = Tango2.LineaId, Codigo = "TEST-CAM-SEG", Nombre = "Cámara de prueba", Activo = true,
+            CreaDetenciones = true, MinutosUmbralDetencion = 0, SegundosUmbralDetencion = 45
+        }, Admin, [RolesSistema.Administrador]);
+
+        Assert.True(r.IsSuccess, r.ErrorMessage);
+        Assert.Equal(45, r.Value!.SegundosUmbralDetencion);
+        Assert.Equal(5, r.Value.MinutosUmbralDetencion);   // respeta el CHECK de minutos (1..240)
+        Assert.Equal("45 s", r.Value.UmbralTexto);
+    }
+
     [Fact]
     public async Task CamaraQueSoloInforma_NoCreaDetenciones()
     {

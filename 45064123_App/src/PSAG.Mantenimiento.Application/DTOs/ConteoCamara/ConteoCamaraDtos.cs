@@ -124,6 +124,9 @@ public class ParadaCamaraDto
     /// <summary>La parada llegó al umbral de detención de su cámara (las demás son microcortes, sólo log).</summary>
     public bool SuperaUmbral { get; set; }
 
+    /// <summary>Umbral efectivo de la cámara de la parada ("5 min", "45 s"), o null si no se conoce la cámara.</summary>
+    public string? UmbralTexto { get; set; }
+
     /// <summary>CON_DETENCION, POSIBLE o SIN_DETENCION (calculado al consultar).</summary>
     public string Cruce { get; set; } = string.Empty;
     public List<string> CodigosDetencion { get; set; } = [];
@@ -242,8 +245,17 @@ public class EficienciaCamaraPuntoDto
 
     public decimal? ObjetivoPorHora { get; set; }
 
-    /// <summary>Umbral de detención de la cámara: las paradas más cortas son microcortes.</summary>
+    /// <summary>Umbral de detención de la cámara en minutos (se usa si no hay umbral en segundos).</summary>
     public int MinutosUmbralDetencion { get; set; }
+
+    /// <summary>Umbral en segundos cargado para pruebas, o null.</summary>
+    public int? SegundosUmbralDetencion { get; set; }
+
+    /// <summary>Umbral efectivo en segundos: las paradas más cortas son microcortes.</summary>
+    public int UmbralSegundos { get; set; }
+
+    /// <summary>Umbral efectivo legible ("5 min", "45 s").</summary>
+    public string UmbralTexto { get; set; } = string.Empty;
 
     public List<EficienciaTurnoDto> Turnos { get; set; } = [];
 }

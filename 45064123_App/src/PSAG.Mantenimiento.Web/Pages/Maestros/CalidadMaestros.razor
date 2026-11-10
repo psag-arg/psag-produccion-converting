@@ -61,7 +61,7 @@
                                             }
                                             @if (punto.CreaDetenciones)
                                             {
-                                                <span class="badge bg-warning text-dark" title="Crea una detención pendiente de declaración cuando la máquina para este tiempo o más">Crea detenciones desde @punto.MinutosUmbralDetencion min</span>
+                                                <span class="badge bg-warning text-dark" title="Crea una detención pendiente de declaración cuando la máquina para este tiempo o más">Crea detenciones desde @punto.UmbralTexto</span>
                                             }
                                             else
                                             {
@@ -204,9 +204,14 @@
                     </div>
                     <div class="input-group" style="max-width: 320px;">
                         <span class="input-group-text">Desde</span>
-                        <input type="number" min="1" max="240" class="form-control" @bind="puntoActual.MinutosUmbralDetencion" disabled="@(!puntoActual.CreaDetenciones)" />
-                        <span class="input-group-text">min de parada</span>
+                        <input type="number" min="@UmbralDetencionUi.Minimo(umbralUnidad)" max="@UmbralDetencionUi.Maximo(umbralUnidad)" class="form-control" @bind="umbralValor" disabled="@(!puntoActual.CreaDetenciones)" />
+                        <select class="form-select" style="max-width: 130px;" aria-label="Unidad del umbral" @bind="umbralUnidad" disabled="@(!puntoActual.CreaDetenciones)">
+                            <option value="@UmbralDetencionUi.Minutos">min</option>
+                            <option value="@UmbralDetencionUi.Segundos">segundos</option>
+                        </select>
+                        <span class="input-group-text">de parada</span>
                     </div>
+                    <div class="form-text">@UmbralDetencionUi.TextoAyuda</div>
                     <div class="form-text">Las paradas más cortas (microcortes) sólo quedan en el log de paradas de la cámara. El cuerpo viene elegido como equipo de la detención; el operador lo puede cambiar.</div>
 
                     @* Eficiencia por turno en el Dashboard (reunión 03/11, script 28) *@
@@ -333,10 +338,15 @@
     {
         errorModal = null;
         puntoActual = new PuntoControlCalidadDto { Activo = true, LineaId = lineas.Count == 1 ? lineas[0].LineaId : 0 };
+        (umbralValor, umbralUnidad) = UmbralDetencionUi.Leer(puntoActual);
         _ = CargarEquiposPunto(limpiar: false);
     }
 
     private List<EquipoDto> equiposPunto = new();
+
+    // Umbral de detención: número + unidad (min / segundos). Se pasa al punto al guardar.
+    private int umbralValor = 5;
+    private string umbralUnidad = UmbralDetencionUi.Minutos;
 
     private async Task CargarEquiposPunto(bool limpiar)
     {
@@ -354,9 +364,10 @@
             PuntoControlCalidadId = p.PuntoControlCalidadId, LineaId = p.LineaId, Codigo = p.Codigo,
             Nombre = p.Nombre, Descripcion = p.Descripcion, Activo = p.Activo,
             EquipoId = p.EquipoId, NumeroCamara = p.NumeroCamara, CreaDetenciones = p.CreaDetenciones,
-            MinutosUmbralDetencion = p.MinutosUmbralDetencion,
+            MinutosUmbralDetencion = p.MinutosUmbralDetencion, SegundosUmbralDetencion = p.SegundosUmbralDetencion,
             ObjetivoPorHora = p.ObjetivoPorHora, MetodoConteo = p.MetodoConteo
         };
+        (umbralValor, umbralUnidad) = UmbralDetencionUi.Leer(puntoActual);
         _ = CargarEquiposPunto(limpiar: false);
     }
 
@@ -389,6 +400,7 @@
         guardando = true;
         try
         {
+            UmbralDetencionUi.Aplicar(puntoActual, umbralValor, umbralUnidad);
             var (punto, error) = await CalidadService.GuardarPuntoControlAsync(puntoActual);
             if (punto == null)
             {

@@ -21,6 +21,15 @@ public class PuntoControlCalidadDto
     public bool CreaDetenciones { get; set; }
     public int MinutosUmbralDetencion { get; set; } = 5;
 
+    /// <summary>Umbral en segundos (modo prueba, script 30), o null si se usan los minutos.</summary>
+    public int? SegundosUmbralDetencion { get; set; }
+
+    /// <summary>Umbral efectivo en segundos (segundos si están cargados; si no, minutos x 60).</summary>
+    public int UmbralSegundos { get; set; } = 300;
+
+    /// <summary>Umbral efectivo legible ("5 min", "45 s").</summary>
+    public string UmbralTexto { get; set; } = "5 min";
+
     // Eficiencia (script 28)
     public decimal? ObjetivoPorHora { get; set; }
     public string? MetodoConteo { get; set; }
@@ -46,8 +55,14 @@ public class GuardarPuntoControlCalidadRequest
     /// <summary>Si crea detenciones automáticas (pendientes de declaración).</summary>
     public bool CreaDetenciones { get; set; }
 
-    /// <summary>Minutos de parada para crear la detención (1 a 240, por defecto 5).</summary>
+    /// <summary>Minutos de parada para crear la detención (1 a 240, por defecto 5). Se usa si no vienen segundos.</summary>
     public int MinutosUmbralDetencion { get; set; } = 5;
+
+    /// <summary>
+    /// Umbral en segundos para probar en planta (30 a 14400). Con valor, manda sobre los minutos y los minutos
+    /// guardados no cambian; vacío (lo normal) = umbral en minutos y se borra el de segundos.
+    /// </summary>
+    public int? SegundosUmbralDetencion { get; set; }
 
     /// <summary>Unidades por hora en marcha plena (rollos o mangas). Vacío = todavía no se cargó.</summary>
     public decimal? ObjetivoPorHora { get; set; }

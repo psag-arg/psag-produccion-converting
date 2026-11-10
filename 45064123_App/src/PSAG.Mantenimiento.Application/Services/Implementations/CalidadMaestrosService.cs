@@ -57,7 +57,11 @@ public class CalidadMaestrosService : ICalidadMaestrosService
             EquipoId = request.EquipoId,
             NumeroCamara = request.NumeroCamara,
             CreaDetenciones = request.CreaDetenciones,
-            MinutosUmbralDetencion = request.MinutosUmbralDetencion,
+            MinutosUmbralDetencion = request.SegundosUmbralDetencion == null
+                || DetencionCamaraReglas.MotivoUmbralInvalido(request.MinutosUmbralDetencion) == null
+                    ? request.MinutosUmbralDetencion
+                    : DetencionCamaraReglas.MinutosUmbralPorDefecto,
+            SegundosUmbralDetencion = request.SegundosUmbralDetencion,
             ObjetivoPorHora = request.ObjetivoPorHora,
             MetodoConteo = MetodoNormalizado(request.MetodoConteo),
             CreadoPorUsuarioId = usuarioId,
@@ -96,7 +100,10 @@ public class CalidadMaestrosService : ICalidadMaestrosService
         punto.EquipoId = request.EquipoId;
         punto.NumeroCamara = request.NumeroCamara;
         punto.CreaDetenciones = request.CreaDetenciones;
-        punto.MinutosUmbralDetencion = request.MinutosUmbralDetencion;
+        // En segundos (modo prueba) los minutos quedan como estaban: al volver a minutos se cargan de nuevo.
+        if (request.SegundosUmbralDetencion == null)
+            punto.MinutosUmbralDetencion = request.MinutosUmbralDetencion;
+        punto.SegundosUmbralDetencion = request.SegundosUmbralDetencion;
         punto.ObjetivoPorHora = request.ObjetivoPorHora;
         punto.MetodoConteo = MetodoNormalizado(request.MetodoConteo);
         punto.ModificadoPorUsuarioId = usuarioId;
@@ -126,7 +133,7 @@ public class CalidadMaestrosService : ICalidadMaestrosService
         if (linea == null)
             return Result<Linea>.Failure("VALIDATION", "La línea no existe.");
 
-        if (DetencionCamaraReglas.MotivoUmbralInvalido(request.MinutosUmbralDetencion) is { } motivoUmbral)
+        if (DetencionCamaraReglas.MotivoUmbralInvalido(request.SegundosUmbralDetencion, request.MinutosUmbralDetencion) is { } motivoUmbral)
             return Result<Linea>.Failure("VALIDATION", motivoUmbral);
         if (EficienciaCamaraCalculador.MotivoObjetivoInvalido(request.ObjetivoPorHora) is { } motivoObjetivo)
             return Result<Linea>.Failure("VALIDATION", motivoObjetivo);
@@ -272,6 +279,9 @@ public class CalidadMaestrosService : ICalidadMaestrosService
         NumeroCamara = p.NumeroCamara,
         CreaDetenciones = p.CreaDetenciones,
         MinutosUmbralDetencion = p.MinutosUmbralDetencion,
+        SegundosUmbralDetencion = p.SegundosUmbralDetencion,
+        UmbralSegundos = DetencionCamaraReglas.UmbralSegundos(p),
+        UmbralTexto = DetencionCamaraReglas.TextoUmbral(p),
         ObjetivoPorHora = p.ObjetivoPorHora,
         MetodoConteo = p.MetodoConteo
     };

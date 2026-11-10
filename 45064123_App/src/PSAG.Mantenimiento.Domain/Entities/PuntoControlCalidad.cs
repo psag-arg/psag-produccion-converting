@@ -44,6 +44,13 @@ public class PuntoControlCalidad : CatalogoBase
     /// </summary>
     public int MinutosUmbralDetencion { get; set; } = 5;
 
+    /// <summary>
+    /// Umbral en segundos (30 a 14400, script 30), para probar en planta con un umbral corto (reunión 10/11/2026).
+    /// Si está cargado manda sobre <see cref="MinutosUmbralDetencion"/>; vacío (lo normal) = se usan los minutos.
+    /// El umbral efectivo lo decide <c>DetencionCamaraReglas.UmbralSegundos</c>.
+    /// </summary>
+    public int? SegundosUmbralDetencion { get; set; }
+
     // ===== Eficiencia (reunión 03/11, script 28) =====
 
     /// <summary>

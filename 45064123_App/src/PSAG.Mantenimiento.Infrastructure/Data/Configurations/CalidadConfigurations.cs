@@ -29,6 +29,8 @@ public class PuntoControlCalidadConfiguration : IEntityTypeConfiguration<PuntoCo
         // Cámara asociada (T-610, script 26)
         builder.Property(x => x.CreaDetenciones).IsRequired().HasDefaultValue(false);
         builder.Property(x => x.MinutosUmbralDetencion).IsRequired().HasDefaultValue(5);
+        // Umbral en segundos para pruebas (script 30). Vacío = se usan los minutos.
+        builder.Property(x => x.SegundosUmbralDetencion);
 
         // Eficiencia (script 28): objetivo por hora y qué cuenta la cámara. Vacíos = sin cargar.
         builder.Property(x => x.ObjetivoPorHora).HasPrecision(10, 2);

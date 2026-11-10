@@ -31,9 +31,36 @@ public static class DetencionCamaraReglas
     public const string MensajeEditarPendiente =
         "La detención está pendiente de declaración: no se edita. Declarala desde Mis pendientes (Declarar).";
 
-    /// <summary>La detención sólo se crea si la parada llegó al umbral (a partir de 5 min, inclusive).</summary>
-    public static bool SuperaUmbral(DateTimeOffset inicio, DateTimeOffset hasta, int minutosUmbral) =>
-        hasta - inicio >= TimeSpan.FromMinutes(UmbralValido(minutosUmbral));
+    /// <summary>
+    /// Umbral en segundos, para probar en planta (reunión 10/11/2026). El servicio de cámara confirma una parada
+    /// recién a los 20 s (2 ventanas de 10 s): el mínimo útil es 30 s. El máximo equivale a 240 minutos.
+    /// </summary>
+    public const int SegundosUmbralMinimo = 30;
+    public const int SegundosUmbralMaximo = MinutosUmbralMaximo * 60;
+
+    /// <summary>
+    /// La detención sólo se crea si la parada llegó al umbral efectivo de la cámara, en segundos (inclusive; ver
+    /// <see cref="UmbralSegundos(PuntoControlCalidad)"/>). Un valor fuera de rango vuelve al por defecto (5 min).
+    /// </summary>
+    public static bool SuperaUmbral(DateTimeOffset inicio, DateTimeOffset hasta, int segundosUmbral) =>
+        hasta - inicio >= TimeSpan.FromSeconds(UmbralSegundosValido(segundosUmbral));
+
+    /// <summary>
+    /// Umbral efectivo de la cámara, en segundos: <c>SegundosUmbralDetencion</c> si está cargado (modo prueba); si
+    /// no, <c>MinutosUmbralDetencion</c> x 60. ÚNICO lugar donde se decide el umbral: ingesta, log de paradas y
+    /// eficiencia (microcortes) usan esto.
+    /// </summary>
+    public static int UmbralSegundos(PuntoControlCalidad punto) =>
+        UmbralSegundos(punto.SegundosUmbralDetencion, punto.MinutosUmbralDetencion);
+
+    public static int UmbralSegundos(int? segundosUmbral, int minutosUmbral) =>
+        segundosUmbral is >= SegundosUmbralMinimo and <= SegundosUmbralMaximo
+            ? segundosUmbral.Value
+            : UmbralValido(minutosUmbral) * 60;
+
+    /// <summary>Umbral en segundos dentro del rango admitido (fuera de rango vuelve al por defecto, 5 min).</summary>
+    public static int UmbralSegundosValido(int segundosUmbral) =>
+        segundosUmbral is >= SegundosUmbralMinimo and <= SegundosUmbralMaximo ? segundosUmbral : MinutosUmbralPorDefecto * 60;
 
     /// <summary>Umbral dentro del rango admitido (un valor fuera de rango en la base vuelve al por defecto).</summary>
     public static int UmbralValido(int minutosUmbral) =>
@@ -43,6 +70,25 @@ public static class DetencionCamaraReglas
         minutosUmbral is >= MinutosUmbralMinimo and <= MinutosUmbralMaximo
             ? null
             : $"El umbral de detención tiene que estar entre {MinutosUmbralMinimo} y {MinutosUmbralMaximo} minutos.";
+
+    /// <summary>
+    /// Motivo por el que el umbral guardado desde Maestros no es válido, o null. Con segundos cargados (modo prueba)
+    /// se validan los segundos (30 a 14400) y los minutos no se usan; sin segundos, los minutos (1 a 240).
+    /// </summary>
+    public static string? MotivoUmbralInvalido(int? segundosUmbral, int minutosUmbral) =>
+        segundosUmbral is { } s
+            ? s is >= SegundosUmbralMinimo and <= SegundosUmbralMaximo
+                ? null
+                : $"El umbral de detención en segundos tiene que estar entre {SegundosUmbralMinimo} y {SegundosUmbralMaximo} " +
+                  $"(la cámara confirma una parada recién a los 20 s; para más de {MinutosUmbralMaximo} minutos no se admite)."
+            : MotivoUmbralInvalido(minutosUmbral);
+
+    /// <summary>Umbral legible para mostrar: "5 min" si es un número entero de minutos, si no "45 s".</summary>
+    public static string TextoUmbral(int segundosUmbral) =>
+        segundosUmbral % 60 == 0 ? $"{segundosUmbral / 60} min" : $"{segundosUmbral} s";
+
+    /// <summary>Umbral efectivo legible de la cámara ("5 min", "45 s").</summary>
+    public static string TextoUmbral(PuntoControlCalidad punto) => TextoUmbral(UmbralSegundos(punto));
 
     /// <summary>
     /// Maquinista del turno en que empezó la parada, aunque no haya nadie logueado. Regla:
