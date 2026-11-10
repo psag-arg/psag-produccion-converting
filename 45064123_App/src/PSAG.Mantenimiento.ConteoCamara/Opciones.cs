@@ -217,6 +217,13 @@ public sealed class OpcionesAnalisis
 
     /// <summary>Paradas más cortas que esto no se informan (quedan igual en los minutos).</summary>
     public int SegundosMinimosParada { get; set; } = 20;
+
+    /// <summary>
+    /// Si el video se corta o se congela con la línea detenida y vuelve antes de esto con la línea todavía
+    /// detenida, se retoma la misma parada (mismo identificador). Más largo, o si volvió en marcha, la parada
+    /// se cierra donde empezó el corte con FinIncierto (en el medio pudo haber arrancado y vuelto a parar).
+    /// </summary>
+    public int SegundosMaximosCorteParaRetomar { get; set; } = 120;
 }
 
 public sealed class OpcionesApi

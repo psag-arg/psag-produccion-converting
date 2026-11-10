@@ -22,7 +22,7 @@ public interface IAnalizadorCuadros
     double Fps { get; }
     void Cuadro(ReadOnlySpan<byte> cuadro, DateTimeOffset hora);
 
-    /// <summary>Se cortó (o se congeló) el video: se descarta la ventana a medias y se cierra la parada abierta.</summary>
+    /// <summary>Se cortó (o se congeló) el video: se descarta la ventana a medias. Con final se cierra la parada abierta.</summary>
     void CortarSenal(bool final);
 }
 
@@ -134,14 +134,15 @@ public sealed class ProcesadorConteo : IAnalizadorCuadros
     }
 
     /// <summary>
-    /// Se cortó el video: se descarta la ventana a medias y se cierra la parada abierta (FinIncierto).
-    /// Con <paramref name="final"/> (terminó el archivo o se detiene el servicio) también se entregan los minutos
+    /// Se cortó el video: se descarta la ventana a medias; la parada abierta queda suspendida hasta que vuelva el
+    /// video (si la línea sigue detenida se retoma la misma). Con <paramref name="final"/> (terminó el archivo o se
+    /// detiene el servicio) se cierra la parada (FinIncierto) y se entregan los minutos
     /// pendientes; si no, quedan abiertos y se completan cuando vuelve el video (lo que falte es SIN_SENAL).
     /// </summary>
     public void CortarSenal(bool final)
     {
         _cuadrosEnVentana = 0;
-        var parada = _detector.CortarSenal();
+        var parada = _detector.CortarSenal(final);
         if (parada != null) _salida.Parada(parada);
         if (!final) return;
         var minutos = _minutos.Vaciar();

@@ -35,15 +35,21 @@ internal sealed class Camara10
         return o;
     }
 
-    /// <summary>Un cuadro. <paramref name="manga"/>: la mesa está tapada por una manga.</summary>
-    public byte[] Cuadro(bool rodilloGira, bool manga)
+    /// <summary>
+    /// Un cuadro. <paramref name="manga"/>: la mesa está tapada por una manga. <paramref name="movimientoRodillo"/>:
+    /// rodillo girando con ese movimiento medio aproximado (damero que se invierte en cada cuadro); null = textura
+    /// que cambia mucho (giro normal, ~60).
+    /// </summary>
+    public byte[] Cuadro(bool rodilloGira, bool manga, double? movimientoRodillo = null)
     {
         var f = new byte[Ancho * Alto];
         for (var y = 0; y < Alto; y++)
             for (var x = 0; x < Ancho; x++)
             {
                 int v;
-                if (x < 8) v = rodilloGira ? 60 + (x * 7 + y * 13 + _n * 29) % 120 : 90;
+                if (x < 8 && rodilloGira && movimientoRodillo is { } mov)
+                    v = 90 + (int)Math.Round(((x + y + _n) % 2 == 0 ? 1 : -1) * mov / 2);
+                else if (x < 8) v = rodilloGira ? 60 + (x * 7 + y * 13 + _n * 29) % 120 : 90;
                 else if (x >= 16) v = manga ? 200 : 50;
                 else v = 120;
                 f[y * Ancho + x] = (byte)Math.Clamp(v + _r.Next(-3, 4), 0, 255);
@@ -56,14 +62,15 @@ internal sealed class Camara10
     /// Pasa <paramref name="segundos"/> de video al analizador desde <paramref name="desde"/> segundos. Con
     /// <paramref name="periodo"/> &gt; 0 pasa una manga cada ese tiempo (3 cuadros); 0 = no pasan mangas.
     /// </summary>
-    public double Pasar(IAnalizadorCuadros a, double desde, double segundos, double periodo, bool rodilloGira = true)
+    public double Pasar(IAnalizadorCuadros a, double desde, double segundos, double periodo, bool rodilloGira = true,
+        double? movimientoRodillo = null)
     {
         var cuadros = (int)Math.Round(segundos * Fps);
         for (var i = 0; i < cuadros; i++)
         {
             var t = desde + (double)i / Fps;
             var manga = periodo > 0 && t % periodo < 0.6;
-            a.Cuadro(Cuadro(rodilloGira, manga), T0.AddSeconds(t));
+            a.Cuadro(Cuadro(rodilloGira, manga, movimientoRodillo), T0.AddSeconds(t));
         }
         return desde + segundos;
     }
@@ -144,6 +151,74 @@ public class ProcesadorMangasTests
         _cadena.CortarSenal(final: true);
 
         Assert.Empty(_salida.Paradas);
+    }
+
+    /// <summary>
+    /// Ferretti: al cambiar bobina la máquina baja la velocidad pero no para. Mangas cada 15-25 s y el rodillo
+    /// girando a la mitad (movimiento ~10; normal ~20, umbral de giro 6) durante 40-60 s: nunca PARADA ni
+    /// detención; a lo sumo un microcorte SIN_MANGAS (dos ventanas seguidas sin mangas) muy por debajo de 5 min.
+    /// </summary>
+    [Theory]
+    [InlineData(15, 40)]
+    [InlineData(15, 60)]
+    [InlineData(20, 60)]
+    [InlineData(25, 40)]
+    [InlineData(25, 60)]
+    public void EmpalmeDeBobina_RodilloLentoYMangasEspaciadas_NoEsParadaNiDetencion(double periodo, double segundos)
+    {
+        var t = _cam.Pasar(_cadena, 0, 60, periodo: 2.7);
+        t = _cam.Pasar(_cadena, t, segundos, periodo, movimientoRodillo: 10);
+        _cam.Pasar(_cadena, t, 60, periodo: 2.7);
+        _cadena.CortarSenal(final: true);
+
+        Assert.DoesNotContain(_salida.Ventanas, v => v.EstadoLinea == EstadoCarril.PARADA);
+        Assert.All(_salida.Ventanas.Where(v => v.Inicio >= Camara10.T0.AddSeconds(60) && v.Fin <= Camara10.T0.AddSeconds(60 + segundos)),
+            v => Assert.InRange(v.Carriles[0].ProporcionPico, 8, 12));      // movimiento medio del rodillo lento
+        // Con mangas cada 20 s o más, ventanas sin mangas alternan con ventanas con una: el SIN_MANGAS puede
+        // durar todo el empalme (no se confirma el arranque hasta dos ventanas con mangas), nunca más.
+        Assert.All(_salida.Paradas, p =>
+        {
+            Assert.Equal(TipoParada.SIN_MANGAS, p.Tipo);
+            Assert.True(p.DuracionSegundos <= segundos, $"microcorte de {p.DuracionSegundos} s");
+        });
+        Assert.DoesNotContain(_salida.EnCurso, p => p.Tipo == TipoParada.PARADA || p.Hasta - p.Inicio >= TimeSpan.FromMinutes(5));
+    }
+
+    /// <summary>
+    /// Límite del empalme: con el rodillo por debajo de UmbralRodilloGira (6) en la mitad de los cuadros de dos
+    /// ventanas seguidas sí es PARADA. Con ~20 girando normal, eso es ir a menos del 30 % de la velocidad.
+    /// </summary>
+    [Fact]
+    public void EmpalmeConRodilloDebajoDelUmbral_SiEsParada()
+    {
+        var t = _cam.Pasar(_cadena, 0, 60, periodo: 2.7);
+        t = _cam.Pasar(_cadena, t, 60, periodo: 20, movimientoRodillo: 4);
+        _cam.Pasar(_cadena, t, 60, periodo: 2.7);
+        _cadena.CortarSenal(final: true);
+
+        Assert.Contains(_salida.Paradas, p => p.Tipo == TipoParada.PARADA);
+    }
+
+    [Fact]
+    public void ImagenCongeladaConLaMaquinaParada_NoParteLaParada()
+    {
+        var t = _cam.Pasar(_cadena, 0, 60, periodo: 2.7);
+        t = _cam.Pasar(_cadena, t, 120, periodo: 0, rodilloGira: false);
+        var congelado = _cam.Cuadro(false, false);
+        for (var i = 0; i < 40 * Camara10.Fps; i++)            // 40 s congelada, la máquina sigue parada
+            _cadena.Cuadro(congelado, Camara10.T0.AddSeconds(t + (double)i / Camara10.Fps));
+        t += 40;
+        t = _cam.Pasar(_cadena, t, 200, periodo: 0, rodilloGira: false);
+        _cam.Pasar(_cadena, t, 60, periodo: 2.7);
+        _cadena.CortarSenal(final: true);
+
+        var parada = Assert.Single(_salida.Paradas);
+        Assert.Equal(TipoParada.PARADA, parada.Tipo);
+        Assert.False(parada.FinIncierto);
+        Assert.InRange((parada.Inicio - Camara10.T0).TotalSeconds, 59, 71);
+        Assert.InRange(parada.DuracionSegundos, 350, 370);    // 120 + 40 + 200 s
+        Assert.All(_salida.EnCurso, p => Assert.Equal(parada.Inicio, p.Inicio));   // un solo identificador
+        Assert.Contains(_salida.EnCurso, p => p.Hasta - p.Inicio >= TimeSpan.FromMinutes(5));
     }
 
     [Fact]

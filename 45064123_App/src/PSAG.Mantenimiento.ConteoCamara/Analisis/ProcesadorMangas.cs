@@ -163,7 +163,7 @@ public sealed class ProcesadorMangas : IAnalizadorCuadros
         _hayAnterior = false;
         _enPaso = false;
         _ultimaManga = null;
-        var parada = _detector.CortarSenal();
+        var parada = _detector.CortarSenal(final);
         if (parada != null) _salida.Parada(parada);
         if (!final) return;
         var minutos = _minutos.Vaciar();

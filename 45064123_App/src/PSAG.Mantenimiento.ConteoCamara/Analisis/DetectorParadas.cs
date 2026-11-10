@@ -49,6 +49,10 @@ public sealed class DetectorParadas
     private readonly SortedSet<int> _carriles = [];
     private DateTimeOffset _ultimoFin;
 
+    // Parada que quedó abierta al cortarse el video, con su último instante detenido: si el video vuelve pronto
+    // y la línea sigue detenida se retoma la misma (mismo inicio e identificador) en vez de partirla en dos.
+    private DateTimeOffset? _suspendidaHasta;
+
     /// <param name="tipoParcial">Tipo de la parada si nunca hubo una ventana PARADA: ACUMULACION en la cortadora,
     /// SIN_MANGAS en la rebobinadora.</param>
     public DetectorParadas(OpcionesAnalisis opciones, TipoParada tipoParcial = TipoParada.ACUMULACION)
@@ -59,10 +63,17 @@ public sealed class DetectorParadas
 
     public bool? Detenida => _detenida;
 
-    /// <summary>La parada confirmada que sigue abierta, con la última hora vista, o null.</summary>
+    /// <summary>La parada confirmada que sigue abierta, hasta el último instante detenido, o null.</summary>
     public ParadaEnCurso? Abierta => _detenida == true
-        ? new ParadaEnCurso(_inicioParada, _ultimoFin, _huboParadaTotal ? TipoParada.PARADA : _tipoParcial, _inicioIncierto)
+        ? new ParadaEnCurso(_inicioParada, UltimoDetenido, _huboParadaTotal ? TipoParada.PARADA : _tipoParcial, _inicioIncierto)
         : null;
+
+    /// <summary>
+    /// Último instante con la línea detenida. Si se está confirmando un arranque, el inicio de la primera ventana
+    /// en marcha (el Fin que tendrá la parada cerrada), no el final de la ventana candidata: si no, una parada de
+    /// 4:50 se informaría en curso como de 5:00 y la API crearía una detención que la cerrada no confirma.
+    /// </summary>
+    private DateTimeOffset UltimoDetenido => _detenida == true && _ventanasCandidato > 0 ? _inicioCandidato : _ultimoFin;
 
     /// <summary>Procesa una ventana; devuelve la parada si con esta ventana se confirmó el fin de una.</summary>
     public ParadaDetectada? Procesar(ResultadoVentana ventana)
@@ -95,9 +106,19 @@ public sealed class DetectorParadas
             {
                 var anterior = _detenida;
                 _detenida = detenidaAhora;
+                var retomada = false;
+                if (_suspendidaHasta is { } suspendida)
+                {
+                    // Volvió el video después de un corte con una parada abierta. Si la línea sigue detenida y el
+                    // corte fue corto es la misma parada; si arrancó (o el corte fue largo) se cierra con fin incierto.
+                    _suspendidaHasta = null;
+                    retomada = detenidaAhora
+                        && (_inicioCandidato - suspendida).TotalSeconds <= _opciones.SegundosMaximosCorteParaRetomar;
+                    if (!retomada) cerrada = Cerrar(suspendida, finIncierto: true);
+                }
                 if (detenidaAhora)
                 {
-                    AbrirParada(_inicioCandidato, inicioIncierto: anterior == null);
+                    if (!retomada) AbrirParada(_inicioCandidato, inicioIncierto: anterior == null);
                     foreach (var v in _ventanasCandidatas) Acumular(v);
                 }
                 else if (anterior == true)
@@ -113,16 +134,27 @@ public sealed class DetectorParadas
     }
 
     /// <summary>
-    /// Se cortó el video (o se detiene el servicio): si había una parada abierta se cierra en el último dato
-    /// con FinIncierto, y se vuelve a empezar sin estado confirmado.
+    /// Se cortó o se congeló el video: si había una parada abierta queda suspendida hasta que vuelva el video
+    /// (ver <see cref="Procesar"/>) y se vuelve a empezar sin estado confirmado. Con <paramref name="final"/>
+    /// (terminó el archivo o se detiene el servicio) la parada abierta o suspendida se cierra en el último
+    /// instante detenido con FinIncierto.
     /// </summary>
-    public ParadaDetectada? CortarSenal()
+    public ParadaDetectada? CortarSenal(bool final)
     {
         ParadaDetectada? cerrada = null;
         if (_detenida == true)
         {
-            foreach (var v in _ventanasCandidatas) Acumular(v);
-            cerrada = Cerrar(_ultimoFin, finIncierto: true);
+            if (final) cerrada = Cerrar(UltimoDetenido, finIncierto: true);
+            else _suspendidaHasta = UltimoDetenido;
+        }
+        else if (_suspendidaHasta is { } suspendida)
+        {
+            // Segundo corte antes de saber cómo volvió la línea: sigue suspendida (salvo que sea el final).
+            if (final)
+            {
+                _suspendidaHasta = null;
+                cerrada = Cerrar(suspendida, finIncierto: true);
+            }
         }
         else if (_detenida == false && _ventanasCandidato > 0 && _candidatoDetenida)
         {

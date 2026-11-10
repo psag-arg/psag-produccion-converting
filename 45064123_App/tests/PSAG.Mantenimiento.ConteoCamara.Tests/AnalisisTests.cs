@@ -199,7 +199,7 @@ public class DetectorParadasTests
         for (; i < 3; i++) Agregar(d, Senales.Marcha4(i), paradas);
         for (; i < 6; i++) Agregar(d, Senales.Parada4(i), paradas);
 
-        var p = d.CortarSenal();
+        var p = d.CortarSenal(final: true);
 
         Assert.NotNull(p);
         Assert.True(p!.FinIncierto);
@@ -234,9 +234,114 @@ public class DetectorParadasTests
         Assert.Empty(paradas);
     }
 
-    private static void Agregar(DetectorParadas d, ResultadoVentana v, List<ParadaDetectada> paradas)
+    /// <summary>
+    /// La API crea la detención cuando la parada en curso llega a 5 min. Mientras se confirma el arranque, la en
+    /// curso no puede estirarse hasta el final de la ventana candidata: 4:50 nunca se informa como 5:00.
+    /// </summary>
+    [Theory]
+    [InlineData(29, false)]   // 4 min 50 s
+    [InlineData(31, true)]    // 5 min 10 s
+    public void ParadaEnCurso_HastaEsElUltimoInstanteDetenido(int ventanasParadas, bool llegaAlUmbral)
+    {
+        var d = Nuevo();
+        var paradas = new List<ParadaDetectada>();
+        var enCurso = new List<ParadaEnCurso>();
+        var i = 0;
+        for (; i < 5; i++) Agregar(d, Senales.Marcha4(i), paradas, enCurso);
+        for (; i < 5 + ventanasParadas; i++) Agregar(d, Senales.Parada4(i), paradas, enCurso);
+        for (; i < 10 + ventanasParadas; i++) Agregar(d, Senales.Marcha4(i), paradas, enCurso);
+
+        var p = Assert.Single(paradas);
+        Assert.Equal(ventanasParadas * 10, p.DuracionSegundos);
+        Assert.All(enCurso, e => Assert.Equal(p.Inicio, e.Inicio));
+        Assert.Equal(p.Fin, enCurso.Max(e => e.Hasta));        // coherente con el fin de la cerrada
+        Assert.Equal(llegaAlUmbral, enCurso.Any(e => e.Hasta - e.Inicio >= TimeSpan.FromMinutes(5)));
+    }
+
+    [Fact]
+    public void CorteDeVideoConLaLineaDetenida_SiVuelveDetenida_EsLaMismaParada()
+    {
+        var d = Nuevo();
+        var paradas = new List<ParadaDetectada>();
+        var enCurso = new List<ParadaEnCurso>();
+        var i = 0;
+        for (; i < 3; i++) Agregar(d, Senales.Marcha4(i), paradas, enCurso);
+        for (; i < 9; i++) Agregar(d, Senales.Parada4(i), paradas, enCurso);
+        Assert.Null(d.CortarSenal(final: false));
+        i += 3;                                                // 30 s sin video
+        for (; i < 21; i++) Agregar(d, Senales.Parada4(i), paradas, enCurso);
+        for (; i < 25; i++) Agregar(d, Senales.Marcha4(i), paradas, enCurso);
+
+        var p = Assert.Single(paradas);
+        Assert.Equal(Senales.T0.AddSeconds(30), p.Inicio);
+        Assert.Equal(Senales.T0.AddSeconds(210), p.Fin);
+        Assert.False(p.InicioIncierto);
+        Assert.False(p.FinIncierto);
+        Assert.All(enCurso, e => Assert.Equal(p.Inicio, e.Inicio));   // mismo IdentificadorExterno en la API
+    }
+
+    [Fact]
+    public void CorteDeVideoConLaLineaDetenida_SiVuelveEnMarcha_SeCierraConFinIncierto()
+    {
+        var d = Nuevo();
+        var paradas = new List<ParadaDetectada>();
+        var i = 0;
+        for (; i < 3; i++) Agregar(d, Senales.Marcha4(i), paradas);
+        for (; i < 9; i++) Agregar(d, Senales.Parada4(i), paradas);
+        Assert.Null(d.CortarSenal(final: false));
+        i += 3;
+        for (; i < 16; i++) Agregar(d, Senales.Marcha4(i), paradas);
+
+        var p = Assert.Single(paradas);
+        Assert.Equal(Senales.T0.AddSeconds(30), p.Inicio);
+        Assert.Equal(Senales.T0.AddSeconds(90), p.Fin);           // el último dato antes del corte
+        Assert.True(p.FinIncierto);
+        Assert.False(d.Detenida);
+    }
+
+    [Fact]
+    public void CorteDeVideoLargo_AunqueVuelvaDetenida_SonDosParadas()
+    {
+        var d = Nuevo();
+        var paradas = new List<ParadaDetectada>();
+        var i = 0;
+        for (; i < 3; i++) Agregar(d, Senales.Marcha4(i), paradas);
+        for (; i < 9; i++) Agregar(d, Senales.Parada4(i), paradas);
+        d.CortarSenal(final: false);
+        i += 13;                                               // 130 s sin video: más que SegundosMaximosCorteParaRetomar
+        for (; i < 28; i++) Agregar(d, Senales.Parada4(i), paradas);
+        for (; i < 31; i++) Agregar(d, Senales.Marcha4(i), paradas);
+
+        Assert.Collection(paradas,
+            p => { Assert.Equal(Senales.T0.AddSeconds(90), p.Fin); Assert.True(p.FinIncierto); },
+            p => { Assert.Equal(Senales.T0.AddSeconds(220), p.Inicio); Assert.True(p.InicioIncierto); });
+    }
+
+    [Fact]
+    public void CorteDeVideoYDespuesSeDetieneElServicio_CierraLaParadaSuspendida()
+    {
+        var d = Nuevo();
+        var paradas = new List<ParadaDetectada>();
+        var i = 0;
+        for (; i < 3; i++) Agregar(d, Senales.Marcha4(i), paradas);
+        for (; i < 9; i++) Agregar(d, Senales.Parada4(i), paradas);
+        Assert.Null(d.CortarSenal(final: false));
+        Assert.Null(d.CortarSenal(final: false));             // segundo corte sin video en el medio
+
+        var p = d.CortarSenal(final: true);
+
+        Assert.NotNull(p);
+        Assert.Equal(Senales.T0.AddSeconds(30), p!.Inicio);
+        Assert.Equal(Senales.T0.AddSeconds(90), p.Fin);
+        Assert.True(p.FinIncierto);
+        Assert.Null(d.CortarSenal(final: true));              // no se informa dos veces
+    }
+
+    private static void Agregar(DetectorParadas d, ResultadoVentana v, List<ParadaDetectada> paradas, List<ParadaEnCurso>? enCurso = null)
     {
         if (d.Procesar(v) is { } p) paradas.Add(p);
+        // Como los procesadores: después de cada ventana se informa la parada que sigue abierta.
+        if (enCurso != null && d.Abierta is { } a) enCurso.Add(a);
     }
 }
 
