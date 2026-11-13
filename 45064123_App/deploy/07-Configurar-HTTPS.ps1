@@ -79,6 +79,11 @@ if ($rsa -is [System.Security.Cryptography.RSACng]) {
 } elseif ($rsa -is [System.Security.Cryptography.RSACryptoServiceProvider]) {
     $archivoClave = Join-Path $env:ProgramData "Microsoft\Crypto\RSA\MachineKeys\$($rsa.CspKeyContainerInfo.UniqueKeyContainerName)"
 }
+# Un .pfx importado con proveedor clásico se abre como RSACng pero la clave vive en RSA\MachineKeys.
+if ($archivoClave -and -not (Test-Path $archivoClave)) {
+    $alternativa = Join-Path $env:ProgramData "Microsoft\Crypto\RSA\MachineKeys\$(Split-Path $archivoClave -Leaf)"
+    if (Test-Path $alternativa) { $archivoClave = $alternativa }
+}
 "clave privada: $archivoClave · lectura para '$cuenta'"
 if ($Aplicar -and $archivoClave -and $cuenta -and $cuenta -ne 'LocalSystem') { icacls $archivoClave /grant "${cuenta}:R" | Out-Null }
 
