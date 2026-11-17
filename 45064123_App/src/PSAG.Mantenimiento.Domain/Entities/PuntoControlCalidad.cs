@@ -61,8 +61,9 @@ public class PuntoControlCalidad : CatalogoBase
     public decimal? ObjetivoPorHora { get; set; }
 
     /// <summary>
-    /// Qué cuenta la cámara: CARRILES (rollos de los carriles, cámara 09) o MANGAS (cámara 10). Es el mismo método
-    /// que tiene la cámara en el servicio de conteo. Vacío = se deduce de los datos (1 carril = mangas).
+    /// Qué cuenta la cámara: CARRILES (rollos de los carriles, cámara 09), MANGAS (cámara 10) o BOLSONES (cámara 08,
+    /// script 33). Es el mismo método que tiene la cámara en el servicio de conteo y define la unidad del Dashboard
+    /// (<see cref="Services.MetodoConteoCamara.UnidadDe"/>). Vacío = se deduce de los datos (1 carril = mangas).
     /// </summary>
     public string? MetodoConteo { get; set; }
 

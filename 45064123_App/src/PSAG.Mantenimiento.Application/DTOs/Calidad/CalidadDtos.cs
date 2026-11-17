@@ -67,7 +67,7 @@ public class GuardarPuntoControlCalidadRequest
     /// <summary>Unidades por hora en marcha plena (rollos o mangas). Vacío = todavía no se cargó.</summary>
     public decimal? ObjetivoPorHora { get; set; }
 
-    /// <summary>CARRILES (rollos, cámara 09) o MANGAS (cámara 10). Vacío = se deduce de los datos.</summary>
+    /// <summary>CARRILES (rollos, cámara 09), MANGAS (cámara 10) o BOLSONES (cámara 08). Vacío = se deduce de los datos.</summary>
     public string? MetodoConteo { get; set; }
 }
 

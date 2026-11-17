@@ -138,7 +138,7 @@ public class CalidadMaestrosService : ICalidadMaestrosService
         if (EficienciaCamaraCalculador.MotivoObjetivoInvalido(request.ObjetivoPorHora) is { } motivoObjetivo)
             return Result<Linea>.Failure("VALIDATION", motivoObjetivo);
         if (!EficienciaCamaraCalculador.TryNormalizarMetodo(request.MetodoConteo, out _))
-            return Result<Linea>.Failure("VALIDATION", "Qué cuenta la cámara: CARRILES (rollos) o MANGAS, o vacío.");
+            return Result<Linea>.Failure("VALIDATION", "Qué cuenta la cámara: CARRILES (rollos), MANGAS o BOLSONES, o vacío.");
         if (request.NumeroCamara is < 1 or > 999)
             return Result<Linea>.Failure("VALIDATION", "El número de cámara tiene que estar entre 1 y 999.");
         if (request.EquipoId is { } equipoId)
