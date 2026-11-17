@@ -152,6 +152,13 @@ public class ProduccionCamaraHoraDto
 public class EficienciaCamaraDiaDto
 {
     public DateOnly Fecha { get; set; }
+
+    /// <summary>Hora del servidor (planta) en que se armó la respuesta.</summary>
+    public DateTimeOffset GeneradoEn { get; set; }
+
+    /// <summary>Minutos sin datos nuevos a partir de los cuales una cámara queda ATRASADO.</summary>
+    public int MinutosAtraso { get; set; }
+
     public List<EficienciaCamaraPuntoDto> Camaras { get; set; } = [];
 }
 
@@ -172,6 +179,14 @@ public class EficienciaCamaraPuntoDto
 
     /// <summary>Umbral efectivo legible que arma la API ("5 min", "45 s").</summary>
     public string UmbralTexto { get; set; } = string.Empty;
+
+    /// <summary>Fin del último minuto cerrado que llegó de la cámara (hora de planta). Null = nunca mandó datos.</summary>
+    public DateTimeOffset? DatosHasta { get; set; }
+    public int? MinutosSinDatosNuevos { get; set; }
+
+    /// <summary>AL_DIA, ATRASADO o SIN_DATOS (lo decide la API).</summary>
+    public string EstadoDatos { get; set; } = string.Empty;
+
     public List<EficienciaTurnoDto> Turnos { get; set; } = [];
 }
 

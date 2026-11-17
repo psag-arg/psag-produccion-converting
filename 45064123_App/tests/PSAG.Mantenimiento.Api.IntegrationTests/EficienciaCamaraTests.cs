@@ -267,4 +267,91 @@ public class EficienciaCamaraTests : CalidadTestBase
         Assert.Null(vacio.Value!.ObjetivoPorHora);
         Assert.Null(vacio.Value.MetodoConteo);
     }
+
+    // ---------- "Datos hasta las HH:mm" y varias cámaras por línea (reunión 17/11) ----------
+
+    [Fact]
+    public async Task DatosHasta_FinDelUltimoMinutoDeLaCamara_EnHoraDePlanta()
+    {
+        await CargarDatosAsync();
+        var ultimo = _inicioDia.AddDays(1).AddHours(3); // último minuto cargado
+
+        var r = await _conteo.ObtenerEficienciaAsync(_fecha, Tango2.LineaId, ultimo.AddMinutes(2).AddSeconds(30));
+        var camara = Assert.Single(r.Value!.Camaras);
+
+        Assert.Equal(ultimo.AddMinutes(1), camara.DatosHasta);
+        Assert.Equal(TimeSpan.FromHours(-3), camara.DatosHasta!.Value.Offset);
+        Assert.Equal(1, camara.MinutosSinDatosNuevos);
+        Assert.Equal("AL_DIA", camara.EstadoDatos);
+        Assert.Equal(5, r.Value.MinutosAtraso);
+        Assert.Equal(TimeSpan.FromHours(-3), r.Value.GeneradoEn.Offset);
+    }
+
+    [Fact]
+    public async Task DatosHasta_SinMinutosNuevos_Atrasado_SegunElUmbralPedido()
+    {
+        await CargarDatosAsync();
+        var ultimo = _inicioDia.AddDays(1).AddHours(3);
+
+        var atrasada = (await _conteo.ObtenerEficienciaAsync(_fecha, Tango2.LineaId, ultimo.AddMinutes(31))).Value!.Camaras.Single();
+        Assert.Equal("ATRASADO", atrasada.EstadoDatos);
+        Assert.Equal(30, atrasada.MinutosSinDatosNuevos);
+
+        var r = await _conteo.ObtenerEficienciaAsync(_fecha, Tango2.LineaId, ultimo.AddMinutes(31), minutosAtraso: 60);
+        Assert.Equal("AL_DIA", r.Value!.Camaras.Single().EstadoDatos);
+        Assert.Equal(60, r.Value.MinutosAtraso);
+    }
+
+    [Fact]
+    public async Task VariasCamaras_LaDeBolsonesRecienDadaDeAlta_ApareceConSuUnidadYSinDatos()
+    {
+        // Sin código por número de cámara: alcanza con el punto de control y su método.
+        await CargarDatosAsync();
+        await PonerObjetivoAsync(10m, "MANGAS");
+        Context.Add(new PuntoControlCalidad
+        {
+            LineaId = Tango2.LineaId, Codigo = "TEST-CAM08", Nombre = "Cámara 08 - bolsones", NumeroCamara = 8,
+            MetodoConteo = "BOLSONES", CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin
+        });
+        await Context.SaveChangesAsync();
+
+        var r = await _conteo.ObtenerEficienciaAsync(_fecha, Tango2.LineaId);
+        var camaras = r.Value!.Camaras;
+
+        Assert.Equal(["TEST-CAM08", "TEST-CAM-T2"], camaras.Select(c => c.Codigo)); // por número de cámara
+        var bolsones = camaras[0];
+        Assert.Equal("bolsones", bolsones.Unidad);
+        Assert.Equal("SIN_DATOS", bolsones.EstadoDatos);
+        Assert.Null(bolsones.DatosHasta);
+        Assert.All(bolsones.Turnos, t => Assert.Equal(0, t.Contadas));
+        Assert.Equal("mangas", camaras[1].Unidad);
+        Assert.NotNull(camaras[1].DatosHasta);
+    }
+
+    [Fact]
+    public async Task Maestros_AceptaBolsones()
+    {
+        var request = new GuardarPuntoControlCalidadRequest
+        {
+            LineaId = Tango2.LineaId, Codigo = "TEST-CAM-T2", Nombre = "Cámara 08", MetodoConteo = "bolsones"
+        };
+
+        var ok = await Maestros.ActualizarPuntoControlAsync(CamaraTango.PuntoControlCalidadId, request, Admin, ["ADMINISTRADOR"]);
+
+        Assert.True(ok.IsSuccess, ok.ErrorMessage);
+        Assert.Equal("BOLSONES", ok.Value!.MetodoConteo);
+    }
+
+    [Fact]
+    public void Script33_ElCheckAdmiteTodosLosMetodosDelDominio_YElAltaDeLaCamara08VieneComentada()
+    {
+        var script = ScriptSql.Texto("33_metodo_conteo_bolsones.sql");
+        var check = script[script.IndexOf("CHECK ([MetodoConteo]", StringComparison.Ordinal)..];
+        check = check[..check.IndexOf("));", StringComparison.Ordinal)];
+        Assert.All(Domain.Services.MetodoConteoCamara.Todos, m => Assert.Contains($"N'{m}'", check));
+
+        var alta = script.IndexOf("N'T2-CAM08'", StringComparison.Ordinal);
+        Assert.True(alta > script.IndexOf("/*", StringComparison.Ordinal) && alta < script.IndexOf("*/", StringComparison.Ordinal),
+            "El alta de T2-CAM08 tiene que quedar comentada hasta calibrar la detección de bolsones.");
+    }
 }

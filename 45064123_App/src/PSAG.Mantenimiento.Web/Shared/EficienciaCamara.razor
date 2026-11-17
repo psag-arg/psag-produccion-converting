@@ -1,6 +1,7 @@
 @* Dashboard: eficiencia por turno según la cámara (reunión 03/11 [8:31]). Contadas / objetivo del turno, con
-   objetivo = objetivo por hora (Maestros → Calidad) x horas programadas del turno. Hoy y ayer. *@
-@inject IConteoCamaraService ConteoCamaraService
+   objetivo = objetivo por hora (Maestros → Calidad) x horas programadas del turno. Hoy y ayer.
+   Sólo muestra: los datos los carga (y refresca cada minuto) el Dashboard. Una tarjeta por punto de control con
+   conteo, cada una con su unidad (rollos, mangas, bolsones...) y su "Datos hasta las HH:mm" (reunión 17/11). *@
 
 <div class="row mb-4">
     <div class="col-12">
@@ -10,36 +11,49 @@
                 <small class="d-none d-sm-inline">Contadas / objetivo del turno</small>
             </div>
             <div class="card-body p-2 p-md-3">
-                @if (cargando)
+                @if (Cargando && Hoy == null)
                 {
                     <div class="text-center py-3"><div class="spinner-border spinner-border-sm text-info" role="status"></div> Cargando...</div>
                 }
-                else if (error)
+                else if (Hoy == null && Ayer == null)
                 {
                     <div class="text-danger small">No se pudo cargar la eficiencia de las cámaras. Tocá Actualizar.</div>
                 }
                 else if (!camaras.Any())
                 {
-                    <p class="text-muted text-center py-2 mb-0">Ninguna cámara contó producción hoy ni ayer.</p>
+                    <p class="text-muted text-center py-2 mb-0">No hay cámaras que cuenten producción (Maestros → Calidad: método y objetivo).</p>
                 }
                 else
                 {
                     <div class="row g-3">
                         @foreach (var camara in camaras)
                         {
-                            <div class="col-12">
-                                <div class="border rounded p-2 h-100">
+                            <div class="col-12" @key="camara.PuntoControlCalidadId">
+                                <div class="border rounded p-2 h-100 eficiencia-camara @(EficienciaUi.Atrasada(camara) ? "border-danger" : "")" data-punto="@camara.Codigo">
                                     <div class="d-flex flex-wrap justify-content-between align-items-baseline gap-1 mb-1">
                                         <strong>@EficienciaUi.Titulo(camara)</strong>
-                                        @if (camara.ObjetivoPorHora is { } porHora)
-                                        {
-                                            <small class="text-muted">Objetivo @EficienciaUi.Numero(porHora) @camara.Unidad/h</small>
-                                        }
-                                        else
-                                        {
-                                            <small class="text-warning-emphasis">@EficienciaUi.TextoSinObjetivo</small>
-                                        }
+                                        <div class="d-flex flex-wrap align-items-baseline gap-2">
+                                            <span class="badge @EficienciaUi.ClaseDatosHasta(camara.EstadoDatos) datos-hasta" title="@EficienciaUi.TituloDatosHasta(camara)">
+                                                @if (EficienciaUi.Atrasada(camara))
+                                                {
+                                                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                }
+                                                @EficienciaUi.TextoDatosHasta(camara, GeneradoEn)
+                                            </span>
+                                            @if (camara.ObjetivoPorHora is { } porHora)
+                                            {
+                                                <small class="text-muted">Objetivo @EficienciaUi.Numero(porHora) @camara.Unidad/h</small>
+                                            }
+                                            else
+                                            {
+                                                <small class="text-warning-emphasis">@EficienciaUi.TextoSinObjetivo</small>
+                                            }
+                                        </div>
                                     </div>
+                                    @if (EficienciaUi.Atrasada(camara))
+                                    {
+                                        <div class="small text-danger mb-1">@EficienciaUi.AvisoAtraso(camara)</div>
+                                    }
 
                                     @foreach (var (etiqueta, dia) in DiasDe(camara.PuntoControlCalidadId))
                                     {
@@ -117,57 +131,27 @@
 </div>
 
 @code {
-    /// <summary>Línea elegida en el Dashboard (null = todas).</summary>
-    [Parameter] public int? LineaId { get; set; }
+    /// <summary>Eficiencia de hoy (null mientras no se pudo cargar nunca).</summary>
+    [Parameter] public EficienciaCamaraDiaDto? Hoy { get; set; }
 
-    private EficienciaCamaraDiaDto hoy = new();
-    private EficienciaCamaraDiaDto ayer = new();
+    /// <summary>Eficiencia de ayer (el turno de noche de ayer puede seguir en curso a la madrugada).</summary>
+    [Parameter] public EficienciaCamaraDiaDto? Ayer { get; set; }
+
+    /// <summary>Primera carga en curso (los refrescos no muestran el spinner, para que no parpadee).</summary>
+    [Parameter] public bool Cargando { get; set; }
+
     private List<EficienciaCamaraPuntoDto> camaras = new();
-    private bool cargando = true;
-    private bool error;
-    private int? lineaCargada = -1;
 
-    protected override async Task OnParametersSetAsync()
-    {
-        if (lineaCargada != LineaId)
-            await CargarAsync();
-    }
+    private DateTimeOffset GeneradoEn => Hoy?.GeneradoEn ?? Ayer?.GeneradoEn ?? DateTimeOffset.Now;
 
-    private async Task CargarAsync()
-    {
-        lineaCargada = LineaId;
-        cargando = true;
-        error = false;
-        try
-        {
-            var fechaHoy = DateOnly.FromDateTime(DateTime.Now);
-            var tareaHoy = ConteoCamaraService.GetEficienciaAsync(fechaHoy, LineaId);
-            var tareaAyer = ConteoCamaraService.GetEficienciaAsync(fechaHoy.AddDays(-1), LineaId);
-            hoy = await tareaHoy;
-            ayer = await tareaAyer;
-            // Una tarjeta por cámara, aunque sólo tenga datos uno de los dos días.
-            camaras = hoy.Camaras.Concat(ayer.Camaras)
-                .GroupBy(c => c.PuntoControlCalidadId)
-                .Select(g => g.First())
-                .ToList();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error cargando eficiencia: {ex.Message}");
-            error = true;
-        }
-        finally
-        {
-            cargando = false;
-        }
-    }
+    protected override void OnParametersSet() => camaras = EficienciaUi.Camaras(Hoy, Ayer);
 
     private IEnumerable<(string Etiqueta, DiaCamara Dia)> DiasDe(int puntoId)
     {
-        foreach (var (etiqueta, dia) in new[] { ("Hoy", hoy), ("Ayer", ayer) })
+        foreach (var (etiqueta, dia) in new[] { ("Hoy", Hoy), ("Ayer", Ayer) })
         {
-            var camara = dia.Camaras.FirstOrDefault(c => c.PuntoControlCalidadId == puntoId);
-            if (camara != null)
+            var camara = dia?.Camaras.FirstOrDefault(c => c.PuntoControlCalidadId == puntoId);
+            if (dia != null && camara != null && camara.Turnos.Count > 0)
                 yield return (etiqueta, new DiaCamara(dia.Fecha, camara.Turnos));
         }
     }

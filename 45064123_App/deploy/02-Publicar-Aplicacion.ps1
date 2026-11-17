@@ -205,7 +205,11 @@ Write-Host "  Creado: appsettings.Production.json (API)" -ForegroundColor DarkGr
 # appsettings.json para Web (Blazor WASM)
 $webSettings = @"
 {
-  "ApiBaseUrl": "http://localhost:5188/"
+  "ApiBaseUrl": "http://localhost:5188/",
+  "Dashboard": {
+    "SegundosRefresco": 60,
+    "MinutosDatosAtrasados": 5
+  }
 }
 "@
 

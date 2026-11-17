@@ -21,7 +21,7 @@ public interface IConteoCamaraService
     /// Eficiencia por turno de cada cámara que cuenta producción (de una línea o de todas) en un día de planta:
     /// contadas, objetivo (ObjetivoPorHora x horas programadas del turno), %, minutos de parada y microcortes.
     /// </summary>
-    Task<Result<EficienciaCamaraDiaDto>> ObtenerEficienciaAsync(DateOnly fecha, int? lineaId, DateTimeOffset? ahora = null, CancellationToken cancellationToken = default);
+    Task<Result<EficienciaCamaraDiaDto>> ObtenerEficienciaAsync(DateOnly fecha, int? lineaId, DateTimeOffset? ahora = null, CancellationToken cancellationToken = default, int? minutosAtraso = null);
 
     /// <summary>Alertas de cámara abiertas y las cerradas en las últimas horas.</summary>
     Task<IReadOnlyList<AlertaCamaraDto>> ObtenerAlertasAsync(int? lineaId, int horas = 24, CancellationToken cancellationToken = default);

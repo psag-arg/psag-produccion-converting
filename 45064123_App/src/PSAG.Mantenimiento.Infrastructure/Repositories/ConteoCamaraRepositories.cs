@@ -29,6 +29,24 @@ public class ConteoCamaraMinutoRepository : RepositoryBase<ConteoCamaraMinuto>, 
             query = query.Where(m => m.LineaId == lineaId.Value);
         return await query.OrderBy(m => m.Minuto).ThenBy(m => m.Carril).ToListAsync(cancellationToken);
     }
+
+    public async Task<Dictionary<int, DateTimeOffset>> GetUltimoMinutoPorPuntoAsync(
+        IReadOnlyCollection<int> puntoControlCalidadIds, CancellationToken cancellationToken = default)
+    {
+        // Pocas cámaras: un TOP 1 por punto (seek en el índice único) en vez de un GROUP BY sobre toda la tabla.
+        var resultado = new Dictionary<int, DateTimeOffset>();
+        foreach (var id in puntoControlCalidadIds.Distinct())
+        {
+            var ultimo = await _dbSet.AsNoTracking()
+                .Where(m => m.PuntoControlCalidadId == id)
+                .OrderByDescending(m => m.Minuto)
+                .Select(m => (DateTimeOffset?)m.Minuto)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (ultimo is { } minuto)
+                resultado[id] = minuto;
+        }
+        return resultado;
+    }
 }
 
 public class ParadaCamaraRepository : RepositoryBase<ParadaCamara>, IParadaCamaraRepository

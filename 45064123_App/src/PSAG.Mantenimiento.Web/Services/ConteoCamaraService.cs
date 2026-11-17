@@ -15,7 +15,8 @@ public interface IConteoCamaraService
     Task<List<AlertaCamaraDto>> GetAlertasAsync(int? lineaId = null, int horas = 24);
 
     /// <summary>Eficiencia por turno de las cámaras que cuentan producción, en un día de planta (Dashboard).</summary>
-    Task<EficienciaCamaraDiaDto> GetEficienciaAsync(DateOnly fecha, int? lineaId = null);
+    /// <param name="minutosAtraso">Minutos sin datos nuevos para marcar la cámara como atrasada (null = 5, lo de la API).</param>
+    Task<EficienciaCamaraDiaDto> GetEficienciaAsync(DateOnly fecha, int? lineaId = null, int? minutosAtraso = null, CancellationToken cancellationToken = default);
 }
 
 public class ConteoCamaraService : IConteoCamaraService
@@ -47,12 +48,14 @@ public class ConteoCamaraService : IConteoCamaraService
         return await response.Content.ReadFromJsonAsync<ProduccionCamaraDto>() ?? new ProduccionCamaraDto();
     }
 
-    public async Task<EficienciaCamaraDiaDto> GetEficienciaAsync(DateOnly fecha, int? lineaId = null)
+    public async Task<EficienciaCamaraDiaDto> GetEficienciaAsync(DateOnly fecha, int? lineaId = null, int? minutosAtraso = null, CancellationToken cancellationToken = default)
     {
-        var url = $"{Base}/eficiencia?fecha={Fecha(fecha)}" + (lineaId.HasValue ? $"&lineaId={lineaId}" : "");
-        var response = await _httpClient.GetAsync(url);
+        var url = $"{Base}/eficiencia?fecha={Fecha(fecha)}"
+            + (lineaId.HasValue ? $"&lineaId={lineaId}" : "")
+            + (minutosAtraso.HasValue ? $"&minutosAtraso={minutosAtraso}" : "");
+        var response = await _httpClient.GetAsync(url, cancellationToken);
         await ApiErrores.AsegurarExitoAsync(response);
-        return await response.Content.ReadFromJsonAsync<EficienciaCamaraDiaDto>() ?? new EficienciaCamaraDiaDto { Fecha = fecha };
+        return await response.Content.ReadFromJsonAsync<EficienciaCamaraDiaDto>(cancellationToken) ?? new EficienciaCamaraDiaDto { Fecha = fecha };
     }
 
     public async Task<List<AlertaCamaraDto>> GetAlertasAsync(int? lineaId = null, int horas = 24)

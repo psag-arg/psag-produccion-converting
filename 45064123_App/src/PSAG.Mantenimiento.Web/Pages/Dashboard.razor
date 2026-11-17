@@ -6,7 +6,9 @@
 @attribute [Authorize]
 @inject IDashboardService DashboardService
 @inject ICatalogosService CatalogosService
-@inject NavigationManager Navigation
+@inject IConteoCamaraService ConteoCamaraService
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuracion
+@implements IAsyncDisposable
 
 <PageTitle>Dashboard - PSAG Produccion</PageTitle>
 
@@ -14,17 +16,52 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2>Dashboard de Control</h2>
         <div class="d-flex gap-2">
-            <select class="form-select form-select-sm" style="width: auto;" @bind="filtroLineaId" @bind:after="@(async () => await CargarDashboard())">
+            <select class="form-select form-select-sm" style="width: auto;" @bind="filtroLineaId" @bind:after="@(async () => await ActualizarAhora())">
                 <option value="0">Todas las líneas</option>
                 @foreach (var linea in lineas)
                 {
                     <option value="@linea.LineaId">@linea.Nombre</option>
                 }
             </select>
-            <button class="btn btn-outline-primary btn-sm" @onclick="CargarDashboard">
-                <i class="bi bi-arrow-clockwise"></i> Actualizar
+            <button class="btn btn-outline-primary btn-sm text-nowrap" @onclick="@(async () => await ActualizarAhora())" disabled="@actualizando">
+                @if (actualizando)
+                {
+                    <span class="spinner-border spinner-border-sm" role="status"></span>
+                }
+                else
+                {
+                    <i class="bi bi-arrow-clockwise"></i>
+                }
+                Actualizar
             </button>
         </div>
+    </div>
+
+    @* Estado del refresco automático (reunión 17/11): de cuándo son los datos y si hay alguno viejo. *@
+    <div class="d-flex flex-wrap justify-content-end align-items-center gap-2 small mb-2 dashboard-estado" aria-live="polite">
+        @if (datosHastaGeneral is { } hasta)
+        {
+            <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle"
+                  title="Fin del último minuto cerrado que mandaron las cámaras. El panel va 1 o 2 minutos atrás del contador de la máquina: para comparar, mirar el contador a esa hora.">
+                <i class="bi bi-camera-video me-1"></i>Datos hasta las @hasta.ToString("HH:mm")
+            </span>
+        }
+        @foreach (var camara in camarasAtrasadas)
+        {
+            <span class="badge text-bg-danger" title="@EficienciaUi.AvisoAtraso(camara)">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i>@EficienciaUi.Titulo(camara): sin datos nuevos hace @EficienciaUi.Minutos(camara.MinutosSinDatosNuevos ?? 0)
+            </span>
+        }
+        @if (ultimaActualizacion is { } ultima)
+        {
+            <span class="text-muted">
+                Actualizado @ultima.ToString("HH:mm:ss")@(opciones.RefrescoActivo ? $" · se actualiza cada {TextoIntervalo}" : "")
+            </span>
+        }
+        @if (errorRefresco is { } fallo)
+        {
+            <span class="text-danger">No se pudo actualizar a las @fallo.ToString("HH:mm:ss"); se muestran los datos anteriores.</span>
+        }
     </div>
 
     @if (errorLineas)
@@ -154,9 +191,8 @@
             </div>
         </div>
 
-        <!-- Eficiencia por turno según la cámara (reunión 03/11) -->
-        @* Se vuelve a crear (y a cargar) con cada Actualizar o cambio de línea, como el resto del Dashboard. *@
-        <EficienciaCamara LineaId="@(filtroLineaId > 0 ? filtroLineaId : null)" />
+        <!-- Eficiencia por turno según la cámara (reunión 03/11); los datos los refresca esta página (reunión 17/11). -->
+        <EficienciaCamara Hoy="@eficienciaHoy" Ayer="@eficienciaAyer" Cargando="@actualizando" />
 
         <!-- Detenciones por Linea y Tipo de Falla -->
         <div class="row mb-4">
@@ -380,13 +416,31 @@
 @code {
     private List<LineaDto> lineas = new();
     private DashboardCompletoDto? dashboard;
+    private EficienciaCamaraDiaDto? eficienciaHoy;
+    private EficienciaCamaraDiaDto? eficienciaAyer;
     private int filtroLineaId;
+    private int? lineaCargada;
     private bool isLoading = true;
+    private bool actualizando;
     private const int MostrarPendientes = 5;
     private bool errorLineas;
 
+    // Refresco automático (reunión 17/11): cada Dashboard:SegundosRefresco (60 s por defecto), sin solapar llamadas.
+    private OpcionesDashboard opciones = new(OpcionesDashboard.SegundosRefrescoPorDefecto, OpcionesDashboard.MinutosDatosAtrasadosPorDefecto);
+    private RefrescoPeriodico? refresco;
+    private DateTime? ultimaActualizacion;
+    private DateTime? errorRefresco;
+    private DateTimeOffset? datosHastaGeneral;
+    private List<EficienciaCamaraPuntoDto> camarasAtrasadas = new();
+    private bool liberado;
+
+    private string TextoIntervalo => opciones.SegundosRefresco % 60 == 0
+        ? $"{opciones.SegundosRefresco / 60} min"
+        : $"{opciones.SegundosRefresco} s";
+
     protected override async Task OnInitializedAsync()
     {
+        opciones = OpcionesDashboard.Leer(Configuracion);
         try
         {
             lineas = await CatalogosService.GetLineasAsync();
@@ -397,26 +451,96 @@
             errorLineas = true;
         }
 
-        await CargarDashboard();
+        // Con el refresco apagado (0) el timer no se inicia; el intervalo sólo hace falta para construirlo.
+        refresco = new RefrescoPeriodico(
+            TimeSpan.FromSeconds(opciones.RefrescoActivo ? opciones.SegundosRefresco : OpcionesDashboard.SegundosRefrescoMaximo),
+            CargarAsync,
+            ex => Console.WriteLine($"Error refrescando el Dashboard: {ex.Message}"));
+        await refresco.SolicitarAsync();
+        isLoading = false;
+        if (opciones.RefrescoActivo && !liberado)
+            refresco.Iniciar();
     }
 
-    private async Task CargarDashboard()
+    /// <summary>Botón Actualizar y cambio de línea: carga ya (si hay una carga en curso, vuelve a cargar al terminar).</summary>
+    private async Task ActualizarAhora()
     {
-        isLoading = true;
+        if (refresco != null)
+            await refresco.SolicitarAsync();
+    }
+
+    /// <summary>
+    /// Trae el Dashboard y la eficiencia de hoy y ayer con el filtro actual. No vacía la pantalla mientras carga
+    /// (sin parpadeo ni salto de scroll): reemplaza los datos al llegar. Si una parte falla, queda la anterior.
+    /// </summary>
+    private async Task CargarAsync(CancellationToken ct)
+    {
+        var linea = filtroLineaId;
+        var lineaId = linea > 0 ? (int?)linea : null;
+        actualizando = true;
+        await InvokeAsync(StateHasChanged);
+
+        var fechaHoy = DateOnly.FromDateTime(DateTime.Now);
+        var tareaDashboard = Intentar(() => DashboardService.GetDashboardAsync(lineaId: lineaId));
+        var tareaHoy = Intentar(() => ConteoCamaraService.GetEficienciaAsync(fechaHoy, lineaId, opciones.MinutosDatosAtrasados, ct));
+        var tareaAyer = Intentar(() => ConteoCamaraService.GetEficienciaAsync(fechaHoy.AddDays(-1), lineaId, opciones.MinutosDatosAtrasados, ct));
+        await Task.WhenAll(tareaDashboard, tareaHoy, tareaAyer);
+        actualizando = false;
+        ct.ThrowIfCancellationRequested();
+
+        // Si cambiaron la línea mientras tanto, no se pisa: la carga que pidió el cambio trae la línea nueva.
+        if (linea != filtroLineaId || liberado)
+            return;
+
+        var (okDashboard, nuevoDashboard) = tareaDashboard.Result;
+        var (okHoy, nuevaHoy) = tareaHoy.Result;
+        var (okAyer, nuevaAyer) = tareaAyer.Result;
+        // Con otra línea, lo anterior ya no corresponde: si esa parte falló queda vacía (con su aviso), no la vieja.
+        var otraLinea = lineaCargada != linea;
+        if (okDashboard || otraLinea) dashboard = nuevoDashboard;
+        if (okHoy || otraLinea) eficienciaHoy = nuevaHoy;
+        if (okAyer || otraLinea) eficienciaAyer = nuevaAyer;
+        lineaCargada = linea;
+
+        if (okDashboard && okHoy && okAyer)
+        {
+            ultimaActualizacion = DateTime.Now;
+            errorRefresco = null;
+        }
+        else
+        {
+            errorRefresco = DateTime.Now;
+        }
+
+        var camaras = eficienciaHoy?.Camaras ?? [];
+        datosHastaGeneral = EficienciaUi.DatosHastaGeneral(camaras);
+        camarasAtrasadas = camaras.Where(EficienciaUi.Atrasada).ToList();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private static async Task<(bool Ok, T? Valor)> Intentar<T>(Func<Task<T>> llamada)
+    {
         try
         {
-            dashboard = await DashboardService.GetDashboardAsync(
-                lineaId: filtroLineaId > 0 ? filtroLineaId : null);
+            return (true, await llamada());
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error: {ex.Message}");
-            dashboard = null;
+            Console.WriteLine($"Error cargando el Dashboard: {ex.Message}");
+            return (false, default);
         }
-        finally
-        {
-            isLoading = false;
-        }
+    }
+
+    /// <summary>Al salir de la pantalla: corta el timer y la carga en curso.</summary>
+    public async ValueTask DisposeAsync()
+    {
+        liberado = true;
+        if (refresco != null)
+            await refresco.DisposeAsync();
     }
 
     private string FormatMinutos(int minutos)

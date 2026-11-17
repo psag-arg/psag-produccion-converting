@@ -44,13 +44,15 @@ public class ConteoCamaraController : ApiControllerBase
     /// <summary>
     /// Eficiencia por turno de las cámaras que cuentan producción, en un día de planta (Dashboard): contadas,
     /// objetivo (objetivo por hora x horas programadas del turno), %, minutos de parada y microcortes.
-    /// Sin objetivo cargado el % viene vacío (estado SIN_OBJETIVO), nunca 0.
+    /// Sin objetivo cargado el % viene vacío (estado SIN_OBJETIVO), nunca 0. Cada cámara trae "datos hasta" (fin del
+    /// último minuto cerrado) y su estado: ATRASADO si pasaron más de <c>minutosAtraso</c> (5 por defecto, 2 a 120)
+    /// sin minutos nuevos.
     /// </summary>
     [HttpGet("eficiencia")]
     [ProducesResponseType(typeof(EficienciaCamaraDiaDto), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetEficiencia([FromQuery] DateOnly fecha, [FromQuery] int? lineaId)
+    public async Task<IActionResult> GetEficiencia([FromQuery] DateOnly fecha, [FromQuery] int? lineaId, [FromQuery] int? minutosAtraso)
     {
-        var resultado = await _servicio.ObtenerEficienciaAsync(fecha, lineaId);
+        var resultado = await _servicio.ObtenerEficienciaAsync(fecha, lineaId, minutosAtraso: minutosAtraso);
         return resultado.IsFailure ? ErrorResult(resultado) : Ok(resultado.Value);
     }
 

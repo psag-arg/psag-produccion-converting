@@ -509,9 +509,11 @@ public class ConteoCamaraService : IConteoCamaraService
     // ===================== Eficiencia por turno =====================
 
     public async Task<Result<EficienciaCamaraDiaDto>> ObtenerEficienciaAsync(
-        DateOnly fecha, int? lineaId, DateTimeOffset? ahora = null, CancellationToken cancellationToken = default)
+        DateOnly fecha, int? lineaId, DateTimeOffset? ahora = null, CancellationToken cancellationToken = default,
+        int? minutosAtraso = null)
     {
         var momento = ahora ?? DateTimeOffset.UtcNow;
+        var umbralAtraso = FrescuraDatosCamara.UmbralValido(minutosAtraso);
         var turnos = (await _unitOfWork.Turnos.GetAllAsync(cancellationToken))
             .Where(t => t.Activo)
             .OrderBy(t => t.Orden).ThenBy(t => t.HoraInicio)
@@ -536,7 +538,16 @@ public class ConteoCamaraService : IConteoCamaraService
         var calendarios = (await _unitOfWork.CalendariosLinea.GetActivosAsync(lineaId, cancellationToken)).ToList();
         var excepciones = (await _unitOfWork.TiemposProgramadosDia.GetPorRangoAsync(fecha, fecha, lineaId, cancellationToken)).ToList();
 
-        var resultado = new EficienciaCamaraDiaDto { Fecha = fecha };
+        // "Datos hasta las HH:mm": último minuto de cada cámara, sin importar el día pedido.
+        var ultimos = await _unitOfWork.ConteosCamaraMinuto.GetUltimoMinutoPorPuntoAsync(
+            puntos.Select(p => p.PuntoControlCalidadId).ToList(), cancellationToken);
+
+        var resultado = new EficienciaCamaraDiaDto
+        {
+            Fecha = fecha,
+            GeneradoEn = HoraPlanta.En(momento, _zonaPlanta)!.Value,
+            MinutosAtraso = umbralAtraso
+        };
         foreach (var punto in puntos)
         {
             var minutosPunto = minutos.Where(m => m.PuntoControlCalidadId == punto.PuntoControlCalidadId).ToList();
@@ -562,6 +573,11 @@ public class ConteoCamaraService : IConteoCamaraService
                 UmbralSegundos = umbralSegundos,
                 UmbralTexto = DetencionCamaraReglas.TextoUmbral(umbralSegundos)
             };
+            var datosHasta = FrescuraDatosCamara.DatosHasta(
+                ultimos.TryGetValue(punto.PuntoControlCalidadId, out var ultimo) ? ultimo : null, momento);
+            dto.DatosHasta = HoraPlanta.En(datosHasta, _zonaPlanta);
+            dto.MinutosSinDatosNuevos = FrescuraDatosCamara.MinutosSinDatosNuevos(datosHasta, momento);
+            dto.EstadoDatos = FrescuraDatosCamara.Estado(datosHasta, momento, umbralAtraso);
 
             foreach (var turno in turnos)
             {
