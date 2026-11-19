@@ -12,7 +12,11 @@ namespace PSAG.Mantenimiento.ConteoCamara.Analisis;
 /// informa como ACUMULACION del "carril" 1) si no pasó ninguna manga; si no, MARCHA. El empalme no es parada:
 /// el rodillo sigue y siguen pasando mangas, más espaciadas. Una ventana suelta sin mangas no abre parada
 /// (histéresis de DetectorParadas: 2 ventanas) y lo que dura menos que el umbral de la cámara es un microcorte.
-/// Las mangas se cuentan siempre y van a los minutos como "rollos" del carril 1.
+/// Las mangas van a los minutos como "rollos" del carril 1.
+/// Reglas de la parada (13/11, limpieza con aire que tapaba las zonas): E) la ventana es MARCHA sólo si el rodillo
+/// giró casi toda la ventana (FraccionRodilloGiraParaMarcha); A) cerrar una parada pide 60 s de marcha
+/// (Analisis:VentanasParaConfirmarArranque); F) con la parada abierta las mangas no se cuentan salvo que se
+/// confirme el arranque (DescontarMangasEnParada): esas ventanas se retienen hasta saberlo.
 /// </summary>
 public sealed class ProcesadorMangas : IAnalizadorCuadros
 {
@@ -43,6 +47,9 @@ public sealed class ProcesadorMangas : IAnalizadorCuadros
     private bool _enPaso;
     private DateTimeOffset? _ultimaManga;
 
+    // Regla F: ventanas cerradas que todavía no se mandan (arranque sin confirmar) y si llegaron con la parada abierta.
+    private readonly List<(ResultadoVentana Ventana, bool AbiertaAntes)> _retenidas = [];
+
     public ProcesadorMangas(OpcionesConteo opciones, ISalidaConteo salida)
     {
         _o = opciones.Mangas;
@@ -61,7 +68,7 @@ public sealed class ProcesadorMangas : IAnalizadorCuadros
 
     public double Fps { get; }
 
-    /// <summary>Total de mangas contadas desde que arrancó (para el resumen).</summary>
+    /// <summary>Total de mangas contadas (ya entregadas a los minutos) desde que arrancó (para el resumen).</summary>
     public long MangasTotales { get; private set; }
 
     /// <summary>Zona de la imagen original a la decodificada, recortada a la imagen. Null si queda vacía.</summary>
@@ -111,7 +118,6 @@ public sealed class ProcesadorMangas : IAnalizadorCuadros
                 _enPaso = true;
                 _ultimaManga = hora;
                 _pasosVentana++;
-                MangasTotales++;
             }
             else if (_enPaso && mesa <= _o.UmbralPasoBajo)
                 _enPaso = false;
@@ -135,8 +141,11 @@ public sealed class ProcesadorMangas : IAnalizadorCuadros
     private void CerrarVentana(DateTimeOffset fin)
     {
         var segundos = (fin - _inicioVentana).TotalSeconds;
+        var fraccionQuieto = _rodillo != null && _cuadrosConRodillo > 0 ? (double)_cuadrosRodilloQuieto / _cuadrosConRodillo : 0;
+        // Regla E: con el rodillo quieto en más de (1 - FraccionRodilloGiraParaMarcha) de la ventana no es marcha.
         var rodilloQuieto = _rodillo != null && _cuadrosConRodillo > 0
-            && (double)_cuadrosRodilloQuieto / _cuadrosConRodillo >= _o.FraccionRodilloQuieto;
+            && (fraccionQuieto >= _o.FraccionRodilloQuieto
+                || (_o.FraccionRodilloGiraParaMarcha > 0 && 1 - fraccionQuieto < _o.FraccionRodilloGiraParaMarcha));
         var estado = rodilloQuieto ? EstadoCarril.PARADA
             : _pasosVentana == 0 ? EstadoCarril.ACUMULACION
             : EstadoCarril.MARCHA;
@@ -149,11 +158,45 @@ public sealed class ProcesadorMangas : IAnalizadorCuadros
         ]);
         _cuadros = 0;
 
-        _salida.Ventana(ventana);
+        var abiertaAntes = _detector.Detenida == true;
         var parada = _detector.Procesar(ventana);
         if (parada != null) _salida.Parada(parada);
         if (_detector.Abierta is { } abierta) _salida.ParadaEnCurso(abierta);
-        var minutos = _minutos.Agregar(ventana);
+
+        // Regla F: las ventanas que llegan con la parada ya abierta esperan a saber si fueron un arranque real.
+        _retenidas.Add((ventana, abiertaAntes));
+        var pendientes = _o.DescontarMangasEnParada ? _detector.VentanasConfirmandoArranque : 0;
+        var dentroDeParada = _o.DescontarMangasEnParada && _detector.Detenida == true;
+        Entregar(_retenidas.Count - pendientes, dentroDeParada);
+    }
+
+    /// <summary>
+    /// Manda a la salida y a los minutos las primeras <paramref name="cuantas"/> ventanas retenidas. Con
+    /// <paramref name="dentroDeParada"/> la parada sigue abierta: las que llegaron con la parada ya abierta van
+    /// sin mangas y, si parecían marcha, con el estado de la parada (no hubo arranque).
+    /// </summary>
+    private void Entregar(int cuantas, bool dentroDeParada)
+    {
+        if (cuantas <= 0) return;
+        var tipo = _detector.Abierta?.Tipo == TipoParada.PARADA ? EstadoCarril.PARADA : EstadoCarril.ACUMULACION;
+        var minutos = new List<ConteoMinuto>();
+        foreach (var (original, abiertaAntes) in _retenidas.Take(cuantas))
+        {
+            var ventana = original;
+            if (dentroDeParada && abiertaAntes)
+            {
+                var c = ventana.Carriles[0];
+                ventana = ventana with
+                {
+                    FrecuenciaComunHz = 0,
+                    Carriles = [c with { Estado = c.Estado == EstadoCarril.MARCHA ? tipo : c.Estado, RollosPorSegundo = 0 }]
+                };
+            }
+            MangasTotales += (long)Math.Round(ventana.Rollos);
+            _salida.Ventana(ventana);
+            minutos.AddRange(_minutos.Agregar(ventana));
+        }
+        _retenidas.RemoveRange(0, cuantas);
         if (minutos.Count > 0) _salida.Minutos(minutos);
     }
 
@@ -163,6 +206,9 @@ public sealed class ProcesadorMangas : IAnalizadorCuadros
         _hayAnterior = false;
         _enPaso = false;
         _ultimaManga = null;
+        // Un arranque a medio confirmar: el detector cierra (o suspende) la parada donde empezó ese arranque, así
+        // que esas ventanas quedan fuera de la parada y se cuentan como vinieron.
+        Entregar(_retenidas.Count, dentroDeParada: false);
         var parada = _detector.CortarSenal(final);
         if (parada != null) _salida.Parada(parada);
         if (!final) return;
