@@ -10,6 +10,7 @@
 @attribute [Authorize]
 @inject IDetencionesService DetencionesService
 @inject ICatalogosService CatalogosService
+@inject IAgrupacionDetencionService AgrupacionService
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IJSRuntime JS
@@ -418,15 +419,16 @@
                                 <div class="row mb-3">
                                     <div class="col-md-6">
                                         <label class="form-label">Maquinista @(puedeSeleccionarMaquinista && !editando ? "*" : "")</label>
-                                        @if (editando)
+                                        @if (editando && !maquinistasLinea.Any())
                                         {
                                             <div class="form-control bg-light @(string.IsNullOrWhiteSpace(maquinistaGuardado) ? "text-muted" : "")">
                                                 <i class="bi bi-person-fill me-2"></i>@(string.IsNullOrWhiteSpace(maquinistaGuardado) ? "No registrado" : maquinistaGuardado)
                                             </div>
                                         }
-                                        else if (puedeSeleccionarMaquinista)
+                                        else if (puedeSeleccionarMaquinista || maquinistasLinea.Any())
                                         {
-                                            @* Admin/Supervisor eligen cualquier maquinista de la línea *@
+                                            @* Reunión 17/11/2026: el sistema sugiere el maquinista (el propio o el del turno) y quien carga o
+                                               edita lo puede cambiar por cualquiera de la línea; el cambio queda en el historial. *@
                                             @* Buscador con tipeo: la lista de maquinistas crece con las líneas. *@
                                             <AutocompleteSelect TItem="MaquinistaDto"
                                                                 TValue="int"
@@ -445,9 +447,13 @@
                                             {
                                                 <div class="form-text text-danger">Esta línea no tiene maquinistas asignados. Pedile al administrador que los cargue en Configuración → Maquinistas.</div>
                                             }
-                                            else if (MaquinistaElegido is { TurnoId: null } && !HorasCargadas)
+                                            else if (!editando && MaquinistaEnviadoSinTurno && !HorasCargadas)
                                             {
                                                 <div class="form-text text-warning-emphasis">Este maquinista no tiene turno. Cargá la hora de inicio y fin, o asignale un turno en Configuración → Maquinistas.</div>
+                                            }
+                                            else if (editando && selectedMaquinistaId != maquinistaOriginalId)
+                                            {
+                                                <div class="form-text">El cambio de maquinista queda en el historial. El turno no cambia.</div>
                                             }
                                         }
                                         else if (maquinistaActual != null)
@@ -484,7 +490,7 @@
                                                 <i class="bi bi-clock-fill me-2 text-success"></i>@turnoAsignado
                                             </div>
                                         }
-                                        else if (MaquinistaElegido is { TurnoId: null })
+                                        else if (MaquinistaEnviadoSinTurno)
                                         {
                                             <div class="form-control bg-warning-subtle text-warning-emphasis">
                                                 <i class="bi bi-exclamation-triangle me-2"></i>Cargá hora de inicio y fin
@@ -499,6 +505,17 @@
                                         }
                                     </div>
                                 </div>
+
+                                @* Agrupador (reunión 17/11/2026): microcortes de la cámara en los 10 min previos a la parada. *@
+                                @if (editando && editandoDetencion != null)
+                                {
+                                    <MicrocortesPrevios DetencionId="editandoDetencion.DetencionId" />
+                                }
+                                else if (!editando)
+                                {
+                                    <MicrocortesPrevios LineaId="selectedLineaId" Fecha="model.Fecha" Hora="ParsearHora(horaInicioTexto)"
+                                                        SeleccionCambiada="@((List<long> ids) => microcortesElegidos = ids)" />
+                                }
                             }
 
                             <div class="row mb-3">
@@ -783,6 +800,22 @@
     private MaquinistaDto? MaquinistaElegido =>
         selectedMaquinistaId > 0 ? maquinistasLinea.FirstOrDefault(m => m.UsuarioLineaId == selectedMaquinistaId) : null;
 
+    /// <summary>
+    /// Maquinista que se manda al crear: admin/supervisor siempre el elegido; el operario sólo si cambió el sugerido
+    /// (su propia asignación), así el turno se sigue resolviendo como antes cuando no lo toca.
+    /// </summary>
+    private int? MaquinistaAEnviar => puedeSeleccionarMaquinista
+        ? (selectedMaquinistaId > 0 ? selectedMaquinistaId : null)
+        : (selectedMaquinistaId > 0 && selectedMaquinistaId != maquinistaActual?.UsuarioLineaId ? selectedMaquinistaId : null);
+
+    private bool MaquinistaEnviadoSinTurno => MaquinistaAEnviar != null && MaquinistaElegido is { TurnoId: null };
+
+    /// <summary>Maquinista guardado de la detención que se edita (para mandar sólo si cambia).</summary>
+    private int maquinistaOriginalId;
+
+    /// <summary>Microcortes que el operario dijo que fueron por el mismo motivo (se agrupan después de crear).</summary>
+    private List<long> microcortesElegidos = new();
+
     private bool CruzaMedianoche =>
         ParsearHora(horaInicioTexto) is { } inicio && ParsearHora(horaFinTexto) is { } fin && fin < inicio;
 
@@ -1043,6 +1076,8 @@
         horaFinTexto = null;
         horasEditadas = false;
         maquinistaGuardado = null;
+        maquinistaOriginalId = 0;
+        microcortesElegidos = new();
         showModal = true;
         await CargarResumenTurno();
     }
@@ -1080,12 +1115,19 @@
         editando = true;
         errorMessage = null;
         maquinistaGuardado = null;
+        maquinistaOriginalId = 0;
+        selectedMaquinistaId = 0;
+        maquinistasLinea = new();
         showModal = true;
         await ActualizarAvisoAnalisisAsync();
         try
         {
-            // La lista no trae el maquinista; el detalle sí.
-            maquinistaGuardado = (await DetencionesService.GetDetencionAsync(det.DetencionId))?.CreadoPorUsuarioNombre;
+            // La lista no trae el maquinista; el detalle sí. Se puede cambiar por otro de la línea.
+            var detalle = await DetencionesService.GetDetencionAsync(det.DetencionId);
+            maquinistaGuardado = detalle?.CreadoPorUsuarioNombre;
+            maquinistaOriginalId = detalle?.UsuarioLineaId ?? 0;
+            maquinistasLinea = await CatalogosService.GetMaquinistasAsync(det.LineaId);
+            selectedMaquinistaId = maquinistasLinea.Any(m => m.UsuarioLineaId == maquinistaOriginalId) ? maquinistaOriginalId : 0;
         }
         catch (Exception ex)
         {
@@ -1114,18 +1156,19 @@
 
         if (selectedLineaId > 0)
         {
-            if (puedeSeleccionarMaquinista)
+            // Todos ven los maquinistas de la línea para poder cambiar el sugerido (reunión 17/11/2026).
+            maquinistasLinea = await CatalogosService.GetMaquinistasAsync(selectedLineaId);
+            if (!puedeSeleccionarMaquinista)
             {
-                // Admin/Gerencia/Supervisor: cargar todos los maquinistas de la linea
-                maquinistasLinea = await CatalogosService.GetMaquinistasAsync(selectedLineaId);
-            }
-            else
-            {
-                // Operario: buscar su propia asignacion para esta linea
+                // Operario: viene sugerida su propia asignación en la línea
                 var asignacion = misAsignaciones.FirstOrDefault(a => a.LineaId == selectedLineaId);
                 if (asignacion != null)
                 {
                     maquinistaActual = asignacion;
+                    if (maquinistasLinea.Any(m => m.UsuarioLineaId == asignacion.UsuarioLineaId))
+                    {
+                        selectedMaquinistaId = asignacion.UsuarioLineaId;
+                    }
                     if (asignacion.TurnoId.HasValue)
                     {
                         turnoAsignado = asignacion.TurnoNombre;
@@ -1232,9 +1275,9 @@
         }
 
         model.LineaId = selectedLineaId;
-        if (!editando && puedeSeleccionarMaquinista)
+        if (!editando)
         {
-            model.UsuarioLineaId = selectedMaquinistaId;
+            model.UsuarioLineaId = MaquinistaAEnviar;
         }
 
         if (model.Fecha > DateOnly.FromDateTime(DateTime.Today))
@@ -1257,7 +1300,7 @@
             errorMessage = "La hora de inicio y la de fin no pueden ser iguales.";
             return;
         }
-        if (!editando && MaquinistaElegido is { TurnoId: null } && !inicio.HasValue)
+        if (!editando && MaquinistaEnviadoSinTurno && !inicio.HasValue)
         {
             errorMessage = "Este maquinista no tiene turno. Asignáselo en Configuración → Maquinistas o cargá la hora de inicio y fin.";
             return;
@@ -1293,6 +1336,16 @@
                 if (creada != null)
                 {
                     showModal = false;
+                    // "Sí, mismo motivo": se agrupan los microcortes previos (la detención ya quedó guardada igual).
+                    if (microcortesElegidos.Count > 0)
+                    {
+                        var (_, errorAgrupar) = await AgrupacionService.AgruparAsync(creada.DetencionId, microcortesElegidos);
+                        if (errorAgrupar != null)
+                        {
+                            mensajeAviso = $"La detención {creada.Codigo} se guardó, pero no se pudieron agrupar los microcortes: {errorAgrupar}";
+                        }
+                        microcortesElegidos = new();
+                    }
                     await CargarDetenciones();
                 }
                 else
@@ -1334,6 +1387,8 @@
             HoraInicio = mandarHoras ? model.HoraInicio : null,
             HoraFin = mandarHoras ? model.HoraFin : null,
             OrigenTiempo = mandarHoras ? model.OrigenTiempo : det.OrigenTiempo,
+            // Maquinista: sólo si lo cambió (el backend lo valida y lo deja en el historial).
+            UsuarioLineaId = selectedMaquinistaId > 0 && selectedMaquinistaId != maquinistaOriginalId ? selectedMaquinistaId : null,
             Descripcion = model.Descripcion,
             AccionesRealizadas = det.AccionesRealizadas,
             ResolucionDescripcion = det.ResolucionDescripcion,

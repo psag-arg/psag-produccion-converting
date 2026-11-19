@@ -99,6 +99,7 @@ public class DeclaracionDetencionDto
     public string? PuntoControlNombre { get; set; }
     public string? CuerpoCamaraNombre { get; set; }
     public int? CuerpoCamaraEquipoId { get; set; }
+    public int? UsuarioLineaId { get; set; }
     public string? MaquinistaNombre { get; set; }
     public string EstadoActual { get; set; } = string.Empty;
     public string EstadoActualDescripcion { get; set; } = string.Empty;
@@ -114,6 +115,7 @@ public class DeclararDetencionRequest
     public string Descripcion { get; set; } = string.Empty;
     public TimeOnly? HoraArranque { get; set; }
     public int? MinutosDeclarados { get; set; }
+    public int? UsuarioLineaId { get; set; }  // Maquinista elegido; null = queda el sugerido
     public byte[] RowVersion { get; set; } = [];
 }
 

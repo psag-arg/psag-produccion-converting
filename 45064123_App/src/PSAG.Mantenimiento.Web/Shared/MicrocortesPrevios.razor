@@ -1,0 +1,150 @@
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@inject IAgrupacionDetencionService Agrupador
+
+@* Agrupador de detenciones (reunión 17/11/2026). Pregunta al operario si los microcortes de los 10 minutos previos
+   a la parada fueron por el mismo motivo. Sí = se agrupan (tabla anexa: la detención y sus minutos no cambian;
+   el tiempo agrupado es para reportes). Dos modos:
+   - DetencionId: detención que ya existe (declarar / editar). Sí agrupa en el momento; muestra el grupo y deja
+     desagrupar.
+   - LineaId + Fecha + Hora: detención que se está cargando. Sí sólo marca la elección (SeleccionCambiada); la
+     pantalla agrupa después de guardar. *@
+
+@if (agrupacion is { CantidadMicrocortes: > 0 })
+{
+    <div class="alert alert-info py-2 mb-2" data-testid="agrupacion-resumen">
+        <div><i class="bi bi-collection me-1"></i>@AgrupacionUi.Resumen(agrupacion)</div>
+        <div class="small text-muted">Microcortes agrupados: @AgrupacionUi.Lista(agrupacion.Agrupados). Los minutos de la detención no cambian.</div>
+        @if (PuedeEditar)
+        {
+            <button type="button" class="btn btn-sm btn-outline-secondary mt-2" disabled="@ocupado"
+                    @onclick="@(async () => await Desagrupar())">Desagrupar</button>
+        }
+    </div>
+}
+
+@if (previos is { Microcortes.Count: > 0 } && PuedeEditar && respuesta == null)
+{
+    <div class="alert alert-warning py-2 mb-2" data-testid="microcortes-pregunta">
+        <div class="fw-semibold mb-2"><i class="bi bi-lightning me-1"></i>@previos.Pregunta</div>
+        <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-warning flex-fill" style="min-width: 8rem;" disabled="@ocupado"
+                    @onclick="@(async () => await Responder(true))" data-testid="microcortes-si">Sí, mismo motivo</button>
+            <button type="button" class="btn btn-outline-secondary flex-fill" style="min-width: 8rem;" disabled="@ocupado"
+                    @onclick="@(async () => await Responder(false))" data-testid="microcortes-no">No</button>
+        </div>
+    </div>
+}
+else if (respuesta == true && DetencionId == null && previos is { Microcortes.Count: > 0 })
+{
+    <div class="alert alert-success py-2 mb-2">
+        <i class="bi bi-check2 me-1"></i>Se van a agrupar al guardar: @AgrupacionUi.Lista(previos.Microcortes).
+        <button type="button" class="btn btn-link btn-sm p-0 ms-1" @onclick="@(async () => await Responder(false))">Mejor no</button>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="alert alert-danger py-2 mb-2">@error</div>
+}
+
+@code {
+    [Parameter] public long? DetencionId { get; set; }
+    [Parameter] public int LineaId { get; set; }
+    [Parameter] public DateOnly? Fecha { get; set; }
+    [Parameter] public TimeOnly? Hora { get; set; }
+    [Parameter] public bool PuedeEditar { get; set; } = true;
+
+    /// <summary>Modo carga: ids elegidos (vacío si dijo que no o no hay microcortes).</summary>
+    [Parameter] public EventCallback<List<long>> SeleccionCambiada { get; set; }
+
+    private MicrocortesPreviosDto? previos;
+    private AgrupacionDetencionDto? agrupacion;
+    private bool? respuesta;
+    private bool ocupado;
+    private string? error;
+    private string? claveCargada;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var clave = DetencionId is { } id ? $"d{id}" : $"{LineaId}|{Fecha}|{Hora}";
+        if (clave == claveCargada)
+            return;
+        claveCargada = clave;
+        respuesta = null;
+        error = null;
+        await Cargar();
+        if (DetencionId == null)
+            await SeleccionCambiada.InvokeAsync(new List<long>());
+    }
+
+    private async Task Cargar()
+    {
+        if (DetencionId is { } id)
+        {
+            previos = await Agrupador.GetMicrocortesAsync(id);
+            agrupacion = await Agrupador.GetAgrupacionAsync(id);
+        }
+        else
+        {
+            agrupacion = null;
+            previos = LineaId > 0 && Fecha is { } f && Hora is { } h ? await Agrupador.GetMicrocortesAsync(LineaId, f, h) : null;
+        }
+    }
+
+    private async Task Responder(bool mismoMotivo)
+    {
+        error = null;
+        respuesta = mismoMotivo;
+        var ids = mismoMotivo && previos != null ? previos.Microcortes.Select(m => m.ParadaCamaraId).ToList() : new List<long>();
+        if (DetencionId is not { } id)
+        {
+            await SeleccionCambiada.InvokeAsync(ids);
+            return;
+        }
+        if (!mismoMotivo)
+            return;
+
+        ocupado = true;
+        try
+        {
+            var (ok, mensaje) = await Agrupador.AgruparAsync(id, ids);
+            if (ok == null)
+            {
+                error = mensaje;
+                respuesta = null;
+                return;
+            }
+            agrupacion = ok;
+            previos = await Agrupador.GetMicrocortesAsync(id);
+            respuesta = null;
+        }
+        finally
+        {
+            ocupado = false;
+        }
+    }
+
+    private async Task Desagrupar()
+    {
+        if (DetencionId is not { } id || agrupacion == null) return;
+        error = null;
+        ocupado = true;
+        try
+        {
+            var (ok, mensaje) = await Agrupador.DesagruparAsync(id, agrupacion.Agrupados.Select(a => a.ParadaCamaraId));
+            if (ok == null)
+            {
+                error = mensaje;
+                return;
+            }
+            agrupacion = ok;
+            previos = await Agrupador.GetMicrocortesAsync(id);
+            respuesta = null;
+        }
+        finally
+        {
+            ocupado = false;
+        }
+    }
+}
