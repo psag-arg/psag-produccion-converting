@@ -46,6 +46,16 @@ public static class DetencionCamaraReglas
         hasta - inicio >= TimeSpan.FromSeconds(UmbralSegundosValido(segundosUmbral));
 
     /// <summary>
+    /// Marca de umbral de una parada cerrada (script 31, reunión 17/11/2026): se guarda UNA vez al insertarla, con
+    /// el umbral efectivo de la cámara en ese momento. Misma regla que la detención automática (inclusive).
+    /// </summary>
+    public static (bool SuperaUmbral, int UmbralSegundos) MarcaUmbral(PuntoControlCalidad punto, DateTimeOffset inicio, DateTimeOffset fin)
+    {
+        var umbral = UmbralSegundos(punto);
+        return (SuperaUmbral(inicio, fin, umbral), umbral);
+    }
+
+    /// <summary>
     /// Umbral efectivo de la cámara, en segundos: <c>SegundosUmbralDetencion</c> si está cargado (modo prueba); si
     /// no, <c>MinutosUmbralDetencion</c> x 60. ÚNICO lugar donde se decide el umbral: ingesta, log de paradas y
     /// eficiencia (microcortes) usan esto.

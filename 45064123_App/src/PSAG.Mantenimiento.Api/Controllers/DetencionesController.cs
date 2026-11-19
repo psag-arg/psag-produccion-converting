@@ -146,6 +146,7 @@ public class DetencionesController : ApiControllerBase
             CerradoPorUsuarioId = detencion.CerradoPorUsuarioId,
             FechaHoraCreacion = detencion.FechaHoraCreacion,
             CreadoPorUsuarioId = detencion.CreadoPorUsuarioId,
+            UsuarioLineaId = detencion.UsuarioLineaId,
             RowVersion = detencion.RowVersion,
             Notas = detencion.Notas.Select(n => new DetencionNotaDto
             {
@@ -209,20 +210,23 @@ public class DetencionesController : ApiControllerBase
             return LineaNoAsignada();
         }
 
-        // Maquinista: el elegido (admin/supervisor) o la asignación propia en la línea.
+        // Maquinista: el elegido o la asignación propia en la línea. El elegido tiene que ser de la línea de la
+        // detención y estar activo (reunión 17/11/2026: lo puede cambiar cualquiera que carga detenciones).
         UsuarioLinea? maquinista = asignacionPropia;
         if (request.UsuarioLineaId.HasValue)
         {
-            maquinista = await _unitOfWork.UsuariosLineas.GetByIdAsync(request.UsuarioLineaId.Value);
-            if (maquinista == null)
+            var (elegido, errorMaquinista) = await MaquinistaDetencion.ValidarAsync(
+                _unitOfWork, _userManager, request.UsuarioLineaId.Value, request.LineaId, null);
+            if (elegido == null)
             {
                 return BadRequest(new ProblemDetails
                 {
-                    Title = "Maquinista no encontrado",
-                    Detail = "El maquinista seleccionado no existe.",
+                    Title = "Maquinista no válido",
+                    Detail = errorMaquinista,
                     Status = StatusCodes.Status400BadRequest
                 });
             }
+            maquinista = elegido.Asignacion;
         }
 
         var tiempoManual = CalcularTiempoManual(request.Fecha, request.HoraInicio, request.HoraFin);
@@ -552,6 +556,24 @@ public class DetencionesController : ApiControllerBase
             return fechaFutura;
         }
 
+        // Maquinista (reunión 17/11/2026): se valida antes de tocar nada; el cambio queda en el historial.
+        MaquinistaElegido? maquinistaNuevo = null;
+        if (request.UsuarioLineaId is { } usuarioLineaId && usuarioLineaId != detencion.UsuarioLineaId)
+        {
+            var (elegido, errorMaquinista) = await MaquinistaDetencion.ValidarAsync(
+                _unitOfWork, _userManager, usuarioLineaId, detencion.LineaId, detencion.UsuarioLineaId);
+            if (elegido == null)
+            {
+                return BadRequest(new ProblemDetails
+                {
+                    Title = "Maquinista no válido",
+                    Detail = errorMaquinista,
+                    Status = StatusCodes.Status400BadRequest
+                });
+            }
+            maquinistaNuevo = elegido;
+        }
+
         var fecha = request.Fecha ?? detencion.Fecha;
         var tiempoManual = CalcularTiempoManual(fecha, request.HoraInicio, request.HoraFin);
         var errorHoras = ValidarHorasManuales(request.HoraInicio, request.HoraFin, tiempoManual);
@@ -607,6 +629,13 @@ public class DetencionesController : ApiControllerBase
         if (turnoIdPorHora.HasValue)
         {
             detencion.TurnoId = turnoIdPorHora.Value;
+        }
+
+        // Cambiar el maquinista no recalcula el turno (turno materializado).
+        if (maquinistaNuevo != null)
+        {
+            detencion.CambiarMaquinista(maquinistaNuevo.Asignacion.UsuarioLineaId, maquinistaNuevo.NombreAnterior,
+                maquinistaNuevo.NombreNuevo, CurrentUserId, CorrelationId);
         }
 
         await _detencionService.AplicarReglaAnalisisAsync(detencion);

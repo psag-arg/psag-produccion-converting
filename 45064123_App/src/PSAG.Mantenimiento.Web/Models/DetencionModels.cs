@@ -55,6 +55,7 @@ public class DetencionDto
 public class DetencionDetalleDto : DetencionDto
 {
     public string? MotivoSinAnalisis { get; set; }
+    public int? UsuarioLineaId { get; set; }  // Maquinista (el nombre viene en CreadoPorUsuarioNombre)
     public List<DetencionNotaDto> Notas { get; set; } = new();
     public List<DetencionHistorialDto> HistorialEstados { get; set; } = new();
 }
@@ -86,7 +87,7 @@ public class CrearDetencionRequest
     public int? EquipoId { get; set; }
     public int? TipoFallaId { get; set; }
     public int? DetalleFallaId { get; set; }
-    public int? UsuarioLineaId { get; set; }  // Maquinista asignado (opcional, para admin/supervisor)
+    public int? UsuarioLineaId { get; set; }  // Maquinista elegido (si no, el propio del operario)
     public DateOnly Fecha { get; set; } = DateOnly.FromDateTime(DateTime.Today);
     public int? MinutosDeclarados { get; set; }
     public TimeOnly? HoraInicio { get; set; }
@@ -108,6 +109,7 @@ public class ActualizarDetencionRequest
     public string Descripcion { get; set; } = string.Empty;
     public string? AccionesRealizadas { get; set; }
     public string? ResolucionDescripcion { get; set; }
+    public int? UsuarioLineaId { get; set; }  // Maquinista nuevo; null = no cambia
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }
 

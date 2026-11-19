@@ -13,11 +13,13 @@ public interface IDeclaracionDetencionService
 
     /// <summary>
     /// Completa la detención y la pasa a REGISTRADA. <paramref name="asignacionPropia"/>: la asignación de quien
-    /// declara en la línea (para completar el maquinista si faltaba). La restricción por línea la valida la API.
+    /// declara en la línea (para completar el maquinista si faltaba). <paramref name="maquinista"/>: el maquinista
+    /// que eligió el operario (ya validado por la API), o null para dejar el sugerido. La restricción por línea la
+    /// valida la API.
     /// </summary>
     Task<Result<DeclararDetencionResponse>> DeclararAsync(
         long detencionId, DeclararDetencionRequest request, string usuarioId, UsuarioLinea? asignacionPropia,
-        CancellationToken cancellationToken = default);
+        MaquinistaElegido? maquinista = null, CancellationToken cancellationToken = default);
 
     /// <summary>Pendientes de declaración de esas líneas (null = todas) y minutos para el fin del turno en curso.</summary>
     Task<AvisoFinTurnoDto> ObtenerAvisoFinTurnoAsync(

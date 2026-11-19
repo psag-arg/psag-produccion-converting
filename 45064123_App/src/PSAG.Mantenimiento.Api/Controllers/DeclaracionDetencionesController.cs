@@ -71,7 +71,18 @@ public class DeclaracionDetencionesController : ApiControllerBase
         if (!DetencionCargaReglas.PuedeCargarEnLinea(Roles, asignacion != null))
             return LineaNoAsignada();
 
-        var resultado = await _servicio.DeclararAsync(id, request, CurrentUserId, asignacion);
+        // Maquinista elegido (reunión 17/11/2026): de la línea de la detención y activo. Igual al actual = sin cambio.
+        MaquinistaElegido? maquinista = null;
+        if (request.UsuarioLineaId is { } usuarioLineaId && usuarioLineaId != detencion.UsuarioLineaId)
+        {
+            var (elegido, error) = await MaquinistaDetencion.ValidarAsync(
+                _unitOfWork, _userManager, usuarioLineaId, detencion.LineaId, detencion.UsuarioLineaId);
+            if (elegido == null)
+                return BadRequest(new ProblemDetails { Title = "Maquinista no válido", Detail = error, Status = StatusCodes.Status400BadRequest });
+            maquinista = elegido;
+        }
+
+        var resultado = await _servicio.DeclararAsync(id, request, CurrentUserId, asignacion, maquinista);
         return resultado.IsFailure
             ? ProblemaDe(resultado, "No se pudo declarar la detención", "Detención no encontrada", tituloConcurrencia: "La detención cambió")
             : Ok(resultado.Value);

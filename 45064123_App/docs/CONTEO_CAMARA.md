@@ -280,3 +280,71 @@ Probar sin instalar: `.\PSAG.Mantenimiento.ConteoCamara.exe vivo --camara T2-CAM
   más = rollos.
 - **API**: `GET api/conteo-camara/eficiencia?fecha=YYYY-MM-DD&lineaId=` (el Dashboard pide hoy y ayer). Aparecen las
   cámaras con conteo en esos días o con objetivo o método cargado.
+
+## 10. Marca de umbral y agrupador de microcortes (reunión 17/11, scripts 31 y 32)
+
+Pedido de Emiliano: **guardar todo, marcar lo que supera el umbral y agrupar en una tabla anexa sin modificar los
+registros originales**.
+
+**Marca de umbral (script 31).** Cada parada que llega por la ingesta guarda en `mnt.ParadasCamara`:
+`SuperaUmbral` (1 = llegó al umbral, 0 = microcorte) y `UmbralSegundos` (el umbral efectivo de la cámara en ese
+momento: `SegundosUmbralDetencion` si está cargado, si no `MinutosUmbralDetencion` x 60). Se completan **una sola vez
+al insertar** (`DetencionCamaraReglas.MarcaUmbral`, misma regla que la detención automática: inclusive, 5:00 justo
+supera). No hay UPDATE posteriores: si después cambia el umbral, la parada conserva contra qué se comparó ese día
+(como el snapshot de estándares). Las paradas anteriores al script quedan en NULL; cuando hacen falta se evalúan con
+el umbral actual sin guardar nada (el script trae un backfill comentado, que usa el umbral **actual**).
+
+**Agrupador (script 32).** Modelo:
+
+```
+mnt.Detenciones (padre)  1 ──< mnt.DetencionAgrupacion >── 1  mnt.ParadasCamara (hijo: microcorte)
+                               Origen OPERADOR | AUTOMATICO
+                               CreadoPor / FechaHoraCreacion
+                               Activo + DesactivadoPor / FechaHoraDesactivacion
+```
+
+- **Candidatos** (`GET api/detenciones/{id}/microcortes`, o `GET api/detenciones/microcortes?lineaId=&fecha=&hora=`
+  para una detención que se está cargando): paradas que **empezaron en los 10 minutos previos** al inicio de la
+  detención (borde de 10 min incluido, la propia parada de la detención no), de **la misma cámara** (detención
+  automática) o de cualquier cámara de **la misma línea** (detención manual con hora de inicio), que **no superaron el
+  umbral** y que **no están agrupadas** en ningún grupo activo. Sin hora de parada no hay candidatos.
+- **Agrupar** (`POST api/detenciones/{id}/agrupacion`, lista de `ParadaCamaraId`, origen OPERADOR): todo o nada.
+  Valida en backend línea asignada del usuario, misma cámara/línea, ventana, umbral y que la parada no esté activa en
+  otro grupo (además, índice único filtrado `UX_DetencionAgrupacion_ParadaActiva`). Detención cerrada: no.
+- **Desagrupar** (`POST api/detenciones/{id}/agrupacion/desagrupar`): `Activo = 0` con quién y cuándo; nunca se borra
+  (no hay DELETE). La parada vuelve a ser candidata y se puede volver a agrupar (fila nueva).
+- **Auditoría**: cada agrupación o desagrupación deja una entrada en el historial de la detención
+  (`DetencionesEstadoHistorial`, sin cambio de estado, `OrigenAccion = AGRUPADOR`) con las horas de los microcortes.
+
+**IMPORTANTE: agrupar NO cambia `MinutosEfectivos` de la detención padre** (sigue siendo la única verdad del tiempo y
+el registro no se toca). El tiempo agrupado es **sólo para reportes**, vía `mnt.vw_DetencionesAgrupadas`:
+
+| Columna | Qué es |
+|---|---|
+| `FechaHoraInicioReal` | el menor entre la parada de la detención y el inicio de los microcortes activos |
+| `FechaHoraFinReal` | el mayor entre el arranque (declarado o, si falta, el detectado) y el fin de los microcortes |
+| `CantidadMicrocortes`, `SegundosMicrocortes` | microcortes activos y su duración sumada |
+| `SegundosTotales` | `MinutosEfectivos` x 60 + microcortes (sin los ratos en marcha entre uno y otro) |
+| `SegundosVentana` | de inicio real a fin real (con los ratos en marcha) |
+
+La vista sólo trae detenciones con microcortes activos (los reportes hacen LEFT JOIN) y excluye las eliminadas. La
+pantalla calcula lo mismo con `AgrupacionMicrocortesReglas.Resumir`.
+
+**Pantallas.** En *Declarar detención*, *Editar detención* y *Nueva detención* (con hora de inicio) aparece, si hay
+candidatos: "Hubo 2 microcortes antes de esta parada (11:08, 11:12). ¿Mismo motivo?" con **Sí / No** grandes (tablet
+y celular). En una detención que ya existe, Sí agrupa en el momento y muestra el inicio real y el tiempo total, con un
+botón Desagrupar; en una nueva, se agrupa al guardar.
+
+**Caso real (13/11, T2-CAM10):** paradas 11:08:23–11:11:43 (3:20), 11:12:03–11:14:03 (2:00) y 11:14:43–11:23:03
+(8:20). Sólo la última superó 5 min y creó la detención (parada 11:14:43). Las dos primeras son microcortes en la
+ventana (desde 11:04:43): si el operario dice "mismo motivo", inicio real 11:08:23 y 5:20 más de parada en la vista;
+`MinutosEfectivos` de la detención queda como la declaró.
+
+**Maquinista editable (misma reunión).** El sistema sugiere el maquinista (el del turno/línea, sección 8.2) y quien
+carga, declara o edita la detención (roles de `CanCreateDetenciones`, con la restricción por línea) lo puede cambiar
+por otra asignación **de la misma línea** con el usuario **activo** (validado en backend,
+`DetencionMaquinistaReglas`). Cada cambio queda en el historial de la detención (`OrigenAccion = MAQUINISTA`: quién,
+cuándo, anterior → nuevo). Cambiar el maquinista no recalcula el turno (turno materializado).
+
+**Orden de deploy:** scripts 31 y 32 en la base **antes** de publicar la API (la API escribe las columnas nuevas y lee
+la tabla); después la API y la Web.

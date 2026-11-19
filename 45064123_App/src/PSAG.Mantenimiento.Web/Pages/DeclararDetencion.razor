@@ -60,9 +60,32 @@
                     <div class="col-6 col-md-3"><div class="small text-muted">Fecha</div><div class="form-control bg-light">@detencion.Fecha.ToString("dd/MM/yyyy")</div></div>
                     <div class="col-6 col-md-3"><div class="small text-muted">Turno</div><div class="form-control bg-light">@detencion.TurnoNombre</div></div>
                     <div class="col-6 col-md-3"><div class="small text-muted">Hora de parada</div><div class="form-control bg-light" data-testid="hora-parada">@(detencion.FechaHoraParada?.ToString("HH:mm:ss") ?? "-")</div></div>
-                    <div class="col-12 col-md-6"><div class="small text-muted">Maquinista</div><div class="form-control bg-light">@(detencion.MaquinistaNombre ?? "Sin asignar (quedás vos al declarar si estás asignado a la línea)")</div></div>
+                    @if (!detencion.PendienteDeclaracion || resultado != null || !maquinistas.Any())
+                    {
+                        <div class="col-12 col-md-6"><div class="small text-muted">Maquinista</div><div class="form-control bg-light">@(detencion.MaquinistaNombre ?? "Sin asignar (quedás vos al declarar si estás asignado a la línea)")</div></div>
+                    }
+                    else
+                    {
+                        @* Reunión 17/11/2026: viene sugerido el del turno; si no es, se cambia (queda en el historial). *@
+                        <div class="col-12 col-md-6">
+                            <label class="small text-muted" for="maquinista">Maquinista (sugerido: el del turno)</label>
+                            <select id="maquinista" class="form-select" @bind="usuarioLineaId" data-testid="maquinista">
+                                @if (detencion.UsuarioLineaId == null)
+                                {
+                                    <option value="">Sin asignar (quedás vos si estás asignado a la línea)</option>
+                                }
+                                @foreach (var m in maquinistas)
+                                {
+                                    <option value="@m.UsuarioLineaId">@m.NombreUsuario · @(string.IsNullOrEmpty(m.TurnoNombre) ? "sin turno" : m.TurnoNombre)</option>
+                                }
+                            </select>
+                        </div>
+                    }
                     <div class="col-12 col-md-6"><div class="small text-muted">Cámara / cuerpo donde se detectó</div><div class="form-control bg-light">@(detencion.PuntoControlNombre ?? "-")@(detencion.CuerpoCamaraNombre is { } c ? $" · {c}" : "")</div></div>
                 </div>
+
+                @* Agrupador (reunión 17/11/2026): microcortes de la cámara en los 10 min previos a esta parada. *@
+                <MicrocortesPrevios DetencionId="detencion.DetencionId" PuedeEditar="@(detencion.EstadoActual != "CERRADA")" />
 
                 @if (detencion.PendienteDeclaracion && resultado == null)
                 {
@@ -158,6 +181,8 @@
     private List<EquipoDto> equipos = new();
     private List<TipoFallaDto> tiposFalla = new();
     private List<DetalleFallaDto> detalles = new();
+    private List<MaquinistaDto> maquinistas = new();
+    private int? usuarioLineaId;
     private int? equipoId;
     private int? tipoFallaId;
     private int? detalleFallaId;
@@ -178,9 +203,12 @@
             {
                 var equiposTask = CatalogosService.GetEquiposAsync(detencion.LineaId);
                 var tiposTask = CatalogosService.GetTiposFallaAsync();
-                await Task.WhenAll(equiposTask, tiposTask);
+                var maquinistasTask = CatalogosService.GetMaquinistasAsync(detencion.LineaId);
+                await Task.WhenAll(equiposTask, tiposTask, maquinistasTask);
                 equipos = equiposTask.Result;
                 tiposFalla = tiposTask.Result;
+                maquinistas = maquinistasTask.Result;
+                usuarioLineaId = detencion.UsuarioLineaId;
                 // Viene elegido el cuerpo de la cámara (la rebobinadora en la 10); el operador lo puede cambiar.
                 if (detencion.CuerpoCamaraEquipoId is { } cuerpo && equipos.Any(e => e.EquipoId == cuerpo))
                     equipoId = cuerpo;
@@ -228,6 +256,8 @@
                 Descripcion = descripcion ?? string.Empty,
                 HoraArranque = hora,
                 MinutosDeclarados = hora == null ? minutos : null,
+                // Sólo si lo cambió: el backend valida que sea de la línea y lo deja en el historial.
+                UsuarioLineaId = usuarioLineaId != detencion.UsuarioLineaId ? usuarioLineaId : null,
                 RowVersion = detencion.RowVersion
             });
             if (ok != null)

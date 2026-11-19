@@ -65,6 +65,7 @@ public class DeclaracionDetencionService : IDeclaracionDetencionService
             PuntoControlNombre = punto?.Nombre,
             CuerpoCamaraNombre = cuerpo?.Nombre,
             CuerpoCamaraEquipoId = cuerpo?.EquipoId,
+            UsuarioLineaId = maquinista?.UsuarioLineaId,
             MaquinistaUsuarioId = maquinista?.UsuarioId,
             EstadoActual = d.EstadoActual.ToString(),
             EstadoActualDescripcion = d.EstadoActual.ObtenerDescripcion(),
@@ -75,7 +76,7 @@ public class DeclaracionDetencionService : IDeclaracionDetencionService
 
     public async Task<Result<DeclararDetencionResponse>> DeclararAsync(
         long detencionId, DeclararDetencionRequest request, string usuarioId, UsuarioLinea? asignacionPropia,
-        CancellationToken cancellationToken = default)
+        MaquinistaElegido? maquinista = null, CancellationToken cancellationToken = default)
     {
         var detencion = await _unitOfWork.Detenciones.GetByIdAsync(detencionId, cancellationToken);
         if (detencion == null)
@@ -97,6 +98,11 @@ public class DeclaracionDetencionService : IDeclaracionDetencionService
                 return Result<DeclararDetencionResponse>.Failure("VALIDATION", "El equipo no es de la línea de la detención.");
         }
 
+        // Maquinista elegido: tiene que ser de la línea de la detención (la API ya validó que el usuario esté activo).
+        if (maquinista != null
+            && DetencionMaquinistaReglas.MotivoMaquinistaInvalido(maquinista.Asignacion, detencion.LineaId, usuarioActivo: true) is { } motivoMaquinista)
+            return Result<DeclararDetencionResponse>.Failure("VALIDATION", motivoMaquinista);
+
         if (request.TipoFallaId is { } tipoFallaId && await _unitOfWork.TiposFalla.GetByIdAsync(tipoFallaId, cancellationToken) == null)
             return Result<DeclararDetencionResponse>.Failure("VALIDATION", "El tipo de falla elegido no existe.");
 
@@ -116,8 +122,11 @@ public class DeclaracionDetencionService : IDeclaracionDetencionService
         detencion.OrigenTiempo = origen;
         detencion.MinutosEfectivos = minutos;
         detencion.ModificadoPorUsuarioId = usuarioId;
-        // Maquinista: si el turno no tenía uno claro, queda quien declara (si está asignado a la línea).
-        if (detencion.UsuarioLineaId == null && asignacionPropia?.LineaId == detencion.LineaId)
+        // Maquinista: el que eligió el operario (queda en el historial); si no eligió y el turno no tenía uno claro,
+        // queda quien declara (si está asignado a la línea).
+        if (maquinista != null)
+            detencion.CambiarMaquinista(maquinista.Asignacion.UsuarioLineaId, maquinista.NombreAnterior, maquinista.NombreNuevo, usuarioId);
+        else if (detencion.UsuarioLineaId == null && asignacionPropia?.LineaId == detencion.LineaId)
             detencion.UsuarioLineaId = asignacionPropia.UsuarioLineaId;
 
         detencion.CambiarEstado(EstadoDetencion.REGISTRADA, usuarioId, "Detención declarada por el operador");
