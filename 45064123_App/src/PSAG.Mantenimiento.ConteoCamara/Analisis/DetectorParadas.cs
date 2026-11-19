@@ -29,7 +29,9 @@ public sealed record ParadaDetectada(
 /// Paradas con histéresis. La línea tiene dos estados confirmados: en marcha (los 4 carriles en marcha) o detenida
 /// (cualquier otra cosa). Para cambiar hacen falta <c>VentanasParaConfirmar</c> ventanas seguidas del otro estado;
 /// el cambio se fecha al inicio de la primera de esas ventanas, así la histéresis no corre la hora.
-/// Una ventana suelta de un carril ruidoso no abre una parada, y un arranque de 10 s no la corta.
+/// Una ventana suelta de un carril ruidoso no abre una parada, y un arranque de 10 s no la corta. Para cerrar una
+/// parada pueden pedirse más ventanas (<c>VentanasParaConfirmarArranque</c>, regla A de la cámara 10): un arranque
+/// más corto, o lo que parece marcha mientras limpian la máquina, queda dentro de la misma parada.
 /// </summary>
 public sealed class DetectorParadas
 {
@@ -102,7 +104,7 @@ public sealed class DetectorParadas
             _ventanasCandidato++;
             _ventanasCandidatas.Add(ventana);
 
-            if (_ventanasCandidato >= Math.Max(1, _opciones.VentanasParaConfirmar))
+            if (_ventanasCandidato >= VentanasNecesarias(detenidaAhora))
             {
                 var anterior = _detenida;
                 _detenida = detenidaAhora;
@@ -131,6 +133,25 @@ public sealed class DetectorParadas
 
         _ultimoFin = ventana.Fin;
         return cerrada;
+    }
+
+    /// <summary>
+    /// Ventanas en marcha que se están juntando para cerrar la parada abierta (arranque todavía sin confirmar).
+    /// 0 si no hay parada abierta o la última ventana fue detenida.
+    /// </summary>
+    public int VentanasConfirmandoArranque => _detenida == true && !_candidatoDetenida ? _ventanasCandidato : 0;
+
+    /// <summary>
+    /// Ventanas seguidas para confirmar el cambio. Cerrar una parada (abierta, o suspendida por un corte de video)
+    /// pide VentanasParaConfirmarArranque (regla A); lo demás, VentanasParaConfirmar.
+    /// </summary>
+    private int VentanasNecesarias(bool detenidaAhora)
+    {
+        var normal = Math.Max(1, _opciones.VentanasParaConfirmar);
+        var cierraParada = !detenidaAhora && (_detenida == true || _suspendidaHasta != null);
+        return cierraParada && _opciones.VentanasParaConfirmarArranque > 0
+            ? Math.Max(normal, _opciones.VentanasParaConfirmarArranque)
+            : normal;
     }
 
     /// <summary>

@@ -120,6 +120,20 @@ public sealed class OpcionesMangas
 
     /// <summary>Fracción de los cuadros de la ventana con el rodillo quieto para dar la ventana como PARADA.</summary>
     public double FraccionRodilloQuieto { get; set; } = 0.5;
+
+    /// <summary>
+    /// Regla E: una ventana cuenta como MARCHA sólo si el rodillo giró en al menos esta fracción de sus cuadros.
+    /// Entre esto y <see cref="FraccionRodilloQuieto"/> la ventana es PARADA (la máquina paró o arrancó en el medio,
+    /// o alguien tapa el rodillo, como al limpiar la mesa con aire). 0 = sin la regla (alcanza con no ser PARADA).
+    /// </summary>
+    public double FraccionRodilloGiraParaMarcha { get; set; }
+
+    /// <summary>
+    /// Regla F: con una parada ya abierta, lo que se mueve en la mesa (operarios, limpieza, una manga que se
+    /// acomoda) no es producción. Las mangas de esas ventanas se retienen y se descartan si la parada sigue; se
+    /// cuentan sólo si se confirma el arranque (Analisis:VentanasParaConfirmarArranque).
+    /// </summary>
+    public bool DescontarMangasEnParada { get; set; }
 }
 
 /// <summary>
@@ -214,6 +228,13 @@ public sealed class OpcionesAnalisis
 
     /// <summary>Ventanas seguidas que hacen falta para cambiar de estado (histéresis). 2 = 20 s.</summary>
     public int VentanasParaConfirmar { get; set; } = 2;
+
+    /// <summary>
+    /// Regla A: ventanas seguidas en marcha que hacen falta para cerrar una parada abierta (6 = 60 s). Un arranque
+    /// más corto (o lo que parece marcha mientras limpian la máquina) queda dentro de la parada. 0 = igual que
+    /// <see cref="VentanasParaConfirmar"/>.
+    /// </summary>
+    public int VentanasParaConfirmarArranque { get; set; }
 
     /// <summary>Paradas más cortas que esto no se informan (quedan igual en los minutos).</summary>
     public int SegundosMinimosParada { get; set; } = 20;
