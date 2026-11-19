@@ -106,14 +106,17 @@ public sealed class OpcionesMangas
 
     public bool UsarRodillo { get; set; } = true;
 
-    /// <summary>Movimiento medio (0-255) de la mesa que marca que empieza a pasar una manga.</summary>
-    public double UmbralPasoAlto { get; set; } = 12;
+    /// <summary>Movimiento medio (0-255) de la mesa que marca que empieza a pasar una manga (pulsos reales: 15-45).</summary>
+    public double UmbralPasoAlto { get; set; } = 15;
 
     /// <summary>Debajo de esto terminó de pasar (histéresis: un pulso cuenta una sola vez).</summary>
     public double UmbralPasoBajo { get; set; } = 4;
 
-    /// <summary>Dos pasos más juntos que esto son la misma manga (a ritmo normal hay 2,7 s entre mangas).</summary>
-    public double SegundosMinimosEntrePasos { get; set; } = 1.2;
+    /// <summary>
+    /// Dos pasos más juntos que esto son la misma manga (a ritmo normal hay 2,7 s entre mangas). Con 1,2 s una
+    /// manga que "rebota" ~1,4 s después de caer se contaba dos veces (14/11: +2,3 %); con 2,0 y PasoAlto 15, 0 %.
+    /// </summary>
+    public double SegundosMinimosEntrePasos { get; set; } = 2.0;
 
     /// <summary>Movimiento medio del rodillo a partir del cual se lo da por girando.</summary>
     public double UmbralRodilloGira { get; set; } = 6;
@@ -126,14 +129,14 @@ public sealed class OpcionesMangas
     /// Entre esto y <see cref="FraccionRodilloQuieto"/> la ventana es PARADA (la máquina paró o arrancó en el medio,
     /// o alguien tapa el rodillo, como al limpiar la mesa con aire). 0 = sin la regla (alcanza con no ser PARADA).
     /// </summary>
-    public double FraccionRodilloGiraParaMarcha { get; set; }
+    public double FraccionRodilloGiraParaMarcha { get; set; } = 0.9;
 
     /// <summary>
     /// Regla F: con una parada ya abierta, lo que se mueve en la mesa (operarios, limpieza, una manga que se
     /// acomoda) no es producción. Las mangas de esas ventanas se retienen y se descartan si la parada sigue; se
     /// cuentan sólo si se confirma el arranque (Analisis:VentanasParaConfirmarArranque).
     /// </summary>
-    public bool DescontarMangasEnParada { get; set; }
+    public bool DescontarMangasEnParada { get; set; } = true;
 }
 
 /// <summary>

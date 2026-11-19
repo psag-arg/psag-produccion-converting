@@ -195,19 +195,63 @@ Cada ventana de 10 s queda en:
 
 | Estado | Regla |
 |---|---|
-| `PARADA` | el rodillo estuvo quieto (< 6) la mitad de los cuadros o más |
+| `PARADA` | el rodillo estuvo quieto (< 6) en más del 10 % de los cuadros (regla E, ver 8.1.1) |
 | `ACUMULACION` → tipo de parada **`SIN_MANGAS`** | el rodillo gira pero no pasó ninguna manga en la ventana |
-| `MARCHA` | el rodillo gira y pasó al menos una manga |
+| `MARCHA` | el rodillo giró en al menos el 90 % de la ventana y pasó al menos una manga |
 
-Las paradas usan el mismo detector con histéresis que la 09 (2 ventanas, 20 s). Las **mangas** se cuentan siempre
-(histéresis 12/4 y 1,2 s mínimo entre mangas) y van a `mnt.ConteosCamaraMinuto` como "rollos" del carril 1; la API
-las suma por turno (`GET api/conteo-camara/produccion?puntoControlCalidadId=...` → `turnos`).
+Las paradas usan el mismo detector con histéresis que la 09: 2 ventanas (20 s) para **abrir** una parada, pero 6
+ventanas (60 s) de marcha para **cerrarla** (regla A). Las **mangas** se cuentan con histéresis 15/4 y 2,0 s mínimo
+entre mangas y van a `mnt.ConteosCamaraMinuto` como "rollos" del carril 1; la API las suma por turno
+(`GET api/conteo-camara/produccion?puntoControlCalidadId=...` → `turnos`). Con una parada abierta no se cuentan
+(regla F).
+
+#### 8.1.1 Reglas de parada y ajuste del conteo (19/11/2026)
+
+Caso que las motivó, **13/11 11:08-11:23**: una sola parada real (rodillo quieto 11:08:21, vuelve a girar 11:21:58).
+Entre 11:10 y 11:14 un operario limpió la mesa con aire comprimido y tapó las zonas: el sistema vio "marcha" de 20 y
+40 s, partió la parada en tres y contó 22 mangas falsas. La detención automática nació con inicio **11:14:43** (la
+tercera parte) en vez de 11:08.
+
+| Regla | Parámetro (`Camaras[T2-CAM10]`) | Valor | Qué hace |
+|---|---|---|---|
+| **A** | `Analisis:VentanasParaConfirmarArranque` | 6 (60 s) | ventanas seguidas en marcha para cerrar una parada abierta (o suspendida por un corte de video). El cierre se fecha al inicio de esa marcha, como antes. Abrir sigue pidiendo `VentanasParaConfirmar` (2). 0 = igual que `VentanasParaConfirmar` (la 09 queda así). |
+| **E** | `Mangas:FraccionRodilloGiraParaMarcha` | 0.9 | la ventana es MARCHA sólo si el rodillo giró en ≥ 90 % de sus cuadros; si no, PARADA. 0 = regla vieja (alcanzaba con no estar quieto la mitad). |
+| **F** | `Mangas:DescontarMangasEnParada` | true | con la parada ya abierta las mangas no cuentan: las ventanas de un arranque sin confirmar se retienen (hasta 60 s) y, si la máquina vuelve a parar, van a los minutos sin mangas y con el estado de la parada. Si el arranque se confirma, cuentan todas. La ventana que abre la parada conserva sus mangas (las últimas reales). |
+| conteo | `Mangas:UmbralPasoAlto` / `SegundosMinimosEntrePasos` | 15 / 2.0 (antes 12 / 1.2) | una manga que "rebota" ~1,4 s después de caer se contaba dos veces |
+
+`UmbralRodilloGira` queda en 6: en el 13/11 daba lo mismo con 4, 6 u 8. Fps y zonas sin cambios.
+
+**Validación** con la cadena real del servicio (`tools/ValidarConteoCamara`: FuenteFfmpeg → VigilanteVideo →
+ProcesadorMangas → DetectorParadas → AcumuladorMinutos) sobre video grabado:
+
+| Día / tramo | Real | Antes | Después |
+|---|---|---|---|
+| 14/11 10:10-11:29, mangas | 1661 | 1699 (+2,3 %) | 1661 (0,0 %) |
+| 14/11 parada corta y empalme 10:26-10:32 | 103 | 139 | 104 |
+| 14/11 marcha normal (3 tramos, 10:10-10:26, 10:32-11:29) | 1558 | 1560 | 1557 |
+| 14/11 video entero 09:53-11:39 | 2219 | 2259 (+1,8 %) | 2217 (-0,1 %) |
+| 13/11 paradas 11:08-11:28 | 1 (+ una corta 11:26) | 3 (+ la corta) | 1 (11:08:13-11:23:03) + la corta |
+| 13/11 detención automática, inicio | 11:08 | 11:14:43 | 11:08:13 |
+| 13/11 mangas 11:08-11:23 | 5 | 26 | 4 |
+| 13/11 segundos de marcha en la parada | 0 | 70 | 0 |
+
+El 18/11 la máquina contó 10.000 y el sistema 10.181 (+1,8 %) con los parámetros viejos: mismo orden que el 14/11.
+
+**Costos aceptados**: un arranque real de menos de 60 s queda dentro de la parada y sus mangas no se cuentan (a
+ritmo normal, ~20 por arranque de 50 s). La parada puede empezar hasta una ventana antes (13/11: 11:08:13 con el
+rodillo quieto desde 11:08:21). Los minutos de un arranque se mandan hasta 60 s más tarde (se retienen hasta
+confirmarlo); el cierre de la parada llega 40 s más tarde que antes, con la misma hora de fin.
 
 **Por qué las dos señales (OR):** en el 02-03/11 se vieron paradas con el rodillo girando y sin mangas (09:55, 05:20,
 22:10, 23:15: todo quieto menos el rodillo) y paradas con el rodillo quieto (02:28 a 02:36, 23:10). Mirar sólo el
 rodillo pierde las primeras; mirar sólo las mangas no distingue el tipo. **Empalme**: el rodillo sigue y las mangas
 salen más espaciadas pero siguen saliendo, así que no se abre parada; si alguna vez dejan de salir más de 20 s queda
 como microcorte (sólo log). Recién a los 5 minutos se crea la detención.
+
+Validar un cambio de parámetros con video grabado (en la PC de desarrollo, no en el servidor):
+`ValidarConteoCamara decodificar --video c10.ps --ffmpeg ffmpeg.exe --salida c10.raw` y después
+`ValidarConteoCamara simular --raw c10.raw@2026-11-14T09:53:38-03:00 --variante antes:Mangas:UmbralPasoAlto=12 --variante despues --ref eventos.txt --tramo "T=2026-11-14T10:10/2026-11-14T11:29"`
+(ver el encabezado de `tools/ValidarConteoCamara/Program.cs`).
 
 ### 8.2 Detención automática
 
