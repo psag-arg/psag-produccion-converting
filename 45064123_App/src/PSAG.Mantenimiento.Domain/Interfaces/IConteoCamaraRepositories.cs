@@ -11,6 +11,13 @@ public interface IConteoCamaraMinutoRepository : IRepository<ConteoCamaraMinuto>
     /// <summary>Minutos de [desde, hasta) de la línea (o de todas). Sólo lectura.</summary>
     Task<IReadOnlyList<ConteoCamaraMinuto>> GetRangoAsync(
         DateTimeOffset desde, DateTimeOffset hasta, int? lineaId = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Último minuto guardado de cada punto (los que nunca mandaron datos no vienen). Una búsqueda por punto sobre el
+    /// índice único (punto, minuto, carril). Sólo lectura.
+    /// </summary>
+    Task<Dictionary<int, DateTimeOffset>> GetUltimoMinutoPorPuntoAsync(
+        IReadOnlyCollection<int> puntoControlCalidadIds, CancellationToken cancellationToken = default);
 }
 
 public interface IParadaCamaraRepository : IRepository<ParadaCamara>

@@ -214,6 +214,8 @@ public class EficienciaCamaraCalculadorTests
 
     [Theory]
     [InlineData("MANGAS", 4, "mangas")]
+    [InlineData("BOLSONES", 1, "bolsones")]
+    [InlineData("bolsones", 4, "bolsones")]
     [InlineData("CARRILES", 1, "rollos")]
     [InlineData("carriles", 0, "rollos")]
     [InlineData(null, 4, "rollos")]
@@ -241,10 +243,19 @@ public class EficienciaCamaraCalculadorTests
     [InlineData("  ", true, null)]
     [InlineData("mangas", true, "MANGAS")]
     [InlineData("CARRILES", true, "CARRILES")]
+    [InlineData(" bolsones ", true, "BOLSONES")]
     [InlineData("OTRO", false, "OTRO")]
     public void TryNormalizarMetodo(string? metodo, bool valido, string? normalizado)
     {
         Assert.Equal(valido, EficienciaCamaraCalculador.TryNormalizarMetodo(metodo, out var r));
         Assert.Equal(normalizado, r);
+    }
+
+    [Fact]
+    public void CadaMetodoTieneSuUnidad()
+    {
+        Assert.All(MetodoConteoCamara.Todos, m => Assert.NotNull(MetodoConteoCamara.UnidadDe(m)));
+        Assert.Null(MetodoConteoCamara.UnidadDe(null));
+        Assert.Null(MetodoConteoCamara.UnidadDe("OTRO"));
     }
 }

@@ -320,8 +320,8 @@ Probar sin instalar: `.\PSAG.Mantenimiento.ConteoCamara.exe vivo --camara T2-CAM
   el objetivo" (nunca 0 %). Objetivo 0 (turno no programado): `NO_PROGRAMADO`, sin dividir por cero.
 - **Paradas y microcortes**: minutos de todas las paradas de la cámara recortadas al turno; microcortes = paradas que
   empezaron en el turno y duraron menos que el umbral efectivo (`SegundosUmbralDetencion` o `MinutosUmbralDetencion`).
-- **Unidad**: `MetodoConteo` del punto (`CARRILES` = rollos, `MANGAS` = mangas). Vacío: 1 carril con datos = mangas,
-  más = rollos.
+- **Unidad**: `MetodoConteo` del punto (`CARRILES` = rollos, `MANGAS` = mangas, `BOLSONES` = bolsones, script 33).
+  Vacío: 1 carril con datos = mangas, más = rollos.
 - **API**: `GET api/conteo-camara/eficiencia?fecha=YYYY-MM-DD&lineaId=` (el Dashboard pide hoy y ayer). Aparecen las
   cámaras con conteo en esos días o con objetivo o método cargado.
 
@@ -392,3 +392,59 @@ cuándo, anterior → nuevo). Cambiar el maquinista no recalcula el turno (turno
 
 **Orden de deploy:** scripts 31 y 32 en la base **antes** de publicar la API (la API escribe las columnas nuevas y lee
 la tabla); después la API y la Web.
+
+## 11. Dashboard que se actualiza solo y varias cámaras por línea (reunión 17/11, script 33)
+
+### 11.1 Refresco automático
+
+- El Dashboard vuelve a pedir **todo** (resumen, detenciones, control de proceso, inspecciones y eficiencia de hoy y
+  ayer) cada **60 s**, sin recargar la página: se mantiene la línea elegida y el scroll, y no aparece el spinner (los
+  datos nuevos reemplazan a los anteriores al llegar; las tarjetas de cámara tienen `@key` por punto de control).
+- **Sin solapar**: si una carga tarda más que el intervalo, los tics siguientes se saltean
+  (`Shared/RefrescoPeriodico.cs`). El botón *Actualizar* o un cambio de línea durante una carga hacen **una** carga más
+  al terminar, así siempre queda cargada la línea elegida; una respuesta de la línea anterior se descarta.
+- Si una parte falla se queda la anterior y se avisa "No se pudo actualizar a las HH:mm:ss; se muestran los datos
+  anteriores". El refresco sigue intentando.
+- Al salir de la pantalla (`IAsyncDisposable`) se corta el timer y se cancelan las llamadas en curso.
+- Configuración en `wwwroot/appsettings.json` de la Web (lo escribe `deploy/02-Publicar-Aplicacion.ps1`):
+
+| Clave | Por defecto | Para qué |
+|---|---|---|
+| `Dashboard:SegundosRefresco` | 60 | cada cuánto se actualiza (15 a 3600; **0** = sólo con el botón) |
+| `Dashboard:MinutosDatosAtrasados` | 5 | sin minutos nuevos por más de esto, la cámara se marca atrasada (la API lo acota a 2..120) |
+
+### 11.2 "Datos hasta las HH:mm"
+
+- Por cámara: **fin del último minuto cerrado** que hay en `mnt.ConteosCamaraMinuto` (el minuto 10:15 cubre de 10:15:00
+  a 10:16:00 → "Datos hasta las 10:16"). Nunca más tarde que el último minuto entero de la hora del servidor.
+  Cálculo: `Application/Common/FrescuraDatosCamara.cs`; lo arma la API (`GET api/conteo-camara/eficiencia`), no el
+  navegador, así no depende del reloj de la PC.
+- **Por qué**: el panel va 1 o 2 minutos atrás del contador de la máquina (el servicio cierra el minuto y manda lotes
+  cada 30 s). Sin la hora, se compara el contador de la máquina a una hora con lo contado por el sistema hasta otra:
+  en el mail de calidad, 79 minutos de máquina contra 76 del sistema. Para comparar, mirar el contador a la hora que
+  dice el panel.
+- Arriba del Dashboard: "Datos hasta las HH:mm" = la hora **más vieja de las cámaras al día** (todo lo que se ve está
+  completo hasta ahí). Una cámara atrasada no arrastra esa hora: se avisa aparte.
+- **Datos viejos**: más de 5 minutos (configurable) sin minutos nuevos → `ATRASADO`: badge rojo arriba y en la
+  tarjeta ("Sin datos nuevos hace N min: revisar la cámara o el servicio de conteo"), borde rojo en la tarjeta. Con la
+  línea parada el servicio igual manda minutos (en `PARADA` o `SIN_SENAL`), así que no llegar minutos es un problema
+  del servicio, de la cámara o de la red, no de la máquina.
+- `SIN_DATOS`: la cámara nunca mandó un minuto (recién dada de alta): badge gris "Sin datos todavía", sin alarma.
+
+### 11.3 Varias cámaras por línea (cámara 08, bolsones)
+
+- El Dashboard muestra **una tarjeta por punto de control** que cuenta producción (con datos en el día, o con método u
+  objetivo cargado), ordenadas por línea y número de cámara. La unidad sale del método
+  (`MetodoConteoCamara.UnidadDe`: `CARRILES` = rollos, `MANGAS` = mangas, `BOLSONES` = bolsones). No hay código por
+  número de cámara: para sumar una cámara alcanza con darla de alta en Maestros → Calidad con su método.
+- **Script 33** (`database/33_metodo_conteo_bolsones.sql`, idempotente): amplía el CHECK de `MetodoConteo` a
+  `BOLSONES`. No hizo falta una columna de unidad (la unidad depende del método). Trae **comentado** el alta de
+  `T2-CAM08` (número 8, `BOLSONES`, sin crear detenciones, sin objetivo): **no activarla** hasta calibrar con video la
+  detección de bolsones. El servicio de conteo todavía no tiene método de bolsones (lo agrega quien lo calibre).
+- Al darla de alta, la cámara 08 aparece en el Dashboard con "Sin datos todavía" y "Falta cargar el objetivo"; cuando
+  el servicio mande minutos, con sus bolsones por turno.
+- **Fórmulas de eficiencia**: no cambian (las define Emiliano). La tarjeta ya tiene el lugar para contadas, objetivo,
+  %, parada y microcortes por turno de cada cámara.
+
+**Deploy**: script 33 → publicar API y Web (`02-Publicar-Aplicacion.ps1`). Sin el 33, guardar `BOLSONES` en Maestros
+falla por el CHECK; lo demás anda igual.

@@ -162,6 +162,11 @@ Desde T-610 cámara 10 también `paradasEnCurso[]` (identificadorExterno, inicio
 CONGELADA / SIN_VIDEO, inicio, fin). Si el punto tiene "crea detenciones", la parada que llega al umbral da de alta una
 detención pendiente de declaración (idempotente). `paradas` y `produccion` aceptan `puntoControlCalidadId`;
 `produccion` devuelve también `turnos[]`.
+### GET /conteo-camara/eficiencia?fecha=YYYY-MM-DD&lineaId=&minutosAtraso=5
+Dashboard: eficiencia por turno de cada cámara que cuenta producción. Cada cámara trae `unidad` (por `metodoConteo`:
+rollos / mangas / bolsones), `datosHasta` (fin del último minuto cerrado, hora de planta), `minutosSinDatosNuevos` y
+`estadoDatos` (`AL_DIA` / `ATRASADO` / `SIN_DATOS`); la respuesta trae `generadoEn` y `minutosAtraso` (2 a 120, 5 por
+defecto). Ver `docs/CONTEO_CAMARA.md` sección 11.
 ### GET /conteo-camara/alertas?lineaId=&horas=24
 Alertas de cámara congelada o sin video: abiertas y las cerradas en las últimas horas.
 ### GET /detenciones/{id}/declaracion · POST /detenciones/{id}/declarar

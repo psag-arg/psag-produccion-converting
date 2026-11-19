@@ -11,7 +11,25 @@ public static class MetodoConteoCamara
     /// <summary>Paso de mangas por la mesa de la rebobinadora (cámara 10): cuenta mangas.</summary>
     public const string Mangas = "MANGAS";
 
-    public static readonly IReadOnlyList<string> Todos = [Carriles, Mangas];
+    /// <summary>
+    /// Bolsones que salen de la línea (cámara 08, T2-CAM08, script 33). La detección todavía no está calibrada:
+    /// el valor existe para dar de alta el punto y que el Dashboard lo muestre con su unidad.
+    /// </summary>
+    public const string Bolsones = "BOLSONES";
+
+    public static readonly IReadOnlyList<string> Todos = [Carriles, Mangas, Bolsones];
+
+    /// <summary>Unidad que cuenta cada método (lo único que hay que tocar al sumar un método nuevo).</summary>
+    private static readonly IReadOnlyDictionary<string, string> Unidades = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        [Carriles] = "rollos",
+        [Mangas] = "mangas",
+        [Bolsones] = "bolsones"
+    };
+
+    /// <summary>Unidad del método (rollos, mangas, bolsones) o null si el método está vacío o no se conoce.</summary>
+    public static string? UnidadDe(string? metodo) =>
+        metodo != null && Unidades.TryGetValue(metodo.Trim(), out var unidad) ? unidad : null;
 }
 
 /// <summary>Estado del indicador de eficiencia de un turno.</summary>
@@ -156,13 +174,14 @@ public static class EficienciaCamaraCalculador
         return (int)Math.Round(segundos / 60d, MidpointRounding.AwayFromZero);
     }
 
-    /// <summary>Unidad que se muestra: rollos (CARRILES), mangas (MANGAS); sin método, se deduce de los carriles con datos.</summary>
+    /// <summary>
+    /// Unidad que se muestra: la del método del punto (rollos, mangas, bolsones); sin método, se deduce de los
+    /// carriles con datos.
+    /// </summary>
     public static string Unidad(string? metodo, int cantidadCarriles)
     {
-        if (string.Equals(metodo, MetodoConteoCamara.Mangas, StringComparison.OrdinalIgnoreCase))
-            return "mangas";
-        if (string.Equals(metodo, MetodoConteoCamara.Carriles, StringComparison.OrdinalIgnoreCase))
-            return "rollos";
+        if (MetodoConteoCamara.UnidadDe(metodo) is { } unidad)
+            return unidad;
         return cantidadCarriles switch
         {
             1 => "mangas",
@@ -179,7 +198,7 @@ public static class EficienciaCamaraCalculador
         _ => null
     };
 
-    /// <summary>Normaliza el método (mayúsculas, vacío = null). Devuelve false si no es CARRILES ni MANGAS.</summary>
+    /// <summary>Normaliza el método (mayúsculas, vacío = null). Devuelve false si no es CARRILES, MANGAS ni BOLSONES.</summary>
     public static bool TryNormalizarMetodo(string? metodo, out string? normalizado)
     {
         normalizado = string.IsNullOrWhiteSpace(metodo) ? null : metodo.Trim().ToUpperInvariant();

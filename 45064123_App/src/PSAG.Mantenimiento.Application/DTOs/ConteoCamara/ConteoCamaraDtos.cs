@@ -225,6 +225,13 @@ public class ProduccionCamaraHoraDto
 public class EficienciaCamaraDiaDto
 {
     public DateOnly Fecha { get; set; }
+
+    /// <summary>Hora del servidor (planta) en que se armó la respuesta: contra esto se mide el atraso de los datos.</summary>
+    public DateTimeOffset GeneradoEn { get; set; }
+
+    /// <summary>Minutos sin datos nuevos a partir de los cuales una cámara queda ATRASADO.</summary>
+    public int MinutosAtraso { get; set; }
+
     public List<EficienciaCamaraPuntoDto> Camaras { get; set; } = [];
 }
 
@@ -237,10 +244,10 @@ public class EficienciaCamaraPuntoDto
     public string LineaNombre { get; set; } = string.Empty;
     public int? NumeroCamara { get; set; }
 
-    /// <summary>CARRILES, MANGAS o null (sin cargar en Maestros: la unidad se dedujo de los datos).</summary>
+    /// <summary>CARRILES, MANGAS, BOLSONES o null (sin cargar en Maestros: la unidad se dedujo de los datos).</summary>
     public string? MetodoConteo { get; set; }
 
-    /// <summary>rollos, mangas o unidades.</summary>
+    /// <summary>rollos, mangas, bolsones o unidades.</summary>
     public string Unidad { get; set; } = string.Empty;
 
     public decimal? ObjetivoPorHora { get; set; }
@@ -256,6 +263,18 @@ public class EficienciaCamaraPuntoDto
 
     /// <summary>Umbral efectivo legible ("5 min", "45 s").</summary>
     public string UmbralTexto { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Fin del último minuto cerrado en mnt.ConteosCamaraMinuto, en hora de planta ("Datos hasta las HH:mm"). Null si
+    /// la cámara nunca mandó datos. No depende del día pedido: es lo último que llegó.
+    /// </summary>
+    public DateTimeOffset? DatosHasta { get; set; }
+
+    /// <summary>Minutos entre <see cref="DatosHasta"/> y <see cref="EficienciaCamaraDiaDto.GeneradoEn"/>.</summary>
+    public int? MinutosSinDatosNuevos { get; set; }
+
+    /// <summary>AL_DIA, ATRASADO o SIN_DATOS (<see cref="Common.EstadoDatosCamara"/>).</summary>
+    public string EstadoDatos { get; set; } = string.Empty;
 
     public List<EficienciaTurnoDto> Turnos { get; set; } = [];
 }
