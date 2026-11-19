@@ -45,6 +45,10 @@ public class DetencionDetalleDto : DatosAnalisisDetencion
     public DateTimeOffset FechaHoraCreacion { get; set; }
     public string CreadoPorUsuarioId { get; set; } = string.Empty;
     public string CreadoPorUsuarioNombre { get; set; } = string.Empty;
+
+    /// <summary>Maquinista (asignación de la línea). El nombre va en CreadoPorUsuarioNombre (histórico).</summary>
+    public int? UsuarioLineaId { get; set; }
+
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
     public List<DetencionNotaDto> Notas { get; set; } = new();

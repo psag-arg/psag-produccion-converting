@@ -20,6 +20,16 @@ public interface IParadaCamaraRepository : IRepository<ParadaCamara>
     /// <summary>Paradas que empiezan en [desde, hasta), de la más reciente a la más vieja, con línea, punto y turno. Sólo lectura.</summary>
     Task<IReadOnlyList<ParadaCamara>> GetRangoAsync(
         DateTimeOffset desde, DateTimeOffset hasta, int? lineaId = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Paradas de la línea (y de esa cámara, si se indica) que empiezan en [desde, hasta), de la más vieja a la más
+    /// nueva. Sólo lectura. Para buscar microcortes previos a una detención (agrupador).
+    /// </summary>
+    Task<IReadOnlyList<ParadaCamara>> GetVentanaAsync(
+        int lineaId, int? puntoControlCalidadId, DateTimeOffset desde, DateTimeOffset hasta, CancellationToken cancellationToken = default);
+
+    /// <summary>Paradas con esos ids. Sólo lectura.</summary>
+    Task<IReadOnlyList<ParadaCamara>> GetPorIdsAsync(IReadOnlyCollection<long> ids, CancellationToken cancellationToken = default);
 }
 
 public interface IAlertaCamaraRepository : IRepository<AlertaCamara>

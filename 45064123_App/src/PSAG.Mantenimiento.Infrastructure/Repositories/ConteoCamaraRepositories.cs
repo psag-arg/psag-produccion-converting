@@ -62,6 +62,24 @@ public class ParadaCamaraRepository : RepositoryBase<ParadaCamara>, IParadaCamar
         // Orden en memoria: SQLite (tests) no ordena DateTimeOffset en la base.
         return lista.OrderByDescending(p => p.FechaHoraInicio).ThenByDescending(p => p.ParadaCamaraId).ToList();
     }
+
+    public async Task<IReadOnlyList<ParadaCamara>> GetVentanaAsync(
+        int lineaId, int? puntoControlCalidadId, DateTimeOffset desde, DateTimeOffset hasta, CancellationToken cancellationToken = default)
+    {
+        var query = _dbSet.AsNoTracking()
+            .Where(p => p.LineaId == lineaId && p.FechaHoraInicio >= desde && p.FechaHoraInicio < hasta);
+        if (puntoControlCalidadId.HasValue)
+            query = query.Where(p => p.PuntoControlCalidadId == puntoControlCalidadId.Value);
+        var lista = await query.ToListAsync(cancellationToken);
+        return lista.OrderBy(p => p.FechaHoraInicio).ThenBy(p => p.ParadaCamaraId).ToList();
+    }
+
+    public async Task<IReadOnlyList<ParadaCamara>> GetPorIdsAsync(IReadOnlyCollection<long> ids, CancellationToken cancellationToken = default)
+    {
+        if (ids.Count == 0)
+            return [];
+        return await _dbSet.AsNoTracking().Where(p => ids.Contains(p.ParadaCamaraId)).ToListAsync(cancellationToken);
+    }
 }
 
 public class AlertaCamaraRepository : RepositoryBase<AlertaCamara>, IAlertaCamaraRepository

@@ -37,6 +37,16 @@ public class ParadaCamara
 
     public DateTimeOffset FechaHoraCreacion { get; set; }
 
+    /// <summary>
+    /// Marca de umbral (script 31, reunión 17/11/2026): si la parada llegó al umbral efectivo de la cámara AL
+    /// INSERTARLA (DetencionCamaraReglas.SuperaUmbral). Se completa una sola vez en la ingesta y no se actualiza
+    /// aunque después cambie el umbral. NULL = parada anterior al script 31.
+    /// </summary>
+    public bool? SuperaUmbral { get; set; }
+
+    /// <summary>Umbral efectivo de la cámara, en segundos, vigente al insertar la parada (snapshot). NULL = anterior al script 31.</summary>
+    public int? UmbralSegundos { get; set; }
+
     // Navegación
     public virtual Linea Linea { get; set; } = null!;
     public virtual PuntoControlCalidad PuntoControl { get; set; } = null!;

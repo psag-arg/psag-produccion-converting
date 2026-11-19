@@ -59,6 +59,9 @@ public class MantenimientoDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ParadaCamara> ParadasCamara => Set<ParadaCamara>();
     public DbSet<AlertaCamara> AlertasCamara => Set<AlertaCamara>();
 
+    // Agrupador de detenciones (script 32)
+    public DbSet<DetencionAgrupacion> AgrupacionesDetencion => Set<DetencionAgrupacion>();
+
     private bool EsSqlite => Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true;
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
@@ -133,6 +136,9 @@ public class MantenimientoDbContext : IdentityDbContext<ApplicationUser>
                 break;
             case Auditoria auditoria when auditoria.FechaHora == default:
                 auditoria.FechaHora = ahora;
+                break;
+            case DetencionAgrupacion agrupacion when agrupacion.FechaHoraCreacion == default:
+                agrupacion.FechaHoraCreacion = ahora;
                 break;
         }
     }

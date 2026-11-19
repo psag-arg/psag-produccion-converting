@@ -26,6 +26,8 @@ public class DeclaracionDetencionDto
     /// <summary>Equipo del cuerpo de la cámara, para precargar el equipo (Ferretti 04/11: manda la rebobinadora).</summary>
     public int? CuerpoCamaraEquipoId { get; set; }
 
+    /// <summary>Maquinista sugerido (el del turno/línea). Se puede cambiar al declarar.</summary>
+    public int? UsuarioLineaId { get; set; }
     public string? MaquinistaUsuarioId { get; set; }
     public string? MaquinistaNombre { get; set; }
 
@@ -47,6 +49,13 @@ public class DeclararDetencionRequest
     public string Descripcion { get; set; } = string.Empty;
     public TimeOnly? HoraArranque { get; set; }
     public int? MinutosDeclarados { get; set; }
+
+    /// <summary>
+    /// Maquinista elegido (reunión 17/11/2026): una asignación de la línea de la detención. Null = queda el sugerido.
+    /// El cambio queda en el historial de la detención.
+    /// </summary>
+    public int? UsuarioLineaId { get; set; }
+
     public byte[] RowVersion { get; set; } = [];
 }
 

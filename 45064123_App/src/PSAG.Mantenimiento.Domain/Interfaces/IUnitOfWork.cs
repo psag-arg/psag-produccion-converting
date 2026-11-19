@@ -43,6 +43,9 @@ public interface IUnitOfWork : IDisposable
     IParadaCamaraRepository ParadasCamara { get; }
     IAlertaCamaraRepository AlertasCamara { get; }
 
+    // Agrupador de detenciones (microcortes de cámara bajo una detención, script 32)
+    IDetencionAgrupacionRepository AgrupacionesDetencion { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     Task BeginTransactionAsync(CancellationToken cancellationToken = default);
     Task CommitTransactionAsync(CancellationToken cancellationToken = default);

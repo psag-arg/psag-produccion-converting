@@ -46,6 +46,7 @@ public class UnitOfWork : IUnitOfWork
     private IConteoCamaraMinutoRepository? _conteosCamaraMinuto;
     private IParadaCamaraRepository? _paradasCamara;
     private IAlertaCamaraRepository? _alertasCamara;
+    private IDetencionAgrupacionRepository? _agrupacionesDetencion;
 
     public UnitOfWork(MantenimientoDbContext context)
     {
@@ -89,6 +90,7 @@ public class UnitOfWork : IUnitOfWork
     public IConteoCamaraMinutoRepository ConteosCamaraMinuto => _conteosCamaraMinuto ??= new ConteoCamaraMinutoRepository(_context);
     public IParadaCamaraRepository ParadasCamara => _paradasCamara ??= new ParadaCamaraRepository(_context);
     public IAlertaCamaraRepository AlertasCamara => _alertasCamara ??= new AlertaCamaraRepository(_context);
+    public IDetencionAgrupacionRepository AgrupacionesDetencion => _agrupacionesDetencion ??= new DetencionAgrupacionRepository(_context);
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {

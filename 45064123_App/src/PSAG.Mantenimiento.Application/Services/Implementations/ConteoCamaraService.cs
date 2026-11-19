@@ -146,6 +146,8 @@ public class ConteoCamaraService : IConteoCamaraService
                     continue;
                 }
                 var turno = await TurnoAsync(p.Inicio, turnos, cancellationToken);
+                // Marca de umbral (script 31): una sola vez, con el umbral vigente de la cámara. No se actualiza después.
+                var (supera, umbralSegundos) = DetencionCamaraReglas.MarcaUmbral(punto, p.Inicio, p.Fin);
                 await _unitOfWork.ParadasCamara.AddAsync(new ParadaCamara
                 {
                     LineaId = punto.LineaId,
@@ -159,6 +161,8 @@ public class ConteoCamaraService : IConteoCamaraService
                     InicioIncierto = p.InicioIncierto,
                     FinIncierto = p.FinIncierto,
                     IdentificadorExterno = id,
+                    SuperaUmbral = supera,
+                    UmbralSegundos = umbralSegundos,
                     FechaHoraCreacion = ahora
                 }, cancellationToken);
                 respuesta.ParadasNuevas++;

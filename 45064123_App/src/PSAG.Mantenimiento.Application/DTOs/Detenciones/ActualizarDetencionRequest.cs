@@ -45,6 +45,12 @@ public class ActualizarDetencionRequest
     public string? ResolucionDescripcion { get; set; }
 
     /// <summary>
+    /// Maquinista (reunión 17/11/2026): asignación de la línea de la detención. Null = no se toca (no se puede
+    /// dejar sin maquinista desde la edición). El cambio queda en el historial de la detención.
+    /// </summary>
+    public int? UsuarioLineaId { get; set; }
+
+    /// <summary>
     /// RowVersion para control de concurrencia.
     /// </summary>
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();

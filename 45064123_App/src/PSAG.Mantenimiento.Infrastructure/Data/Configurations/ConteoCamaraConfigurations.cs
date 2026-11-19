@@ -49,6 +49,9 @@ public class ParadaCamaraConfiguration : IEntityTypeConfiguration<ParadaCamara>
         {
             t.HasCheckConstraint("CK_ParadasCamara_Tipo", "[Tipo] IN ('PARADA', 'ACUMULACION', 'SIN_MANGAS')");
             t.HasCheckConstraint("CK_ParadasCamara_Duracion", "[DuracionSegundos] > 0");
+            // Script 31: marca de umbral, las dos juntas (o las dos NULL en las paradas anteriores al script).
+            t.HasCheckConstraint("CK_ParadasCamara_MarcaUmbral",
+                "([SuperaUmbral] IS NULL AND [UmbralSegundos] IS NULL) OR ([SuperaUmbral] IS NOT NULL AND [UmbralSegundos] BETWEEN 30 AND 14400)");
         });
 
         builder.HasKey(x => x.ParadaCamaraId);
@@ -66,6 +69,40 @@ public class ParadaCamaraConfiguration : IEntityTypeConfiguration<ParadaCamara>
 
         builder.HasIndex(x => x.IdentificadorExterno).IsUnique().HasDatabaseName("UX_ParadasCamara_IdentificadorExterno");
         builder.HasIndex(x => new { x.LineaId, x.FechaHoraInicio }).HasDatabaseName("IX_ParadasCamara_Linea_Inicio");
+        builder.HasIndex(x => new { x.PuntoControlCalidadId, x.FechaHoraInicio }).HasDatabaseName("IX_ParadasCamara_Punto_Inicio");
+    }
+}
+
+/// <summary>Agrupador de detenciones: misma tabla, CHECK, FKs e índices que database/32_agrupador_detenciones.sql.</summary>
+public class DetencionAgrupacionConfiguration : IEntityTypeConfiguration<DetencionAgrupacion>
+{
+    public void Configure(EntityTypeBuilder<DetencionAgrupacion> builder)
+    {
+        builder.ToTable("DetencionAgrupacion", "mnt", t =>
+        {
+            t.HasCheckConstraint("CK_DetencionAgrupacion_Origen", "[Origen] IN ('OPERADOR', 'AUTOMATICO')");
+            t.HasCheckConstraint("CK_DetencionAgrupacion_Desactivacion",
+                "([Activo] = 1 AND [DesactivadoPorUsuarioId] IS NULL AND [FechaHoraDesactivacion] IS NULL) OR ([Activo] = 0 AND [DesactivadoPorUsuarioId] IS NOT NULL AND [FechaHoraDesactivacion] IS NOT NULL)");
+        });
+
+        builder.HasKey(x => x.DetencionAgrupacionId);
+
+        builder.Property(x => x.Origen)
+            .IsRequired()
+            .HasConversion(v => v.ToString(), v => Enum.Parse<OrigenAgrupacion>(v))
+            .HasMaxLength(20);
+        builder.Property(x => x.CreadoPorUsuarioId).IsRequired().HasMaxLength(450);
+        builder.Property(x => x.DesactivadoPorUsuarioId).HasMaxLength(450);
+
+        builder.HasOne(x => x.Detencion).WithMany(d => d.Agrupaciones).HasForeignKey(x => x.DetencionId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.ParadaCamara).WithMany().HasForeignKey(x => x.ParadaCamaraId).OnDelete(DeleteBehavior.Restrict);
+
+        // Una parada sólo puede estar activa en UN grupo.
+        builder.HasIndex(x => x.ParadaCamaraId)
+            .IsUnique()
+            .HasFilter("[Activo] = 1")
+            .HasDatabaseName("UX_DetencionAgrupacion_ParadaActiva");
+        builder.HasIndex(x => new { x.DetencionId, x.Activo }).HasDatabaseName("IX_DetencionAgrupacion_DetencionId_Activo");
     }
 }
 

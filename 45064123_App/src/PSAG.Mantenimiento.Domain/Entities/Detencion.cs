@@ -182,6 +182,9 @@ public class Detencion : EntityBase
     public virtual ICollection<AnalisisCambio> CambiosAnalisis { get; set; } = new List<AnalisisCambio>();
     public virtual ICollection<AnalisisAdjunto> AdjuntosAnalisis { get; set; } = new List<AnalisisAdjunto>();
 
+    /// <summary>Microcortes agrupados bajo esta detención (activos y desagrupados). Ver DetencionAgrupacion.</summary>
+    public virtual ICollection<DetencionAgrupacion> Agrupaciones { get; set; } = new List<DetencionAgrupacion>();
+
     /// <summary>
     /// Verifica si la detención puede transicionar al estado especificado.
     /// </summary>
@@ -209,6 +212,32 @@ public class Detencion : EntityBase
         });
 
         EstadoActual = nuevoEstado;
+    }
+
+    /// <summary>
+    /// Cambia el maquinista (reunión 17/11/2026) y deja en el historial de la detención quién, cuándo y el valor
+    /// anterior y el nuevo (entrada sin cambio de estado, OrigenAccion MAQUINISTA). Si no cambia, no hace nada y
+    /// devuelve false. La validación (misma línea, usuario activo) es de <see cref="Services.DetencionMaquinistaReglas"/>.
+    /// </summary>
+    public bool CambiarMaquinista(int? nuevoUsuarioLineaId, string? nombreAnterior, string? nombreNuevo, string usuarioId, string? correlationId = null)
+    {
+        if (UsuarioLineaId == nuevoUsuarioLineaId)
+            return false;
+
+        HistorialEstados.Add(new DetencionEstadoHistorial
+        {
+            EstadoAnterior = EstadoActual,
+            EstadoNuevo = EstadoActual,
+            FechaHora = DateTimeOffset.UtcNow,
+            UsuarioId = usuarioId,
+            Observacion = Services.DetencionMaquinistaReglas.ObservacionCambio(nombreAnterior, nombreNuevo)
+                + $" (asignación {(UsuarioLineaId?.ToString() ?? "-")} → {(nuevoUsuarioLineaId?.ToString() ?? "-")})",
+            OrigenAccion = Services.DetencionMaquinistaReglas.OrigenCambioMaquinista,
+            CorrelationId = correlationId
+        });
+
+        UsuarioLineaId = nuevoUsuarioLineaId;
+        return true;
     }
 
     /// <summary>
