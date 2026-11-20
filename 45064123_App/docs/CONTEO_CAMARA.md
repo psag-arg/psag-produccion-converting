@@ -89,7 +89,7 @@ Parámetros principales (`appsettings.json` → `ConteoCamara`):
 | `Fuente:AnchoDecodificado` × `AltoDecodificado` @ `Fps` | 640 × 480 @ 10 | lo justo para el método |
 | `Analisis:FrecuenciaNominalHz` | 2.78 | velocidad normal; cambiarla si cambia el formato/velocidad |
 | `Analisis:VentanasParaConfirmar` | 2 | histéresis (20 s) |
-| `Analisis:SegundosMinimosParada` | 20 | paradas más cortas no se informan (quedan en los minutos) |
+| `Analisis:SegundosMinimosParada` | 20 | cámara 09: paradas más cortas no se informan (quedan en los minutos). La 10 no lo usa (T-784) |
 | `Api:UrlBase` | `http://localhost:5188` | la API en el mismo servidor |
 
 ## 4. Instalación offline en el servidor de Producción (2k22recimgProd, 172.16.18.52)
@@ -174,7 +174,8 @@ y `GET api/conteo-camara/produccion?fecha&lineaId`.
   no cuenta objetos: con paso regular es exacto, en acumulación es aproximado).
 - En **acumulación** (curva llena, rollos a los tirones) la frecuencia es ambigua: esas ventanas se marcan
   `ACUMULACION` y el conteo de esos minutos es aproximado (en la prueba del 25/10, ±7 % entre métodos).
-- Resolución de 10 s: paradas de menos de 20 s no se informan como parada (sí quedan en los segundos de cada minuto).
+- Cámara 09: resolución de 10 s; paradas de menos de 20 s no se informan como parada (sí quedan en los segundos de cada
+  minuto). La cámara 10 detecta las paradas cuadro a cuadro (sección 8.1) y no descarta ninguna.
 - Si cambia la velocidad nominal (otro formato) ajustar `FrecuenciaNominalHz`; si no, las ventanas lentas se ven como acumulación.
 - Si se apaga el servicio de golpe (no por NSSM) se pierden hasta ~30 s de datos en memoria; un minuto partido por un
   reinicio queda con lo del primer envío (el segundo se toma como repetido).
@@ -199,15 +200,31 @@ Cada ventana de 10 s queda en:
 | `ACUMULACION` → tipo de parada **`SIN_MANGAS`** | el rodillo gira pero no pasó ninguna manga en la ventana |
 | `MARCHA` | el rodillo gira y pasó al menos una manga |
 
-Las paradas usan el mismo detector con histéresis que la 09 (2 ventanas, 20 s). Las **mangas** se cuentan siempre
+**Paradas (T-784, `DetectorParadasMangas`)**: ya no salen de las ventanas sino de las mangas, cuadro a cuadro, para que
+cada microparada quede con su inicio y fin reales (la histéresis de 2 ventanas juntaba microparadas seguidas y descartaba
+las de menos de 20 s: caso del 13/11, 11:08 a 11:14).
+
+| | Regla | Parámetro (`Mangas:`) |
+|---|---|---|
+| Para | 10 s o más sin mangas, o con el rodillo quieto 10 s seguidos | `SegundosSinMangasParaParada` = 10 |
+| Inicio | la última manga que salió (o el primer cuadro con el rodillo quieto) | |
+| Arranca | 2 mangas seguidas a menos de 10 s una de otra; el **fin** es la primera. Una manga suelta no corta la parada | `MangasParaReanudar` = 2 |
+| Tipo | `PARADA` si el rodillo estuvo quieto 5 s seguidos durante la parada; si no, `SIN_MANGAS` | `SegundosRodilloQuietoParaParada` = 5 |
+| Mínimo | no hay: todo lo que cumple la definición se informa; el umbral de detención lo aplica la API | |
+
+Corte de video o imagen congelada con la parada abierta: queda suspendida y, si el video vuelve antes de 120 s con la
+máquina todavía parada, sigue la misma (mismo identificador). Si al volver ya estaba produciendo, o el corte fue más
+largo, se cierra donde se perdió el video con `FinIncierto`. Las ventanas de 10 s siguen dando el estado de cada minuto.
+
+Las **mangas** se cuentan siempre
 (histéresis 12/4 y 1,2 s mínimo entre mangas) y van a `mnt.ConteosCamaraMinuto` como "rollos" del carril 1; la API
 las suma por turno (`GET api/conteo-camara/produccion?puntoControlCalidadId=...` → `turnos`).
 
 **Por qué las dos señales (OR):** en el 02-03/11 se vieron paradas con el rodillo girando y sin mangas (09:55, 05:20,
 22:10, 23:15: todo quieto menos el rodillo) y paradas con el rodillo quieto (02:28 a 02:36, 23:10). Mirar sólo el
 rodillo pierde las primeras; mirar sólo las mangas no distingue el tipo. **Empalme**: el rodillo sigue y las mangas
-salen más espaciadas pero siguen saliendo, así que no se abre parada; si alguna vez dejan de salir más de 20 s queda
-como microcorte (sólo log). Recién a los 5 minutos se crea la detención.
+salen más espaciadas (cada ~7 s) pero siguen saliendo, así que no se abre parada; si alguna vez dejan de salir 10 s o
+más queda como microparada (registrada, sin detención). Recién al umbral (5 minutos) se crea la detención.
 
 ### 8.2 Detención automática
 
@@ -223,7 +240,9 @@ como microcorte (sólo log). Recién a los 5 minutos se crea la detención.
    misma parada cerrada no la duplican; una detención eliminada no se vuelve a crear.
 4. Cuando la máquina arranca, la parada cerrada guarda el arranque visto en `FechaHoraArranqueDetectada`. Es **sólo
    una sugerencia**: la hora de arranque la declara el operador (botón "Usar la de la cámara").
-5. Las paradas de menos que el umbral quedan sólo en `mnt.ParadasCamara` (log de microcortes).
+5. Todas las paradas quedan en `mnt.ParadasCamara`, micro y grandes, con el umbral efectivo de ese momento
+   (`UmbralSegundos`) y la marca `SuperaUmbral` (T-784, script 32). Es un snapshot: si después cambia el umbral, la
+   marca no cambia. Las que no llegan al umbral son **microparadas**: no crean detención ni se le piden declarar.
 
 **Maquinista** (`DetencionCamaraReglas.ElegirMaquinista`): la asignación de la línea para el turno de la parada; si
 hay dos (error de carga), la asignada más recientemente y se deja escrito en el historial; si no hay, la única
@@ -274,8 +293,10 @@ Probar sin instalar: `.\PSAG.Mantenimiento.ConteoCamara.exe vivo --camara T2-CAM
   `TurnoId` materializado dentro de esa ventana (no se recalcula el turno).
 - **Sin objetivo** (`ObjetivoPorHora` vacío): estado `SIN_OBJETIVO`, el % viene vacío y el Dashboard dice "Falta cargar
   el objetivo" (nunca 0 %). Objetivo 0 (turno no programado): `NO_PROGRAMADO`, sin dividir por cero.
-- **Paradas y microcortes**: minutos de todas las paradas de la cámara recortadas al turno; microcortes = paradas que
-  empezaron en el turno y duraron menos que el umbral efectivo (`SegundosUmbralDetencion` o `MinutosUmbralDetencion`).
+- **Paradas y microcortes**: minutos de todas las paradas de la cámara recortadas al turno (`MinutosParada`), y de
+  ellos los de microparadas (`MinutosMicroparadas`, T-784); microcortes = paradas que empezaron en el turno y no
+  llegaron al umbral **guardado al registrarlas** (`SuperaUmbral`; las anteriores al script 32 se comparan con el umbral
+  actual). Los reportes deciden si toman las microparadas. *Paradas y producción (cámara)* filtra por umbral.
 - **Unidad**: `MetodoConteo` del punto (`CARRILES` = rollos, `MANGAS` = mangas). Vacío: 1 carril con datos = mangas,
   más = rollos.
 - **API**: `GET api/conteo-camara/eficiencia?fecha=YYYY-MM-DD&lineaId=` (el Dashboard pide hoy y ayer). Aparecen las

@@ -8,7 +8,7 @@ namespace PSAG.Mantenimiento.Web.Services;
 /// <summary>T-610: paradas detectadas por la cámara (con el cruce con detenciones) y producción por hora.</summary>
 public interface IConteoCamaraService
 {
-    Task<ParadasCamaraResultado> GetParadasAsync(DateOnly desde, DateOnly hasta, int? lineaId, bool soloSinDetencion, int segundosMinimos, int? puntoControlCalidadId = null);
+    Task<ParadasCamaraResultado> GetParadasAsync(DateOnly desde, DateOnly hasta, int? lineaId, bool soloSinDetencion, int segundosMinimos, int? puntoControlCalidadId = null, bool? superaUmbral = null);
     Task<ProduccionCamaraDto> GetProduccionAsync(DateOnly fecha, int? lineaId, int? puntoControlCalidadId = null);
 
     /// <summary>Alertas de cámara congelada o sin video: abiertas y las cerradas en las últimas horas.</summary>
@@ -27,12 +27,13 @@ public class ConteoCamaraService : IConteoCamaraService
 
     private static string Fecha(DateOnly f) => f.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
-    public async Task<ParadasCamaraResultado> GetParadasAsync(DateOnly desde, DateOnly hasta, int? lineaId, bool soloSinDetencion, int segundosMinimos, int? puntoControlCalidadId = null)
+    public async Task<ParadasCamaraResultado> GetParadasAsync(DateOnly desde, DateOnly hasta, int? lineaId, bool soloSinDetencion, int segundosMinimos, int? puntoControlCalidadId = null, bool? superaUmbral = null)
     {
         var query = new List<string> { $"fechaDesde={Fecha(desde)}", $"fechaHasta={Fecha(hasta)}", $"segundosMinimos={segundosMinimos}" };
         if (lineaId.HasValue) query.Add($"lineaId={lineaId}");
         if (puntoControlCalidadId.HasValue) query.Add($"puntoControlCalidadId={puntoControlCalidadId}");
         if (soloSinDetencion) query.Add("soloSinDetencion=true");
+        if (superaUmbral.HasValue) query.Add($"superaUmbral={(superaUmbral.Value ? "true" : "false")}");
         var response = await _httpClient.GetAsync($"{Base}/paradas?" + string.Join("&", query));
         await ApiErrores.AsegurarExitoAsync(response);
         return await response.Content.ReadFromJsonAsync<ParadasCamaraResultado>() ?? new ParadasCamaraResultado();

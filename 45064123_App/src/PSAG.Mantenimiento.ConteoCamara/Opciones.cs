@@ -120,6 +120,18 @@ public sealed class OpcionesMangas
 
     /// <summary>Fracción de los cuadros de la ventana con el rodillo quieto para dar la ventana como PARADA.</summary>
     public double FraccionRodilloQuieto { get; set; } = 0.5;
+
+    /// <summary>
+    /// Paradas (T-784): segundos sin mangas, o con el rodillo quieto seguido, para dar la máquina por parada. Tiene
+    /// que ser más que la separación del empalme (mangas cada ~7 s con la máquina andando más lento).
+    /// </summary>
+    public double SegundosSinMangasParaParada { get; set; } = 10;
+
+    /// <summary>Mangas seguidas (a menos de SegundosSinMangasParaParada una de otra) para dar la máquina por reanudada.</summary>
+    public int MangasParaReanudar { get; set; } = 2;
+
+    /// <summary>Segundos seguidos con el rodillo quieto durante la parada para que sea de tipo PARADA (si no, SIN_MANGAS).</summary>
+    public double SegundosRodilloQuietoParaParada { get; set; } = 5;
 }
 
 /// <summary>

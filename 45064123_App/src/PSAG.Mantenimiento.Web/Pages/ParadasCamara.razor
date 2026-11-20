@@ -59,6 +59,14 @@
                         <option value="600">10 min o más</option>
                     </select>
                 </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label">Umbral</label>
+                    <select class="form-select" @bind="umbral" @bind:after="@(async () => await Buscar())" title="Microparadas: no llegaron al umbral de detención de la cámara (no se piden declarar)">
+                        <option value="">Todas</option>
+                        <option value="si">Llegaron al umbral</option>
+                        <option value="no">Microparadas</option>
+                    </select>
+                </div>
                 <div class="col-12 col-md-2">
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="soloSin" @bind="soloSinDetencion" @bind:after="@(async () => await Buscar())" />
@@ -173,9 +181,13 @@
                                                 <span class="badge text-bg-danger">Sin detención</span>
                                                 break;
                                         }
-                                        @if (p.SuperaUmbral)
+                                        @if (p.CreaDetencion)
                                         {
                                             <span class="badge bg-info-subtle text-info-emphasis ms-1" title="Llegó al umbral (@(p.UmbralTexto ?? "de la cámara")): la cámara crea la detención automática">Automática</span>
+                                        }
+                                        else if (!p.SuperaUmbral)
+                                        {
+                                            <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1" title="No llegó al umbral (@(p.UmbralTexto ?? "de la cámara")): queda registrada, no se pide declarar">Microparada</span>
                                         }
                                     </td>
                                 </tr>
@@ -275,6 +287,7 @@
     private List<AlertaCamaraDto> alertas = [];
     private int segundosMinimos = 60;
     private bool soloSinDetencion = true;
+    private string umbral = "";   // T-784: "" todas, "si" llegaron al umbral, "no" microparadas
     private bool isLoading = true;
     private string? error;
     private List<LineaDto> lineas = [];
@@ -303,7 +316,8 @@
         {
             var d = DateOnly.FromDateTime(desde);
             var h = DateOnly.FromDateTime(hasta);
-            var paradas = ConteoCamaraService.GetParadasAsync(d, h, lineaId, soloSinDetencion, segundosMinimos, puntoId);
+            var paradas = ConteoCamaraService.GetParadasAsync(d, h, lineaId, soloSinDetencion, segundosMinimos, puntoId,
+                umbral switch { "si" => true, "no" => false, _ => null });
             var prod = ConteoCamaraService.GetProduccionAsync(h, lineaId, puntoId);
             var al = ConteoCamaraService.GetAlertasAsync(lineaId, horas: 24);
             resultado = await paradas;

@@ -148,11 +148,11 @@ public class EficienciaCamaraTests : CalidadTestBase
     [Fact]
     public async Task Microcortes_UsanElUmbralEfectivoEnSegundos()
     {
-        await CargarDatosAsync();
         var punto = await Context.PuntosControlCalidad.SingleAsync(p => p.PuntoControlCalidadId == CamaraTango.PuntoControlCalidadId);
         punto.SegundosUmbralDetencion = 100;   // 90 s sigue siendo microcorte; 4 y 6 min son largas
         await Context.SaveChangesAsync();
         Context.ChangeTracker.Clear();
+        await CargarDatosAsync();
 
         var camara = await EficienciaAsync();
         var manana = camara.Turnos.Single(t => t.TurnoCodigo == "T1");
@@ -162,6 +162,92 @@ public class EficienciaCamaraTests : CalidadTestBase
         Assert.Equal(100, camara.UmbralSegundos);
         Assert.Equal(100, camara.SegundosUmbralDetencion);
         Assert.Equal("100 s", camara.UmbralTexto);
+    }
+
+    /// <summary>T-784: cada parada queda marcada con el umbral del momento en que pasó (snapshot).</summary>
+    [Fact]
+    public async Task CambiarElUmbralDespues_NoCambiaLaMarcaDeLasParadasYaRegistradas()
+    {
+        await CargarDatosAsync();                                    // umbral 5 min
+        var punto = await Context.PuntosControlCalidad.SingleAsync(p => p.PuntoControlCalidadId == CamaraTango.PuntoControlCalidadId);
+        punto.SegundosUmbralDetencion = 30;                          // modo prueba, después
+        await Context.SaveChangesAsync();
+        Context.ChangeTracker.Clear();
+
+        var manana = (await EficienciaAsync()).Turnos.Single(t => t.TurnoCodigo == "T1");
+        var guardadas = await Context.ParadasCamara.AsNoTracking().OrderBy(p => p.FechaHoraInicio).ToListAsync();
+
+        Assert.Equal(2, manana.Microcortes);                         // igual que con 5 min
+        Assert.Equal(1, manana.ParadasLargas);
+        Assert.All(guardadas, p => Assert.Equal(300, p.UmbralSegundos));
+        Assert.Equal([false, true, false], guardadas.Select(p => p.SuperaUmbral));
+    }
+
+    [Fact]
+    public async Task ParadasAnterioresAlScript32_SinMarca_UsanElUmbralActual()
+    {
+        await CargarDatosAsync();
+        await Context.ParadasCamara.ExecuteUpdateAsync(u => u
+            .SetProperty(p => p.UmbralSegundos, (int?)null)
+            .SetProperty(p => p.SuperaUmbral, (bool?)null));
+        var punto = await Context.PuntosControlCalidad.SingleAsync(p => p.PuntoControlCalidadId == CamaraTango.PuntoControlCalidadId);
+        punto.SegundosUmbralDetencion = 100;
+        await Context.SaveChangesAsync();
+        Context.ChangeTracker.Clear();
+
+        var manana = (await EficienciaAsync()).Turnos.Single(t => t.TurnoCodigo == "T1");
+
+        Assert.Equal(1, manana.Microcortes);                         // como antes de T-784: con el umbral de hoy
+        Assert.Equal(2, manana.ParadasLargas);
+    }
+
+    [Fact]
+    public async Task MinutosMicroparadas_SeparanLoQueNoLlegoAlUmbral()
+    {
+        await CargarDatosAsync();
+
+        var camara = await EficienciaAsync();
+        var manana = camara.Turnos.Single(t => t.TurnoCodigo == "T1");
+        var tarde = camara.Turnos.Single(t => t.TurnoCodigo == "T2");
+
+        Assert.Equal(10, manana.MinutosParada);
+        Assert.Equal(4, manana.MinutosMicroparadas);                 // 1,5 + 2 (la de 4 min recortada al turno)
+        Assert.Equal(2, tarde.MinutosMicroparadas);                  // los otros 2 min de la de 4 min
+    }
+
+    [Fact]
+    public async Task Paradas_FiltroPorUmbral()
+    {
+        await CargarDatosAsync();
+        var filtro = new ParadasCamaraFiltroRequest { FechaDesde = _fecha, FechaHasta = _fecha };
+
+        filtro.SuperaUmbral = false;
+        var micro = (await _conteo.ObtenerParadasAsync(filtro)).Value!.Items;
+        filtro.SuperaUmbral = true;
+        var grandes = (await _conteo.ObtenerParadasAsync(filtro)).Value!.Items;
+        filtro.SuperaUmbral = null;
+        var todas = (await _conteo.ObtenerParadasAsync(filtro)).Value!.Items;
+
+        Assert.Equal([90, 240], micro.Select(p => p.DuracionSegundos).Order());
+        Assert.All(micro, p => Assert.False(p.SuperaUmbral));
+        Assert.Equal(360, Assert.Single(grandes).DuracionSegundos);
+        Assert.Equal(3, todas.Count);
+        Assert.All(todas, p => Assert.Equal("5 min", p.UmbralTexto));
+    }
+
+    [Fact]
+    public async Task MicroparadaDeSegundos_SeRegistra()
+    {
+        var r = await _conteo.IngestarAsync(new IngestaConteoCamaraRequest
+        {
+            PuntoControl = "TEST-CAM-T2",
+            Paradas = [Parada(_inicioDia.AddHours(9), 11)]               // 11 s: antes no llegaba nunca a la API
+        });
+
+        Assert.Equal(1, r.Value!.ParadasNuevas);
+        var p = await Context.ParadasCamara.AsNoTracking().SingleAsync();
+        Assert.Equal(11, p.DuracionSegundos);
+        Assert.False(p.SuperaUmbral);
     }
 
     [Fact]

@@ -174,12 +174,13 @@ public class ProcesadorMangasTests
         Assert.DoesNotContain(_salida.Ventanas, v => v.EstadoLinea == EstadoCarril.PARADA);
         Assert.All(_salida.Ventanas.Where(v => v.Inicio >= Camara10.T0.AddSeconds(60) && v.Fin <= Camara10.T0.AddSeconds(60 + segundos)),
             v => Assert.InRange(v.Carriles[0].ProporcionPico, 8, 12));      // movimiento medio del rodillo lento
-        // Con mangas cada 20 s o más, ventanas sin mangas alternan con ventanas con una: el SIN_MANGAS puede
-        // durar todo el empalme (no se confirma el arranque hasta dos ventanas con mangas), nunca más.
+        // Con mangas cada 15 s o más (más de 10 s entre mangas) el SIN_MANGAS puede durar todo el empalme: va de la
+        // última manga a ritmo normal a la primera de dos seguidas (T-784), así que a lo sumo el empalme más un
+        // intervalo normal entre mangas (2,7 s). Nunca más.
         Assert.All(_salida.Paradas, p =>
         {
             Assert.Equal(TipoParada.SIN_MANGAS, p.Tipo);
-            Assert.True(p.DuracionSegundos <= segundos, $"microcorte de {p.DuracionSegundos} s");
+            Assert.True(p.DuracionSegundos <= segundos + 3, $"microcorte de {p.DuracionSegundos} s");
         });
         Assert.DoesNotContain(_salida.EnCurso, p => p.Tipo == TipoParada.PARADA || p.Hasta - p.Inicio >= TimeSpan.FromMinutes(5));
     }
@@ -232,6 +233,30 @@ public class ProcesadorMangasTests
         var parada = Assert.Single(_salida.Paradas);
         Assert.InRange(parada.DuracionSegundos, 20, 60);      // al log; la API no crea detención (< 5 min)
         Assert.DoesNotContain(_salida.EnCurso, p => p.Hasta - p.Inicio >= TimeSpan.FromMinutes(5));
+    }
+
+    /// <summary>
+    /// T-784, caso 13/11: microparadas de 40 s con arranques de 8 s entre medio. La histéresis de 20 s las juntaba en
+    /// una sola; ahora cada una queda aparte, de la última manga a la primera del arranque.
+    /// </summary>
+    [Fact]
+    public void MicroparadasSeguidasConArranquesCortos_QuedanSeparadas()
+    {
+        var t = _cam.Pasar(_cadena, 0, 60, periodo: 2.7);
+        for (var i = 0; i < 4; i++)
+        {
+            t = _cam.Pasar(_cadena, t, 40, periodo: 0);
+            t = _cam.Pasar(_cadena, t, 8, periodo: 2.7);
+        }
+        _cam.Pasar(_cadena, t, 60, periodo: 2.7);
+        _cadena.CortarSenal(final: true);
+
+        Assert.Equal(4, _salida.Paradas.Count);
+        Assert.All(_salida.Paradas, p =>
+        {
+            Assert.Equal(TipoParada.SIN_MANGAS, p.Tipo);
+            Assert.InRange(p.DuracionSegundos, 39, 46);
+        });
     }
 
     [Fact]

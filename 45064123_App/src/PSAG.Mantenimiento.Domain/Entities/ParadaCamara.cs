@@ -35,6 +35,16 @@ public class ParadaCamara
     /// <summary>Id del servicio (punto + inicio). Único: un reenvío no duplica.</summary>
     public string IdentificadorExterno { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Umbral de detención efectivo de la cámara AL INGRESAR la parada, en segundos (T-784). Snapshot: si después
+    /// cambia el umbral (ej.: de 30 s de prueba a 5 min) la parada sigue marcada contra el de ese día. Null en las
+    /// paradas anteriores al script 32 (se usa el umbral actual).
+    /// </summary>
+    public int? UmbralSegundos { get; set; }
+
+    /// <summary>La parada llegó al umbral guardado (las demás son microparadas: no se le piden declarar al operador).</summary>
+    public bool? SuperaUmbral { get; set; }
+
     public DateTimeOffset FechaHoraCreacion { get; set; }
 
     // Navegación
