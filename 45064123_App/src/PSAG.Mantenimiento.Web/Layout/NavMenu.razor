@@ -117,6 +117,11 @@
                     <NavLink class="nav-link" href="detenciones/soluciones">
                         <span class="bi bi-book me-2"></span> Base de soluciones
                     </NavLink>
+                    <AuthorizeView Roles="ADMINISTRADOR,MANTENIMIENTO,SUPERVISOR" Context="manual">
+                        <NavLink class="nav-link" href="detenciones/declarar-manual">
+                            <span class="bi bi-lightning-charge me-2"></span> Declarar detención manual
+                        </NavLink>
+                    </AuthorizeView>
                 </div>
             }
         </div>

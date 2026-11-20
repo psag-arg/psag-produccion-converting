@@ -123,7 +123,7 @@ public class ExportacionService : IExportacionService
         string[] encabezados =
         [
             "Código", "Fecha", "Hora", "Línea", "Equipo", "Tipo de falla", "Detalle de falla", "Minutos",
-            "Estado", "Análisis", "Turno", "Descripción", "Solución", "Causa", "Eliminada"
+            "Estado", "Análisis", "Turno", "Descripción", "Solución", "Causa", "Eliminada", "Origen"
         ];
 
         using var libro = new XLWorkbook();
@@ -156,6 +156,8 @@ public class ExportacionService : IExportacionService
             hoja.Cell(fila, 13).Value = d.AccionesRealizadas ?? string.Empty;
             hoja.Cell(fila, 14).Value = d.CausaFalla ?? string.Empty;
             hoja.Cell(fila, 15).Value = d.Eliminada ? "Sí" : "No";
+            // T-786: Manual (la cargó una persona, por ejemplo después de un corte de energía) o Cámara.
+            hoja.Cell(fila, 16).Value = d.OrigenRegistro == OrigenRegistroDetencion.CAMARA ? "Cámara" : "Manual";
         }
 
         hoja.RangeUsed()?.SetAutoFilter();

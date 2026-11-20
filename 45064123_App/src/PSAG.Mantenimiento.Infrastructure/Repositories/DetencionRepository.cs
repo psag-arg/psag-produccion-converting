@@ -166,6 +166,15 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
         return $"DET-{fecha}-{siguienteNumero:D6}";
     }
 
+    public async Task<IReadOnlyList<Detencion>> GetConParadaEntreAsync(
+        int lineaId, DateTimeOffset paradaDesde, DateTimeOffset paradaHasta, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet.AsNoTracking()
+            .Where(d => d.LineaId == lineaId && d.FechaHoraParada != null
+                && d.FechaHoraParada >= paradaDesde && d.FechaHoraParada <= paradaHasta)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Detencion>> GetPorParadasCamaraAsync(IReadOnlyCollection<string> identificadores, CancellationToken cancellationToken = default)
     {
         if (identificadores.Count == 0)
@@ -345,7 +354,8 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
         string? ordenarPor = null,
         bool ordenDescendente = true,
         int? minutosMinimos = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        OrigenRegistroDetencion? origenRegistro = null)
     {
         IQueryable<Detencion> query = incluirEliminadas ? _dbSet.IgnoreQueryFilters() : _dbSet;
         query = query
@@ -382,6 +392,9 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
 
         if (minutosMinimos.HasValue)
             query = query.Where(d => d.MinutosEfectivos >= minutosMinimos.Value);
+
+        if (origenRegistro.HasValue)
+            query = query.Where(d => d.OrigenRegistro == origenRegistro.Value);
 
         if (analisisPendiente.HasValue)
         {

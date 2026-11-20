@@ -106,7 +106,15 @@
                         <option value="SIN">Sin análisis pendiente</option>
                     </select>
                 </div>
-                <div class="col-md-9 d-flex justify-content-end align-items-center gap-3">
+                <div class="col-md-3">
+                    <label class="form-label">Origen</label>
+                    <select class="form-select" @bind="filtroOrigen" @bind:after="@(async () => await AplicarFiltros())">
+                        <option value="">Todos</option>
+                        <option value="MANUAL">Manual (cargada por una persona)</option>
+                        <option value="CAMARA">Cámara</option>
+                    </select>
+                </div>
+                <div class="col-md-6 d-flex justify-content-end align-items-center gap-3">
                     @if (esAdministrador)
                     {
                         <div class="form-check form-switch mb-0">
@@ -145,7 +153,7 @@
                     <div class="card-body py-2 px-3">
                         <div class="d-flex justify-content-between align-items-start gap-2">
                             <div>
-                                <strong>@det.Codigo</strong>
+                                <strong>@det.Codigo</strong> <OrigenDetencion Origen="@det.OrigenRegistro" />
                                 <div class="small text-muted">
                                     @det.Fecha.ToString("dd/MM")
                                     @if (HoraReal(det) is { } horaCel)
@@ -201,7 +209,7 @@
                             <tr class="@(det.Eliminada ? "opacity-50" : "")"
                                 style="@(det.Eliminada ? "" : "cursor: pointer;")"
                                 @onclick="() => AbrirFila(det)">
-                                <td class="text-nowrap"><strong>@det.Codigo</strong></td>
+                                <td class="text-nowrap"><strong>@det.Codigo</strong> <OrigenDetencion Origen="@det.OrigenRegistro" /></td>
                                 <td>
                                     @det.Fecha.ToString("dd/MM/yyyy")
                                     @if (HoraReal(det) is { } horaParada)
@@ -755,6 +763,7 @@
     private int? filtroLineaId;
     private string? filtroEstado;
     private string? filtroAnalisis;   // "PENDIENTE" | "SIN" | null (todos)
+    private string? filtroOrigen;     // T-786: "MANUAL" | "CAMARA" | null (todos)
     private bool verEliminadas;
     private DateTime? filtroFechaDesde;
     private DateTime? filtroFechaHasta;
@@ -926,7 +935,8 @@
             "SIN" => false,
             _ => null
         },
-        VerEliminadas = esAdministrador && verEliminadas
+        VerEliminadas = esAdministrador && verEliminadas,
+        OrigenRegistro = string.IsNullOrEmpty(filtroOrigen) ? null : filtroOrigen
     };
 
     private async Task CargarDetenciones()
@@ -968,6 +978,7 @@
         filtroLineaId = null;
         filtroEstado = null;
         filtroAnalisis = null;
+        filtroOrigen = null;
         verEliminadas = false;
         filtroFechaDesde = null;
         filtroFechaHasta = null;

@@ -1,4 +1,5 @@
 using PSAG.Mantenimiento.Domain.Common;
+using PSAG.Mantenimiento.Domain.Entities;
 
 namespace PSAG.Mantenimiento.Domain.Services;
 
@@ -56,4 +57,22 @@ public static class DetencionCargaReglas
     /// </summary>
     public static bool OperarioSinLineas(IEnumerable<string> roles, int cantidadLineas) =>
         !PuedeCargarEnLinea(roles, cantidadLineas > 0);
+
+    /// <summary>
+    /// T-786: fin de una detención para ver si se superpone con otra: el arranque declarado; si no, el que vio la
+    /// cámara; si no (pendiente de declaración), la parada más sus minutos (0 = sólo el instante de la parada).
+    /// </summary>
+    public static DateTimeOffset? FinParaSuperposicion(Detencion detencion) =>
+        detencion.FechaHoraParada is not { } parada
+            ? null
+            : detencion.FechaHoraArranque ?? detencion.FechaHoraArranqueDetectada ?? parada.AddMinutes(detencion.MinutosEfectivos);
+
+    /// <summary>
+    /// La detención (con hora de parada) cae dentro de [desde, hasta): se pisa con una carga manual de ese horario.
+    /// Las cargadas sólo con minutos, sin horario, no se pueden comparar y no cuentan.
+    /// </summary>
+    public static bool SeSuperpone(Detencion detencion, DateTimeOffset desde, DateTimeOffset hasta) =>
+        detencion.FechaHoraParada is { } parada
+        && parada < hasta
+        && (parada >= desde || FinParaSuperposicion(detencion) > desde);
 }

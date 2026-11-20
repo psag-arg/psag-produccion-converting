@@ -24,6 +24,9 @@ public class DetencionDto : DatosAnalisisDetencion
     public DateTimeOffset? FechaHoraParada { get; set; }
     public DateTimeOffset? FechaHoraArranque { get; set; }
     public string OrigenTiempo { get; set; } = string.Empty;
+
+    /// <summary>T-786: MANUAL (la cargó una persona) o CAMARA (la creó el servicio de cámara).</summary>
+    public string OrigenRegistro { get; set; } = "MANUAL";
     public int MinutosEfectivos { get; set; }
 
     public string Descripcion { get; set; } = string.Empty;

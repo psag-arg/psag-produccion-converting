@@ -173,7 +173,13 @@
                             </div>
                             <div class="col-md-4 mb-3">
                                 <label class="text-muted small">Registrado</label>
-                                <div><strong>@detencion.FechaHoraCreacion.ToString("dd/MM/yyyy HH:mm")</strong></div>
+                                <div>
+                                    <OrigenDetencion Origen="@detencion.OrigenRegistro" />
+                                    <strong>@detencion.FechaHoraCreacion.ToString("dd/MM/yyyy HH:mm")</strong>
+                                </div>
+                                <div class="small text-muted">
+                                    @(detencion.OrigenRegistro == "CAMARA" ? "La creó la cámara" : $"Cargada por {detencion.CargadaPorUsuarioNombre ?? "un usuario dado de baja"}")
+                                </div>
                             </div>
                         </div>
 

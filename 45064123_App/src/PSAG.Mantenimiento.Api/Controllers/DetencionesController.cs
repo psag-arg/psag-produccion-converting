@@ -73,6 +73,7 @@ public class DetencionesController : ApiControllerBase
             FechaHoraParada = d.FechaHoraParada,
             FechaHoraArranque = d.FechaHoraArranque,
             OrigenTiempo = d.OrigenTiempo.ToString(),
+            OrigenRegistro = d.OrigenRegistro.ToString(),
             MinutosEfectivos = d.MinutosEfectivos,
             Descripcion = d.Descripcion,
             EstadoActual = d.EstadoActual.ToString(),
@@ -136,6 +137,7 @@ public class DetencionesController : ApiControllerBase
             FechaHoraParada = detencion.FechaHoraParada,
             FechaHoraArranque = detencion.FechaHoraArranque,
             OrigenTiempo = detencion.OrigenTiempo.ToString(),
+            OrigenRegistro = detencion.OrigenRegistro.ToString(),
             MinutosEfectivos = detencion.MinutosEfectivos,
             Descripcion = detencion.Descripcion,
             EstadoActual = detencion.EstadoActual.ToString(),
@@ -169,6 +171,7 @@ public class DetencionesController : ApiControllerBase
         }, detencion);
 
         dto.CreadoPorUsuarioNombre = await NombreMaquinistaAsync(detencion);
+        dto.CargadaPorUsuarioNombre = (await _userManager.NombresVisiblesAsync([detencion.CreadoPorUsuarioId])).NombreDe(detencion.CreadoPorUsuarioId);
         if (!detencion.RequiereAnalisis)
         {
             dto.MotivoSinAnalisis = ReglaAnalisisEvaluador.MotivoSinAnalisis(
@@ -636,6 +639,7 @@ public class DetencionesController : ApiControllerBase
             FechaHoraParada = detencion.FechaHoraParada,
             FechaHoraArranque = detencion.FechaHoraArranque,
             OrigenTiempo = detencion.OrigenTiempo.ToString(),
+            OrigenRegistro = detencion.OrigenRegistro.ToString(),
             MinutosEfectivos = detencion.MinutosEfectivos,
             Descripcion = detencion.Descripcion,
             EstadoActual = detencion.EstadoActual.ToString(),
@@ -969,6 +973,39 @@ public class DetencionesController : ApiControllerBase
         return File(csv, "text/csv; charset=utf-8", fileName);
     }
 
+    /// <summary>
+    /// T-786: detenciones de la línea que se pisan con el horario de una carga manual (fecha + hora desde/hasta),
+    /// para avisar antes de guardar. No bloquea: quien declara decide.
+    /// </summary>
+    [HttpGet("superpuestas")]
+    [Authorize(Policy = "CanCreateDetenciones")]
+    [ProducesResponseType(typeof(List<DetencionSuperpuestaDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetSuperpuestas([FromQuery] int lineaId, [FromQuery] DateOnly fecha, [FromQuery] TimeOnly horaInicio, [FromQuery] TimeOnly horaFin)
+    {
+        if (CalcularTiempoManual(fecha, horaInicio, horaFin) is not { } tiempo)
+            return BadRequest(new ProblemDetails { Title = "Horario inválido", Detail = "Completá la hora desde y hasta.", Status = StatusCodes.Status400BadRequest });
+
+        // Una parada que empezó hasta 12 h antes puede seguir abierta en ese horario.
+        var candidatas = await _unitOfWork.Detenciones.GetConParadaEntreAsync(lineaId, tiempo.Parada.AddHours(-12), tiempo.Arranque);
+        var superpuestas = candidatas
+            .Where(d => DetencionCargaReglas.SeSuperpone(d, tiempo.Parada, tiempo.Arranque))
+            .OrderBy(d => d.FechaHoraParada)
+            .Select(d => new DetencionSuperpuestaDto
+            {
+                DetencionId = d.DetencionId,
+                Codigo = d.Codigo,
+                OrigenRegistro = d.OrigenRegistro.ToString(),
+                EstadoActual = d.EstadoActual.ToString(),
+                EstadoActualDescripcion = d.EstadoActual.ObtenerDescripcion(),
+                FechaHoraParada = d.FechaHoraParada!.Value,
+                FechaHoraFin = d.FechaHoraArranque ?? d.FechaHoraArranqueDetectada,
+                MinutosEfectivos = d.MinutosEfectivos
+            })
+            .ToList();
+        return Ok(superpuestas);
+    }
+
     private Task<(IEnumerable<Detencion> Items, int TotalCount)> BuscarDetencionesAsync(
         DetencionFiltroRequest filtro,
         int page,
@@ -982,6 +1019,10 @@ public class DetencionesController : ApiControllerBase
 
         // Sólo el administrador ve las eliminadas; para el resto el filtro global de EF las oculta.
         var verEliminadas = filtro.VerEliminadas && User.IsInRole("ADMINISTRADOR");
+
+        OrigenRegistroDetencion? origen = Enum.TryParse<OrigenRegistroDetencion>(filtro.OrigenRegistro, true, out var o) && Enum.IsDefined(o)
+            ? o
+            : null;
 
         return _unitOfWork.Detenciones.GetPaginadoAsync(
             page,
@@ -997,7 +1038,8 @@ public class DetencionesController : ApiControllerBase
             busqueda: filtro.Busqueda,
             analisisPendiente: filtro.AnalisisPendiente,
             incluirEliminadas: verEliminadas,
-            minutosMinimos: filtro.DuracionMinimaMinutos);
+            minutosMinimos: filtro.DuracionMinimaMinutos,
+            origenRegistro: origen);
     }
 
     /// <summary>

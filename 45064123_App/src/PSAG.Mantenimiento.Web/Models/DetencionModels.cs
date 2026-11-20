@@ -21,6 +21,9 @@ public class DetencionDto
     public DateTimeOffset? FechaHoraParada { get; set; }
     public DateTimeOffset? FechaHoraArranque { get; set; }
     public string OrigenTiempo { get; set; } = string.Empty;
+
+    /// <summary>T-786: MANUAL (la cargó una persona) o CAMARA.</summary>
+    public string OrigenRegistro { get; set; } = "MANUAL";
     public int MinutosEfectivos { get; set; }
 
     public string Descripcion { get; set; } = string.Empty;
@@ -31,6 +34,9 @@ public class DetencionDto
     public DateTimeOffset? FechaHoraCierre { get; set; }
     public string? CreadoPorUsuarioId { get; set; }
     public string CreadoPorUsuarioNombre { get; set; } = string.Empty;
+
+    /// <summary>T-786: quién cargó la detención (CreadoPorUsuarioNombre trae el maquinista en el detalle).</summary>
+    public string? CargadaPorUsuarioNombre { get; set; }
     public DateTimeOffset FechaHoraCreacion { get; set; }
     public DateTimeOffset? FechaHoraModificacion { get; set; }
 
@@ -162,4 +168,17 @@ public class ResumenTurnoItem
     public string TipoFallaNombre { get; set; } = string.Empty;
     public int CantidadDetenciones { get; set; }
     public int TotalMinutos { get; set; }
+}
+
+/// <summary>T-786: detención de la misma línea que se pisa con el horario de una carga manual.</summary>
+public class DetencionSuperpuestaDto
+{
+    public long DetencionId { get; set; }
+    public string Codigo { get; set; } = string.Empty;
+    public string OrigenRegistro { get; set; } = string.Empty;
+    public string EstadoActual { get; set; } = string.Empty;
+    public string EstadoActualDescripcion { get; set; } = string.Empty;
+    public DateTimeOffset FechaHoraParada { get; set; }
+    public DateTimeOffset? FechaHoraFin { get; set; }
+    public int MinutosEfectivos { get; set; }
 }
