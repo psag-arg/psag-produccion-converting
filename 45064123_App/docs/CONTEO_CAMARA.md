@@ -225,9 +225,11 @@ como microcorte (sólo log). Recién a los 5 minutos se crea la detención.
    una sugerencia**: la hora de arranque la declara el operador (botón "Usar la de la cámara").
 5. Las paradas de menos que el umbral quedan sólo en `mnt.ParadasCamara` (log de microcortes).
 
-**Maquinista** (`DetencionCamaraReglas.ElegirMaquinista`): la asignación de la línea para el turno de la parada; si
-hay dos (error de carga), la asignada más recientemente y se deja escrito en el historial; si no hay, la única
-asignación de la línea sin turno fijo; si no, vacío, y al declarar queda el operador que declara si está asignado.
+**Maquinista** (`DetencionCamaraReglas.ElegirMaquinista`): primero el maquinista **confirmado para ese turno** (T-783: lo
+confirma el operario en el login o lo carga el supervisor, ver `docs/MAQUINISTA_TURNO.md`); si no hay, la asignación de
+la línea para el turno de la parada; si hay dos (error de carga), la asignada más recientemente y se deja escrito en el
+historial; si no hay, la única asignación de la línea sin turno fijo; si no, vacío, y al declarar queda el operador que
+declara si está asignado.
 
 **Declaración** (`POST api/detenciones/{id}/declarar`): equipo, tipo y detalle de falla, descripción (obligatoria) y
 hora de arranque HH:mm (o minutos). Pasa a `REGISTRADA`, se calcula `MinutosEfectivos` y se aplican las reglas de

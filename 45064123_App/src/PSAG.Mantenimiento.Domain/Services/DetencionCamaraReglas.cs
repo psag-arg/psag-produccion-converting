@@ -93,6 +93,8 @@ public static class DetencionCamaraReglas
     /// <summary>
     /// Maquinista del turno en que empezó la parada, aunque no haya nadie logueado. Regla:
     /// <list type="number">
+    /// <item>El maquinista confirmado para ESE turno de la línea (T-783: lo confirma el operador en el login o lo
+    /// corrige el supervisor), si su asignación sigue siendo de la línea.</item>
     /// <item>Asignaciones de la línea para ese turno (Maestros → Maquinistas). Si hay una, esa.</item>
     /// <item>Si hay más de una (error de carga, como el turno mañana con dos maquinistas), la asignada más
     /// recientemente: suele ser la corrección. El motivo deja escritos los otros para que se revise.</item>
@@ -100,9 +102,16 @@ public static class DetencionCamaraReglas
     /// <item>Si no, queda sin maquinista; al declarar, se completa con el operador que declara si está asignado a la línea.</item>
     /// </list>
     /// </summary>
-    public static EleccionMaquinista ElegirMaquinista(IEnumerable<UsuarioLinea> asignacionesDeLaLinea, int? turnoId)
+    public static EleccionMaquinista ElegirMaquinista(
+        IEnumerable<UsuarioLinea> asignacionesDeLaLinea, int? turnoId, MaquinistaTurno? confirmado = null)
     {
         var todas = asignacionesDeLaLinea.ToList();
+
+        if (confirmado != null && todas.FirstOrDefault(a => a.UsuarioLineaId == confirmado.UsuarioLineaId) is { } elegido)
+            return new(elegido, confirmado.Origen == OrigenMaquinistaTurno.LOGIN
+                ? "Maquinista confirmado para el turno en el login."
+                : "Maquinista del turno cargado por el supervisor.");
+
         var delTurno = turnoId == null ? [] : todas.Where(a => a.TurnoId == turnoId).ToList();
 
         if (delTurno.Count == 1)

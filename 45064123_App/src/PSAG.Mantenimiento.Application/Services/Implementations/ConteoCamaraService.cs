@@ -225,8 +225,11 @@ public class ConteoCamaraService : IConteoCamaraService
             }
 
             asignaciones ??= (await _unitOfWork.UsuariosLineas.GetByLineaIdAsync(punto.LineaId, cancellationToken)).ToList();
-            var maquinista = DetencionCamaraReglas.ElegirMaquinista(asignaciones, turno.TurnoId);
             var inicioPlanta = HoraPlanta.En(c.Inicio, _zonaPlanta)!.Value;
+            // T-783: primero el maquinista confirmado para ESE turno (login o supervisor); si no, la asignación.
+            var confirmado = await _unitOfWork.MaquinistasTurno.GetVigenteAsync(
+                punto.LineaId, turno.TurnoId, MaquinistaTurnoReglas.FechaTurno(turno, inicioPlanta.DateTime), cancellationToken);
+            var maquinista = DetencionCamaraReglas.ElegirMaquinista(asignaciones, turno.TurnoId, confirmado);
             var sistema = DetencionCamaraReglas.UsuarioSistemaCamara;
 
             var detencion = new Detencion

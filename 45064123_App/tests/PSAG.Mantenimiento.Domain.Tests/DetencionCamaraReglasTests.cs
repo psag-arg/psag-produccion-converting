@@ -146,6 +146,25 @@ public class DetencionCamaraReglasTests
         Assert.Null(DetencionCamaraReglas.ElegirMaquinista([], turnoId: 1).Elegido);
     }
 
+    [Fact]
+    public void Maquinista_ElConfirmadoDelTurnoGanaALaAsignacion()
+    {
+        var confirmado = new MaquinistaTurno { UsuarioLineaId = 2, Origen = OrigenMaquinistaTurno.LOGIN };
+        var e = DetencionCamaraReglas.ElegirMaquinista(
+            [Asignacion(1, "asevedo", 1, 30), Asignacion(2, "rotativo", null, 30)], turnoId: 1, confirmado);
+        Assert.Equal("rotativo", e.Elegido!.UsuarioId);
+        Assert.Contains("login", e.Motivo);
+    }
+
+    [Fact]
+    public void Maquinista_ConfirmadoConAsignacionQueYaNoEsDeLaLinea_SeIgnora()
+    {
+        var confirmado = new MaquinistaTurno { UsuarioLineaId = 99, Origen = OrigenMaquinistaTurno.SUPERVISOR };
+        var e = DetencionCamaraReglas.ElegirMaquinista([Asignacion(1, "asevedo", 1, 30)], turnoId: 1, confirmado);
+        Assert.Equal("asevedo", e.Elegido!.UsuarioId);
+        Assert.Equal("Maquinista asignado al turno.", e.Motivo);
+    }
+
     private static Detencion Pendiente() => new()
     {
         EstadoActual = EstadoDetencion.PENDIENTE_JUSTIFICACION,

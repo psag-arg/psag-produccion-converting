@@ -17,6 +17,7 @@ public class UnitOfWork : IUnitOfWork
     private IDetalleFallaRepository? _detallesFalla;
     private ITurnoRepository? _turnos;
     private IUsuarioLineaRepository? _usuariosLineas;
+    private IMaquinistaTurnoRepository? _maquinistasTurno;
     private IAuditoriaRepository? _auditoria;
     private IReglaAnalisisRepository? _reglasAnalisis;
     private ITiempoProgramadoDiaRepository? _tiemposProgramadosDia;
@@ -60,6 +61,7 @@ public class UnitOfWork : IUnitOfWork
     public IDetalleFallaRepository DetallesFalla => _detallesFalla ??= new DetalleFallaRepository(_context);
     public ITurnoRepository Turnos => _turnos ??= new TurnoRepository(_context);
     public IUsuarioLineaRepository UsuariosLineas => _usuariosLineas ??= new UsuarioLineaRepository(_context);
+    public IMaquinistaTurnoRepository MaquinistasTurno => _maquinistasTurno ??= new MaquinistaTurnoRepository(_context);
     public IAuditoriaRepository Auditoria => _auditoria ??= new AuditoriaRepository(_context);
     public IReglaAnalisisRepository ReglasAnalisis => _reglasAnalisis ??= new ReglaAnalisisRepository(_context);
     public ITiempoProgramadoDiaRepository TiemposProgramadosDia => _tiemposProgramadosDia ??= new TiempoProgramadoDiaRepository(_context);

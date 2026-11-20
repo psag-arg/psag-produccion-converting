@@ -267,6 +267,19 @@ public class DetencionesController : ApiControllerBase
         // Mismo cálculo que la previsualización de análisis.
         var tiempo = TiempoDetencionCalculador.Calcular(TiempoDeSolicitud(request), _zonaPlanta);
 
+        // T-783: sin maquinista elegido a mano, la detención toma al maquinista confirmado para ese turno de la línea.
+        if (!request.UsuarioLineaId.HasValue)
+        {
+            var fechaTurno = tiempo.FechaHoraParada is { } parada
+                ? MaquinistaTurnoReglas.FechaTurno(turno, HoraPlanta.En(parada, _zonaPlanta)!.Value.DateTime)
+                : fuenteTurno == FuenteTurno.HoraActual
+                    ? MaquinistaTurnoReglas.FechaTurno(turno, HoraPlanta.Ahora(_zonaPlanta).DateTime)
+                    : request.Fecha;
+            var confirmado = await _unitOfWork.MaquinistasTurno.GetVigenteAsync(request.LineaId, turnoId, fechaTurno);
+            if (confirmado?.UsuarioLinea?.LineaId == request.LineaId)
+                usuarioLineaId = confirmado.UsuarioLineaId;
+        }
+
         // Generar código único
         var codigo = await _unitOfWork.Detenciones.GenerarCodigoDetencionAsync();
 

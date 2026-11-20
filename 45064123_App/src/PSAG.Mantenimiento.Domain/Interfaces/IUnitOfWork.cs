@@ -13,6 +13,7 @@ public interface IUnitOfWork : IDisposable
     IDetalleFallaRepository DetallesFalla { get; }
     ITurnoRepository Turnos { get; }
     IUsuarioLineaRepository UsuariosLineas { get; }
+    IMaquinistaTurnoRepository MaquinistasTurno { get; }
     IAuditoriaRepository Auditoria { get; }
     IReglaAnalisisRepository ReglasAnalisis { get; }
     ITiempoProgramadoDiaRepository TiemposProgramadosDia { get; }

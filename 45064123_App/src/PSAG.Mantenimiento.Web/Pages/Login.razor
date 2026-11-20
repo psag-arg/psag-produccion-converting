@@ -114,7 +114,11 @@
 
             if (result.Success)
             {
-                Navigation.NavigateTo(RutasLogin.DestinoSeguro(Volver));
+                // T-783: al operario se le pregunta si es el maquinista del turno antes de seguir.
+                var destino = RutasLogin.DestinoSeguro(Volver);
+                Navigation.NavigateTo(result.Roles?.Contains("OPERARIO") == true
+                    ? $"/maquinista-turno/confirmar?volver={Uri.EscapeDataString(destino)}"
+                    : destino);
             }
             else
             {

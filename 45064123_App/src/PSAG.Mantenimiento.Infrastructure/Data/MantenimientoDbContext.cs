@@ -25,6 +25,7 @@ public class MantenimientoDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<DetencionEstadoHistorial> DetencionesEstadoHistorial => Set<DetencionEstadoHistorial>();
     public DbSet<DetencionNota> DetencionesNotas => Set<DetencionNota>();
     public DbSet<UsuarioLinea> UsuariosLineas => Set<UsuarioLinea>();
+    public DbSet<MaquinistaTurno> MaquinistasTurno => Set<MaquinistaTurno>();
     public DbSet<Auditoria> Auditoria => Set<Auditoria>();
     public DbSet<ReglaAnalisis> ReglasAnalisis => Set<ReglaAnalisis>();
     public DbSet<TiempoProgramadoDia> TiemposProgramadosDia => Set<TiempoProgramadoDia>();
