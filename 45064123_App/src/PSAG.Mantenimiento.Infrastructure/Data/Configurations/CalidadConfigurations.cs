@@ -35,6 +35,7 @@ public class PuntoControlCalidadConfiguration : IEntityTypeConfiguration<PuntoCo
         // Eficiencia (script 28): objetivo por hora y qué cuenta la cámara. Vacíos = sin cargar.
         builder.Property(x => x.ObjetivoPorHora).HasPrecision(10, 2);
         builder.Property(x => x.MetodoConteo).HasMaxLength(20);
+        builder.Property(x => x.IncluirEnEficiencia).HasDefaultValue(true);
         builder.HasOne(x => x.Equipo)
             .WithMany()
             .HasForeignKey(x => x.EquipoId)

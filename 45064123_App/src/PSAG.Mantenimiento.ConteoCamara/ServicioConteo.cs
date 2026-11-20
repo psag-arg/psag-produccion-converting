@@ -58,8 +58,8 @@ public static class Analizadores
 {
     public static VigilanteVideo Crear(OpcionesConteo opciones, ISalidaConteo salida)
     {
-        IAnalizadorCuadros analizador = opciones.EsMangas
-            ? new ProcesadorMangas(opciones, salida)
+        IAnalizadorCuadros analizador = opciones.EsMangas || opciones.EsBolsones
+            ? new ProcesadorMangas(opciones, salida, detectarParadas: !opciones.EsBolsones)
             : new ProcesadorConteo(opciones, salida);
         return new VigilanteVideo(analizador, salida, opciones.Vigilancia,
             opciones.Fuente.AnchoDecodificado * opciones.Fuente.AltoDecodificado);
@@ -113,10 +113,10 @@ public sealed class ServicioConteo : BackgroundService
         var fuente = new FuenteFfmpeg(opciones.Fuente, _logger, credenciales.Ocultar);
         var publicador = new PublicadorApi(opciones, _httpFactory.CreateClient("api"), _logger);
         var cadena = Analizadores.Crear(opciones, publicador);
-        var url = credenciales.UrlRtsp(opciones.Fuente.PuertoRtsp, opciones.Fuente.RutaRtsp);
+        var url = credenciales.UrlRtsp(opciones.Fuente.PuertoRtsp, opciones.Fuente.RutaEfectiva);
 
         _logger.LogInformation("Cámara {Punto} iniciada: método {Metodo}, NVR {Nvr}{Ruta}, {Fps} fps a {Ancho}x{Alto}",
-            opciones.PuntoControl, opciones.Metodo, credenciales.Host, opciones.Fuente.RutaRtsp,
+            opciones.PuntoControl, opciones.Metodo, credenciales.Host, opciones.Fuente.RutaEfectiva,
             opciones.Fuente.Fps, opciones.Fuente.AnchoDecodificado, opciones.Fuente.AltoDecodificado);
 
         using var envios = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);

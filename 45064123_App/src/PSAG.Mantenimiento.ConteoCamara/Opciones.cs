@@ -32,6 +32,9 @@ public sealed class OpcionesConteo
 
     public bool EsMangas => string.Equals(Metodo, MetodosConteo.Mangas, StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>T-785: cámara 8, cuenta bolsones (pasos por una zona, como las mangas) y no detecta paradas.</summary>
+    public bool EsBolsones => string.Equals(Metodo, MetodosConteo.Bolsones, StringComparison.OrdinalIgnoreCase);
+
     /// <summary>
     /// Cámaras que corre el servicio. Sin "ConteoCamara:Camaras" es una sola, la de la sección (como hasta ahora,
     /// cámara 09). Con la lista, cada cámara arranca de la sección común (Fuente, Api, Analisis, Vigilancia) y
@@ -76,6 +79,9 @@ public static class MetodosConteo
 {
     public const string Carriles = "CARRILES";
     public const string Mangas = "MANGAS";
+
+    /// <summary>Pasos de bolsones por una zona (cámara 8, T-785). Mismo contador que las mangas, sin paradas.</summary>
+    public const string Bolsones = "BOLSONES";
 }
 
 /// <summary>Rectángulo en px de la imagen original de la cámara (se escala a la resolución decodificada).</summary>
@@ -163,8 +169,17 @@ public sealed class OpcionesFuente
 
     public int PuertoRtsp { get; set; } = 554;
 
-    /// <summary>Canal 09 en vivo, stream principal.</summary>
+    /// <summary>Canal 09 en vivo, stream principal. Si hay <see cref="Canal"/>, manda el canal.</summary>
     public string RutaRtsp { get; set; } = "/Streaming/Channels/901";
+
+    /// <summary>
+    /// T-785: número de cámara del grabador Hikvision (8, 9, 10...). Si está, la ruta es la del stream principal de
+    /// ese canal (/Streaming/Channels/{Canal}01) y no hace falta escribir RutaRtsp. Se configura por cámara.
+    /// </summary>
+    public int? Canal { get; set; }
+
+    /// <summary>Ruta RTSP que se usa: la del canal si está configurado; si no, RutaRtsp.</summary>
+    public string RutaEfectiva => Canal is > 0 ? $"/Streaming/Channels/{Canal}01" : RutaRtsp;
 
     /// <summary>Resolución a la que ffmpeg entrega los cuadros (gris, 1 byte por píxel).</summary>
     public int AnchoDecodificado { get; set; } = 640;

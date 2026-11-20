@@ -86,6 +86,7 @@ Parámetros principales (`appsettings.json` → `ConteoCamara`):
 |---|---|---|
 | `PuntoControl` | `T2-CAM09` | código del punto de control (Maestros → Calidad) que define la línea |
 | `Fuente:RutaRtsp` | `/Streaming/Channels/901` | canal 09 en vivo |
+| `Fuente:Canal` | (vacío) | T-785: número de cámara del grabador; si está, la ruta es `/Streaming/Channels/{Canal}01` y manda sobre `RutaRtsp` |
 | `Fuente:AnchoDecodificado` × `AltoDecodificado` @ `Fps` | 640 × 480 @ 10 | lo justo para el método |
 | `Analisis:FrecuenciaNominalHz` | 2.78 | velocidad normal; cambiarla si cambia el formato/velocidad |
 | `Analisis:VentanasParaConfirmar` | 2 | histéresis (20 s) |
@@ -301,3 +302,49 @@ Probar sin instalar: `.\PSAG.Mantenimiento.ConteoCamara.exe vivo --camara T2-CAM
   más = rollos.
 - **API**: `GET api/conteo-camara/eficiencia?fecha=YYYY-MM-DD&lineaId=` (el Dashboard pide hoy y ayer). Aparecen las
   cámaras con conteo en esos días o con objetivo o método cargado.
+
+## 10. Cámara 8: bolsones para la eficiencia (T-785)
+
+Ferretti (16/11, punto 1): la eficiencia cuenta **mangas** (cámara 10) y **bolsones** (cámara 8). La cámara 8 reemplaza a
+la 09 en la eficiencia. IT habilitó la cámara 8 en el grabador el 10/11.
+
+- **Método `BOLSONES`**: el mismo contador de pasos que las mangas (movimiento medio en la zona `Mangas:Mesa`, con
+  histéresis `UmbralPasoAlto`/`UmbralPasoBajo` y `SegundosMinimosEntrePasos`), sin rodillo y **sin paradas**: las paradas
+  y las detenciones las da la cámara 10. Los bolsones van a `mnt.ConteosCamaraMinuto` del punto `T2-CAM08` (carril 1).
+- **Canal sin fijarlo en el código**: `Fuente:Canal = 8` en la entrada de la cámara (`appsettings.json`, o
+  `appsettings.local.json` en el servidor). El repo la trae **apagada** (`"Activa": false`), como la 10 al principio.
+- **API y Dashboard**: con el punto `T2-CAM08` (método *Bolsones*, objetivo por hora de bolsones), la eficiencia por turno
+  muestra la cámara 10 en mangas y la 8 en bolsones, cada una con su objetivo. La producción del turno
+  (`GET api/conteo-camara/produccion`) también sale por cámara, con su unidad.
+- **Reemplazo de la 09**: en Maestros → Calidad, editar la `T2-CAM09` y destildar *Cuenta para la eficiencia*
+  (`IncluirEnEficiencia`, script 33). Sigue informando paradas en *Paradas y producción (cámara)*.
+
+### 10.1 Para probar con la cámara real (Francisco)
+
+Desde `C:\PSAG\ConteoCamara`, con la versión nueva instalada y el usuario del NVR con permiso sobre el canal 8:
+
+1. Foto: `.\PSAG.Mantenimiento.ConteoCamara.exe foto --camara T2-CAM08 --salida C:\temp\cam08.jpg`.
+   - Anotar la resolución de la foto. Si no es 2560x1440, poner `Mangas:AnchoImagen` y `AltoImagen` de la 8.
+2. En la foto, elegir un rectángulo por donde cruza **cada bolsón una sola vez**: una franja de la cinta, sin gente ni
+   máquinas que se muevan. Cargarlo en `Mangas:Mesa` (X, Y, Ancho, Alto, en píxeles de la foto) en `appsettings.local.json`:
+
+   ```json
+   { "ConteoCamara": { "Camaras": [ { "PuntoControl": "T2-CAM09" }, { "PuntoControl": "T2-CAM10" },
+     { "PuntoControl": "T2-CAM08", "Activa": true, "Mangas": { "Mesa": { "X": 0, "Y": 0, "Ancho": 0, "Alto": 0 } } } ] } }
+   ```
+
+   Las cámaras se combinan por posición (09, 10, 8): si el `appsettings.local.json` del servidor ya tiene algo (por
+   ejemplo, la 10 con `"Activa": true`), agregar la tercera entrada y conservar lo demás.
+
+3. Probar sin mandar nada: `.\PSAG.Mantenimiento.ConteoCamara.exe vivo --camara T2-CAM08 --segundos 300`.
+   - Contar a mano los bolsones de esos 5 minutos y comparar con el total que imprime.
+4. Ajustar si no coincide:
+   - si cuenta de más: subir `UmbralPasoAlto` o `SegundosMinimosEntrePasos` (hoy 2 s: un bolsón no puede pasar más seguido que eso);
+   - si cuenta de menos: bajar `UmbralPasoAlto`.
+5. Si hay video grabado de la 8: `procesar --camara T2-CAM08 --archivo c08.mp4 --inicio <hora> --eco` repite la prueba sin la cámara en vivo.
+6. Con el conteo bien:
+   - correr el script 33;
+   - en Maestros → Calidad, dar de alta la `T2-CAM08` (línea Tango 2, cámara 8, *Bolsones*, objetivo por hora de bolsones);
+   - destildar la 09 en la eficiencia;
+   - reiniciar `PSAG_ConteoCamara`.
+

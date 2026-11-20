@@ -222,6 +222,26 @@ public class ProcesadorMangasTests
         Assert.Contains(_salida.EnCurso, p => p.Hasta - p.Inicio >= TimeSpan.FromMinutes(5));
     }
 
+    /// <summary>T-785: la cámara 8 cuenta bolsones con el mismo contador y no da paradas (las da la 10).</summary>
+    [Fact]
+    public void Bolsones_CuentaPasosYNoDaParadas()
+    {
+        var o = Camara10.Opciones();
+        o.PuntoControl = "T2-CAM08";
+        o.Metodo = MetodosConteo.Bolsones;
+        o.Mangas.UsarRodillo = false;
+        var cadena = Analizadores.Crear(o, _salida);
+
+        var t = _cam.Pasar(cadena, 0, 120, periodo: 6);         // un bolsón cada 6 s
+        t = _cam.Pasar(cadena, t, 6 * 60, periodo: 0);          // 6 min sin bolsones
+        _cam.Pasar(cadena, t, 60, periodo: 6);
+        cadena.CortarSenal(final: true);
+
+        Assert.InRange(_salida.Minutos_.Sum(m => m.Rollos), 28, 32);   // 180 s / 6 = 30
+        Assert.Empty(_salida.Paradas);
+        Assert.Empty(_salida.EnCurso);
+    }
+
     [Fact]
     public void Microcorte_QuedaComoParadaCorta()
     {
@@ -392,14 +412,31 @@ public class ConfiguracionCamarasTests
     }
 
     [Fact]
-    public void ElAppsettingsDelRepoTraeLa09ActivaYLa10Apagada()
+    public void ElAppsettingsDelRepoTraeLa09ActivaYLa10YLa8Apagadas()
     {
         var ruta = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
         var camaras = OpcionesConteo.CargarCamaras(new ConfigurationBuilder().AddJsonFile(ruta).Build());
         Assert.Collection(camaras,
-            c => { Assert.Equal("T2-CAM09", c.PuntoControl); Assert.True(c.Activa); Assert.False(c.EsMangas); },
-            c => { Assert.Equal("T2-CAM10", c.PuntoControl); Assert.False(c.Activa); Assert.True(c.EsMangas); });
+            c => { Assert.Equal("T2-CAM09", c.PuntoControl); Assert.True(c.Activa); Assert.False(c.EsMangas); Assert.Equal("/Streaming/Channels/901", c.Fuente.RutaEfectiva); },
+            c => { Assert.Equal("T2-CAM10", c.PuntoControl); Assert.False(c.Activa); Assert.True(c.EsMangas); Assert.Equal("/Streaming/Channels/1001", c.Fuente.RutaEfectiva); },
+            c =>
+            {
+                // T-785: la 8 cuenta bolsones; el canal sale del número de cámara, no de una ruta fija en el código.
+                Assert.Equal("T2-CAM08", c.PuntoControl);
+                Assert.False(c.Activa);
+                Assert.True(c.EsBolsones);
+                Assert.Equal(8, c.Fuente.Canal);
+                Assert.Equal("/Streaming/Channels/801", c.Fuente.RutaEfectiva);
+                Assert.False(c.Mangas.UsarRodillo);
+            });
     }
+
+    [Theory]
+    [InlineData(null, "/Streaming/Channels/901")]   // sin canal: la ruta de siempre
+    [InlineData(8, "/Streaming/Channels/801")]
+    [InlineData(12, "/Streaming/Channels/1201")]
+    public void Canal_ArmaLaRutaDelStreamPrincipal(int? canal, string esperada) =>
+        Assert.Equal(esperada, new OpcionesFuente { RutaRtsp = "/Streaming/Channels/901", Canal = canal }.RutaEfectiva);
 
     [Fact]
     public void ElLoteConParadasEnCursoYAlertasSeLeeConLosDtoDeLaApi()

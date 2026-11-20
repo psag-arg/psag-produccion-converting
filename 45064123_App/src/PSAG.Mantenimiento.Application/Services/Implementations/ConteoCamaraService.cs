@@ -533,7 +533,8 @@ public class ConteoCamaraService : IConteoCamaraService
         // Los puntos de control de defectos de calidad, sin conteo, no aparecen.
         var conDatos = minutos.Select(m => m.PuntoControlCalidadId).ToHashSet();
         var puntos = (await _unitOfWork.PuntosControlCalidad.GetListadoAsync(lineaId, incluirInactivos: false, cancellationToken))
-            .Where(p => conDatos.Contains(p.PuntoControlCalidadId) || p.ObjetivoPorHora != null || p.MetodoConteo != null)
+            .Where(p => p.IncluirEnEficiencia
+                && (conDatos.Contains(p.PuntoControlCalidadId) || p.ObjetivoPorHora != null || p.MetodoConteo != null))
             .OrderBy(p => p.Linea?.Orden ?? 0).ThenBy(p => p.Linea?.Nombre)
             .ThenBy(p => p.NumeroCamara ?? int.MaxValue).ThenBy(p => p.Codigo)
             .ToList();
