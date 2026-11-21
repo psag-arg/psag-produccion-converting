@@ -424,8 +424,7 @@ public class AnalisisEdicionTests : IDisposable
         {
             Codigo = $"DET-20261022-{_secuencia:000000}",
             LineaId = _lineaId,
-            TurnoId = _turnoId,
-            Fecha = new DateOnly(2026, 10, 22),
+            TurnoProduccionId = _context.TurnoProduccionId(_lineaId, _turnoId, new DateOnly(2026, 10, 22)),
             OrigenTiempo = OrigenTiempo.DECLARADO,
             MinutosDeclarados = 40,
             MinutosEfectivos = 40,

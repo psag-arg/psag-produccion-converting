@@ -17,7 +17,15 @@ public class DetencionDetalleDto : DatosAnalisisDetencion
     public string? DetalleFallaNombre { get; set; }
     public int TurnoId { get; set; }
     public string TurnoNombre { get; set; } = string.Empty;
+
+    /// <summary>Fecha de producción del turno (T-798: sale de TurnoProduccion; el T3 es del día de las 21:00).</summary>
     public DateOnly Fecha { get; set; }
+
+    /// <summary>Turno de producción del que cuelga (T-798 etapa 3).</summary>
+    public long TurnoProduccionId { get; set; }
+
+    /// <summary>Operador (usuario) del turno a la hora de la parada (snapshot).</summary>
+    public string? OperadorUsuarioId { get; set; }
 
     /// <summary>
     /// Si no requiere análisis, por qué (sin tipo de falla, sin regla o por debajo de los minutos de la regla).

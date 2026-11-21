@@ -22,7 +22,7 @@ public class ConteoCamaraServiceTests : CalidadTestBase
 
     public ConteoCamaraServiceTests()
     {
-        _conteo = new ConteoCamaraService(new UnitOfWork(Context), ZonaPlanta, NullLogger<ConteoCamaraService>.Instance);
+        _conteo = new ConteoCamaraService(new UnitOfWork(Context), NuevoTurnosProduccion(new UnitOfWork(Context)), ZonaPlanta, NullLogger<ConteoCamaraService>.Instance);
         var hoy = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ZonaPlanta).Date;
         _dia = new DateTimeOffset(hoy.AddDays(-2).AddHours(10), TimeSpan.FromHours(-3));
     }
@@ -209,8 +209,7 @@ public class ConteoCamaraServiceTests : CalidadTestBase
     {
         Codigo = codigo,
         LineaId = lineaId,
-        TurnoId = TurnoManana.TurnoId,
-        Fecha = fecha,
+        TurnoProduccionId = Context.TurnoProduccionId(lineaId, TurnoManana.TurnoId, fecha),
         FechaHoraParada = parada,
         OrigenTiempo = parada.HasValue ? OrigenTiempo.CALCULADO : OrigenTiempo.DECLARADO,
         MinutosDeclarados = minutos,

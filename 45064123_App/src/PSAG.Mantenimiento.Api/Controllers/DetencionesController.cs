@@ -26,6 +26,7 @@ public class DetencionesController : ApiControllerBase
     private readonly ILogger<DetencionesController> _logger;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly TimeZoneInfo _zonaPlanta;
+    private readonly ITurnoProduccionService _turnosProduccion;
 
     public DetencionesController(
         IUnitOfWork unitOfWork,
@@ -34,8 +35,10 @@ public class DetencionesController : ApiControllerBase
         IAuditoriaService auditoriaService,
         ILogger<DetencionesController> logger,
         UserManager<ApplicationUser> userManager,
-        TimeZoneInfo zonaPlanta)
+        TimeZoneInfo zonaPlanta,
+        ITurnoProduccionService turnosProduccion)
     {
+        _turnosProduccion = turnosProduccion;
         _userManager = userManager;
         _unitOfWork = unitOfWork;
         _detencionService = detencionService;
@@ -66,9 +69,11 @@ public class DetencionesController : ApiControllerBase
             TipoFallaNombre = d.TipoFalla?.Nombre,
             DetalleFallaId = d.DetalleFallaId,
             DetalleFallaNombre = d.DetalleFalla?.Nombre,
-            TurnoId = d.TurnoId,
-            TurnoNombre = d.Turno?.Nombre ?? string.Empty,
-            Fecha = d.Fecha,
+            TurnoId = d.TurnoProduccion.TurnoId,
+            TurnoNombre = d.TurnoProduccion.Turno?.Nombre ?? string.Empty,
+            Fecha = d.TurnoProduccion.FechaProduccion,
+            TurnoProduccionId = d.TurnoProduccionId,
+            OperadorUsuarioId = d.OperadorUsuarioId,
             MinutosDeclarados = d.MinutosDeclarados,
             FechaHoraParada = d.FechaHoraParada,
             FechaHoraArranque = d.FechaHoraArranque,
@@ -130,9 +135,11 @@ public class DetencionesController : ApiControllerBase
             TipoFallaNombre = detencion.TipoFalla?.Nombre,
             DetalleFallaId = detencion.DetalleFallaId,
             DetalleFallaNombre = detencion.DetalleFalla?.Nombre,
-            TurnoId = detencion.TurnoId,
-            TurnoNombre = detencion.Turno?.Nombre ?? string.Empty,
-            Fecha = detencion.Fecha,
+            TurnoId = detencion.TurnoProduccion.TurnoId,
+            TurnoNombre = detencion.TurnoProduccion.Turno?.Nombre ?? string.Empty,
+            Fecha = detencion.TurnoProduccion.FechaProduccion,
+            TurnoProduccionId = detencion.TurnoProduccionId,
+            OperadorUsuarioId = detencion.OperadorUsuarioId,
             MinutosDeclarados = detencion.MinutosDeclarados,
             FechaHoraParada = detencion.FechaHoraParada,
             FechaHoraArranque = detencion.FechaHoraArranque,
@@ -212,12 +219,13 @@ public class DetencionesController : ApiControllerBase
             return LineaNoAsignada();
         }
 
-        // Maquinista: el elegido (admin/supervisor) o la asignación propia en la línea.
-        OperadorLinea? maquinista = asignacionPropia;
-        if (request.UsuarioLineaId.HasValue)
+        // Maquinista elegido a mano (admin/supervisor): un usuario habilitado en la línea. La Web anterior mandaba la
+        // habilitación (UsuarioLineaId): se convierte a su usuario.
+        var elegido = string.IsNullOrWhiteSpace(request.OperadorUsuarioId) ? null : request.OperadorUsuarioId.Trim();
+        if (elegido == null && request.UsuarioLineaId is { } usuarioLineaId)
         {
-            maquinista = await _unitOfWork.OperadoresLinea.GetByIdAsync(request.UsuarioLineaId.Value);
-            if (maquinista == null)
+            var habilitacion = await _unitOfWork.OperadoresLinea.GetByIdAsync(usuarioLineaId);
+            if (habilitacion == null)
             {
                 return BadRequest(new ProblemDetails
                 {
@@ -226,6 +234,16 @@ public class DetencionesController : ApiControllerBase
                     Status = StatusCodes.Status400BadRequest
                 });
             }
+            elegido = habilitacion.UsuarioId;
+        }
+        if (elegido != null && await _unitOfWork.OperadoresLinea.GetByUsuarioYLineaAsync(elegido, request.LineaId) == null)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Maquinista no habilitado",
+                Detail = DetencionCargaReglas.MensajeOperadorNoHabilitado,
+                Status = StatusCodes.Status400BadRequest
+            });
         }
 
         var tiempoManual = CalcularTiempoManual(request.Fecha, request.HoraInicio, request.HoraFin);
@@ -235,40 +253,29 @@ public class DetencionesController : ApiControllerBase
             return BadRequest(errorHoras);
         }
 
-        var fuenteTurno = DetencionCargaReglas.ElegirFuenteTurno(
-            conHoras: tiempoManual.HasValue,
-            maquinistaElegido: request.UsuarioLineaId.HasValue,
-            maquinistaTieneTurno: maquinista?.TurnoHabitualId.HasValue == true);
+        // Mismo cálculo que la previsualización de análisis.
+        var tiempo = TiempoDetencionCalculador.Calcular(TiempoDeSolicitud(request), _zonaPlanta);
 
-        Turno? turno = fuenteTurno switch
-        {
-            FuenteTurno.HoraInicio => await _unitOfWork.Turnos.GetTurnoPorHoraAsync(request.HoraInicio!.Value),
-            FuenteTurno.Maquinista => await _unitOfWork.Turnos.GetByIdAsync(maquinista!.TurnoHabitualId!.Value),
-            FuenteTurno.HoraActual => await _unitOfWork.Turnos.GetTurnoActualAsync(_zonaPlanta),
-            _ => null
-        };
-
-        if (turno == null)
+        // T-798 etapa 3: la detención cuelga del turno de producción de la hora desde (o de ahora, sin horas). Si no
+        // había, lo crea el SISTEMA: una detención sin turno abierto no se pierde.
+        var instante = DetencionCargaReglas.InstanteTurno(tiempo.FechaHoraParada, DateTimeOffset.UtcNow);
+        var turnoProduccion = await _turnosProduccion.AsegurarTurnoAsync(request.LineaId, instante);
+        if (turnoProduccion == null)
         {
             return BadRequest(new ProblemDetails
             {
                 Title = "Turno no encontrado",
-                Detail = fuenteTurno switch
-                {
-                    null => DetencionCargaReglas.MensajeMaquinistaSinTurno,
-                    FuenteTurno.HoraInicio => "No hay un turno activo para la hora de inicio ingresada. Revisá los horarios en Configuración → Turnos.",
-                    _ => "No hay un turno activo para la hora actual. Cargá la hora de inicio y fin de la parada."
-                },
+                Detail = DetencionCargaReglas.MensajeSinTurnoALaHora,
                 Status = StatusCodes.Status400BadRequest
             });
         }
 
-        var turnoId = turno.TurnoId;
-        var turnoNombre = turno.Nombre;
-        var usuarioLineaId = maquinista?.UsuarioLineaId;
-
-        // Mismo cálculo que la previsualización de análisis.
-        var tiempo = TiempoDetencionCalculador.Calcular(TiempoDeSolicitud(request), _zonaPlanta);
+        var operadorUsuarioId = DetencionCargaReglas.ElegirOperador(
+            elegido,
+            TurnoProduccionReglas.OperadorALaHora(turnoProduccion.Operadores, instante)?.OperadorUsuarioId,
+            CurrentUserId,
+            asignacionPropia != null);
+        var turnoNombre = (await _unitOfWork.Turnos.GetByIdAsync(turnoProduccion.TurnoId))?.Nombre ?? string.Empty;
 
         // Generar código único
         var codigo = await _unitOfWork.Detenciones.GenerarCodigoDetencionAsync();
@@ -280,9 +287,8 @@ public class DetencionesController : ApiControllerBase
             EquipoId = request.EquipoId,
             TipoFallaId = request.TipoFallaId,
             DetalleFallaId = request.DetalleFallaId,
-            TurnoId = turnoId,
-            UsuarioLineaId = usuarioLineaId,
-            Fecha = request.Fecha,
+            TurnoProduccionId = turnoProduccion.TurnoProduccionId,
+            OperadorUsuarioId = operadorUsuarioId,
             MinutosDeclarados = tiempo.MinutosDeclarados,
             FechaHoraParada = tiempo.FechaHoraParada,
             FechaHoraArranque = tiempo.FechaHoraArranque,
@@ -308,8 +314,8 @@ public class DetencionesController : ApiControllerBase
         await _unitOfWork.Detenciones.AddAsync(detencion);
         await _unitOfWork.SaveChangesAsync();
 
-        _logger.LogInformation("Detención {Codigo} creada por usuario {UserId}, UsuarioLineaId: {UsuarioLineaId}",
-            codigo, CurrentUserId, usuarioLineaId);
+        _logger.LogInformation("Detención {Codigo} creada por usuario {UserId} en el turno de producción {TurnoProduccionId}, operador {OperadorUsuarioId}",
+            codigo, CurrentUserId, turnoProduccion.TurnoProduccionId, operadorUsuarioId);
 
         var response = new CrearDetencionResponse
         {
@@ -473,8 +479,8 @@ public class DetencionesController : ApiControllerBase
             LineaNombre = d.Linea?.Nombre ?? string.Empty,
             EquipoNombre = d.Equipo?.Nombre,
             TipoFallaNombre = d.TipoFalla?.Nombre,
-            TurnoNombre = d.Turno?.Nombre ?? string.Empty,
-            Fecha = d.Fecha,
+            TurnoNombre = d.TurnoProduccion.Turno?.Nombre ?? string.Empty,
+            Fecha = d.TurnoProduccion.FechaProduccion,
             MinutosEfectivos = d.MinutosEfectivos,
             EstadoActual = d.EstadoActual.ToString(),
             EstadoActualDescripcion = d.EstadoActual.ObtenerDescripcion(),
@@ -555,7 +561,13 @@ public class DetencionesController : ApiControllerBase
             return fechaFutura;
         }
 
-        var fecha = request.Fecha ?? detencion.Fecha;
+        // La fecha de la hora desde: la que manda la Web; si no, la del día de la parada guardada (hora de planta) o,
+        // sin parada, la fecha de producción del turno. (T-798: la detención ya no guarda Fecha.)
+        var turnoActual = await _unitOfWork.TurnosProduccion.GetByIdAsync(detencion.TurnoProduccionId);
+        var fecha = request.Fecha
+            ?? (HoraPlanta.En(detencion.FechaHoraParada, _zonaPlanta) is { } paradaPlanta
+                ? DateOnly.FromDateTime(paradaPlanta.DateTime)
+                : turnoActual?.FechaProduccion ?? HoraPlanta.Hoy(_zonaPlanta));
         var tiempoManual = CalcularTiempoManual(fecha, request.HoraInicio, request.HoraFin);
         var errorHoras = ValidarHorasManuales(request.HoraInicio, request.HoraFin, tiempoManual);
         if (errorHoras != null)
@@ -569,27 +581,26 @@ public class DetencionesController : ApiControllerBase
             detencion.FechaHoraParada, detencion.FechaHoraArranque);
         var edicion = TiempoDetencionCalculador.Editar(guardado, TiempoDeSolicitud(request, fecha), _zonaPlanta);
 
-        int? turnoIdPorHora = null;
-        if (edicion.RederivarTurno)
+        // T-798 etapa 3: si cambió la hora desde y cae en otro turno, la detención pasa a ese turno de producción
+        // (lo crea el SISTEMA si no existe) y queda escrito en el historial.
+        TurnoProduccion? turnoNuevo = null;
+        if (edicion.RederivarTurno && edicion.Tiempo.FechaHoraParada is { } nuevaParada)
         {
-            var turnoPorHora = await _unitOfWork.Turnos.GetTurnoPorHoraAsync(request.HoraInicio!.Value);
-            if (turnoPorHora == null)
+            turnoNuevo = await _turnosProduccion.AsegurarTurnoAsync(detencion.LineaId, nuevaParada);
+            if (turnoNuevo == null)
             {
                 return BadRequest(new ProblemDetails
                 {
                     Title = "Turno no encontrado",
-                    Detail = "No hay un turno activo para la hora de inicio ingresada.",
+                    Detail = DetencionCargaReglas.MensajeSinTurnoALaHora,
                     Status = StatusCodes.Status400BadRequest
                 });
             }
-            turnoIdPorHora = turnoPorHora.TurnoId;
+            if (turnoNuevo.TurnoProduccionId == detencion.TurnoProduccionId)
+                turnoNuevo = null;
         }
 
         // Actualizar campos
-        if (request.Fecha.HasValue)
-        {
-            detencion.Fecha = request.Fecha.Value;
-        }
         detencion.EquipoId = request.EquipoId;
         detencion.TipoFallaId = request.TipoFallaId;
         detencion.DetalleFallaId = request.DetalleFallaId;
@@ -607,9 +618,19 @@ public class DetencionesController : ApiControllerBase
         detencion.MinutosDeclarados = tiempo.MinutosDeclarados;
         detencion.FechaHoraParada = tiempo.FechaHoraParada;
         detencion.FechaHoraArranque = tiempo.FechaHoraArranque;
-        if (turnoIdPorHora.HasValue)
+        if (turnoNuevo != null)
         {
-            detencion.TurnoId = turnoIdPorHora.Value;
+            var turnos = (await _unitOfWork.Turnos.GetAllAsync()).ToDictionary(t => t.TurnoId, t => t.Nombre);
+            string Texto(TurnoProduccion? t) => t == null ? "?" : $"{turnos.GetValueOrDefault(t.TurnoId, "?")} del {t.FechaProduccion:dd/MM/yyyy}";
+            detencion.HistorialEstados.Add(new Domain.Entities.DetencionEstadoHistorial
+            {
+                EstadoAnterior = detencion.EstadoActual,
+                EstadoNuevo = detencion.EstadoActual,
+                UsuarioId = CurrentUserId,
+                Observacion = $"Cambio de turno por la nueva hora desde: {Texto(turnoActual)} → {Texto(turnoNuevo)}.",
+                CorrelationId = CorrelationId
+            });
+            detencion.TurnoProduccionId = turnoNuevo.TurnoProduccionId;
         }
 
         await _detencionService.AplicarReglaAnalisisAsync(detencion);
@@ -632,9 +653,11 @@ public class DetencionesController : ApiControllerBase
             TipoFallaNombre = detencion.TipoFalla?.Nombre,
             DetalleFallaId = detencion.DetalleFallaId,
             DetalleFallaNombre = detencion.DetalleFalla?.Nombre,
-            TurnoId = detencion.TurnoId,
-            TurnoNombre = detencion.Turno?.Nombre ?? string.Empty,
-            Fecha = detencion.Fecha,
+            TurnoId = detencion.TurnoProduccion.TurnoId,
+            TurnoNombre = detencion.TurnoProduccion.Turno?.Nombre ?? string.Empty,
+            Fecha = detencion.TurnoProduccion.FechaProduccion,
+            TurnoProduccionId = detencion.TurnoProduccionId,
+            OperadorUsuarioId = detencion.OperadorUsuarioId,
             MinutosDeclarados = detencion.MinutosDeclarados,
             FechaHoraParada = detencion.FechaHoraParada,
             FechaHoraArranque = detencion.FechaHoraArranque,
@@ -726,36 +749,58 @@ public class DetencionesController : ApiControllerBase
     [ProducesResponseType(typeof(ResumenTurnoResponse), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetResumenTurno([FromQuery] int? lineaId = null)
     {
-        // Obtener turno actual
-        // Turno y fecha de la planta, no del servidor.
-        var turno = await _unitOfWork.Turnos.GetTurnoActualAsync(_zonaPlanta);
-        var fechaHoy = HoraPlanta.Hoy(_zonaPlanta);
+        // T-798 etapa 3: el acumulado es del TURNO DE PRODUCCIÓN (el abierto de la línea o el de la hora actual), no de
+        // "Fecha = hoy": el T3 después de medianoche incluye lo de antes de las 00:00.
+        var turnosProduccion = new List<(long Id, int TurnoId, DateOnly Fecha)>();
+        if (lineaId.HasValue)
+        {
+            if (await _turnosProduccion.ObtenerActualAsync(lineaId.Value) is { } actual)
+                turnosProduccion.Add((actual.TurnoProduccionId, actual.TurnoId, actual.FechaProduccion));
+        }
+
+        var turnosPlanta = (await _unitOfWork.Turnos.GetActivosAsync()).ToList();
+        Turno? turno;
+        DateOnly fecha;
+        if (turnosProduccion.Count > 0)
+        {
+            turno = turnosPlanta.FirstOrDefault(t => t.TurnoId == turnosProduccion[0].TurnoId)
+                    ?? await _unitOfWork.Turnos.GetByIdAsync(turnosProduccion[0].TurnoId);
+            fecha = turnosProduccion[0].Fecha;
+        }
+        else if (TurnoProduccionReglas.TurnoQueContiene(turnosPlanta, HoraPlanta.Ahora(_zonaPlanta, DateTimeOffset.UtcNow).DateTime) is var (t, f))
+        {
+            turno = t;
+            fecha = f;
+            if (!lineaId.HasValue)
+            {
+                // Todas las líneas: los turnos de producción de este turno de planta y fecha de producción.
+                turnosProduccion.AddRange((await _unitOfWork.TurnosProduccion.GetPorFechasAsync(f, f, null))
+                    .Where(tp => tp.TurnoId == t.TurnoId)
+                    .Select(tp => (tp.TurnoProduccionId, tp.TurnoId, tp.FechaProduccion)));
+            }
+        }
+        else
+        {
+            turno = null;
+            fecha = HoraPlanta.Hoy(_zonaPlanta);
+        }
+
         if (turno == null)
         {
             return Ok(new ResumenTurnoResponse
             {
                 TurnoNombre = "Sin turno",
-                Fecha = fechaHoy,
+                Fecha = fecha,
                 Items = new List<ResumenTurnoItem>(),
                 TotalMinutos = 0
             });
         }
 
-        // Obtener detenciones del día y turno actual
-        var (detenciones, _) = await _unitOfWork.Detenciones.GetPaginadoAsync(
-            page: 1,
-            pageSize: 1000,
-            lineaId: lineaId,
-            equipoId: null,
-            estado: null,
-            tipoFallaId: null,
-            detalleFallaId: null,
-            turnoId: turno.TurnoId,
-            fechaDesde: fechaHoy,
-            fechaHasta: fechaHoy,
-            busqueda: null);
+        var detenciones = new List<Detencion>();
+        foreach (var tp in turnosProduccion)
+            detenciones.AddRange(await _unitOfWork.Detenciones.GetPorTurnoProduccionAsync(tp.Id));
 
-        // Agrupar por tipo de falla
+        // Se listan todas (por tipo); el total sólo suma las que cuentan para indicadores.
         var resumen = detenciones
             .GroupBy(d => new { d.TipoFallaId, TipoFallaNombre = d.TipoFalla?.Nombre ?? "Sin clasificar" })
             .Select(g => new ResumenTurnoItem
@@ -763,7 +808,8 @@ public class DetencionesController : ApiControllerBase
                 TipoFallaId = g.Key.TipoFallaId,
                 TipoFallaNombre = g.Key.TipoFallaNombre,
                 CantidadDetenciones = g.Count(),
-                TotalMinutos = g.Sum(d => d.MinutosEfectivos)
+                TotalMinutos = g.Sum(d => d.MinutosEfectivos),
+                CuentaParaIndicadores = DetencionIndicadores.Cuenta(g.First())
             })
             .OrderByDescending(r => r.TotalMinutos)
             .ToList();
@@ -771,9 +817,10 @@ public class DetencionesController : ApiControllerBase
         return Ok(new ResumenTurnoResponse
         {
             TurnoNombre = turno.Nombre,
-            Fecha = fechaHoy,
+            Fecha = fecha,
+            TurnoProduccionIds = turnosProduccion.Select(tp => tp.Id).ToList(),
             Items = resumen,
-            TotalMinutos = resumen.Sum(r => r.TotalMinutos)
+            TotalMinutos = detenciones.MinutosQueCuentan()
         });
     }
 
@@ -1149,12 +1196,12 @@ public class DetencionesController : ApiControllerBase
         {
             sb.AppendLine(string.Join(",",
                 EscapeCsv(d.Codigo),
-                d.Fecha.ToString("yyyy-MM-dd"),
+                d.TurnoProduccion.FechaProduccion.ToString("yyyy-MM-dd"),
                 EscapeCsv(d.Linea?.Nombre ?? ""),
                 EscapeCsv(d.Equipo?.Nombre ?? ""),
                 EscapeCsv(d.TipoFalla?.Nombre ?? ""),
                 EscapeCsv(d.DetalleFalla?.Nombre ?? ""),
-                EscapeCsv(d.Turno?.Nombre ?? ""),
+                EscapeCsv(d.TurnoProduccion?.Turno?.Nombre ?? ""),
                 d.MinutosDeclarados?.ToString() ?? "",
                 HoraPlanta.En(d.FechaHoraParada, zona)?.ToString("yyyy-MM-dd HH:mm:ss") ?? "",
                 HoraPlanta.En(d.FechaHoraArranque, zona)?.ToString("yyyy-MM-dd HH:mm:ss") ?? "",
@@ -1193,16 +1240,11 @@ public class DetencionesController : ApiControllerBase
     }
 
     /// <summary>
-    /// Maquinista: el usuario asignado a la línea en la carga; si no hay, quien la registró.
+    /// Maquinista: el operador del turno a la hora de la parada (OperadorUsuarioId); si no hay, quien la registró.
     /// </summary>
     private async Task<string> NombreMaquinistaAsync(Detencion detencion)
     {
-        var usuarioId = detencion.CreadoPorUsuarioId;
-        if (detencion.UsuarioLineaId.HasValue)
-        {
-            var asignacion = await _unitOfWork.OperadoresLinea.GetByIdAsync(detencion.UsuarioLineaId.Value);
-            usuarioId = asignacion?.UsuarioId ?? usuarioId;
-        }
+        var usuarioId = detencion.OperadorUsuarioId ?? detencion.CreadoPorUsuarioId;
 
         var usuario = string.IsNullOrEmpty(usuarioId) ? null : await _userManager.FindByIdAsync(usuarioId);
         return usuario == null ? string.Empty : (string.IsNullOrWhiteSpace(usuario.NombreCompleto) ? usuario.UserName ?? string.Empty : usuario.NombreCompleto);

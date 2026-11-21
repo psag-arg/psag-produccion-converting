@@ -134,4 +134,25 @@ public class TurnoProduccionReglasTests
         Assert.NotNull(TurnoProduccionReglas.MotivoTramoInvalido(cerrado, H(19, 6), null, H(19, 14), 30, "ok", 500));
         Assert.Null(TurnoProduccionReglas.MotivoTramoInvalido(cerrado, H(19, 6), H(19, 12), H(19, 14), 30, "ok", 500));
     }
+
+    // ===================== T-798 etapa 3: operador a la hora de una detención =====================
+
+    private static TurnoProduccionOperador Tramo(string usuario, DateTimeOffset desde, DateTimeOffset? hasta, long? anuladoPor = null) => new()
+    {
+        OperadorUsuarioId = usuario, Desde = desde, Hasta = hasta, AnuladoPorId = anuladoPor
+    };
+
+    [Fact]
+    public void OperadorALaHora_AntesYDespuesDelRelevo()
+    {
+        var inicio = new DateTimeOffset(2026, 11, 19, 5, 0, 0, TimeSpan.FromHours(-3));
+        var relevo = inicio.AddHours(3);
+        var tramos = new[] { Tramo("saliente", inicio, relevo), Tramo("entrante", relevo, null), Tramo("anulado", inicio, null, anuladoPor: 9) };
+
+        Assert.Equal("saliente", TurnoProduccionReglas.OperadorALaHora(tramos, relevo.AddMinutes(-1))!.OperadorUsuarioId);
+        Assert.Equal("entrante", TurnoProduccionReglas.OperadorALaHora(tramos, relevo)!.OperadorUsuarioId);
+        Assert.Equal("entrante", TurnoProduccionReglas.OperadorALaHora(tramos, relevo.AddHours(4))!.OperadorUsuarioId);
+        Assert.Null(TurnoProduccionReglas.OperadorALaHora(tramos, inicio.AddMinutes(-1)));
+        Assert.Null(TurnoProduccionReglas.OperadorALaHora([], inicio));
+    }
 }

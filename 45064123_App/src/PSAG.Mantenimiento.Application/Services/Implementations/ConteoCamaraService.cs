@@ -18,12 +18,15 @@ namespace PSAG.Mantenimiento.Application.Services.Implementations;
 public class ConteoCamaraService : IConteoCamaraService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ITurnoProduccionService _turnosProduccion;
     private readonly TimeZoneInfo _zonaPlanta;
     private readonly ILogger<ConteoCamaraService> _logger;
 
-    public ConteoCamaraService(IUnitOfWork unitOfWork, TimeZoneInfo zonaPlanta, ILogger<ConteoCamaraService> logger)
+    public ConteoCamaraService(IUnitOfWork unitOfWork, ITurnoProduccionService turnosProduccion, TimeZoneInfo zonaPlanta,
+        ILogger<ConteoCamaraService> logger)
     {
         _unitOfWork = unitOfWork;
+        _turnosProduccion = turnosProduccion;
         _zonaPlanta = zonaPlanta;
         _logger = logger;
     }
@@ -174,7 +177,7 @@ public class ConteoCamaraService : IConteoCamaraService
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         if (punto.CreaDetenciones)
-            await CrearDetencionesAsync(punto, paradas, enCurso, turnos, respuesta, cancellationToken);
+            await CrearDetencionesAsync(punto, paradas, enCurso, respuesta, cancellationToken);
 
         _logger.LogInformation(
             "Conteo por cámara {Punto}: {MinNuevos} minutos nuevos ({MinDup} repetidos), {ParNuevas} paradas nuevas ({ParDup} repetidas), {DetNuevas} detenciones automáticas, {AlNuevas} alertas nuevas, {AlCerradas} cerradas",
@@ -187,10 +190,13 @@ public class ConteoCamaraService : IConteoCamaraService
     /// Detenciones automáticas: una por parada (abierta o cerrada) que llegó al umbral de la cámara. Si ya existe
     /// (reenvío, o la parada en curso ya la había creado), no se duplica; con la parada cerrada se guarda la hora de
     /// arranque detectada como sugerencia. Cada alta se guarda por separado: el código DET-... sale de la base.
+    /// T-798 etapa 3: la detención cuelga del turno de producción del inicio de la parada (si no había, lo crea el
+    /// SISTEMA) y el operador es el del turno a esa hora (el del relevo si paró después del relevo). Sin operador a
+    /// esa hora queda null y se completa al declarar.
     /// </summary>
     private async Task CrearDetencionesAsync(
         PuntoControlCalidad punto, List<ParadaCamaraIngesta> cerradas, List<ParadaEnCursoIngesta> enCurso,
-        Dictionary<TimeOnly, Turno?> turnos, IngestaConteoCamaraRespuesta respuesta, CancellationToken cancellationToken)
+        IngestaConteoCamaraRespuesta respuesta, CancellationToken cancellationToken)
     {
         var umbral = DetencionCamaraReglas.UmbralSegundos(punto);
         var candidatas = new Dictionary<string, (DateTimeOffset Inicio, DateTimeOffset? Arranque, bool InicioIncierto)>(StringComparer.Ordinal);
@@ -203,7 +209,6 @@ public class ConteoCamaraService : IConteoCamaraService
 
         var existentes = (await _unitOfWork.Detenciones.GetPorParadasCamaraAsync(candidatas.Keys.ToList(), cancellationToken))
             .ToDictionary(d => d.IdentificadorParadaCamara!, StringComparer.Ordinal);
-        List<OperadorLinea>? asignaciones = null;
 
         foreach (var (id, c) in candidatas.OrderBy(c => c.Value.Inicio))
         {
@@ -219,16 +224,20 @@ public class ConteoCamaraService : IConteoCamaraService
                 continue;
             }
 
-            var turno = await TurnoAsync(c.Inicio, turnos, cancellationToken);
-            if (turno == null)
+            // Si otro proceso crea el mismo turno a la vez (índice único), la ingesta falla y el servicio reenvía el lote
+            // (idempotente): en el reenvío el turno ya existe.
+            var turnoProduccion = await _turnosProduccion.AsegurarTurnoAsync(punto.LineaId, c.Inicio, cancellationToken);
+            if (turnoProduccion == null)
             {
                 respuesta.DetencionesSinTurno++;
                 _logger.LogWarning("La parada {Id} de la cámara {Punto} llegó al umbral pero no hay turno para esa hora: no se creó la detención", id, punto.Codigo);
                 continue;
             }
 
-            asignaciones ??= (await _unitOfWork.OperadoresLinea.GetByLineaIdAsync(punto.LineaId, cancellationToken)).ToList();
-            var maquinista = DetencionCamaraReglas.ElegirMaquinista(asignaciones, turno.TurnoId);
+            var operador = TurnoProduccionReglas.OperadorALaHora(turnoProduccion.Operadores, c.Inicio);
+            var motivoOperador = operador != null
+                ? "Operador: el del turno a esa hora."
+                : "Sin operador en el turno a esa hora: lo completa quien declara.";
             var inicioPlanta = HoraPlanta.En(c.Inicio, _zonaPlanta)!.Value;
             var sistema = DetencionCamaraReglas.UsuarioSistemaCamara;
 
@@ -236,9 +245,8 @@ public class ConteoCamaraService : IConteoCamaraService
             {
                 Codigo = await _unitOfWork.Detenciones.GenerarCodigoDetencionAsync(cancellationToken),
                 LineaId = punto.LineaId,
-                TurnoId = turno.TurnoId,
-                UsuarioLineaId = maquinista.Elegido?.UsuarioLineaId,
-                Fecha = DateOnly.FromDateTime(inicioPlanta.DateTime),
+                TurnoProduccionId = turnoProduccion.TurnoProduccionId,
+                OperadorUsuarioId = operador?.OperadorUsuarioId,
                 FechaHoraParada = c.Inicio,
                 FechaHoraArranqueDetectada = c.Arranque,
                 // Sin hora de fin ni minutos: los declara el operador. 0 hasta entonces (CHECK >= 0).
@@ -258,7 +266,7 @@ public class ConteoCamaraService : IConteoCamaraService
                 EstadoNuevo = EstadoDetencion.PENDIENTE_JUSTIFICACION,
                 FechaHora = DateTimeOffset.UtcNow,
                 UsuarioId = sistema,
-                Observacion = DetencionCamaraReglas.ObservacionAlta(punto.Codigo, inicioPlanta, c.InicioIncierto) + " " + maquinista.Motivo,
+                Observacion = DetencionCamaraReglas.ObservacionAlta(punto.Codigo, inicioPlanta, c.InicioIncierto) + " " + motivoOperador,
                 OrigenAccion = "CAMARA"
             });
 
@@ -355,15 +363,19 @@ public class ConteoCamaraService : IConteoCamaraService
         if (filtro.SuperaUmbral is { } supera)
             paradas = paradas.Where(p => DetencionCamaraReglas.SuperaUmbral(p) == supera).ToList();
 
-        // Detenciones de un día antes y después: una parada de noche puede estar cargada con la fecha del turno.
+        // Detenciones de un día antes y después (por fecha de producción del turno), con su turno cargado.
+        var desdeProduccion = desde.AddDays(-1);
+        var hastaProduccion = hasta.AddDays(1);
         var detenciones = (await _unitOfWork.Detenciones.FindAsync(
-                d => !d.Eliminada && d.Fecha >= desde.AddDays(-1) && d.Fecha <= hasta.AddDays(1), cancellationToken))
+                d => !d.Eliminada && d.TurnoProduccion.FechaProduccion >= desdeProduccion && d.TurnoProduccion.FechaProduccion <= hastaProduccion, cancellationToken))
             .ToList();
 
         var items = new List<ParadaCamaraDto>();
         foreach (var p in paradas)
         {
-            var dia = DateOnly.FromDateTime(HoraPlanta.En(p.FechaHoraInicio, _zonaPlanta)!.Value.DateTime);
+            // Fecha de producción de la parada: la del día de inicio del turno (el T3 después de medianoche es del día anterior).
+            var pared = HoraPlanta.En(p.FechaHoraInicio, _zonaPlanta)!.Value.DateTime;
+            var dia = p.Turno != null ? TurnoProduccionReglas.FechaProduccion(p.Turno, pared) : DateOnly.FromDateTime(pared);
             var (cruce, codigos) = ConteoCamaraReglas.Cruzar(p, dia, detenciones);
             if (filtro.SoloSinDetencion && cruce != CruceDetencionCamara.SIN_DETENCION)
                 continue;

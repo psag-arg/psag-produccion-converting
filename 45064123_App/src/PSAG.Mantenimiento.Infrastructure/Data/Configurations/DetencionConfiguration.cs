@@ -131,15 +131,14 @@ public class DetencionConfiguration : IEntityTypeConfiguration<Detencion>
             .HasForeignKey(x => x.DetalleFallaId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(x => x.Turno)
-            .WithMany(x => x.Detenciones)
-            .HasForeignKey(x => x.TurnoId)
+        // T-798 etapa 3: la detención cuelga del turno de producción (la fecha y el turno salen de ahí).
+        builder.HasOne(x => x.TurnoProduccion)
+            .WithMany()
+            .HasForeignKey(x => x.TurnoProduccionId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(x => x.OperadorLinea)
-            .WithMany()
-            .HasForeignKey(x => x.UsuarioLineaId)
-            .OnDelete(DeleteBehavior.Restrict);
+        builder.Property(x => x.OperadorUsuarioId)
+            .HasMaxLength(450);
 
         builder.HasOne(x => x.ReglaAnalisis)
             .WithMany()
@@ -149,16 +148,14 @@ public class DetencionConfiguration : IEntityTypeConfiguration<Detencion>
         // Índices
         builder.HasIndex(x => x.Codigo).IsUnique();
         builder.HasIndex(x => x.EstadoActual);
-        builder.HasIndex(x => x.Fecha);
         builder.HasIndex(x => x.LineaId);
         builder.HasIndex(x => x.EquipoId);
         builder.HasIndex(x => x.TipoFallaId);
-        builder.HasIndex(x => x.TurnoId);
-        builder.HasIndex(x => x.UsuarioLineaId);
+        builder.HasIndex(x => x.TurnoProduccionId);
+        builder.HasIndex(x => x.OperadorUsuarioId);
         builder.HasIndex(x => x.ReglaAnalisisId);
         builder.HasIndex(x => new { x.LineaId, x.EstadoActual });
-        builder.HasIndex(x => new { x.Fecha, x.EstadoActual });
-        builder.HasIndex(x => new { x.Fecha, x.LineaId, x.TurnoId });
+        builder.HasIndex(x => new { x.TurnoProduccionId, x.EstadoActual });
         // Idempotencia de la detención automática: una sola detención por parada de cámara (incluye eliminadas).
         builder.HasIndex(x => x.IdentificadorParadaCamara)
             .IsUnique()

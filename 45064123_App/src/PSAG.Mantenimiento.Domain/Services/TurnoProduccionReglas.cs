@@ -81,6 +81,16 @@ public static class TurnoProduccionReglas
     public static TurnoProduccionOperador? OperadorVigente(IEnumerable<TurnoProduccionOperador> tramos) =>
         tramos.Where(t => !t.Anulado && t.Hasta == null).OrderByDescending(t => t.Desde).FirstOrDefault();
 
+    /// <summary>
+    /// Operador del turno a una hora (T-798 etapa 3: snapshot del operador de una detención). El tramo no anulado con
+    /// Desde &lt;= instante &lt; Hasta (Hasta null = sigue). Antes del relevo, el saliente; desde el relevo, el entrante.
+    /// Null si a esa hora nadie había tomado el turno.
+    /// </summary>
+    public static TurnoProduccionOperador? OperadorALaHora(IEnumerable<TurnoProduccionOperador> tramos, DateTimeOffset instante) =>
+        tramos.Where(t => !t.Anulado && t.Desde <= instante && (t.Hasta == null || instante < t.Hasta))
+            .OrderByDescending(t => t.Desde)
+            .FirstOrDefault();
+
     /// <summary>Producto vigente: el tramo no anulado sin Hasta.</summary>
     public static TurnoProduccionProducto? ProductoVigente(IEnumerable<TurnoProduccionProducto> tramos) =>
         tramos.Where(t => !t.Anulado && t.Hasta == null).OrderByDescending(t => t.Desde).FirstOrDefault();

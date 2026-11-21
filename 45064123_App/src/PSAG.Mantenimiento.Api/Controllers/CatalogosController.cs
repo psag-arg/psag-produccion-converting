@@ -1475,18 +1475,8 @@ public class CatalogosController : ApiControllerBase
         if (maquinista == null)
             return NotFound();
 
-        // Validar que no tenga detenciones asociadas (también las eliminadas: la FK las sigue viendo)
-        var tieneDetenciones = (await _unitOfWork.Detenciones.GetUsuarioLineaIdsEnUsoAsync([id])).Count > 0;
-        if (tieneDetenciones)
-        {
-            return BadRequest(new ProblemDetails
-            {
-                Title = "No se puede eliminar",
-                Detail = "El maquinista tiene detenciones asociadas. Podés reasignarlo a otra línea en lugar de eliminarlo.",
-                Status = StatusCodes.Status400BadRequest
-            });
-        }
-
+        // T-798 etapa 3: las detenciones guardan el usuario (OperadorUsuarioId), no la habilitación: quitarla no
+        // borra el operador de las detenciones históricas.
         // Para OperadorLinea usamos delete real ya que no tiene Activo
         // Esto es una excepcion al patron de soft delete porque es una tabla de relacion
         _unitOfWork.OperadoresLinea.DeleteAsync(maquinista);

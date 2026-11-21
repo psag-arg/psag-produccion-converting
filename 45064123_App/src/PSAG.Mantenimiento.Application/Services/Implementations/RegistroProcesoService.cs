@@ -14,6 +14,7 @@ public class RegistroProcesoService : IRegistroProcesoService
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<RegistroProcesoService> _logger;
     private readonly TimeZoneInfo _zonaPlanta;
+    private readonly ITurnoProduccionService? _turnosProduccion;
 
     /// <summary>Sin zona (tests): la del equipo.</summary>
     public RegistroProcesoService(IUnitOfWork unitOfWork, ILogger<RegistroProcesoService> logger)
@@ -22,10 +23,18 @@ public class RegistroProcesoService : IRegistroProcesoService
     }
 
     public RegistroProcesoService(IUnitOfWork unitOfWork, TimeZoneInfo zonaPlanta, ILogger<RegistroProcesoService> logger)
+        : this(unitOfWork, zonaPlanta, logger, null)
+    {
+    }
+
+    /// <summary>Con el turno de producción (T-798 etapa 3): el registro nuevo se cuelga del turno de ahora.</summary>
+    public RegistroProcesoService(IUnitOfWork unitOfWork, TimeZoneInfo zonaPlanta, ILogger<RegistroProcesoService> logger,
+        ITurnoProduccionService? turnosProduccion)
     {
         _unitOfWork = unitOfWork;
         _zonaPlanta = zonaPlanta;
         _logger = logger;
+        _turnosProduccion = turnosProduccion;
     }
 
     public async Task<Result<IniciarRegistroProcesoResponse>> IniciarRegistroAsync(
@@ -77,6 +86,12 @@ public class RegistroProcesoService : IRegistroProcesoService
             return Result<IniciarRegistroProcesoResponse>.Failure("SIN_PLANTILLA",
                 "La línea no tiene puntos de control de proceso cargados. Un administrador los carga desde Maestros > Control de Proceso.");
 
+        // T-798 etapa 3: turno de producción de ahora (lo crea el SISTEMA si no existe). TurnoId y Fecha se mantienen
+        // como hasta ahora (las pantallas de Control de Proceso los usan).
+        var turnoProduccion = _turnosProduccion == null
+            ? null
+            : await _turnosProduccion.AsegurarTurnoAsync(request.LineaId, DateTimeOffset.UtcNow, cancellationToken);
+
         // Crear nuevo registro
         var nuevoRegistro = new RegistroProceso
         {
@@ -84,6 +99,7 @@ public class RegistroProcesoService : IRegistroProcesoService
             ProductoMaestroId = request.ProductoId,
             TurnoId = turno.TurnoId,
             Fecha = fechaHoy,
+            TurnoProduccionId = turnoProduccion?.TurnoProduccionId,
             UsuarioId = usuarioId,
             FechaHoraInicio = DateTimeOffset.UtcNow,
             Estado = EstadoRegistroProceso.PARCIAL,

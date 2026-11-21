@@ -58,7 +58,7 @@ public class ConteoCamaraReglasTests
     [InlineData(-30, 20, "SIN_DETENCION")]   // terminó 10 min antes
     public void Cruce_PorHorarioConTolerancia(int minutosDesdeInicio, int duracion, string esperado)
     {
-        var d = new Detencion { Codigo = "D1", LineaId = 1, TurnoId = 1, Fecha = new DateOnly(2026, 10, 28), FechaHoraParada = T.AddMinutes(minutosDesdeInicio), MinutosEfectivos = duracion };
+        var d = new Detencion { Codigo = "D1", LineaId = 1, TurnoProduccion = new TurnoProduccion { TurnoId = 1, FechaProduccion = new DateOnly(2026, 10, 28) }, FechaHoraParada = T.AddMinutes(minutosDesdeInicio), MinutosEfectivos = duracion };
         var (cruce, _) = ConteoCamaraReglas.Cruzar(Parada(), new DateOnly(2026, 10, 28), [d]);
         Assert.Equal(esperado, cruce.ToString());
     }
@@ -74,8 +74,8 @@ public class ConteoCamaraReglasTests
     [Fact]
     public void Cruce_SinHorarioMismoDiaYTurno_EsPosible()
     {
-        var mismoTurno = new Detencion { Codigo = "D1", LineaId = 1, TurnoId = 1, Fecha = new DateOnly(2026, 10, 28), MinutosEfectivos = 5 };
-        var otroTurno = new Detencion { Codigo = "D2", LineaId = 1, TurnoId = 2, Fecha = new DateOnly(2026, 10, 28), MinutosEfectivos = 5 };
+        var mismoTurno = new Detencion { Codigo = "D1", LineaId = 1, TurnoProduccion = new TurnoProduccion { TurnoId = 1, FechaProduccion = new DateOnly(2026, 10, 28) }, MinutosEfectivos = 5 };
+        var otroTurno = new Detencion { Codigo = "D2", LineaId = 1, TurnoProduccion = new TurnoProduccion { TurnoId = 2, FechaProduccion = new DateOnly(2026, 10, 28) }, MinutosEfectivos = 5 };
         var (cruce, codigos) = ConteoCamaraReglas.Cruzar(Parada(), new DateOnly(2026, 10, 28), [mismoTurno, otroTurno]);
         Assert.Equal(CruceDetencionCamara.POSIBLE, cruce);
         Assert.Equal(["D1"], codigos);

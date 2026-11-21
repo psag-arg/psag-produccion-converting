@@ -28,7 +28,7 @@ public class DetencionAutomaticaTests : CalidadTestBase
     public DetencionAutomaticaTests()
     {
         var unitOfWork = new UnitOfWork(Context);
-        _conteo = new ConteoCamaraService(unitOfWork, ZonaPlanta, NullLogger<ConteoCamaraService>.Instance);
+        _conteo = new ConteoCamaraService(unitOfWork, NuevoTurnosProduccion(unitOfWork), ZonaPlanta, NullLogger<ConteoCamaraService>.Instance);
         var detenciones = new DetencionService(unitOfWork, NullLogger<DetencionService>.Instance);
         _declaracion = new DeclaracionDetencionService(unitOfWork, detenciones, ZonaPlanta, NullLogger<DeclaracionDetencionService>.Instance);
         _analisis = new AnalisisService(unitOfWork, NullLogger<AnalisisService>.Instance);
@@ -62,7 +62,7 @@ public class DetencionAutomaticaTests : CalidadTestBase
     private async Task<List<Detencion>> Automaticas()
     {
         Context.ChangeTracker.Clear();
-        return await Context.Detenciones.IgnoreQueryFilters().Include(d => d.HistorialEstados)
+        return await Context.Detenciones.IgnoreQueryFilters().Include(d => d.HistorialEstados).Include(d => d.TurnoProduccion)
             .Where(d => d.OrigenRegistro == OrigenRegistroDetencion.CAMARA).ToListAsync();
     }
 
@@ -76,10 +76,12 @@ public class DetencionAutomaticaTests : CalidadTestBase
         var d = Assert.Single(await Automaticas());
         Assert.Equal(EstadoDetencion.PENDIENTE_JUSTIFICACION, d.EstadoActual);
         Assert.Equal(Tango2.LineaId, d.LineaId);
-        Assert.Equal(TurnoManana.TurnoId, d.TurnoId);
-        Assert.Equal(DateOnly.FromDateTime(_parada.DateTime), d.Fecha);
+        // T-798 etapa 3: cuelga del turno de producción de la hora de la parada (lo creó el SISTEMA: nadie lo abrió).
+        Assert.Equal(TurnoManana.TurnoId, d.TurnoProduccion.TurnoId);
+        Assert.Equal(DateOnly.FromDateTime(_parada.DateTime), d.TurnoProduccion.FechaProduccion);
+        Assert.Equal(OrigenAperturaTurno.SISTEMA, d.TurnoProduccion.OrigenApertura);
         Assert.Equal(_parada, d.FechaHoraParada);
-        Assert.Equal(_maquinistaManana.UsuarioLineaId, d.UsuarioLineaId);
+        Assert.Null(d.OperadorUsuarioId);   // el turno no tiene operador: lo completa quien declara
         Assert.Equal(CamaraTango.PuntoControlCalidadId, d.PuntoControlCalidadId);
         Assert.Equal(Id("TEST-CAM-T2", _parada), d.IdentificadorParadaCamara);
         Assert.StartsWith("DET-", d.Codigo);
@@ -295,12 +297,12 @@ public class DetencionAutomaticaTests : CalidadTestBase
     }
 
     [Fact]
-    public async Task SinMaquinistaDelTurno_QuedaVacioYLoCompletaQuienDeclara()
+    public async Task SinOperadorEnElTurno_QuedaVacioYLoCompletaQuienDeclara()
     {
         var tarde = new DateTimeOffset(_parada.Date.AddHours(15), _parada.Offset);   // turno tarde: nadie asignado
         await _conteo.IngestarAsync(EnCurso(tarde, 6 * 60));
         var d = Assert.Single(await Automaticas());
-        Assert.Null(d.UsuarioLineaId);
+        Assert.Null(d.OperadorUsuarioId);
         Assert.Contains("lo completa quien declara", d.HistorialEstados.Single().Observacion);
 
         var r = await _declaracion.DeclararAsync(d.DetencionId, new DeclararDetencionRequest
@@ -309,7 +311,7 @@ public class DetencionAutomaticaTests : CalidadTestBase
         }, Operario, _maquinistaManana);
         Assert.True(r.IsSuccess, r.ErrorMessage);
         Context.ChangeTracker.Clear();
-        Assert.Equal(_maquinistaManana.UsuarioLineaId, (await Context.Detenciones.SingleAsync(x => x.DetencionId == d.DetencionId)).UsuarioLineaId);
+        Assert.Equal(Operario, (await Context.Detenciones.SingleAsync(x => x.DetencionId == d.DetencionId)).OperadorUsuarioId);
     }
 
     [Fact]

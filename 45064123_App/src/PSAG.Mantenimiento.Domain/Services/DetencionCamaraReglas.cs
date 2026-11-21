@@ -3,9 +3,6 @@ using PSAG.Mantenimiento.Domain.Enums;
 
 namespace PSAG.Mantenimiento.Domain.Services;
 
-/// <summary>Maquinista elegido para una detención automática y por qué (queda en el historial).</summary>
-public sealed record EleccionMaquinista(OperadorLinea? Elegido, string Motivo);
-
 /// <summary>
 /// Reglas de la detención automática por cámara (T-610). Funciones puras: las usan la ingesta del servicio de
 /// cámara, la declaración del operador y el aviso de fin de turno.
@@ -98,40 +95,6 @@ public static class DetencionCamaraReglas
 
     /// <summary>Umbral efectivo legible de la cámara ("5 min", "45 s").</summary>
     public static string TextoUmbral(PuntoControlCalidad punto) => TextoUmbral(UmbralSegundos(punto));
-
-    /// <summary>
-    /// Maquinista del turno en que empezó la parada, aunque no haya nadie logueado. Regla:
-    /// <list type="number">
-    /// <item>Asignaciones de la línea para ese turno (Maestros → Maquinistas). Si hay una, esa.</item>
-    /// <item>Si hay más de una (error de carga, como el turno mañana con dos maquinistas), la asignada más
-    /// recientemente: suele ser la corrección. El motivo deja escritos los otros para que se revise.</item>
-    /// <item>Si no hay ninguna para el turno, la única asignación de la línea sin turno fijo, si hay exactamente una.</item>
-    /// <item>Si no, queda sin maquinista; al declarar, se completa con el operador que declara si está asignado a la línea.</item>
-    /// </list>
-    /// </summary>
-    public static EleccionMaquinista ElegirMaquinista(IEnumerable<OperadorLinea> asignacionesDeLaLinea, int? turnoId)
-    {
-        var todas = asignacionesDeLaLinea.ToList();
-        var delTurno = turnoId == null ? [] : todas.Where(a => a.TurnoHabitualId == turnoId).ToList();
-
-        if (delTurno.Count == 1)
-            return new(delTurno[0], "Maquinista asignado al turno.");
-
-        if (delTurno.Count > 1)
-        {
-            var ordenadas = delTurno.OrderByDescending(a => a.FechaAsignacion).ThenByDescending(a => a.UsuarioLineaId).ToList();
-            var otros = string.Join(", ", ordenadas.Skip(1).Select(a => a.UsuarioId));
-            return new(ordenadas[0], $"Hay {delTurno.Count} maquinistas asignados al turno; se tomó el asignado más recientemente. Revisar la asignación (otros: {otros}).");
-        }
-
-        var sinTurno = todas.Where(a => a.TurnoHabitualId == null).ToList();
-        if (sinTurno.Count == 1)
-            return new(sinTurno[0], "Sin maquinista para el turno; se tomó el único asignado a la línea sin turno fijo.");
-
-        return new(null, sinTurno.Count > 1
-            ? "Sin maquinista para el turno y varios asignados a la línea sin turno fijo: lo completa quien declara."
-            : "Sin maquinista asignado al turno: lo completa quien declara.");
-    }
 
     /// <summary>Texto de la detención automática que ve el operador mientras está pendiente (la descripción la escribe él).</summary>
     public static string ObservacionAlta(string codigoCamara, DateTimeOffset inicioPlanta, bool inicioIncierto) =>

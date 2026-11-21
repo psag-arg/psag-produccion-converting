@@ -254,7 +254,8 @@
                 TipoFallaId = tipoFallaId,
                 DetalleFallaId = detalleFallaId > 0 ? detalleFallaId : null,
                 EquipoId = equipoId > 0 ? equipoId : null,
-                UsuarioLineaId = usuarioLineaId > 0 ? usuarioLineaId : null,
+                // T-798 etapa 3: se manda el usuario del maquinista elegido (no la habilitación).
+                OperadorUsuarioId = usuarioLineaId > 0 ? maquinistas.FirstOrDefault(m => m.UsuarioLineaId == usuarioLineaId)?.UsuarioId : null,
                 Descripcion = motivo!.Trim()
             });
             if (resultado == null)

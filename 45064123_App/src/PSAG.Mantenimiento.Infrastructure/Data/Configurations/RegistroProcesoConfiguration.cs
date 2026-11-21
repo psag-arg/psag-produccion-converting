@@ -50,6 +50,13 @@ public class RegistroProcesoConfiguration : IEntityTypeConfiguration<RegistroPro
             .HasForeignKey(x => x.TurnoId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // T-798 etapa 3: NULL en los registros anteriores; se completa al crear.
+        builder.HasOne(x => x.TurnoProduccion)
+            .WithMany()
+            .HasForeignKey(x => x.TurnoProduccionId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(x => x.TurnoProduccionId);
+
         builder.HasIndex(x => new { x.LineaId, x.ProductoMaestroId, x.TurnoId, x.Fecha })
             .IsUnique();
 

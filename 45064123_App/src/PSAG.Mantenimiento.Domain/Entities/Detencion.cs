@@ -23,19 +23,18 @@ public class Detencion : EntityBase
     public int? DetalleFallaId { get; set; }
 
     /// <summary>
-    /// Turno materializado. Se guarda al registrar, no se recalcula.
+    /// Turno de producción al que pertenece (T-798 etapa 3, PRD_TurnosProduccion). La fecha de producción y el turno de
+    /// planta salen de acá (<c>TurnoProduccion.FechaProduccion</c>, <c>TurnoProduccion.TurnoId</c>): el T3 21–05 que
+    /// cruza medianoche es un solo turno. Se asigna al crear (con la hora de la parada) y sólo cambia si una edición
+    /// mueve la hora desde a otro turno.
     /// </summary>
-    public int TurnoId { get; set; }
+    public long TurnoProduccionId { get; set; }
 
     /// <summary>
-    /// Maquinista que registró la detención (OperadorLinea).
+    /// Operador (usuario) vigente del turno a la hora de la parada (snapshot). En la carga manual sin operador de turno,
+    /// quien carga si está habilitado en la línea; en la de cámara sin operador, se completa al declarar.
     /// </summary>
-    public int? UsuarioLineaId { get; set; }
-
-    /// <summary>
-    /// Fecha del registro (sin hora, para agrupación).
-    /// </summary>
-    public DateOnly Fecha { get; set; }
+    public string? OperadorUsuarioId { get; set; }
 
     // ========== MODELO DE TIEMPO ==========
 
@@ -173,8 +172,7 @@ public class Detencion : EntityBase
     public virtual Equipo? Equipo { get; set; }
     public virtual TipoFalla? TipoFalla { get; set; }
     public virtual DetalleFalla? DetalleFalla { get; set; }
-    public virtual Turno Turno { get; set; } = null!;
-    public virtual OperadorLinea? OperadorLinea { get; set; }
+    public virtual TurnoProduccion TurnoProduccion { get; set; } = null!;
     public virtual ReglaAnalisis? ReglaAnalisis { get; set; }
     public virtual PuntoControlCalidad? PuntoControl { get; set; }
     public virtual ICollection<DetencionEstadoHistorial> HistorialEstados { get; set; } = new List<DetencionEstadoHistorial>();

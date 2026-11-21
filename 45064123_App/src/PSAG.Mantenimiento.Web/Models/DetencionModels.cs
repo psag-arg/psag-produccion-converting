@@ -92,7 +92,7 @@ public class CrearDetencionRequest
     public int? EquipoId { get; set; }
     public int? TipoFallaId { get; set; }
     public int? DetalleFallaId { get; set; }
-    public int? UsuarioLineaId { get; set; }  // Maquinista asignado (opcional, para admin/supervisor)
+    public string? OperadorUsuarioId { get; set; }  // Maquinista elegido (opcional, admin/supervisor): el usuario (T-798)
     public DateOnly Fecha { get; set; } = DateOnly.FromDateTime(DateTime.Today);
     public int? MinutosDeclarados { get; set; }
     public TimeOnly? HoraInicio { get; set; }

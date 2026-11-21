@@ -21,7 +21,7 @@ public class EficienciaCamaraTests : CalidadTestBase
 
     public EficienciaCamaraTests()
     {
-        _conteo = new ConteoCamaraService(new UnitOfWork(Context), ZonaPlanta, NullLogger<ConteoCamaraService>.Instance);
+        _conteo = new ConteoCamaraService(new UnitOfWork(Context), NuevoTurnosProduccion(new UnitOfWork(Context)), ZonaPlanta, NullLogger<ConteoCamaraService>.Instance);
         _fecha = DiaPlanta(2);
         _inicioDia = new DateTimeOffset(_fecha.ToDateTime(TimeOnly.MinValue), TimeSpan.FromHours(-3));
 

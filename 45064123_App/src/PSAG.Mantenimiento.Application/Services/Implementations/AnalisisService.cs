@@ -166,7 +166,7 @@ public class AnalisisService : IAnalisisService
             CerradasEsteMes = cerradasEsteMes,
             DemoraPromedioDias = visibles.Count == 0
                 ? null
-                : visibles.Average(d => (double)(hoy.DayNumber - d.Fecha.DayNumber)),
+                : visibles.Average(d => (double)(hoy.DayNumber - d.TurnoProduccion.FechaProduccion.DayNumber)),
             Responsables = responsables
         };
 
@@ -287,15 +287,15 @@ public class AnalisisService : IAnalisisService
                 cancellationToken);
 
         return pendientes
-            .OrderBy(d => d.Fecha)
+            .OrderBy(d => d.TurnoProduccion.FechaProduccion)
             .ThenBy(d => d.DetencionId)
             .Select(d => new PendienteDeclaracionDto
             {
                 DetencionId = d.DetencionId,
                 Codigo = d.Codigo,
-                Fecha = d.Fecha,
+                Fecha = d.TurnoProduccion.FechaProduccion,
                 LineaNombre = nombresLineas.GetValueOrDefault(d.LineaId, string.Empty),
-                TurnoNombre = nombresTurnos.GetValueOrDefault(d.TurnoId, string.Empty),
+                TurnoNombre = nombresTurnos.GetValueOrDefault(d.TurnoProduccion.TurnoId, string.Empty),
                 FechaHoraParada = d.FechaHoraParada,
                 FechaHoraArranque = d.FechaHoraArranque,
                 FechaHoraArranqueDetectada = d.FechaHoraArranqueDetectada,
@@ -454,7 +454,7 @@ public class AnalisisService : IAnalisisService
     {
         DetencionId = detencion.DetencionId,
         Codigo = detencion.Codigo,
-        Fecha = detencion.Fecha,
+        Fecha = detencion.TurnoProduccion.FechaProduccion,
         LineaNombre = detencion.Linea?.Nombre ?? string.Empty,
         EquipoNombre = detencion.Equipo?.Nombre,
         EquipoCritico = detencion.Equipo?.Critico ?? false,
@@ -464,7 +464,7 @@ public class AnalisisService : IAnalisisService
         EstadoActualDescripcion = detencion.EstadoActual.ObtenerDescripcion(),
         EstadoAnalisisDescripcion = detencion.ObtenerDescripcionAnalisis(),
         DiasEsperando = AnalisisFallaReglas.EstaAbierto(detencion)
-            ? hoy.DayNumber - detencion.Fecha.DayNumber
+            ? hoy.DayNumber - detencion.TurnoProduccion.FechaProduccion.DayNumber
             : null,
         ResponsableRol = detencion.ResponsableRol,
         ResponsableUsuarioId = detencion.ResponsableUsuarioId,
@@ -477,7 +477,7 @@ public class AnalisisService : IAnalisisService
     {
         DetencionId = detencion.DetencionId,
         Codigo = detencion.Codigo,
-        Fecha = detencion.Fecha,
+        Fecha = detencion.TurnoProduccion.FechaProduccion,
         LineaNombre = detencion.Linea?.Nombre ?? string.Empty,
         EquipoNombre = detencion.Equipo?.Nombre,
         TipoFallaNombre = detencion.TipoFalla?.Nombre,

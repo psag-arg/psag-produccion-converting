@@ -76,7 +76,8 @@ public static class ConteoCamaraReglas
     /// <summary>
     /// Cruza una parada de cámara con las detenciones (no eliminadas) de su línea.
     /// CON_DETENCION si alguna con horario se superpone (con la tolerancia); si no, POSIBLE si hay alguna
-    /// sin horario del mismo día y turno; si no, SIN_DETENCION. Devuelve también los códigos que la explican.
+    /// sin horario del mismo turno de producción (fecha de producción + turno de planta; T-798: las detenciones traen
+    /// cargado su <c>TurnoProduccion</c>); si no, SIN_DETENCION. Devuelve también los códigos que la explican.
     /// </summary>
     public static (CruceDetencionCamara Cruce, IReadOnlyList<string> Codigos) Cruzar(
         ParadaCamara parada, DateOnly diaPlanta, IEnumerable<Detencion> detenciones)
@@ -93,7 +94,8 @@ public static class ConteoCamaraReglas
             return (CruceDetencionCamara.CON_DETENCION, conHorario);
 
         var posibles = candidatas
-            .Where(d => d.FechaHoraParada == null && d.Fecha == diaPlanta && (parada.TurnoId == null || d.TurnoId == parada.TurnoId))
+            .Where(d => d.FechaHoraParada == null && d.TurnoProduccion is { } tp && tp.FechaProduccion == diaPlanta
+                        && (parada.TurnoId == null || tp.TurnoId == parada.TurnoId))
             .Select(d => d.Codigo)
             .ToList();
         if (posibles.Count > 0)

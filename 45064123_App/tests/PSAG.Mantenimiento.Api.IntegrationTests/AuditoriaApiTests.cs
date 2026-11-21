@@ -48,15 +48,14 @@ public class AuditoriaApiTests : CalidadTestBase
 
     private int _secuencia;
 
-    private async Task<Detencion> PendienteAsync(DateTimeOffset parada, int? usuarioLineaId = null, Turno? turno = null)
+    private async Task<Detencion> PendienteAsync(DateTimeOffset parada, string? operadorUsuarioId = null, Turno? turno = null)
     {
         var d = new Detencion
         {
             Codigo = $"DET-20261110-{++_secuencia + 100:000000}",
             LineaId = Tango2.LineaId,
-            TurnoId = (turno ?? TurnoManana).TurnoId,
-            UsuarioLineaId = usuarioLineaId,
-            Fecha = DateOnly.FromDateTime(parada.DateTime),
+            TurnoProduccionId = Context.TurnoProduccionId(Tango2.LineaId, (turno ?? TurnoManana).TurnoId, DateOnly.FromDateTime(parada.DateTime)),
+            OperadorUsuarioId = operadorUsuarioId,
             FechaHoraParada = parada,
             OrigenTiempo = OrigenTiempo.DECLARADO,
             OrigenRegistro = OrigenRegistroDetencion.CAMARA,
@@ -83,7 +82,7 @@ public class AuditoriaApiTests : CalidadTestBase
     }
 
     private DetencionesController Detenciones(string usuarioId, params string[] roles) =>
-        ConUsuario(new DetencionesController(_unitOfWork, _detenciones, null!, null!, NullLogger<DetencionesController>.Instance, null!, ZonaPlanta),
+        ConUsuario(new DetencionesController(_unitOfWork, _detenciones, null!, null!, NullLogger<DetencionesController>.Instance, null!, ZonaPlanta, NuevoTurnosProduccion(_unitOfWork)),
             usuarioId, roles);
 
     private DeclaracionDetencionesController Declaracion(string usuarioId, params string[] roles) =>
@@ -222,7 +221,7 @@ public class AuditoriaApiTests : CalidadTestBase
         };
         Context.Add(noche);
         await Context.SaveChangesAsync();
-        var conteo = new ConteoCamaraService(_unitOfWork, ZonaPlanta, NullLogger<ConteoCamaraService>.Instance);
+        var conteo = new ConteoCamaraService(_unitOfWork, NuevoTurnosProduccion(_unitOfWork), ZonaPlanta, NullLogger<ConteoCamaraService>.Instance);
         var dia = _parada.AddDays(-1);   // 10:00 de hace 3 días
         MinutoCamaraIngesta M(DateTimeOffset m, decimal rollos) => new() { Minuto = m, Carril = 1, Rollos = rollos, SegundosMarcha = 60, Estado = "MARCHA" };
 
@@ -277,15 +276,19 @@ public class AuditoriaApiTests : CalidadTestBase
         var futura = new OperadorLinea { UsuarioId = usuarioId, LineaId = Futura2.LineaId, FechaAsignacion = DateTimeOffset.UtcNow, AsignadoPorUsuarioId = Admin };
         Context.AddRange(tango, futura);
         await Context.SaveChangesAsync();
-        // La creó la cámara (CreadoPor = sistema) con este maquinista: es la que hacía saltar la FK.
-        await PendienteAsync(_parada, tango.UsuarioLineaId);
+        // La creó la cámara (CreadoPor = sistema) con este operador (T-798: se guarda el usuario, no la habilitación).
+        await PendienteAsync(_parada, usuarioId);
         return (tango, futura);
     }
 
+    /// <summary>
+    /// T-798 etapa 3: la detención guarda el usuario (OperadorUsuarioId), no la habilitación: quitar la línea ya no
+    /// choca con la detención y la detención conserva a su operador.
+    /// </summary>
     [Fact]
-    public async Task QuitarLaLineaDeUnaDetencion_DevuelveMensajeClaroYNoBorraNada()
+    public async Task QuitarLaLineaDeUnMaquinistaConDetenciones_SeQuitaYLaDetencionConservaElOperador()
     {
-        var (tango, futura) = await MaquinistaConDetencionAsync("maq-1");
+        await MaquinistaConDetencionAsync("maq-1");
         var (controller, userManager) = Usuarios();
 
         var r = await controller.UpdateUsuario("maq-1", new ActualizarUsuarioRequest
@@ -293,11 +296,10 @@ public class AuditoriaApiTests : CalidadTestBase
             Email = "maq-1@psag.test", NombreCompleto = "Otro nombre", Activo = true, LineasAsignadas = [Futura2.LineaId]
         });
 
-        var bad = Assert.IsType<BadRequestObjectResult>(r);
-        Assert.Contains("Tango 2", Assert.IsType<ProblemDetails>(bad.Value).Detail);
+        Assert.IsType<OkObjectResult>(r);
         Context.ChangeTracker.Clear();
-        Assert.Equal(2, await Context.OperadoresLinea.CountAsync(ul => ul.UsuarioId == "maq-1"));
-        Assert.Equal("Maquinista", (await Context.Users.SingleAsync(u => u.Id == "maq-1")).NombreCompleto);   // todo o nada
+        Assert.Equal(Futura2.LineaId, (await Context.OperadoresLinea.SingleAsync(ul => ul.UsuarioId == "maq-1")).LineaId);
+        Assert.Single(await Context.Detenciones.Where(d => d.OperadorUsuarioId == "maq-1").ToListAsync());
         userManager.Dispose();
     }
 
@@ -333,19 +335,5 @@ public class AuditoriaApiTests : CalidadTestBase
         Assert.False((await Context.Users.SingleAsync(u => u.Id == "maq-3")).Activo);
         Assert.Equal(2, await Context.OperadoresLinea.CountAsync(ul => ul.UsuarioId == "maq-3"));
         userManager.Dispose();
-    }
-
-    [Fact]
-    public async Task AsignacionesEnUso_CuentaTambienLasDetencionesEliminadas()
-    {
-        var (tango, futura) = await MaquinistaConDetencionAsync("maq-4");
-        var d = await Context.Detenciones.SingleAsync(x => x.UsuarioLineaId == tango.UsuarioLineaId);
-        d.Eliminada = true;
-        await Context.SaveChangesAsync();
-        Context.ChangeTracker.Clear();
-
-        var enUso = await _unitOfWork.Detenciones.GetUsuarioLineaIdsEnUsoAsync([tango.UsuarioLineaId, futura.UsuarioLineaId]);
-
-        Assert.Equal([tango.UsuarioLineaId], enUso);
     }
 }

@@ -49,8 +49,7 @@ public class DetencionRepositoryFiltroTests : IDisposable
             {
                 Codigo = codigo,
                 LineaId = linea.LineaId,
-                TurnoId = turno.TurnoId,
-                Fecha = new DateOnly(2026, 3, 27),
+                TurnoProduccionId = _context.TurnoProduccionId(linea.LineaId, turno.TurnoId, new DateOnly(2026, 3, 27)),
                 OrigenTiempo = OrigenTiempo.DECLARADO,
                 MinutosDeclarados = minutos,
                 MinutosEfectivos = minutos,
@@ -80,9 +79,9 @@ public class DetencionRepositoryFiltroTests : IDisposable
         return (linea, turno);
     }
 
-    private static Detencion Nueva(Linea linea, Turno turno, string codigo, OrigenRegistroDetencion origen, DateTimeOffset? parada = null) => new()
+    private Detencion Nueva(Linea linea, Turno turno, string codigo, OrigenRegistroDetencion origen, DateTimeOffset? parada = null) => new()
     {
-        Codigo = codigo, LineaId = linea.LineaId, TurnoId = turno.TurnoId, Fecha = new DateOnly(2026, 11, 13),
+        Codigo = codigo, LineaId = linea.LineaId, TurnoProduccionId = _context.TurnoProduccionId(linea.LineaId, turno.TurnoId, new DateOnly(2026, 11, 13)),
         OrigenTiempo = parada == null ? OrigenTiempo.DECLARADO : OrigenTiempo.CALCULADO, FechaHoraParada = parada,
         MinutosEfectivos = 10, Descripcion = "Prueba", OrigenRegistro = origen,
         EstadoActual = origen == OrigenRegistroDetencion.CAMARA ? EstadoDetencion.PENDIENTE_JUSTIFICACION : EstadoDetencion.REGISTRADA,

@@ -26,7 +26,6 @@ public class Turno : CatalogoBase
     public int Orden { get; set; }
 
     // Navegación
-    public virtual ICollection<Detencion> Detenciones { get; set; } = new List<Detencion>();
 
     /// <summary>
     /// Duración del turno en minutos. Si HoraFin no es posterior a HoraInicio, cruza medianoche

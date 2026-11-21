@@ -22,6 +22,14 @@ public class RegistroProceso : EntityBase
     public int? ProductoMaestroId { get; set; }
     public int TurnoId { get; set; }
     public DateOnly Fecha { get; set; }
+
+    /// <summary>
+    /// Turno de producción (T-798 etapa 3). Se completa al crear (null en los registros anteriores y si no hay turno
+    /// de planta a esa hora). PENDIENTE: TurnoId y Fecha se mantienen porque Control de Proceso / Calidad los usan
+    /// en pantallas; saldrán del turno de producción en una etapa siguiente.
+    /// </summary>
+    public long? TurnoProduccionId { get; set; }
+
     public string UsuarioId { get; set; } = string.Empty;
 
     public DateTimeOffset FechaHoraInicio { get; set; }
@@ -38,6 +46,7 @@ public class RegistroProceso : EntityBase
     public virtual Linea Linea { get; set; } = null!;
     public virtual ProductoMaestro? ProductoMaestro { get; set; }
     public virtual Turno Turno { get; set; } = null!;
+    public virtual TurnoProduccion? TurnoProduccion { get; set; }
     public virtual ICollection<RegistroProcesoDetalle> Detalles { get; set; } = new List<RegistroProcesoDetalle>();
 
     /// <summary>

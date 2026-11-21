@@ -114,6 +114,9 @@ public class RegistroCalidadConfiguration : IEntityTypeConfiguration<RegistroCal
         builder.HasOne(x => x.Linea).WithMany().HasForeignKey(x => x.LineaId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.PuntoControl).WithMany().HasForeignKey(x => x.PuntoControlCalidadId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.Turno).WithMany().HasForeignKey(x => x.TurnoId).OnDelete(DeleteBehavior.Restrict);
+        // T-798 etapa 3: NULL en los registros anteriores; se completa al crear.
+        builder.HasOne(x => x.TurnoProduccion).WithMany().HasForeignKey(x => x.TurnoProduccionId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(x => x.TurnoProduccionId);
         builder.HasOne(x => x.TipoDefecto).WithMany().HasForeignKey(x => x.TipoDefectoCalidadId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.ProductoMaestro).WithMany().HasForeignKey(x => x.ProductoMaestroId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.Detencion).WithMany().HasForeignKey(x => x.DetencionId).OnDelete(DeleteBehavior.Restrict);

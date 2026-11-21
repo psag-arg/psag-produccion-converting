@@ -48,7 +48,6 @@ public class DeclaracionDetencionService : IDeclaracionDetencionService
             ? await _unitOfWork.PuntosControlCalidad.GetByIdAsync(pid, cancellationToken)
             : null;
         Equipo? cuerpo = punto?.EquipoId is { } eid ? await _unitOfWork.Equipos.GetByIdAsync(eid, cancellationToken) : null;
-        OperadorLinea? maquinista = d.UsuarioLineaId is { } ulid ? await _unitOfWork.OperadoresLinea.GetByIdAsync(ulid, cancellationToken) : null;
 
         return Result<DeclaracionDetencionDto>.Success(new DeclaracionDetencionDto
         {
@@ -56,8 +55,8 @@ public class DeclaracionDetencionService : IDeclaracionDetencionService
             Codigo = d.Codigo,
             LineaId = d.LineaId,
             LineaNombre = d.Linea?.Nombre ?? string.Empty,
-            TurnoNombre = d.Turno?.Nombre ?? string.Empty,
-            Fecha = d.Fecha,
+            TurnoNombre = d.TurnoProduccion?.Turno?.Nombre ?? string.Empty,
+            Fecha = d.TurnoProduccion?.FechaProduccion ?? default,
             FechaHoraParada = HoraPlanta.En(d.FechaHoraParada, _zonaPlanta),
             FechaHoraArranqueDetectada = HoraPlanta.En(d.FechaHoraArranqueDetectada, _zonaPlanta),
             OrigenRegistro = d.OrigenRegistro.ToString(),
@@ -65,7 +64,7 @@ public class DeclaracionDetencionService : IDeclaracionDetencionService
             PuntoControlNombre = punto?.Nombre,
             CuerpoCamaraNombre = cuerpo?.Nombre,
             CuerpoCamaraEquipoId = cuerpo?.EquipoId,
-            MaquinistaUsuarioId = maquinista?.UsuarioId,
+            MaquinistaUsuarioId = d.OperadorUsuarioId,
             EstadoActual = d.EstadoActual.ToString(),
             EstadoActualDescripcion = d.EstadoActual.ObtenerDescripcion(),
             PendienteDeclaracion = d.EsPendienteDeclaracion,
@@ -116,9 +115,9 @@ public class DeclaracionDetencionService : IDeclaracionDetencionService
         detencion.OrigenTiempo = origen;
         detencion.MinutosEfectivos = minutos;
         detencion.ModificadoPorUsuarioId = usuarioId;
-        // Maquinista: si el turno no tenía uno claro, queda quien declara (si está asignado a la línea).
-        if (detencion.UsuarioLineaId == null && asignacionPropia?.LineaId == detencion.LineaId)
-            detencion.UsuarioLineaId = asignacionPropia.UsuarioLineaId;
+        // Operador: si el turno no tenía operador a la hora de la parada, queda quien declara (si está habilitado en la línea).
+        if (detencion.OperadorUsuarioId == null && asignacionPropia?.LineaId == detencion.LineaId)
+            detencion.OperadorUsuarioId = asignacionPropia.UsuarioId;
 
         detencion.CambiarEstado(EstadoDetencion.REGISTRADA, usuarioId, "Detención declarada por el operador");
         await _detenciones.AplicarReglaAnalisisAsync(detencion, cancellationToken);
@@ -156,7 +155,6 @@ public class DeclaracionDetencionService : IDeclaracionDetencionService
         if (turno != null)
         {
             var inicioPared = DetencionCamaraReglas.InicioTurnoEnCurso(turno, ahora.DateTime);
-            var inicio = HoraPlanta.DesdeHoraDePared(inicioPared, _zonaPlanta);
             var turnoId = turno.TurnoId;
             aviso.TurnoId = turnoId;
             aviso.TurnoNombre = turno.Nombre;
@@ -164,12 +162,14 @@ public class DeclaracionDetencionService : IDeclaracionDetencionService
             aviso.MinutosParaFin = DetencionCamaraReglas.MinutosParaFinDeTurno(turno, hora);
             if (aviso.Pendientes > 0)
             {
-                // Las del turno en curso: pararon en este turno desde que empezó (no las de la noche anterior).
+                // Las del turno en curso: cuelgan del turno de producción de este turno y fecha de producción (T-798:
+                // el T3 después de medianoche sigue siendo del día de las 21:00; no cuentan las de la noche anterior).
+                var fechaProduccion = aviso.FechaInicioTurno.Value;
                 aviso.PendientesTurnoActual = await _unitOfWork.Detenciones.CountAsync(d =>
                     d.EstadoActual == EstadoDetencion.PENDIENTE_JUSTIFICACION
                     && (lineasIds == null || lineasIds.Contains(d.LineaId))
-                    && d.TurnoId == turnoId
-                    && d.FechaHoraParada >= inicio, cancellationToken);
+                    && d.TurnoProduccion.TurnoId == turnoId
+                    && d.TurnoProduccion.FechaProduccion == fechaProduccion, cancellationToken);
             }
         }
         aviso.Mostrar = DetencionCamaraReglas.CorrespondeAvisoFinTurno(aviso.MinutosParaFin, aviso.Pendientes, minutosAviso);

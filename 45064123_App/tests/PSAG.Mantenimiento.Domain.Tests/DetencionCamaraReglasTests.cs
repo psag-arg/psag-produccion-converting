@@ -105,47 +105,6 @@ public class DetencionCamaraReglasTests
         Assert.Equal("45 s", DetencionCamaraReglas.TextoUmbral(new PuntoControlCalidad { MinutosUmbralDetencion = 5, SegundosUmbralDetencion = 45 }));
     }
 
-    private static OperadorLinea Asignacion(int id, string usuario, int? turnoId, int diasAtras) => new()
-    {
-        UsuarioLineaId = id, UsuarioId = usuario, LineaId = 1, TurnoHabitualId = turnoId,
-        FechaAsignacion = T0.AddDays(-diasAtras), AsignadoPorUsuarioId = "admin"
-    };
-
-    [Fact]
-    public void Maquinista_ElDelTurno()
-    {
-        var e = DetencionCamaraReglas.ElegirMaquinista(
-            [Asignacion(1, "asevedo", 1, 30), Asignacion(2, "tarde", 2, 30)], turnoId: 1);
-        Assert.Equal("asevedo", e.Elegido!.UsuarioId);
-    }
-
-    [Fact]
-    public void Maquinista_DosEnElTurno_ElAsignadoMasRecienteYLoDejaEscrito()
-    {
-        var e = DetencionCamaraReglas.ElegirMaquinista(
-            [Asignacion(1, "oconnor", 1, 30), Asignacion(2, "asevedo", 1, 2)], turnoId: 1);
-        Assert.Equal("asevedo", e.Elegido!.UsuarioId);
-        Assert.Contains("2 maquinistas", e.Motivo);
-        Assert.Contains("oconnor", e.Motivo);
-    }
-
-    [Fact]
-    public void Maquinista_NingunoEnElTurno_ElUnicoSinTurnoFijo()
-    {
-        var e = DetencionCamaraReglas.ElegirMaquinista(
-            [Asignacion(1, "tarde", 2, 30), Asignacion(2, "rotativo", null, 30)], turnoId: 1);
-        Assert.Equal("rotativo", e.Elegido!.UsuarioId);
-    }
-
-    [Fact]
-    public void Maquinista_Ninguno_QuedaVacioParaQuienDeclara()
-    {
-        Assert.Null(DetencionCamaraReglas.ElegirMaquinista([Asignacion(1, "tarde", 2, 30)], turnoId: 1).Elegido);
-        Assert.Null(DetencionCamaraReglas.ElegirMaquinista(
-            [Asignacion(1, "a", null, 3), Asignacion(2, "b", null, 3)], turnoId: 1).Elegido);
-        Assert.Null(DetencionCamaraReglas.ElegirMaquinista([], turnoId: 1).Elegido);
-    }
-
     private static Detencion Pendiente() => new()
     {
         EstadoActual = EstadoDetencion.PENDIENTE_JUSTIFICACION,

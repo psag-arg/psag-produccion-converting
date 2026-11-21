@@ -3,7 +3,7 @@ namespace PSAG.Mantenimiento.Domain.Entities;
 /// <summary>
 /// Habilitación de un usuario (operador) en una línea, con su turno habitual opcional
 /// (tabla ABM_OperadoresLinea, ex UsuariosLineas). La PK sigue siendo UsuarioLineaId
-/// porque DET_Detenciones.UsuarioLineaId la referencia hasta la etapa 3 de T-798.
+/// (desde la etapa 3 de T-798 ya no la referencia DET_Detenciones: la detención guarda el usuario, OperadorUsuarioId).
 /// </summary>
 public class OperadorLinea
 {

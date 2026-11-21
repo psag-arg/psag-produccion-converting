@@ -139,7 +139,7 @@ public class ExportacionService : IExportacionService
         {
             fila++;
             hoja.Cell(fila, 1).Value = d.Codigo;
-            hoja.Cell(fila, 2).Value = d.Fecha.ToDateTime(TimeOnly.MinValue);
+            hoja.Cell(fila, 2).Value = d.TurnoProduccion.FechaProduccion.ToDateTime(TimeOnly.MinValue);
             hoja.Cell(fila, 2).Style.DateFormat.Format = "dd/MM/yyyy";
             hoja.Cell(fila, 3).Value = d.OrigenTiempo != OrigenTiempo.DECLARADO
                 ? HoraPlanta.En(d.FechaHoraParada, zonaPlanta)?.ToString("HH:mm", CultureInfo.InvariantCulture) ?? string.Empty
@@ -151,7 +151,7 @@ public class ExportacionService : IExportacionService
             hoja.Cell(fila, 8).Value = d.MinutosEfectivos;
             hoja.Cell(fila, 9).Value = d.EstadoActual.ObtenerDescripcion();
             hoja.Cell(fila, 10).Value = EstadoAnalisisTexto(d);
-            hoja.Cell(fila, 11).Value = d.Turno?.Nombre ?? string.Empty;
+            hoja.Cell(fila, 11).Value = d.TurnoProduccion?.Turno?.Nombre ?? string.Empty;
             hoja.Cell(fila, 12).Value = d.Descripcion;
             hoja.Cell(fila, 13).Value = d.AccionesRealizadas ?? string.Empty;
             hoja.Cell(fila, 14).Value = d.CausaFalla ?? string.Empty;
@@ -181,12 +181,12 @@ public class ExportacionService : IExportacionService
         {
             sb.AppendLine(string.Join(",",
                 EscapeCsv(d.Codigo),
-                d.Fecha.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                d.TurnoProduccion.FechaProduccion.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 EscapeCsv(d.Linea?.Nombre ?? ""),
                 EscapeCsv(d.Equipo?.Nombre ?? ""),
                 EscapeCsv(d.TipoFalla?.Nombre ?? ""),
                 EscapeCsv(d.DetalleFalla?.Nombre ?? ""),
-                EscapeCsv(d.Turno?.Nombre ?? ""),
+                EscapeCsv(d.TurnoProduccion?.Turno?.Nombre ?? ""),
                 d.MinutosDeclarados?.ToString(CultureInfo.InvariantCulture) ?? "",
                 d.FechaHoraParada?.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) ?? "",
                 d.FechaHoraArranque?.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) ?? "",

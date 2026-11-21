@@ -243,24 +243,10 @@ public class UsuariosController : ApiControllerBase
             return OperarioSinLinea();
         }
 
-        // Una línea que el usuario usó como maquinista en alguna detención no se le puede quitar (la FK de
-        // Detenciones.UsuarioLineaId lo impide). Se revisa antes de guardar nada: o se guarda todo o nada.
+        // T-798 etapa 3: la detención guarda el usuario (OperadorUsuarioId), no la habilitación: quitar una línea ya no
+        // choca con las detenciones históricas (siguen mostrando a su operador).
         var lineasActuales = (await _unitOfWork.OperadoresLinea.FindAsync(ul => ul.UsuarioId == id)).ToList();
         var aQuitar = lineasActuales.Where(ul => !request.LineasAsignadas.Contains(ul.LineaId)).ToList();
-        var enUso = await _unitOfWork.Detenciones.GetUsuarioLineaIdsEnUsoAsync(aQuitar.Select(ul => ul.UsuarioLineaId).ToList());
-        if (enUso.Count > 0)
-        {
-            var nombres = new List<string>();
-            foreach (var ul in aQuitar.Where(ul => enUso.Contains(ul.UsuarioLineaId)))
-                nombres.Add((await _unitOfWork.Lineas.GetByIdAsync(ul.LineaId))?.Nombre ?? $"línea {ul.LineaId}");
-            return BadRequest(new ProblemDetails
-            {
-                Title = "No se puede quitar la línea",
-                Detail = $"No se puede quitar {string.Join(", ", nombres)}: el usuario tiene detenciones registradas como maquinista en esa línea. "
-                    + "Dejala asignada (si ya no trabaja ahí, desactivá el usuario o cambiale el turno en Configuración → Maquinistas).",
-                Status = StatusCodes.Status400BadRequest
-            });
-        }
 
         user.Email = request.Email;
         user.NombreCompleto = request.NombreCompleto;
@@ -387,11 +373,10 @@ public class UsuariosController : ApiControllerBase
         // Verificamos detenciones que es lo mas importante para trazabilidad
         var tieneDetenciones = await _unitOfWork.Detenciones.ExistsAsync(d => d.CreadoPorUsuarioId == id);
 
-        // También cuenta ser el maquinista de una detención (por ejemplo, una que creó la cámara): esas
-        // asignaciones no se pueden borrar (FK Detenciones.UsuarioLineaId), así que se desactiva.
+        // También cuenta ser el operador de una detención (por ejemplo, una que creó la cámara): se desactiva para no
+        // perder la trazabilidad.
         var asignaciones = (await _unitOfWork.OperadoresLinea.FindAsync(ul => ul.UsuarioId == id)).ToList();
-        var esMaquinistaDeDetenciones = (await _unitOfWork.Detenciones.GetUsuarioLineaIdsEnUsoAsync(
-            asignaciones.Select(a => a.UsuarioLineaId).ToList())).Count > 0;
+        var esMaquinistaDeDetenciones = await _unitOfWork.Detenciones.ExistsAsync(d => d.OperadorUsuarioId == id);
 
         bool tieneMovimientos = tieneDetenciones || esMaquinistaDeDetenciones;
 

@@ -1245,7 +1245,8 @@
         model.LineaId = selectedLineaId;
         if (!editando && puedeSeleccionarMaquinista)
         {
-            model.UsuarioLineaId = selectedMaquinistaId;
+            // T-798 etapa 3: la API guarda el usuario del maquinista, no su habilitación en la línea.
+            model.OperadorUsuarioId = MaquinistaElegido?.UsuarioId;
         }
 
         if (model.Fecha > DateOnly.FromDateTime(DateTime.Today))

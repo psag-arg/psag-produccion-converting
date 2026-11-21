@@ -39,11 +39,8 @@ public interface IDetencionRepository : IRepository<Detencion>
     Task<IReadOnlyList<Detencion>> GetPorParadasCamaraAsync(IReadOnlyCollection<string> identificadores, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<int>> GetLineasConDetencionesAsync(DateOnly desde, DateOnly hasta, CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// De esas asignaciones de maquinista (UsuarioLineaId), las que usa alguna detención, incluidas las eliminadas
-    /// (la FK no deja borrarlas: hay que revisarlo antes de quitar la asignación).
-    /// </summary>
-    Task<IReadOnlyList<int>> GetUsuarioLineaIdsEnUsoAsync(IReadOnlyCollection<int> usuarioLineaIds, CancellationToken cancellationToken = default);
+    /// <summary>Detenciones de un turno de producción (con turno y tipo de falla), por hora de parada.</summary>
+    Task<IReadOnlyList<Detencion>> GetPorTurnoProduccionAsync(long turnoProduccionId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Detenciones que requieren análisis y todavía no están cerradas, más antiguas primero.

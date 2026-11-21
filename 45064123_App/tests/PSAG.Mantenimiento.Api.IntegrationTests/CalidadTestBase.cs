@@ -1,3 +1,4 @@
+using PSAG.Mantenimiento.Application.DTOs.Produccion;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -88,6 +89,11 @@ public abstract class CalidadTestBase : IDisposable
     protected static DateOnly DiaPlanta(int diasAtras) =>
         DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ZonaPlanta).Date.AddDays(-diasAtras));
 
+    /// <summary>Servicio de turnos de producción (T-798) sobre el mismo contexto; reloj real salvo que se pase otro.</summary>
+    protected static TurnoProduccionService NuevoTurnosProduccion(UnitOfWork unitOfWork, Func<DateTimeOffset>? ahora = null) =>
+        new(unitOfWork, ZonaPlanta, new TurnosProduccionOpciones(), NullLogger<TurnoProduccionService>.Instance,
+            ahora ?? (() => DateTimeOffset.UtcNow));
+
     protected static Application.DTOs.Calidad.ImagenEntrante ImagenDe(byte[] bytes, string nombre = "frame.png") =>
         new(nombre, bytes.Length, new MemoryStream(bytes));
 
@@ -124,8 +130,7 @@ public abstract class CalidadTestBase : IDisposable
         {
             Codigo = "DET-20261020-000001",
             LineaId = Tango2.LineaId,
-            TurnoId = TurnoManana.TurnoId,
-            Fecha = new DateOnly(2026, 10, 20),
+            TurnoProduccionId = Context.TurnoProduccionId(Tango2.LineaId, TurnoManana.TurnoId, new DateOnly(2026, 10, 20)),
             OrigenTiempo = OrigenTiempo.DECLARADO,
             MinutosDeclarados = 15,
             MinutosEfectivos = 15,

@@ -19,17 +19,30 @@ public class RegistroCalidadService : IRegistroCalidadService
     private readonly IAlmacenImagenesCalidad _almacen;
     private readonly TimeZoneInfo _zonaPlanta;
     private readonly ILogger<RegistroCalidadService> _logger;
+    private readonly ITurnoProduccionService? _turnosProduccion;
 
     public RegistroCalidadService(
         IUnitOfWork unitOfWork,
         IAlmacenImagenesCalidad almacen,
         TimeZoneInfo zonaPlanta,
         ILogger<RegistroCalidadService> logger)
+        : this(unitOfWork, almacen, zonaPlanta, logger, null)
+    {
+    }
+
+    /// <summary>Con el turno de producción (T-798 etapa 3): el registro se cuelga del turno de la hora de la detección.</summary>
+    public RegistroCalidadService(
+        IUnitOfWork unitOfWork,
+        IAlmacenImagenesCalidad almacen,
+        TimeZoneInfo zonaPlanta,
+        ILogger<RegistroCalidadService> logger,
+        ITurnoProduccionService? turnosProduccion)
     {
         _unitOfWork = unitOfWork;
         _almacen = almacen;
         _zonaPlanta = zonaPlanta;
         _logger = logger;
+        _turnosProduccion = turnosProduccion;
     }
 
     // ===================== Consultas =====================
@@ -261,12 +274,18 @@ public class RegistroCalidadService : IRegistroCalidadService
             detencion = encontrada;
         }
 
+        // T-798 etapa 3: turno de producción de la hora de la detección (lo crea el SISTEMA si no existe).
+        var turnoProduccion = _turnosProduccion == null
+            ? null
+            : await _turnosProduccion.AsegurarTurnoAsync(datos.Punto.LineaId, fechaHora, cancellationToken);
+
         var registro = new RegistroCalidad
         {
             FechaHoraDeteccion = fechaHora,
             LineaId = datos.Punto.LineaId,
             PuntoControlCalidadId = datos.Punto.PuntoControlCalidadId,
             TurnoId = turno?.TurnoId,
+            TurnoProduccionId = turnoProduccion?.TurnoProduccionId,
             TipoDefectoCalidadId = datos.Tipo.TipoDefectoCalidadId,
             Origen = origen,
             Confianza = datos.Confianza,

@@ -114,8 +114,7 @@ public class AuditoriaFechasTests : IDisposable
         {
             Codigo = "DET-TEST-000001",
             LineaId = linea.LineaId,
-            TurnoId = turno.TurnoId,
-            Fecha = DateOnly.FromDateTime(DateTime.UtcNow),
+            TurnoProduccionId = _context.TurnoProduccionId(linea.LineaId, turno.TurnoId, DateOnly.FromDateTime(DateTime.UtcNow)),
             MinutosEfectivos = 30,
             OrigenTiempo = OrigenTiempo.DECLARADO,
             Descripcion = "Prueba de auditoría",
