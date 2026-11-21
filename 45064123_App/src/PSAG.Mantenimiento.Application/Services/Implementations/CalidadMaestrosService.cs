@@ -64,6 +64,7 @@ public class CalidadMaestrosService : ICalidadMaestrosService
             SegundosUmbralDetencion = request.SegundosUmbralDetencion,
             ObjetivoPorHora = request.ObjetivoPorHora,
             MetodoConteo = MetodoNormalizado(request.MetodoConteo),
+            IncluirEnEficiencia = request.IncluirEnEficiencia ?? true,
             CreadoPorUsuarioId = usuarioId,
             ModificadoPorUsuarioId = usuarioId
         };
@@ -106,6 +107,8 @@ public class CalidadMaestrosService : ICalidadMaestrosService
         punto.SegundosUmbralDetencion = request.SegundosUmbralDetencion;
         punto.ObjetivoPorHora = request.ObjetivoPorHora;
         punto.MetodoConteo = MetodoNormalizado(request.MetodoConteo);
+        if (request.IncluirEnEficiencia is { } incluir)
+            punto.IncluirEnEficiencia = incluir;
         punto.ModificadoPorUsuarioId = usuarioId;
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -283,7 +286,8 @@ public class CalidadMaestrosService : ICalidadMaestrosService
         UmbralSegundos = DetencionCamaraReglas.UmbralSegundos(p),
         UmbralTexto = DetencionCamaraReglas.TextoUmbral(p),
         ObjetivoPorHora = p.ObjetivoPorHora,
-        MetodoConteo = p.MetodoConteo
+        MetodoConteo = p.MetodoConteo,
+        IncluirEnEficiencia = p.IncluirEnEficiencia
     };
 
     private static TipoDefectoCalidadDto ADto(TipoDefectoCalidad t) => new()

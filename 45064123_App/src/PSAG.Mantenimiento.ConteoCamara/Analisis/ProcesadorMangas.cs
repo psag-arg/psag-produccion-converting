@@ -1,17 +1,19 @@
 namespace PSAG.Mantenimiento.ConteoCamara.Analisis;
 
 /// <summary>
-/// Cámara 10 (rebobinadora Futura 2 / Tango 2). Dos señales, medidas como movimiento medio (diferencia absoluta
+/// Cámara 10 (rebobinadora Futura 2 / Tango 2) y, sin rodillo ni paradas, cámara 8 (bolsones, T-785: cada bolsón
+/// que cruza la zona "Mesa" es un paso). Dos señales, medidas como movimiento medio (diferencia absoluta
 /// entre dos cuadros seguidos) dentro de una zona:
 /// <list type="bullet">
 /// <item><b>Mesa</b>: cada manga que la cruza da un pulso. Se cuentan con histéresis (sube de UmbralPasoAlto,
 /// baja de UmbralPasoBajo) y una separación mínima, así un pulso cuenta una vez.</item>
 /// <item><b>Rodillo</b>: girando tiene movimiento constante; quieto, cero.</item>
 /// </list>
-/// Estado de cada ventana de 10 s: PARADA si el rodillo estuvo quieto la mayor parte; si no, SIN_MANGAS (se
-/// informa como ACUMULACION del "carril" 1) si no pasó ninguna manga; si no, MARCHA. El empalme no es parada:
-/// el rodillo sigue y siguen pasando mangas, más espaciadas. Una ventana suelta sin mangas no abre parada
-/// (histéresis de DetectorParadas: 2 ventanas) y lo que dura menos que el umbral de la cámara es un microcorte.
+/// Estado de cada ventana de 10 s (para los minutos): PARADA si el rodillo estuvo quieto la mayor parte; si no,
+/// SIN_MANGAS (se informa como ACUMULACION del "carril" 1) si no pasó ninguna manga; si no, MARCHA.
+/// Las paradas NO salen de las ventanas sino de <see cref="DetectorParadasMangas"/>, cuadro a cuadro (T-784): cada
+/// microparada con su inicio y fin reales. El empalme no es parada: el rodillo sigue y siguen pasando mangas, más
+/// espaciadas. Lo que dura menos que el umbral de la cámara es un microcorte (lo decide la API).
 /// Las mangas se cuentan siempre y van a los minutos como "rollos" del carril 1.
 /// </summary>
 public sealed class ProcesadorMangas : IAnalizadorCuadros
@@ -20,7 +22,7 @@ public sealed class ProcesadorMangas : IAnalizadorCuadros
 
     private readonly OpcionesMangas _o;
     private readonly ISalidaConteo _salida;
-    private readonly DetectorParadas _detector;
+    private readonly DetectorParadasMangas _detector;
     private readonly AcumuladorMinutos _minutos;
     private readonly int _ancho;
     private readonly int _alto;
@@ -43,8 +45,12 @@ public sealed class ProcesadorMangas : IAnalizadorCuadros
     private bool _enPaso;
     private DateTimeOffset? _ultimaManga;
 
-    public ProcesadorMangas(OpcionesConteo opciones, ISalidaConteo salida)
+    private readonly bool _detectarParadas;
+
+    /// <param name="detectarParadas">false en la cámara 8 (bolsones, T-785): sólo cuenta; las paradas las da la 10.</param>
+    public ProcesadorMangas(OpcionesConteo opciones, ISalidaConteo salida, bool detectarParadas = true)
     {
+        _detectarParadas = detectarParadas;
         _o = opciones.Mangas;
         _salida = salida;
         _ancho = opciones.Fuente.AnchoDecodificado;
@@ -54,7 +60,7 @@ public sealed class ProcesadorMangas : IAnalizadorCuadros
             ?? throw new InvalidOperationException("Falta la zona de la mesa (ConteoCamara:Mangas:Mesa).");
         _rodillo = _o.UsarRodillo && _o.Rodillo != null ? Escalar(_o.Rodillo, _o, _ancho, _alto) : null;
         _muestrasPorVentana = Math.Max(2, (int)Math.Round(opciones.Analisis.SegundosVentana * Fps));
-        _detector = new DetectorParadas(opciones.Analisis, TipoParada.SIN_MANGAS);
+        _detector = new DetectorParadasMangas(_o, opciones.Analisis);
         _minutos = new AcumuladorMinutos([Carril]);
         _anterior = new byte[_ancho * _alto];
     }
@@ -101,6 +107,8 @@ public sealed class ProcesadorMangas : IAnalizadorCuadros
             _sumaMesa = _sumaRodillo = 0;
         }
 
+        var mangaEnEsteCuadro = false;
+        bool? rodilloQuieto = null;
         if (_hayAnterior)
         {
             var mesa = Movimiento(cuadro, _anterior, _ancho, _mesa);
@@ -112,6 +120,7 @@ public sealed class ProcesadorMangas : IAnalizadorCuadros
                 _ultimaManga = hora;
                 _pasosVentana++;
                 MangasTotales++;
+                mangaEnEsteCuadro = true;
             }
             else if (_enPaso && mesa <= _o.UmbralPasoBajo)
                 _enPaso = false;
@@ -121,9 +130,12 @@ public sealed class ProcesadorMangas : IAnalizadorCuadros
                 var rod = Movimiento(cuadro, _anterior, _ancho, r);
                 _sumaRodillo += rod;
                 _cuadrosConRodillo++;
-                if (rod < _o.UmbralRodilloGira) _cuadrosRodilloQuieto++;
+                rodilloQuieto = rod < _o.UmbralRodilloGira;
+                if (rodilloQuieto == true) _cuadrosRodilloQuieto++;
             }
         }
+        if (_detectarParadas && _detector.Cuadro(hora, mangaEnEsteCuadro, rodilloQuieto) is { } parada)
+            _salida.Parada(parada);
         cuadro[.._anterior.Length].CopyTo(_anterior);
         _hayAnterior = true;
         _cuadros++;
@@ -150,9 +162,7 @@ public sealed class ProcesadorMangas : IAnalizadorCuadros
         _cuadros = 0;
 
         _salida.Ventana(ventana);
-        var parada = _detector.Procesar(ventana);
-        if (parada != null) _salida.Parada(parada);
-        if (_detector.Abierta is { } abierta) _salida.ParadaEnCurso(abierta);
+        if (_detectarParadas && _detector.Abierta is { } abierta) _salida.ParadaEnCurso(abierta);
         var minutos = _minutos.Agregar(ventana);
         if (minutos.Count > 0) _salida.Minutos(minutos);
     }
@@ -163,8 +173,8 @@ public sealed class ProcesadorMangas : IAnalizadorCuadros
         _hayAnterior = false;
         _enPaso = false;
         _ultimaManga = null;
-        var parada = _detector.CortarSenal(final);
-        if (parada != null) _salida.Parada(parada);
+        if (_detectarParadas && _detector.CortarSenal(final) is { } parada)
+            _salida.Parada(parada);
         if (!final) return;
         var minutos = _minutos.Vaciar();
         if (minutos.Count > 0) _salida.Minutos(minutos);

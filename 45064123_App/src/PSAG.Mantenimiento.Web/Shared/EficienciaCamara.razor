@@ -92,6 +92,10 @@
                                                 <div class="col-6 col-md-2">
                                                     <div class="fw-semibold @(t.MinutosParada > 0 ? "text-danger" : "")">@EficienciaUi.Minutos(t.MinutosParada)</div>
                                                     <small class="text-muted">Parada</small>
+                                                    @if (t.MinutosMicroparadas > 0)
+                                                    {
+                                                        <div class="small text-muted" title="De los minutos de parada, los de microparadas (no llegaron al umbral)">micro: @EficienciaUi.Minutos(t.MinutosMicroparadas)</div>
+                                                    }
                                                 </div>
                                                 <div class="col-6 col-md-1">
                                                     <div class="fw-semibold" title="Paradas de menos de @camara.UmbralTexto">@t.Microcortes</div>
@@ -107,7 +111,7 @@
                     </div>
                     <div class="small text-muted mt-2">
                         Objetivo del turno = objetivo por hora × horas programadas del turno (Maestros → Calidad).
-                        Microcortes: paradas de la cámara más cortas que el umbral de detención.
+                        Microcortes: paradas de la cámara más cortas que el umbral de detención (marcadas con el umbral del momento en que pasaron).
                         <a href="/paradas-camara">Ver paradas y producción</a>
                     </div>
                 }

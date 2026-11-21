@@ -32,6 +32,9 @@ public sealed class OpcionesConteo
 
     public bool EsMangas => string.Equals(Metodo, MetodosConteo.Mangas, StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>T-785: cámara 8, cuenta bolsones (pasos por una zona, como las mangas) y no detecta paradas.</summary>
+    public bool EsBolsones => string.Equals(Metodo, MetodosConteo.Bolsones, StringComparison.OrdinalIgnoreCase);
+
     /// <summary>
     /// Cámaras que corre el servicio. Sin "ConteoCamara:Camaras" es una sola, la de la sección (como hasta ahora,
     /// cámara 09). Con la lista, cada cámara arranca de la sección común (Fuente, Api, Analisis, Vigilancia) y
@@ -76,6 +79,9 @@ public static class MetodosConteo
 {
     public const string Carriles = "CARRILES";
     public const string Mangas = "MANGAS";
+
+    /// <summary>Pasos de bolsones por una zona (cámara 8, T-785). Mismo contador que las mangas, sin paradas.</summary>
+    public const string Bolsones = "BOLSONES";
 }
 
 /// <summary>Rectángulo en px de la imagen original de la cámara (se escala a la resolución decodificada).</summary>
@@ -120,6 +126,18 @@ public sealed class OpcionesMangas
 
     /// <summary>Fracción de los cuadros de la ventana con el rodillo quieto para dar la ventana como PARADA.</summary>
     public double FraccionRodilloQuieto { get; set; } = 0.5;
+
+    /// <summary>
+    /// Paradas (T-784): segundos sin mangas, o con el rodillo quieto seguido, para dar la máquina por parada. Tiene
+    /// que ser más que la separación del empalme (mangas cada ~7 s con la máquina andando más lento).
+    /// </summary>
+    public double SegundosSinMangasParaParada { get; set; } = 10;
+
+    /// <summary>Mangas seguidas (a menos de SegundosSinMangasParaParada una de otra) para dar la máquina por reanudada.</summary>
+    public int MangasParaReanudar { get; set; } = 2;
+
+    /// <summary>Segundos seguidos con el rodillo quieto durante la parada para que sea de tipo PARADA (si no, SIN_MANGAS).</summary>
+    public double SegundosRodilloQuietoParaParada { get; set; } = 5;
 }
 
 /// <summary>
@@ -151,8 +169,17 @@ public sealed class OpcionesFuente
 
     public int PuertoRtsp { get; set; } = 554;
 
-    /// <summary>Canal 09 en vivo, stream principal.</summary>
+    /// <summary>Canal 09 en vivo, stream principal. Si hay <see cref="Canal"/>, manda el canal.</summary>
     public string RutaRtsp { get; set; } = "/Streaming/Channels/901";
+
+    /// <summary>
+    /// T-785: número de cámara del grabador Hikvision (8, 9, 10...). Si está, la ruta es la del stream principal de
+    /// ese canal (/Streaming/Channels/{Canal}01) y no hace falta escribir RutaRtsp. Se configura por cámara.
+    /// </summary>
+    public int? Canal { get; set; }
+
+    /// <summary>Ruta RTSP que se usa: la del canal si está configurado; si no, RutaRtsp.</summary>
+    public string RutaEfectiva => Canal is > 0 ? $"/Streaming/Channels/{Canal}01" : RutaRtsp;
 
     /// <summary>Resolución a la que ffmpeg entrega los cuadros (gris, 1 byte por píxel).</summary>
     public int AnchoDecodificado { get; set; } = 640;

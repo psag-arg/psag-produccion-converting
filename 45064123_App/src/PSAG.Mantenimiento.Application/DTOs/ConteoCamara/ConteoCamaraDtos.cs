@@ -104,6 +104,9 @@ public class ParadasCamaraFiltroRequest
 
     /// <summary>Sólo las de esa cámara (la 09 y la 10 son de la misma línea).</summary>
     public int? PuntoControlCalidadId { get; set; }
+
+    /// <summary>T-784: true = sólo las que llegaron al umbral; false = sólo las microparadas; null = todas.</summary>
+    public bool? SuperaUmbral { get; set; }
 }
 
 public class ParadaCamaraDto
@@ -121,10 +124,13 @@ public class ParadaCamaraDto
     public bool InicioIncierto { get; set; }
     public bool FinIncierto { get; set; }
 
-    /// <summary>La parada llegó al umbral de detención de su cámara (las demás son microcortes, sólo log).</summary>
+    /// <summary>La parada llegó al umbral de detención guardado al ingresarla (las demás son microparadas).</summary>
     public bool SuperaUmbral { get; set; }
 
-    /// <summary>Umbral efectivo de la cámara de la parada ("5 min", "45 s"), o null si no se conoce la cámara.</summary>
+    /// <summary>Supera el umbral y su cámara crea detenciones: tiene (o tendrá) detención automática para declarar.</summary>
+    public bool CreaDetencion { get; set; }
+
+    /// <summary>Umbral contra el que se marcó la parada ("5 min", "45 s"), o null si no se conoce.</summary>
     public string? UmbralTexto { get; set; }
 
     /// <summary>CON_DETENCION, POSIBLE o SIN_DETENCION (calculado al consultar).</summary>
@@ -293,6 +299,12 @@ public class EficienciaTurnoDto
 
     /// <summary>Minutos de parada detectados por la cámara dentro del turno (todas las paradas, recortadas al turno).</summary>
     public int MinutosParada { get; set; }
+
+    /// <summary>
+    /// T-784: de MinutosParada, los de microparadas (no llegaron al umbral guardado). Los reportes deciden si las
+    /// toman: paradas a revisar = MinutosParada - MinutosMicroparadas.
+    /// </summary>
+    public int MinutosMicroparadas { get; set; }
 
     /// <summary>Paradas de la cámara que empezaron en el turno y duraron menos que el umbral (sólo log).</summary>
     public int Microcortes { get; set; }

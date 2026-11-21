@@ -17,6 +17,7 @@ public class ParadaCamaraDto
     public bool InicioIncierto { get; set; }
     public bool FinIncierto { get; set; }
     public bool SuperaUmbral { get; set; }
+    public bool CreaDetencion { get; set; }
 
     /// <summary>Umbral efectivo de la cámara que arma la API ("5 min", "45 s").</summary>
     public string? UmbralTexto { get; set; }
@@ -190,6 +191,7 @@ public class EficienciaTurnoDto
     public string Momento { get; set; } = string.Empty;
     public decimal? ObjetivoHastaAhora { get; set; }
     public int MinutosParada { get; set; }
+    public int MinutosMicroparadas { get; set; }
     public int Microcortes { get; set; }
     public int ParadasLargas { get; set; }
     public int MinutosConDatos { get; set; }

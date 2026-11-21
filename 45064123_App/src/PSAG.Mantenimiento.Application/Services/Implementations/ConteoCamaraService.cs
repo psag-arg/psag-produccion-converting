@@ -132,9 +132,10 @@ public class ConteoCamaraService : IConteoCamaraService
             }
         }
 
-        // Paradas: únicas por identificador externo.
+        // Paradas: únicas por identificador externo. Todas, micro y grandes (T-784), marcadas con el umbral de hoy.
         if (paradas.Count > 0)
         {
+            var umbralSegundos = DetencionCamaraReglas.UmbralSegundos(punto);
             var ids = paradas.Select(p => p.IdentificadorExterno.Trim()).ToList();
             var existentes = await _unitOfWork.ParadasCamara.GetIdentificadoresExistentesAsync(ids, cancellationToken);
             foreach (var p in paradas)
@@ -159,6 +160,8 @@ public class ConteoCamaraService : IConteoCamaraService
                     InicioIncierto = p.InicioIncierto,
                     FinIncierto = p.FinIncierto,
                     IdentificadorExterno = id,
+                    UmbralSegundos = umbralSegundos,
+                    SuperaUmbral = DetencionCamaraReglas.SuperaUmbral(p.Inicio, p.Fin, umbralSegundos),
                     FechaHoraCreacion = ahora
                 }, cancellationToken);
                 respuesta.ParadasNuevas++;
@@ -349,6 +352,8 @@ public class ConteoCamaraService : IConteoCamaraService
             paradas = paradas.Where(p => p.DuracionSegundos >= filtro.SegundosMinimos).ToList();
         if (filtro.PuntoControlCalidadId is { } puntoId)
             paradas = paradas.Where(p => p.PuntoControlCalidadId == puntoId).ToList();
+        if (filtro.SuperaUmbral is { } supera)
+            paradas = paradas.Where(p => DetencionCamaraReglas.SuperaUmbral(p) == supera).ToList();
 
         // Detenciones de un día antes y después: una parada de noche puede estar cargada con la fecha del turno.
         var detenciones = (await _unitOfWork.Detenciones.FindAsync(
@@ -376,9 +381,9 @@ public class ConteoCamaraService : IConteoCamaraService
                 Carriles = p.Carriles,
                 InicioIncierto = p.InicioIncierto,
                 FinIncierto = p.FinIncierto,
-                SuperaUmbral = p.PuntoControl?.CreaDetenciones == true
-                    && DetencionCamaraReglas.SuperaUmbral(p.FechaHoraInicio, p.FechaHoraFin, DetencionCamaraReglas.UmbralSegundos(p.PuntoControl)),
-                UmbralTexto = p.PuntoControl == null ? null : DetencionCamaraReglas.TextoUmbral(p.PuntoControl),
+                SuperaUmbral = DetencionCamaraReglas.SuperaUmbral(p),
+                CreaDetencion = p.PuntoControl?.CreaDetenciones == true && DetencionCamaraReglas.SuperaUmbral(p),
+                UmbralTexto = DetencionCamaraReglas.UmbralSegundos(p) is { } umbral ? DetencionCamaraReglas.TextoUmbral(umbral) : null,
                 Cruce = cruce.ToString(),
                 CodigosDetencion = codigos.ToList()
             });
@@ -528,7 +533,8 @@ public class ConteoCamaraService : IConteoCamaraService
         // Los puntos de control de defectos de calidad, sin conteo, no aparecen.
         var conDatos = minutos.Select(m => m.PuntoControlCalidadId).ToHashSet();
         var puntos = (await _unitOfWork.PuntosControlCalidad.GetListadoAsync(lineaId, incluirInactivos: false, cancellationToken))
-            .Where(p => conDatos.Contains(p.PuntoControlCalidadId) || p.ObjetivoPorHora != null || p.MetodoConteo != null)
+            .Where(p => p.IncluirEnEficiencia
+                && (conDatos.Contains(p.PuntoControlCalidadId) || p.ObjetivoPorHora != null || p.MetodoConteo != null))
             .OrderBy(p => p.Linea?.Orden ?? 0).ThenBy(p => p.Linea?.Nombre)
             .ThenBy(p => p.NumeroCamara ?? int.MaxValue).ThenBy(p => p.Codigo)
             .ToList();
@@ -575,8 +581,8 @@ public class ConteoCamaraService : IConteoCamaraService
                     .ToList();
                 var paradasVentana = paradasPunto.Where(p => p.FechaHoraFin > inicio && p.FechaHoraInicio < fin).ToList();
                 var empezadas = paradasVentana.Where(p => p.FechaHoraInicio >= inicio).ToList();
-                var largas = empezadas.Count(p =>
-                    DetencionCamaraReglas.SuperaUmbral(p.FechaHoraInicio, p.FechaHoraFin, umbralSegundos));
+                // Marca guardada al ingresar cada parada (T-784): si cambió el umbral, el histórico no cambia.
+                var largas = empezadas.Count(DetencionCamaraReglas.SuperaUmbral);
 
                 var minutosProgramados = EficienciaCamaraCalculador.MinutosProgramadosTurno(
                     fecha, turno, turnos, calendariosLinea, excepcionesLinea);
@@ -599,6 +605,8 @@ public class ConteoCamaraService : IConteoCamaraService
                     ObjetivoHastaAhora = EficienciaCamaraCalculador.ObjetivoHastaAhora(objetivo, momento, inicio, fin),
                     MinutosParada = EficienciaCamaraCalculador.MinutosParadaEnVentana(
                         paradasVentana.Select(p => (p.FechaHoraInicio, p.FechaHoraFin)), inicio, fin),
+                    MinutosMicroparadas = EficienciaCamaraCalculador.MinutosParadaEnVentana(
+                        paradasVentana.Where(p => !DetencionCamaraReglas.SuperaUmbral(p)).Select(p => (p.FechaHoraInicio, p.FechaHoraFin)), inicio, fin),
                     Microcortes = empezadas.Count - largas,
                     ParadasLargas = largas,
                     MinutosConDatos = MinutosConDatos(delTurno),

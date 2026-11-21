@@ -32,8 +32,8 @@ public static class DetencionCamaraReglas
         "La detención está pendiente de declaración: no se edita. Declarala desde Mis pendientes (Declarar).";
 
     /// <summary>
-    /// Umbral en segundos, para probar en planta (reunión 10/11/2026). El servicio de cámara confirma una parada
-    /// recién a los 20 s (2 ventanas de 10 s): el mínimo útil es 30 s. El máximo equivale a 240 minutos.
+    /// Umbral en segundos, para probar en planta (reunión 10/11/2026). Mínimo 30 s (criterio del 20/11: "hoy 30 s";
+    /// la cámara 10 da una parada a los 10 s sin mangas desde T-784, la 09 a los 20 s). El máximo equivale a 240 minutos.
     /// </summary>
     public const int SegundosUmbralMinimo = 30;
     public const int SegundosUmbralMaximo = MinutosUmbralMaximo * 60;
@@ -86,6 +86,15 @@ public static class DetencionCamaraReglas
     /// <summary>Umbral legible para mostrar: "5 min" si es un número entero de minutos, si no "45 s".</summary>
     public static string TextoUmbral(int segundosUmbral) =>
         segundosUmbral % 60 == 0 ? $"{segundosUmbral / 60} min" : $"{segundosUmbral} s";
+
+    /// <summary>Umbral de la parada: el guardado al ingresarla (T-784) o, en las anteriores, el actual de su cámara.</summary>
+    public static int? UmbralSegundos(ParadaCamara parada) =>
+        parada.UmbralSegundos ?? (parada.PuntoControl == null ? null : UmbralSegundos(parada.PuntoControl));
+
+    /// <summary>Marca de la parada: la guardada al ingresarla o, en las anteriores, calculada con el umbral actual.</summary>
+    public static bool SuperaUmbral(ParadaCamara parada) =>
+        parada.SuperaUmbral
+        ?? (UmbralSegundos(parada) is { } umbral && SuperaUmbral(parada.FechaHoraInicio, parada.FechaHoraFin, umbral));
 
     /// <summary>Umbral efectivo legible de la cámara ("5 min", "45 s").</summary>
     public static string TextoUmbral(PuntoControlCalidad punto) => TextoUmbral(UmbralSegundos(punto));

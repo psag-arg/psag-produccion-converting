@@ -11,7 +11,10 @@ public static class MetodoConteoCamara
     /// <summary>Paso de mangas por la mesa de la rebobinadora (cámara 10): cuenta mangas.</summary>
     public const string Mangas = "MANGAS";
 
-    public static readonly IReadOnlyList<string> Todos = [Carriles, Mangas];
+    /// <summary>Paso de bolsones por una zona (cámara 8, T-785): cuenta bolsones.</summary>
+    public const string Bolsones = "BOLSONES";
+
+    public static readonly IReadOnlyList<string> Todos = [Carriles, Mangas, Bolsones];
 }
 
 /// <summary>Estado del indicador de eficiencia de un turno.</summary>
@@ -156,11 +159,13 @@ public static class EficienciaCamaraCalculador
         return (int)Math.Round(segundos / 60d, MidpointRounding.AwayFromZero);
     }
 
-    /// <summary>Unidad que se muestra: rollos (CARRILES), mangas (MANGAS); sin método, se deduce de los carriles con datos.</summary>
+    /// <summary>Unidad que se muestra: rollos (CARRILES), mangas (MANGAS), bolsones (BOLSONES); sin método, se deduce de los carriles con datos.</summary>
     public static string Unidad(string? metodo, int cantidadCarriles)
     {
         if (string.Equals(metodo, MetodoConteoCamara.Mangas, StringComparison.OrdinalIgnoreCase))
             return "mangas";
+        if (string.Equals(metodo, MetodoConteoCamara.Bolsones, StringComparison.OrdinalIgnoreCase))
+            return "bolsones";
         if (string.Equals(metodo, MetodoConteoCamara.Carriles, StringComparison.OrdinalIgnoreCase))
             return "rollos";
         return cantidadCarriles switch
@@ -179,7 +184,7 @@ public static class EficienciaCamaraCalculador
         _ => null
     };
 
-    /// <summary>Normaliza el método (mayúsculas, vacío = null). Devuelve false si no es CARRILES ni MANGAS.</summary>
+    /// <summary>Normaliza el método (mayúsculas, vacío = null). Devuelve false si no es CARRILES, MANGAS ni BOLSONES.</summary>
     public static bool TryNormalizarMetodo(string? metodo, out string? normalizado)
     {
         normalizado = string.IsNullOrWhiteSpace(metodo) ? null : metodo.Trim().ToUpperInvariant();

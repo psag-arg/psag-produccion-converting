@@ -116,14 +116,14 @@ async Task<int> VivoAsync()
     var resumen = new ResumenConsola(eco: true);
     var procesador = Analizadores.Crear(opciones, resumen);
     var relojCuadros = new RelojCuadros(opciones.Fuente.Fps, zona);
-    Console.WriteLine($"En vivo desde {credenciales} {opciones.Fuente.RutaRtsp} durante {segundos} s (sólo lectura, una conexión)...");
+    Console.WriteLine($"En vivo desde {credenciales} {opciones.Fuente.RutaEfectiva} durante {segundos} s (sólo lectura, una conexión)...");
 
     using var limite = CancellationTokenSource.CreateLinkedTokenSource(cancelar.Token);
     limite.CancelAfter(TimeSpan.FromSeconds(segundos));
     var reloj = Stopwatch.StartNew();
     try
     {
-        await foreach (var cuadro in fuente.LeerAsync(credenciales.UrlRtsp(opciones.Fuente.PuertoRtsp, opciones.Fuente.RutaRtsp), esRtsp: true, ct: limite.Token))
+        await foreach (var cuadro in fuente.LeerAsync(credenciales.UrlRtsp(opciones.Fuente.PuertoRtsp, opciones.Fuente.RutaEfectiva), esRtsp: true, ct: limite.Token))
         {
             var (hora, reanclado) = relojCuadros.Siguiente();
             if (reanclado) procesador.CortarSenal(final: false);
@@ -167,7 +167,7 @@ async Task<int> FotoAsync()
     {
         var credenciales = CredencialesNvr.Leer(opciones.Fuente.ArchivoCredenciales);
         var fuente = new FuenteFfmpeg(opciones.Fuente, logger, credenciales.Ocultar);
-        await fuente.FotoAsync(credenciales.UrlRtsp(opciones.Fuente.PuertoRtsp, opciones.Fuente.RutaRtsp), esRtsp: true, salida, null, cancelar.Token);
+        await fuente.FotoAsync(credenciales.UrlRtsp(opciones.Fuente.PuertoRtsp, opciones.Fuente.RutaEfectiva), esRtsp: true, salida, null, cancelar.Token);
     }
     Console.WriteLine($"Foto guardada en {salida}. Siguiente paso: calibrar --foto \"{salida}\"");
     return 0;
@@ -207,7 +207,7 @@ async Task<int> SugerirAsync()
         limite.CancelAfter(TimeSpan.FromSeconds(segundos));
         try
         {
-            await foreach (var cuadro in fuente.LeerAsync(credenciales.UrlRtsp(opciones.Fuente.PuertoRtsp, opciones.Fuente.RutaRtsp), esRtsp: true, ct: limite.Token))
+            await foreach (var cuadro in fuente.LeerAsync(credenciales.UrlRtsp(opciones.Fuente.PuertoRtsp, opciones.Fuente.RutaEfectiva), esRtsp: true, ct: limite.Token))
                 sugeridor.Cuadro(cuadro);
         }
         catch (OperationCanceledException) { }
