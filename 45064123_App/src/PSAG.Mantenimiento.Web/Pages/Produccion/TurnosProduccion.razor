@@ -1,0 +1,455 @@
+@page "/produccion/turnos"
+@using Microsoft.AspNetCore.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize(Roles = "ADMINISTRADOR,MANTENIMIENTO,SUPERVISOR")]
+@inject ITurnosProduccionService TurnosProduccionService
+
+<PageTitle>Turnos de producción - PSAG Produccion</PageTitle>
+
+@* T-798 etapa 2 · Pantalla mínima del supervisor: por día y línea, cada turno con su estado, operadores y tramos de
+   producto. Cambiar producto (turno abierto), corregir operador / producto (con motivo, insert-only: el tramo
+   corregido queda anulado y visible) y cerrar. La barra de turno y el resto de las pantallas son de la etapa 6. *@
+
+<div class="container-fluid">
+    <div class="d-flex flex-wrap align-items-end justify-content-between mb-3 gap-2">
+        <div>
+            <h2 class="mb-0">Turnos de producción</h2>
+            <div class="text-muted">Turnos que empezaron el día elegido (el T3 es del día en que empieza, a las 21:00).</div>
+        </div>
+        <div class="d-flex gap-2">
+            <div>
+                <label class="form-label small mb-1">Día</label>
+                <input type="date" class="form-control" @bind="fecha" @bind:after="@(async () => await Cargar())" />
+            </div>
+            <div>
+                <label class="form-label small mb-1">Línea</label>
+                <select class="form-select" @bind="lineaFiltro">
+                    <option value="0">Todas</option>
+                    @foreach (var l in Lineas())
+                    {
+                        <option value="@l.Id">@l.Nombre</option>
+                    }
+                </select>
+            </div>
+        </div>
+    </div>
+
+    @if (mensaje != null)
+    {
+        <div class="alert alert-success alert-dismissible">
+            @mensaje
+            <button type="button" class="btn-close" @onclick="() => mensaje = null"></button>
+        </div>
+    }
+
+    @if (cargando)
+    {
+        <div class="text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Cargando...</span></div></div>
+    }
+    else if (errorCarga != null)
+    {
+        <div class="alert alert-warning">@errorCarga</div>
+    }
+    else if (dia == null || dia.Filas.Count == 0)
+    {
+        <div class="alert alert-info">No hay líneas o turnos activos para mostrar.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Línea</th>
+                        <th>Turno</th>
+                        <th>Estado</th>
+                        <th>Operador</th>
+                        <th>Producto</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var f in dia.Filas.Where(f => lineaFiltro == 0 || f.LineaId == lineaFiltro))
+                    {
+                        var t = f.Turno;
+                        <tr class="@(f.EnCurso ? "table-primary" : "")">
+                            <td>@f.LineaNombre</td>
+                            <td>
+                                @f.TurnoNombre
+                                <div class="small text-muted">
+                                    @f.InicioProgramado.ToString("dd/MM HH:mm") a @f.FinProgramado.ToString("dd/MM HH:mm")
+                                    · @(f.MinutosProgramados > 0 ? $"{f.MinutosProgramados} min programados" : "no programado")
+                                    @(f.EnCurso ? " · en curso" : "")
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge @ColorEstado(t?.Estado)">@TextoEstado(t?.Estado)</span>
+                                @if (t != null)
+                                {
+                                    <div class="small text-muted">
+                                        @(t.InicioReal is { } ini ? $"desde {ini:HH:mm}" : "")
+                                        @(t.FinReal is { } fin ? $" hasta {fin:HH:mm}" : "")
+                                        @(t.OrigenApertura == "SISTEMA" && t.Estado != "SIN_APERTURA" ? " · abierto por el sistema" : "")
+                                    </div>
+                                }
+                            </td>
+                            <td>
+                                @if (t?.OperadorActual != null)
+                                {
+                                    <strong>@t.OperadorActual.OperadorNombre</strong>
+                                }
+                                else if (t != null && t.Operadores.Any(o => !o.Anulado))
+                                {
+                                    <span>@string.Join(", ", t.Operadores.Where(o => !o.Anulado).Select(o => o.OperadorNombre).Distinct())</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">Sin operador</span>
+                                }
+                            </td>
+                            <td>
+                                @if (t?.ProductoActual != null)
+                                {
+                                    <span>@t.ProductoActual.ProductoNombre</span>
+                                    <div class="small text-muted">@ObjetivoTexto(t.ProductoActual)</div>
+                                }
+                                else if (t != null && t.ACompletar)
+                                {
+                                    <span class="badge text-bg-warning">A completar</span>
+                                }
+                                else if (t != null)
+                                {
+                                    <span>@string.Join(", ", t.Productos.Where(p => !p.Anulado).Select(p => p.ProductoNombre).Distinct())</span>
+                                }
+                            </td>
+                            <td class="text-end text-nowrap">
+                                @if (t != null)
+                                {
+                                    <button class="btn btn-sm btn-link" @onclick="() => Alternar(t.TurnoProduccionId)">
+                                        @(abiertas.Contains(t.TurnoProduccionId) ? "Ocultar" : "Tramos")
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => AbrirProducto(f)">
+                                        <i class="bi bi-box-seam me-1"></i>@(t.Estado == "ABIERTO" ? "Cambiar producto" : "Corregir producto")
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => AbrirOperador(f)">
+                                        <i class="bi bi-person me-1"></i>Corregir operador
+                                    </button>
+                                    @if (t.Estado == "ABIERTO")
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => AbrirCierre(f)">
+                                            <i class="bi bi-stop-circle me-1"></i>Cerrar
+                                        </button>
+                                    }
+                                }
+                            </td>
+                        </tr>
+                        @if (t != null && abiertas.Contains(t.TurnoProduccionId))
+                        {
+                            <tr>
+                                <td colspan="6" class="small bg-body-tertiary">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <strong>Operadores</strong>
+                                            <ul class="mb-1">
+                                                @foreach (var o in t.Operadores)
+                                                {
+                                                    <li class="@(o.Anulado ? "text-decoration-line-through text-muted" : "")">
+                                                        @o.Desde.ToString("HH:mm")–@(o.Hasta?.ToString("HH:mm") ?? "…") · <strong>@o.OperadorNombre</strong>
+                                                        · @(o.Origen == "LOGIN" ? "lo tomó al entrar" : $"cargado por {o.RegistradoPorNombre ?? o.RegistradoPorUsuarioId}")
+                                                        @if (!string.IsNullOrEmpty(o.Motivo)) { <span class="text-muted"> · @o.Motivo</span> }
+                                                    </li>
+                                                }
+                                                @if (t.Operadores.Count == 0) { <li class="text-muted">Sin operador</li> }
+                                            </ul>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <strong>Productos</strong>
+                                            <ul class="mb-1">
+                                                @foreach (var p in t.Productos)
+                                                {
+                                                    <li class="@(p.Anulado ? "text-decoration-line-through text-muted" : "")">
+                                                        @p.Desde.ToString("HH:mm")–@(p.Hasta?.ToString("HH:mm") ?? "…") · <strong>@p.ProductoNombre</strong>
+                                                        · @ObjetivoTexto(p) · @TextoOrigenProducto(p.Origen)
+                                                        @if (!string.IsNullOrEmpty(p.Motivo)) { <span class="text-muted"> · @p.Motivo</span> }
+                                                    </li>
+                                                }
+                                                @if (t.Productos.Count == 0) { <li class="text-muted">A completar</li> }
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    @if (!string.IsNullOrEmpty(t.ObservacionCierre))
+                                    {
+                                        <div class="text-muted">Cierre: @t.ObservacionCierre @(t.CerradoPorNombre != null ? $"({t.CerradoPorNombre})" : "")</div>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@if (dialogo != Dialogo.Ninguno && filaDialogo?.Turno is { } td)
+{
+    <div class="modal d-block" tabindex="-1" style="background: rgba(0,0,0,.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@TituloDialogo() · @filaDialogo.LineaNombre, @filaDialogo.TurnoNombre</h5>
+                    <button type="button" class="btn-close" @onclick="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    @if (dialogo == Dialogo.Producto)
+                    {
+                        <label class="form-label small mb-1">Producto</label>
+                        <select class="form-select mb-2" @bind="productoId">
+                            <option value="0">(elegir)</option>
+                            @foreach (var p in filaDialogo.ProductosHabilitados)
+                            {
+                                <option value="@p.ProductoMaestroId">@p.Nombre · @ObjetivoTexto(p.MangasObjetivoTurno, p.BolsonesObjetivoTurno)</option>
+                            }
+                        </select>
+                    }
+                    @if (dialogo == Dialogo.Operador)
+                    {
+                        <label class="form-label small mb-1">Operador</label>
+                        <select class="form-select mb-2" @bind="operadorId">
+                            <option value="">(elegir)</option>
+                            @foreach (var o in filaDialogo.OperadoresHabilitados)
+                            {
+                                <option value="@o.UsuarioId">@(o.Nombre ?? o.UsuarioId)</option>
+                            }
+                        </select>
+                    }
+                    @if (dialogo is Dialogo.Producto or Dialogo.Operador)
+                    {
+                        var esCambio = dialogo == Dialogo.Producto && td.Estado == "ABIERTO";
+                        <div class="row g-2 mb-2">
+                            <div class="col">
+                                <label class="form-label small mb-1">@(esCambio ? "Hora del cambio" : "Desde")</label>
+                                <input type="time" class="form-control" @bind="desde" />
+                            </div>
+                            @if (!esCambio)
+                            {
+                                <div class="col">
+                                    <label class="form-label small mb-1">Hasta @(td.Estado == "ABIERTO" ? "(vacío = sigue)" : "")</label>
+                                    <input type="time" class="form-control" @bind="hasta" />
+                                </div>
+                            }
+                        </div>
+                        @if (!esCambio)
+                        {
+                            var tramos = dialogo == Dialogo.Operador
+                                ? td.Operadores.Where(o => !o.Anulado).Select(o => (o.TurnoProduccionOperadorId, $"{o.Desde:HH:mm}–{o.Hasta?.ToString("HH:mm") ?? "…"} {o.OperadorNombre}"))
+                                : td.Productos.Where(p => !p.Anulado).Select(p => (p.TurnoProduccionProductoId, $"{p.Desde:HH:mm}–{p.Hasta?.ToString("HH:mm") ?? "…"} {p.ProductoNombre}"));
+                            <label class="form-label small mb-1">Reemplaza a</label>
+                            <select class="form-select mb-2" @bind="anulaTramoId">
+                                <option value="0">(ninguno: agrega un tramo)</option>
+                                @foreach (var (id, texto) in tramos)
+                                {
+                                    <option value="@id">@texto</option>
+                                }
+                            </select>
+                            <label class="form-label small mb-1">Motivo</label>
+                            <textarea class="form-control" rows="2" maxlength="500" @bind="motivo"></textarea>
+                        }
+                    }
+                    @if (dialogo == Dialogo.Cierre)
+                    {
+                        <p>¿Cerrar el turno ahora? Los tramos abiertos se cierran a esta hora.</p>
+                        <label class="form-label small mb-1">Observación (opcional)</label>
+                        <textarea class="form-control" rows="2" maxlength="500" @bind="motivo"></textarea>
+                    }
+                    @if (errorDialogo != null)
+                    {
+                        <div class="alert alert-danger mt-2 mb-0">@errorDialogo</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="Cerrar">Cancelar</button>
+                    <button class="btn btn-primary" disabled="@enviando" @onclick="@(async () => await Confirmar())">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private enum Dialogo { Ninguno, Producto, Operador, Cierre }
+
+    private DateTime fecha = DateTime.Today;
+    private int lineaFiltro;
+    private TurnosProduccionDiaDto? dia;
+    private bool cargando = true;
+    private string? errorCarga;
+    private string? mensaje;
+    private readonly HashSet<long> abiertas = [];
+
+    private Dialogo dialogo;
+    private FilaTurnoProduccionDto? filaDialogo;
+    private int productoId;
+    private string operadorId = string.Empty;
+    private TimeOnly? desde;
+    private TimeOnly? hasta;
+    private long anulaTramoId;
+    private string? motivo;
+    private string? errorDialogo;
+    private bool enviando;
+
+    protected override async Task OnInitializedAsync() => await Cargar();
+
+    private async Task Cargar()
+    {
+        cargando = true;
+        errorCarga = null;
+        try
+        {
+            dia = await TurnosProduccionService.GetDiaAsync(DateOnly.FromDateTime(fecha));
+        }
+        catch (HttpRequestException ex)
+        {
+            errorCarga = ex.Message;
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private IEnumerable<(int Id, string Nombre)> Lineas() =>
+        dia?.Filas.Select(f => (f.LineaId, f.LineaNombre)).Distinct() ?? [];
+
+    private void Alternar(long id)
+    {
+        if (!abiertas.Remove(id))
+            abiertas.Add(id);
+    }
+
+    private void AbrirProducto(FilaTurnoProduccionDto f) => Abrir(f, Dialogo.Producto);
+    private void AbrirOperador(FilaTurnoProduccionDto f) => Abrir(f, Dialogo.Operador);
+    private void AbrirCierre(FilaTurnoProduccionDto f) => Abrir(f, Dialogo.Cierre);
+
+    private void Abrir(FilaTurnoProduccionDto f, Dialogo d)
+    {
+        filaDialogo = f;
+        dialogo = d;
+        productoId = 0;
+        operadorId = string.Empty;
+        anulaTramoId = 0;
+        motivo = null;
+        errorDialogo = null;
+        var t = f.Turno!;
+        desde = d == Dialogo.Producto && t.Estado == "ABIERTO" ? TimeOnly.FromDateTime(DateTime.Now) : TimeOnly.FromDateTime((t.InicioReal ?? t.InicioProgramado).DateTime);
+        hasta = t.Estado == "ABIERTO" ? null : TimeOnly.FromDateTime((t.FinReal ?? t.FinProgramado).DateTime);
+    }
+
+    private void Cerrar()
+    {
+        dialogo = Dialogo.Ninguno;
+        filaDialogo = null;
+    }
+
+    private string TituloDialogo() => dialogo switch
+    {
+        Dialogo.Producto => filaDialogo?.Turno?.Estado == "ABIERTO" ? "Cambiar producto" : "Corregir producto",
+        Dialogo.Operador => "Corregir operador",
+        Dialogo.Cierre => "Cerrar turno",
+        _ => string.Empty
+    };
+
+    /// <summary>Hora del día dentro del turno: si es anterior a la hora de inicio, es del día siguiente (T3 después de medianoche).</summary>
+    private static DateTimeOffset EnTurno(TurnoProduccionDto t, TimeOnly hora)
+    {
+        var inicio = t.InicioProgramado;
+        var dia = inicio.Date;
+        if (hora < TimeOnly.FromDateTime(inicio.DateTime))
+            dia = dia.AddDays(1);
+        return new DateTimeOffset(dia.Add(hora.ToTimeSpan()), inicio.Offset);
+    }
+
+    private async Task Confirmar()
+    {
+        var t = filaDialogo!.Turno!;
+        errorDialogo = null;
+        if (dialogo is Dialogo.Producto or Dialogo.Operador && desde == null)
+        {
+            errorDialogo = "Indicá la hora.";
+            return;
+        }
+        enviando = true;
+        try
+        {
+            (TurnoProduccionDto? Resultado, string? Error) r = dialogo switch
+            {
+                Dialogo.Producto when t.Estado == "ABIERTO" => await TurnosProduccionService.CambiarProductoAsync(t.TurnoProduccionId,
+                    new CambiarProductoTurnoRequest { ProductoMaestroId = productoId, Desde = EnTurno(t, desde!.Value) }),
+                Dialogo.Producto => await TurnosProduccionService.CorregirProductoAsync(t.TurnoProduccionId, new CorregirProductoTurnoRequest
+                {
+                    ProductoMaestroId = productoId, Desde = EnTurno(t, desde!.Value), Hasta = hasta is { } h ? EnTurno(t, h) : null,
+                    Motivo = motivo, AnulaTramoId = anulaTramoId == 0 ? null : anulaTramoId
+                }),
+                Dialogo.Operador => await TurnosProduccionService.CorregirOperadorAsync(t.TurnoProduccionId, new CorregirOperadorTurnoRequest
+                {
+                    OperadorUsuarioId = operadorId, Desde = EnTurno(t, desde!.Value), Hasta = hasta is { } h2 ? EnTurno(t, h2) : null,
+                    Motivo = motivo, AnulaTramoId = anulaTramoId == 0 ? null : anulaTramoId
+                }),
+                _ => await TurnosProduccionService.CerrarAsync(t.TurnoProduccionId, new CerrarTurnoProduccionRequest { Observacion = motivo })
+            };
+            if (r.Resultado == null)
+            {
+                errorDialogo = r.Error;
+                return;
+            }
+            mensaje = $"{TituloDialogo()}: listo ({filaDialogo.LineaNombre}, {filaDialogo.TurnoNombre}).";
+            Cerrar();
+            await Cargar();
+        }
+        catch (Exception)
+        {
+            errorDialogo = ApiErrores.SinConexion;
+        }
+        finally
+        {
+            enviando = false;
+        }
+    }
+
+    private static string ColorEstado(string? estado) => estado switch
+    {
+        "ABIERTO" => "text-bg-success",
+        "CERRADO" => "text-bg-secondary",
+        "CERRADO_AUTOMATICO" => "text-bg-secondary",
+        "SIN_APERTURA" => "text-bg-danger",
+        _ => "text-bg-light"
+    };
+
+    private static string TextoEstado(string? estado) => estado switch
+    {
+        "ABIERTO" => "Abierto",
+        "CERRADO" => "Cerrado",
+        "CERRADO_AUTOMATICO" => "Cerrado (automático)",
+        "SIN_APERTURA" => "Sin apertura",
+        _ => "Sin registro"
+    };
+
+    private static string TextoOrigenProducto(string origen) => origen switch
+    {
+        "LOGIN" => "elegido al entrar",
+        "CAMBIO" => "cambio",
+        _ => "corrección del supervisor"
+    };
+
+    private static string ObjetivoTexto(TramoProductoDto p) => ObjetivoTexto(p.MangasObjetivoTurno, p.BolsonesObjetivoTurno);
+
+    private static string ObjetivoTexto(int? mangas, int? bolsones) =>
+        mangas == null && bolsones == null
+            ? "sin objetivo"
+            : "objetivo " + string.Join(" / ", new[]
+            {
+                mangas is { } m ? $"{m:N0} mangas" : null,
+                bolsones is { } b ? $"{b:N0} bolsones" : null
+            }.Where(x => x != null));
+}

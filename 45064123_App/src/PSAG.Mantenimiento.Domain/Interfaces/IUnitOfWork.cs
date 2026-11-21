@@ -18,6 +18,9 @@ public interface IUnitOfWork : IDisposable
     ITiempoProgramadoDiaRepository TiemposProgramadosDia { get; }
     ICalendarioLineaRepository CalendariosLinea { get; }
 
+    // Producción: turno de producción (T-798 etapa 2)
+    ITurnoProduccionRepository TurnosProduccion { get; }
+
     // Eje 2: Variables de proceso
     IProductoMaestroRepository ProductosMaestro { get; }
     IGrupoParametroRepository GruposParametro { get; }

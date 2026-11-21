@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using PSAG.Mantenimiento.Api.Configuration;
+using PSAG.Mantenimiento.Api.Jobs;
 using PSAG.Mantenimiento.Api.Middleware;
+using PSAG.Mantenimiento.Application.DTOs.Produccion;
 using PSAG.Mantenimiento.Application;
 using PSAG.Mantenimiento.Infrastructure;
 using PSAG.Mantenimiento.Infrastructure.Data;
@@ -35,6 +37,10 @@ builder.Services.AddAlmacenAdjuntos(configuration, builder.Environment.ContentRo
 builder.Services.AddAlmacenImagenesCalidad(configuration, builder.Environment.ContentRootPath);
 var zonaPlanta = ZonaHorariaPlanta.Resolver(configuration);
 builder.Services.AddSingleton(zonaPlanta);
+
+// Turnos de producción (T-798 etapa 2): tolerancias y job de cierre automático / SIN_APERTURA.
+builder.Services.AddSingleton(configuration.GetSection(TurnosProduccionOpciones.Seccion).Get<TurnosProduccionOpciones>() ?? new TurnosProduccionOpciones());
+builder.Services.AddHostedService<TurnosProduccionJob>();
 
 // Configurar Identity
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>

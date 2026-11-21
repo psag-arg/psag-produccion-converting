@@ -1,0 +1,191 @@
+@page "/produccion/inicio-turno"
+@using Microsoft.AspNetCore.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize]
+@inject ITurnosProduccionService TurnosProduccionService
+@inject NavigationManager Navigation
+
+<PageTitle>Inicio de turno - PSAG Produccion</PageTitle>
+
+@* T-798 etapa 2 (rehace ConfirmarMaquinista de T-783): después del login, el operario toma el turno en curso de
+   cada línea en la que está habilitado y elige el producto (con su objetivo vigente). Si hay otro operador, se le
+   avisa y tiene que confirmar el relevo. Si no hay nada que preguntar, o la API falla, sigue de largo. *@
+
+<div class="container" style="max-width: 680px;">
+    @if (cargando)
+    {
+        <div class="text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Cargando...</span></div></div>
+    }
+    else if (propuesta != null)
+    {
+        <h3 class="mt-3 mb-1"><i class="bi bi-play-circle me-2"></i>Inicio de turno</h3>
+        @if (propuesta.TurnoNombre != null)
+        {
+            <div class="text-muted mb-3">@propuesta.TurnoNombre · @propuesta.FechaProduccion?.ToString("dd/MM/yyyy")</div>
+        }
+
+        @if (!string.IsNullOrEmpty(propuesta.Aviso))
+        {
+            <div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-2"></i>@propuesta.Aviso</div>
+        }
+
+        @foreach (var o in propuesta.Lineas)
+        {
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title mb-2">@o.LineaNombre</h5>
+                    @if (tomadas.TryGetValue(o.LineaId, out var t))
+                    {
+                        <div class="text-success"><i class="bi bi-check-circle me-1"></i>Tomaste el @propuesta.TurnoNombre de @o.LineaNombre.</div>
+                        @if (t.Turno?.ProductoActual != null)
+                        {
+                            <div class="small text-muted">Producto: @t.Turno.ProductoActual.ProductoNombre@Objetivo(t.Turno.ProductoActual.MangasObjetivoTurno, t.Turno.ProductoActual.BolsonesObjetivoTurno)</div>
+                        }
+                        @if (t.ReemplazadoNombre != null || t.ReemplazadoUsuarioId != null)
+                        {
+                            <div class="small text-muted">Relevaste a @(t.ReemplazadoNombre ?? "otro operador").</div>
+                        }
+                    }
+                    else if (!o.PuedeTomar)
+                    {
+                        <div class="text-muted">El turno ya está cerrado. Si hay que corregirlo, avisale a tu supervisor.</div>
+                    }
+                    else if (o.SoyOperadorActual && o.ProductoActualId != null)
+                    {
+                        <div class="text-success"><i class="bi bi-check-circle me-1"></i>Ya sos el operador de este turno (@o.ProductoActualNombre).</div>
+                    }
+                    else
+                    {
+                        <p class="mb-2">
+                            @if (o.SoyOperadorActual)
+                            {
+                                <span>Ya sos el operador del <strong>@propuesta.TurnoNombre</strong>. Falta elegir el producto.</span>
+                            }
+                            else
+                            {
+                                <span><strong>@propuesta.TurnoNombre</strong> de <strong>@o.LineaNombre</strong>: ¿lo tomás?</span>
+                            }
+                        </p>
+                        @if (!o.SoyOperadorActual && o.OperadorActualUsuarioId != null)
+                        {
+                            <div class="alert alert-info py-2 small">
+                                Está <strong>@(o.OperadorActualNombre ?? "otro operador")</strong> desde las @o.OperadorActualDesde?.ToString("HH:mm").
+                                Si lo tomás, lo relevás y el cambio queda registrado.
+                            </div>
+                        }
+                        @if (o.Productos.Count > 0)
+                        {
+                            <label class="form-label small mb-1">Producto</label>
+                            <select class="form-select mb-2" value="@ProductoElegido(o)" @onchange="@(e => productos[o.LineaId] = int.TryParse(e.Value?.ToString(), out var id) ? id : null)">
+                                <option value="">(elegir después)</option>
+                                @foreach (var p in o.Productos)
+                                {
+                                    <option value="@p.ProductoMaestroId">@p.Nombre@Objetivo(p.MangasObjetivoTurno, p.BolsonesObjetivoTurno)</option>
+                                }
+                            </select>
+                        }
+                        else
+                        {
+                            <div class="small text-muted mb-2">La línea no tiene productos habilitados: el turno queda "a completar".</div>
+                        }
+                        <button class="btn btn-primary" disabled="@enviando" @onclick="@(async () => await Tomar(o))">
+                            <i class="bi bi-check-lg me-1"></i>@(o.SoyOperadorActual ? "Guardar producto" : o.OperadorActualUsuarioId != null ? "Sí, lo relevo" : "Sí, lo tomo")
+                        </button>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (error != null)
+        {
+            <div class="alert alert-danger">@error</div>
+        }
+
+        <div class="d-flex justify-content-end mt-2 mb-4">
+            <button class="btn btn-outline-secondary" @onclick="Seguir">
+                @(tomadas.Count > 0 || propuesta.Lineas.Count == 0 ? "Continuar" : "No, seguir sin tomar")
+                <i class="bi bi-arrow-right ms-1"></i>
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "volver")]
+    public string? Volver { get; set; }
+
+    private PropuestaTurnoProduccionDto? propuesta;
+    private readonly Dictionary<int, AperturaTurnoProduccionDto> tomadas = [];
+    private readonly Dictionary<int, int?> productos = [];
+    private bool cargando = true;
+    private bool enviando;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        propuesta = await TurnosProduccionService.GetPropuestaAsync();
+        if (propuesta is not { Preguntar: true })
+        {
+            Seguir();
+            return;
+        }
+        foreach (var o in propuesta.Lineas)
+            productos[o.LineaId] = o.ProductoActualId ?? (o.Productos.Count == 1 ? o.Productos[0].ProductoMaestroId : null);
+        cargando = false;
+    }
+
+    private string ProductoElegido(OpcionTurnoProduccionDto o) =>
+        productos.TryGetValue(o.LineaId, out var id) && id != null ? id.Value.ToString() : string.Empty;
+
+    private static string Objetivo(int? mangas, int? bolsones) =>
+        mangas == null && bolsones == null
+            ? " · sin objetivo"
+            : " · objetivo " + string.Join(" / ", new[]
+            {
+                mangas is { } m ? $"{m:N0} mangas" : null,
+                bolsones is { } b ? $"{b:N0} bolsones" : null
+            }.Where(x => x != null));
+
+    private async Task Tomar(OpcionTurnoProduccionDto opcion)
+    {
+        enviando = true;
+        error = null;
+        try
+        {
+            var request = new AbrirTurnoProduccionRequest
+            {
+                LineaId = opcion.LineaId,
+                ProductoMaestroId = productos.GetValueOrDefault(opcion.LineaId),
+                // El aviso del relevo ya se mostró en la tarjeta: tocar el botón es la confirmación.
+                Relevar = opcion.OperadorActualUsuarioId != null && !opcion.SoyOperadorActual
+            };
+            var (resultado, mensaje) = await TurnosProduccionService.AbrirAsync(request);
+            if (resultado == null)
+            {
+                error = mensaje;
+                return;
+            }
+            if (resultado.RequiereConfirmarRelevo)
+            {
+                // Entró otro operador mientras tanto: se recarga para mostrar el aviso de relevo.
+                error = "Mientras tanto tomó el turno otro operador. Revisá el aviso y confirmá el relevo.";
+                propuesta = await TurnosProduccionService.GetPropuestaAsync() ?? propuesta;
+                return;
+            }
+            tomadas[opcion.LineaId] = resultado;
+            if (propuesta!.Lineas.Count == 1 && resultado.ReemplazadoUsuarioId == null)
+                Seguir();
+        }
+        catch (Exception)
+        {
+            error = ApiErrores.SinConexion;
+        }
+        finally
+        {
+            enviando = false;
+        }
+    }
+
+    private void Seguir() => Navigation.NavigateTo(RutasLogin.DestinoSeguro(Volver));
+}

@@ -28,6 +28,15 @@ public class ProductoMaestroRepository : RepositoryBase<ProductoMaestro>, IProdu
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<ParametroLineaProducto>> GetParametrosLineaAsync(int lineaId, CancellationToken cancellationToken = default)
+    {
+        return await _context.ParametrosLineaProducto
+            .AsNoTracking()
+            .Include(p => p.ProductoMaestro)
+            .Where(p => p.LineaId == lineaId)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IEnumerable<ProductoMaestro>> GetActivosAsync(CancellationToken cancellationToken = default)
     {
         return await _context.ProductosMaestro

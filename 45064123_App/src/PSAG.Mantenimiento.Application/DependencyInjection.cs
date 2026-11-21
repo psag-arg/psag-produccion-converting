@@ -35,6 +35,9 @@ public static class DependencyInjection
         services.AddScoped<IConteoCamaraService, ConteoCamaraService>();
         services.AddScoped<IDeclaracionDetencionService, DeclaracionDetencionService>();
 
+        // Turno de producción (T-798 etapa 2). TurnosProduccionOpciones la registra la API desde appsettings.
+        services.AddScoped<ITurnoProduccionService, TurnoProduccionService>();
+
         // Dashboard consolidado
         services.AddScoped<IDashboardService, DashboardService>();
 

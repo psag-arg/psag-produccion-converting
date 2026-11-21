@@ -114,7 +114,12 @@
 
             if (result.Success)
             {
-                Navigation.NavigateTo(RutasLogin.DestinoSeguro(Volver));
+                // T-798 etapa 2: el operario pasa por "Inicio de turno" (toma el turno de sus líneas y elige el producto).
+                // Si no hay nada que preguntar o la API falla, esa pantalla sigue de largo al destino.
+                var destino = RutasLogin.DestinoSeguro(Volver);
+                Navigation.NavigateTo(result.Roles?.Contains("OPERARIO") == true
+                    ? $"/produccion/inicio-turno?volver={Uri.EscapeDataString(destino)}"
+                    : destino);
             }
             else
             {

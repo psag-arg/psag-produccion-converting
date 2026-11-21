@@ -21,6 +21,7 @@ public class UnitOfWork : IUnitOfWork
     private IReglaAnalisisRepository? _reglasAnalisis;
     private ITiempoProgramadoDiaRepository? _tiemposProgramadosDia;
     private ICalendarioLineaRepository? _calendariosLinea;
+    private ITurnoProduccionRepository? _turnosProduccion;
 
     // Eje 2: Variables de proceso
     private IProductoMaestroRepository? _productosMaestro;
@@ -64,6 +65,7 @@ public class UnitOfWork : IUnitOfWork
     public IReglaAnalisisRepository ReglasAnalisis => _reglasAnalisis ??= new ReglaAnalisisRepository(_context);
     public ITiempoProgramadoDiaRepository TiemposProgramadosDia => _tiemposProgramadosDia ??= new TiempoProgramadoDiaRepository(_context);
     public ICalendarioLineaRepository CalendariosLinea => _calendariosLinea ??= new CalendarioLineaRepository(_context);
+    public ITurnoProduccionRepository TurnosProduccion => _turnosProduccion ??= new TurnoProduccionRepository(_context);
 
     // Eje 2: Variables de proceso
     public IProductoMaestroRepository ProductosMaestro => _productosMaestro ??= new ProductoMaestroRepository(_context);

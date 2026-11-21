@@ -29,6 +29,12 @@ public class MantenimientoDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ReglaAnalisis> ReglasAnalisis => Set<ReglaAnalisis>();
     public DbSet<TiempoProgramadoDia> TiemposProgramadosDia => Set<TiempoProgramadoDia>();
 
+    // Producción: turno de producción (T-798 etapa 2)
+    public DbSet<TurnoProduccion> TurnosProduccion => Set<TurnoProduccion>();
+    public DbSet<TurnoProduccionOperador> TurnosProduccionOperadores => Set<TurnoProduccionOperador>();
+    public DbSet<TurnoProduccionProducto> TurnosProduccionProductos => Set<TurnoProduccionProducto>();
+    public DbSet<ProduccionTurno> ProduccionesTurno => Set<ProduccionTurno>();
+
     // Eje 2: Variables de proceso
     public DbSet<ProductoMaestro> ProductosMaestro => Set<ProductoMaestro>();
     public DbSet<ProductoSku> ProductosSku => Set<ProductoSku>();
