@@ -8,7 +8,7 @@ public class GrupoParametroConfiguration : IEntityTypeConfiguration<GrupoParamet
 {
     public void Configure(EntityTypeBuilder<GrupoParametro> builder)
     {
-        builder.ToTable("GruposParametro", "mnt");
+        builder.ToTable("CPR_GruposParametro", "mnt");
 
         builder.HasKey(x => x.GrupoParametroId);
 

@@ -9,7 +9,7 @@ public class DetencionEstadoHistorialConfiguration : IEntityTypeConfiguration<De
 {
     public void Configure(EntityTypeBuilder<DetencionEstadoHistorial> builder)
     {
-        builder.ToTable("DetencionesEstadoHistorial", "mnt");
+        builder.ToTable("DET_HistorialEstados", "mnt");
 
         builder.HasKey(x => x.DetencionEstadoHistorialId);
 

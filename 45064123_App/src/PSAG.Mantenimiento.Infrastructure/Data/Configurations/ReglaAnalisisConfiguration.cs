@@ -8,7 +8,7 @@ public class ReglaAnalisisConfiguration : IEntityTypeConfiguration<ReglaAnalisis
 {
     public void Configure(EntityTypeBuilder<ReglaAnalisis> builder)
     {
-        builder.ToTable("ReglasAnalisis", "mnt", t =>
+        builder.ToTable("DET_ReglasAnalisis", "mnt", t =>
         {
             t.HasCheckConstraint("CK_ReglasAnalisis_MinutosMinimos",
                 "[MinutosMinimos] >= 0");

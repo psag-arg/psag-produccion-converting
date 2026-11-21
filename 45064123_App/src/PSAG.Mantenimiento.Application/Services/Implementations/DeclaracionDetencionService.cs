@@ -48,7 +48,7 @@ public class DeclaracionDetencionService : IDeclaracionDetencionService
             ? await _unitOfWork.PuntosControlCalidad.GetByIdAsync(pid, cancellationToken)
             : null;
         Equipo? cuerpo = punto?.EquipoId is { } eid ? await _unitOfWork.Equipos.GetByIdAsync(eid, cancellationToken) : null;
-        UsuarioLinea? maquinista = d.UsuarioLineaId is { } ulid ? await _unitOfWork.UsuariosLineas.GetByIdAsync(ulid, cancellationToken) : null;
+        OperadorLinea? maquinista = d.UsuarioLineaId is { } ulid ? await _unitOfWork.OperadoresLinea.GetByIdAsync(ulid, cancellationToken) : null;
 
         return Result<DeclaracionDetencionDto>.Success(new DeclaracionDetencionDto
         {
@@ -74,7 +74,7 @@ public class DeclaracionDetencionService : IDeclaracionDetencionService
     }
 
     public async Task<Result<DeclararDetencionResponse>> DeclararAsync(
-        long detencionId, DeclararDetencionRequest request, string usuarioId, UsuarioLinea? asignacionPropia,
+        long detencionId, DeclararDetencionRequest request, string usuarioId, OperadorLinea? asignacionPropia,
         CancellationToken cancellationToken = default)
     {
         var detencion = await _unitOfWork.Detenciones.GetByIdAsync(detencionId, cancellationToken);

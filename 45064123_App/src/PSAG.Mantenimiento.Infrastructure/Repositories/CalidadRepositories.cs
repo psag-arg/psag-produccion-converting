@@ -130,6 +130,6 @@ public class RegistroCalidadRepository : RepositoryBase<RegistroCalidad>, IRegis
             .Include(r => r.PuntoControl)
             .Include(r => r.Turno)
             .Include(r => r.TipoDefecto)
-            .Include(r => r.Producto)
+            .Include(r => r.ProductoMaestro)
             .Include(r => r.Detencion);
 }

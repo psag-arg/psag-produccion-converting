@@ -1135,7 +1135,7 @@ public class CatalogosController : ApiControllerBase
             });
 
         // El supervisor carga las excepciones de sus líneas; el administrador, de todas.
-        if (!await PuedeEditarCalendarioAsync(_unitOfWork.UsuariosLineas, request.LineaId))
+        if (!await PuedeEditarCalendarioAsync(_unitOfWork.OperadoresLinea, request.LineaId))
             return Forbid();
 
         var fila = (await _unitOfWork.TiemposProgramadosDia.FindAsync(
@@ -1209,7 +1209,7 @@ public class CatalogosController : ApiControllerBase
         if (fila == null)
             return NotFound();
 
-        if (!await PuedeEditarCalendarioAsync(_unitOfWork.UsuariosLineas, fila.LineaId))
+        if (!await PuedeEditarCalendarioAsync(_unitOfWork.OperadoresLinea, fila.LineaId))
             return Forbid();
 
         fila.Activo = false;
@@ -1229,15 +1229,15 @@ public class CatalogosController : ApiControllerBase
     [ProducesResponseType(typeof(IEnumerable<MaquinistaDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetMaquinistas([FromQuery] int? lineaId = null)
     {
-        IEnumerable<Domain.Entities.UsuarioLinea> maquinistas;
+        IEnumerable<Domain.Entities.OperadorLinea> maquinistas;
 
         if (lineaId.HasValue)
         {
-            maquinistas = await _unitOfWork.UsuariosLineas.GetByLineaIdAsync(lineaId.Value);
+            maquinistas = await _unitOfWork.OperadoresLinea.GetByLineaIdAsync(lineaId.Value);
         }
         else
         {
-            maquinistas = await _unitOfWork.UsuariosLineas.GetAllWithRelationsAsync();
+            maquinistas = await _unitOfWork.OperadoresLinea.GetAllWithRelationsAsync();
         }
 
         var items = new List<MaquinistaDto>();
@@ -1252,8 +1252,8 @@ public class CatalogosController : ApiControllerBase
                 EmailUsuario = user?.Email ?? string.Empty,
                 LineaId = m.LineaId,
                 LineaNombre = m.Linea?.Nombre ?? string.Empty,
-                TurnoId = m.TurnoId,
-                TurnoNombre = m.Turno?.Nombre,
+                TurnoId = m.TurnoHabitualId,
+                TurnoNombre = m.TurnoHabitual?.Nombre,
                 FechaAsignacion = m.FechaAsignacion
             });
         }
@@ -1266,7 +1266,7 @@ public class CatalogosController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetMaquinista(int id)
     {
-        var maquinista = await _unitOfWork.UsuariosLineas.GetByIdAsync(id);
+        var maquinista = await _unitOfWork.OperadoresLinea.GetByIdAsync(id);
         if (maquinista == null)
             return NotFound();
 
@@ -1280,8 +1280,8 @@ public class CatalogosController : ApiControllerBase
             EmailUsuario = user?.Email ?? string.Empty,
             LineaId = maquinista.LineaId,
             LineaNombre = maquinista.Linea?.Nombre ?? string.Empty,
-            TurnoId = maquinista.TurnoId,
-            TurnoNombre = maquinista.Turno?.Nombre,
+            TurnoId = maquinista.TurnoHabitualId,
+            TurnoNombre = maquinista.TurnoHabitual?.Nombre,
             FechaAsignacion = maquinista.FechaAsignacion
         });
     }
@@ -1291,7 +1291,7 @@ public class CatalogosController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetMaquinistaPorUsuario(string usuarioId)
     {
-        var maquinista = await _unitOfWork.UsuariosLineas.GetByUsuarioIdAsync(usuarioId);
+        var maquinista = await _unitOfWork.OperadoresLinea.GetByUsuarioIdAsync(usuarioId);
         if (maquinista == null)
             return NotFound();
 
@@ -1305,8 +1305,8 @@ public class CatalogosController : ApiControllerBase
             EmailUsuario = user?.Email ?? string.Empty,
             LineaId = maquinista.LineaId,
             LineaNombre = maquinista.Linea?.Nombre ?? string.Empty,
-            TurnoId = maquinista.TurnoId,
-            TurnoNombre = maquinista.Turno?.Nombre,
+            TurnoId = maquinista.TurnoHabitualId,
+            TurnoNombre = maquinista.TurnoHabitual?.Nombre,
             FechaAsignacion = maquinista.FechaAsignacion
         });
     }
@@ -1321,7 +1321,7 @@ public class CatalogosController : ApiControllerBase
         if (string.IsNullOrEmpty(CurrentUserId))
             return Unauthorized();
 
-        var asignaciones = await _unitOfWork.UsuariosLineas.GetAllWithRelationsAsync();
+        var asignaciones = await _unitOfWork.OperadoresLinea.GetAllWithRelationsAsync();
         var misAsignaciones = asignaciones.Where(a => a.UsuarioId == CurrentUserId);
 
         var user = await _userManager.FindByIdAsync(CurrentUserId);
@@ -1334,8 +1334,8 @@ public class CatalogosController : ApiControllerBase
             EmailUsuario = user?.Email ?? string.Empty,
             LineaId = m.LineaId,
             LineaNombre = m.Linea?.Nombre ?? string.Empty,
-            TurnoId = m.TurnoId,
-            TurnoNombre = m.Turno?.Nombre,
+            TurnoId = m.TurnoHabitualId,
+            TurnoNombre = m.TurnoHabitual?.Nombre,
             FechaAsignacion = m.FechaAsignacion
         }).OrderBy(m => m.LineaNombre).ToList();
 
@@ -1364,7 +1364,7 @@ public class CatalogosController : ApiControllerBase
         }
 
         // Validar que no exista ya una asignacion para ese usuario y linea
-        var existente = await _unitOfWork.UsuariosLineas.GetByUsuarioYLineaAsync(request.UsuarioId, request.LineaId);
+        var existente = await _unitOfWork.OperadoresLinea.GetByUsuarioYLineaAsync(request.UsuarioId, request.LineaId);
         if (existente != null)
         {
             return BadRequest(new ProblemDetails
@@ -1375,23 +1375,23 @@ public class CatalogosController : ApiControllerBase
             });
         }
 
-        var maquinista = new Domain.Entities.UsuarioLinea
+        var maquinista = new Domain.Entities.OperadorLinea
         {
             UsuarioId = request.UsuarioId,
             LineaId = request.LineaId,
-            TurnoId = request.TurnoId,
+            TurnoHabitualId = request.TurnoId,
             FechaAsignacion = DateTimeOffset.UtcNow,
             AsignadoPorUsuarioId = CurrentUserId
         };
 
-        await _unitOfWork.UsuariosLineas.AddAsync(maquinista);
+        await _unitOfWork.OperadoresLinea.AddAsync(maquinista);
         await _unitOfWork.SaveChangesAsync();
 
         _logger.LogInformation("Maquinista {UsuarioId} asignado a linea {LineaId} por usuario {UserId}",
             maquinista.UsuarioId, maquinista.LineaId, CurrentUserId);
 
         // Recargar con relaciones
-        var creado = await _unitOfWork.UsuariosLineas.GetByUsuarioYLineaAsync(maquinista.UsuarioId, maquinista.LineaId);
+        var creado = await _unitOfWork.OperadoresLinea.GetByUsuarioYLineaAsync(maquinista.UsuarioId, maquinista.LineaId);
 
         return CreatedAtAction(nameof(GetMaquinista), new { id = maquinista.UsuarioLineaId }, new MaquinistaDto
         {
@@ -1401,8 +1401,8 @@ public class CatalogosController : ApiControllerBase
             EmailUsuario = user.Email ?? string.Empty,
             LineaId = maquinista.LineaId,
             LineaNombre = creado?.Linea?.Nombre ?? string.Empty,
-            TurnoId = maquinista.TurnoId,
-            TurnoNombre = creado?.Turno?.Nombre,
+            TurnoId = maquinista.TurnoHabitualId,
+            TurnoNombre = creado?.TurnoHabitual?.Nombre,
             FechaAsignacion = maquinista.FechaAsignacion
         });
     }
@@ -1416,14 +1416,14 @@ public class CatalogosController : ApiControllerBase
         if (string.IsNullOrEmpty(CurrentUserId))
             return Unauthorized();
 
-        var maquinista = await _unitOfWork.UsuariosLineas.GetByIdAsync(id);
+        var maquinista = await _unitOfWork.OperadoresLinea.GetByIdAsync(id);
         if (maquinista == null)
             return NotFound();
 
         // Si cambia la linea, validar que no exista otra asignacion
         if (maquinista.LineaId != request.LineaId)
         {
-            var existente = await _unitOfWork.UsuariosLineas.GetByUsuarioYLineaAsync(maquinista.UsuarioId, request.LineaId);
+            var existente = await _unitOfWork.OperadoresLinea.GetByUsuarioYLineaAsync(maquinista.UsuarioId, request.LineaId);
             if (existente != null && existente.UsuarioLineaId != id)
             {
                 return BadRequest(new ProblemDetails
@@ -1436,15 +1436,15 @@ public class CatalogosController : ApiControllerBase
         }
 
         maquinista.LineaId = request.LineaId;
-        maquinista.TurnoId = request.TurnoId;
+        maquinista.TurnoHabitualId = request.TurnoId;
 
-        await _unitOfWork.UsuariosLineas.UpdateAsync(maquinista);
+        await _unitOfWork.OperadoresLinea.UpdateAsync(maquinista);
         await _unitOfWork.SaveChangesAsync();
 
         _logger.LogInformation("Maquinista {UsuarioLineaId} actualizado por usuario {UserId}", id, CurrentUserId);
 
         // Recargar con relaciones
-        var actualizado = await _unitOfWork.UsuariosLineas.GetByUsuarioYLineaAsync(maquinista.UsuarioId, maquinista.LineaId);
+        var actualizado = await _unitOfWork.OperadoresLinea.GetByUsuarioYLineaAsync(maquinista.UsuarioId, maquinista.LineaId);
         var user = await _userManager.FindByIdAsync(maquinista.UsuarioId);
 
         return Ok(new MaquinistaDto
@@ -1455,8 +1455,8 @@ public class CatalogosController : ApiControllerBase
             EmailUsuario = user?.Email ?? string.Empty,
             LineaId = maquinista.LineaId,
             LineaNombre = actualizado?.Linea?.Nombre ?? string.Empty,
-            TurnoId = maquinista.TurnoId,
-            TurnoNombre = actualizado?.Turno?.Nombre,
+            TurnoId = maquinista.TurnoHabitualId,
+            TurnoNombre = actualizado?.TurnoHabitual?.Nombre,
             FechaAsignacion = maquinista.FechaAsignacion
         });
     }
@@ -1471,7 +1471,7 @@ public class CatalogosController : ApiControllerBase
         if (string.IsNullOrEmpty(CurrentUserId))
             return Unauthorized();
 
-        var maquinista = await _unitOfWork.UsuariosLineas.GetByIdAsync(id);
+        var maquinista = await _unitOfWork.OperadoresLinea.GetByIdAsync(id);
         if (maquinista == null)
             return NotFound();
 
@@ -1487,9 +1487,9 @@ public class CatalogosController : ApiControllerBase
             });
         }
 
-        // Para UsuarioLinea usamos delete real ya que no tiene Activo
+        // Para OperadorLinea usamos delete real ya que no tiene Activo
         // Esto es una excepcion al patron de soft delete porque es una tabla de relacion
-        _unitOfWork.UsuariosLineas.DeleteAsync(maquinista);
+        _unitOfWork.OperadoresLinea.DeleteAsync(maquinista);
         await _unitOfWork.SaveChangesAsync();
 
         _logger.LogInformation("Maquinista {UsuarioLineaId} eliminado por usuario {UserId}", id, CurrentUserId);
@@ -1505,22 +1505,23 @@ public class CatalogosController : ApiControllerBase
     [ProducesResponseType(typeof(IEnumerable<Application.DTOs.Proceso.ProductoDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetProductos([FromQuery] int? lineaId = null, [FromQuery] bool? soloActivos = true)
     {
-        IEnumerable<Domain.Entities.Producto> productos;
+        IEnumerable<Domain.Entities.ProductoMaestro> productos;
 
         if (lineaId.HasValue)
         {
-            productos = await _unitOfWork.Productos.GetByLineaIdAsync(lineaId.Value);
+            // Control de Proceso: productos con el parámetro línea-producto vigente hoy (hora de planta) y habilitado.
+            productos = await _unitOfWork.ProductosMaestro.GetByLineaIdAsync(lineaId.Value, HoraPlanta.Hoy(_zonaPlanta));
         }
         else
         {
             productos = soloActivos == true
-                ? await _unitOfWork.Productos.GetActivosAsync()
-                : await _unitOfWork.Productos.GetAllAsync();
+                ? await _unitOfWork.ProductosMaestro.GetActivosAsync()
+                : await _unitOfWork.ProductosMaestro.GetAllAsync();
         }
 
         var items = productos.Select(p => new Application.DTOs.Proceso.ProductoDto
         {
-            ProductoId = p.ProductoId,
+            ProductoId = p.ProductoMaestroId,
             Codigo = p.Codigo,
             Nombre = p.Nombre,
             Descripcion = p.Descripcion,
@@ -1535,13 +1536,13 @@ public class CatalogosController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetProducto(int id)
     {
-        var producto = await _unitOfWork.Productos.GetByIdAsync(id);
+        var producto = await _unitOfWork.ProductosMaestro.GetByIdAsync(id);
         if (producto == null)
             return NotFound();
 
         return Ok(new Application.DTOs.Proceso.ProductoDto
         {
-            ProductoId = producto.ProductoId,
+            ProductoId = producto.ProductoMaestroId,
             Codigo = producto.Codigo,
             Nombre = producto.Nombre,
             Descripcion = producto.Descripcion,

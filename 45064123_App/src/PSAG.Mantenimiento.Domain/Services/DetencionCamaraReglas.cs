@@ -4,7 +4,7 @@ using PSAG.Mantenimiento.Domain.Enums;
 namespace PSAG.Mantenimiento.Domain.Services;
 
 /// <summary>Maquinista elegido para una detención automática y por qué (queda en el historial).</summary>
-public sealed record EleccionMaquinista(UsuarioLinea? Elegido, string Motivo);
+public sealed record EleccionMaquinista(OperadorLinea? Elegido, string Motivo);
 
 /// <summary>
 /// Reglas de la detención automática por cámara (T-610). Funciones puras: las usan la ingesta del servicio de
@@ -109,10 +109,10 @@ public static class DetencionCamaraReglas
     /// <item>Si no, queda sin maquinista; al declarar, se completa con el operador que declara si está asignado a la línea.</item>
     /// </list>
     /// </summary>
-    public static EleccionMaquinista ElegirMaquinista(IEnumerable<UsuarioLinea> asignacionesDeLaLinea, int? turnoId)
+    public static EleccionMaquinista ElegirMaquinista(IEnumerable<OperadorLinea> asignacionesDeLaLinea, int? turnoId)
     {
         var todas = asignacionesDeLaLinea.ToList();
-        var delTurno = turnoId == null ? [] : todas.Where(a => a.TurnoId == turnoId).ToList();
+        var delTurno = turnoId == null ? [] : todas.Where(a => a.TurnoHabitualId == turnoId).ToList();
 
         if (delTurno.Count == 1)
             return new(delTurno[0], "Maquinista asignado al turno.");
@@ -124,7 +124,7 @@ public static class DetencionCamaraReglas
             return new(ordenadas[0], $"Hay {delTurno.Count} maquinistas asignados al turno; se tomó el asignado más recientemente. Revisar la asignación (otros: {otros}).");
         }
 
-        var sinTurno = todas.Where(a => a.TurnoId == null).ToList();
+        var sinTurno = todas.Where(a => a.TurnoHabitualId == null).ToList();
         if (sinTurno.Count == 1)
             return new(sinTurno[0], "Sin maquinista para el turno; se tomó el único asignado a la línea sin turno fijo.");
 

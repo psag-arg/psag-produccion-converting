@@ -19,7 +19,7 @@ public class RegistroProceso : EntityBase
     /// <summary>
     /// Producto que corría. Null = control sin producto (solo plantilla de la línea).
     /// </summary>
-    public int? ProductoId { get; set; }
+    public int? ProductoMaestroId { get; set; }
     public int TurnoId { get; set; }
     public DateOnly Fecha { get; set; }
     public string UsuarioId { get; set; } = string.Empty;
@@ -36,7 +36,7 @@ public class RegistroProceso : EntityBase
 
     // Navegación
     public virtual Linea Linea { get; set; } = null!;
-    public virtual Producto? Producto { get; set; }
+    public virtual ProductoMaestro? ProductoMaestro { get; set; }
     public virtual Turno Turno { get; set; } = null!;
     public virtual ICollection<RegistroProcesoDetalle> Detalles { get; set; } = new List<RegistroProcesoDetalle>();
 

@@ -54,7 +54,7 @@ public class TareaMantenimientoService : ITareaMantenimientoService
             return Result<TareaMantenimientoDto>.Failure("VALIDATION", "La línea no existe o está inactiva.");
 
         // La restricción por línea asignada se valida acá, no sólo en la pantalla.
-        var asignada = await _unitOfWork.UsuariosLineas.GetByUsuarioYLineaAsync(usuarioId, request.LineaId, cancellationToken) != null;
+        var asignada = await _unitOfWork.OperadoresLinea.GetByUsuarioYLineaAsync(usuarioId, request.LineaId, cancellationToken) != null;
         if (!TareaMantenimientoReglas.PuedeCargarEnLinea(roles, asignada))
             return Result<TareaMantenimientoDto>.Failure("FORBIDDEN", DetencionCargaReglas.MensajeLineaNoAsignada);
 

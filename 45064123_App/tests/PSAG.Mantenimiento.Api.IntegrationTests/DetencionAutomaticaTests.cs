@@ -22,8 +22,8 @@ public class DetencionAutomaticaTests : CalidadTestBase
     private readonly DeclaracionDetencionService _declaracion;
     private readonly AnalisisService _analisis;
     private readonly DateTimeOffset _parada;   // 10:43 de planta hace 2 días (turno mañana)
-    private UsuarioLinea _maquinistaManana = null!;
-    private UsuarioLinea _operarioFutura = null!;
+    private OperadorLinea _maquinistaManana = null!;
+    private OperadorLinea _operarioFutura = null!;
 
     public DetencionAutomaticaTests()
     {
@@ -38,8 +38,8 @@ public class DetencionAutomaticaTests : CalidadTestBase
         var camara = Context.PuntosControlCalidad.Single(p => p.PuntoControlCalidadId == CamaraTango.PuntoControlCalidadId);
         camara.CreaDetenciones = true;
         camara.MinutosUmbralDetencion = 5;
-        _maquinistaManana = new UsuarioLinea { UsuarioId = Operario, LineaId = Tango2.LineaId, TurnoId = TurnoManana.TurnoId, FechaAsignacion = DateTimeOffset.UtcNow.AddDays(-30), AsignadoPorUsuarioId = Admin };
-        _operarioFutura = new UsuarioLinea { UsuarioId = "oper-futura", LineaId = Futura2.LineaId, TurnoId = TurnoManana.TurnoId, FechaAsignacion = DateTimeOffset.UtcNow.AddDays(-30), AsignadoPorUsuarioId = Admin };
+        _maquinistaManana = new OperadorLinea { UsuarioId = Operario, LineaId = Tango2.LineaId, TurnoHabitualId = TurnoManana.TurnoId, FechaAsignacion = DateTimeOffset.UtcNow.AddDays(-30), AsignadoPorUsuarioId = Admin };
+        _operarioFutura = new OperadorLinea { UsuarioId = "oper-futura", LineaId = Futura2.LineaId, TurnoHabitualId = TurnoManana.TurnoId, FechaAsignacion = DateTimeOffset.UtcNow.AddDays(-30), AsignadoPorUsuarioId = Admin };
         Context.AddRange(_maquinistaManana, _operarioFutura);
         Context.SaveChanges();
         Context.ChangeTracker.Clear();

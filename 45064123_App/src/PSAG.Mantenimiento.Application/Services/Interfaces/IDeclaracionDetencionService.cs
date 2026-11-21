@@ -16,7 +16,7 @@ public interface IDeclaracionDetencionService
     /// declara en la línea (para completar el maquinista si faltaba). La restricción por línea la valida la API.
     /// </summary>
     Task<Result<DeclararDetencionResponse>> DeclararAsync(
-        long detencionId, DeclararDetencionRequest request, string usuarioId, UsuarioLinea? asignacionPropia,
+        long detencionId, DeclararDetencionRequest request, string usuarioId, OperadorLinea? asignacionPropia,
         CancellationToken cancellationToken = default);
 
     /// <summary>Pendientes de declaración de esas líneas (null = todas) y minutos para el fin del turno en curso.</summary>

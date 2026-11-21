@@ -8,7 +8,7 @@ public class DetalleFallaConfiguration : IEntityTypeConfiguration<DetalleFalla>
 {
     public void Configure(EntityTypeBuilder<DetalleFalla> builder)
     {
-        builder.ToTable("DetallesFalla", "mnt");
+        builder.ToTable("ABM_DetallesFalla", "mnt");
 
         builder.HasKey(x => x.DetalleFallaId);
 

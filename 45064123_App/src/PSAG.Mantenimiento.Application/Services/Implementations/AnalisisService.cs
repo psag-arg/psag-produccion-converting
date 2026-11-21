@@ -315,7 +315,7 @@ public class AnalisisService : IAnalisisService
     }
 
     private Task<int[]> LineasDelUsuarioAsync(string usuarioId, CancellationToken cancellationToken) =>
-        _unitOfWork.UsuariosLineas.GetLineaIdsAsync(usuarioId, cancellationToken);
+        _unitOfWork.OperadoresLinea.GetLineaIdsAsync(usuarioId, cancellationToken);
 
     /// <summary>
     /// DTO del análisis a partir de una detención ya cargada con GetByIdConAnalisisAsync.

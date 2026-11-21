@@ -41,7 +41,7 @@ public class UsuariosController : ApiControllerBase
         foreach (var user in users)
         {
             var roles = await _userManager.GetRolesAsync(user);
-            var lineas = await _unitOfWork.UsuariosLineas.FindAsync(ul => ul.UsuarioId == user.Id);
+            var lineas = await _unitOfWork.OperadoresLinea.FindAsync(ul => ul.UsuarioId == user.Id);
             var lineasInfo = new List<LineaAsignadaDto>();
 
             foreach (var ul in lineas)
@@ -84,7 +84,7 @@ public class UsuariosController : ApiControllerBase
             return NotFound();
 
         var roles = await _userManager.GetRolesAsync(user);
-        var lineas = await _unitOfWork.UsuariosLineas.FindAsync(ul => ul.UsuarioId == user.Id);
+        var lineas = await _unitOfWork.OperadoresLinea.FindAsync(ul => ul.UsuarioId == user.Id);
         var lineasInfo = new List<LineaAsignadaDto>();
 
         foreach (var ul in lineas)
@@ -176,14 +176,14 @@ public class UsuariosController : ApiControllerBase
         // Asignar lineas
         foreach (var lineaId in request.LineasAsignadas)
         {
-            var usuarioLinea = new Domain.Entities.UsuarioLinea
+            var usuarioLinea = new Domain.Entities.OperadorLinea
             {
                 UsuarioId = user.Id,
                 LineaId = lineaId,
                 FechaAsignacion = DateTimeOffset.UtcNow,
                 AsignadoPorUsuarioId = CurrentUserId
             };
-            await _unitOfWork.UsuariosLineas.AddAsync(usuarioLinea);
+            await _unitOfWork.OperadoresLinea.AddAsync(usuarioLinea);
         }
 
         if (request.LineasAsignadas.Any())
@@ -194,7 +194,7 @@ public class UsuariosController : ApiControllerBase
         _logger.LogInformation("Usuario {UserName} creado por {UserId}", user.UserName, CurrentUserId);
 
         var roles = await _userManager.GetRolesAsync(user);
-        var lineas = await _unitOfWork.UsuariosLineas.FindAsync(ul => ul.UsuarioId == user.Id);
+        var lineas = await _unitOfWork.OperadoresLinea.FindAsync(ul => ul.UsuarioId == user.Id);
         var lineasInfo = new List<LineaAsignadaDto>();
 
         foreach (var ul in lineas)
@@ -245,7 +245,7 @@ public class UsuariosController : ApiControllerBase
 
         // Una línea que el usuario usó como maquinista en alguna detención no se le puede quitar (la FK de
         // Detenciones.UsuarioLineaId lo impide). Se revisa antes de guardar nada: o se guarda todo o nada.
-        var lineasActuales = (await _unitOfWork.UsuariosLineas.FindAsync(ul => ul.UsuarioId == id)).ToList();
+        var lineasActuales = (await _unitOfWork.OperadoresLinea.FindAsync(ul => ul.UsuarioId == id)).ToList();
         var aQuitar = lineasActuales.Where(ul => !request.LineasAsignadas.Contains(ul.LineaId)).ToList();
         var enUso = await _unitOfWork.Detenciones.GetUsuarioLineaIdsEnUsoAsync(aQuitar.Select(ul => ul.UsuarioLineaId).ToList());
         if (enUso.Count > 0)
@@ -297,13 +297,13 @@ public class UsuariosController : ApiControllerBase
         // Remover lineas que ya no estan (ninguna está en uso: se revisó arriba)
         foreach (var ul in aQuitar)
         {
-            _unitOfWork.UsuariosLineas.DeleteAsync(ul);
+            _unitOfWork.OperadoresLinea.DeleteAsync(ul);
         }
 
         // Agregar nuevas lineas
         foreach (var lineaId in request.LineasAsignadas.Where(id => !lineasActualesIds.Contains(id)))
         {
-            await _unitOfWork.UsuariosLineas.AddAsync(new Domain.Entities.UsuarioLinea
+            await _unitOfWork.OperadoresLinea.AddAsync(new Domain.Entities.OperadorLinea
             {
                 UsuarioId = user.Id,
                 LineaId = lineaId,
@@ -318,7 +318,7 @@ public class UsuariosController : ApiControllerBase
 
         // Recargar datos
         var roles = await _userManager.GetRolesAsync(user);
-        var lineas = await _unitOfWork.UsuariosLineas.FindAsync(ul => ul.UsuarioId == user.Id);
+        var lineas = await _unitOfWork.OperadoresLinea.FindAsync(ul => ul.UsuarioId == user.Id);
         var lineasInfo = new List<LineaAsignadaDto>();
 
         foreach (var ul in lineas)
@@ -389,7 +389,7 @@ public class UsuariosController : ApiControllerBase
 
         // También cuenta ser el maquinista de una detención (por ejemplo, una que creó la cámara): esas
         // asignaciones no se pueden borrar (FK Detenciones.UsuarioLineaId), así que se desactiva.
-        var asignaciones = (await _unitOfWork.UsuariosLineas.FindAsync(ul => ul.UsuarioId == id)).ToList();
+        var asignaciones = (await _unitOfWork.OperadoresLinea.FindAsync(ul => ul.UsuarioId == id)).ToList();
         var esMaquinistaDeDetenciones = (await _unitOfWork.Detenciones.GetUsuarioLineaIdsEnUsoAsync(
             asignaciones.Select(a => a.UsuarioLineaId).ToList())).Count > 0;
 
@@ -426,7 +426,7 @@ public class UsuariosController : ApiControllerBase
             // Primero eliminar asignaciones de lineas
             foreach (var asignacion in asignaciones)
             {
-                _unitOfWork.UsuariosLineas.DeleteAsync(asignacion);
+                _unitOfWork.OperadoresLinea.DeleteAsync(asignacion);
             }
             await _unitOfWork.SaveChangesAsync();
 

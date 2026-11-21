@@ -13,6 +13,11 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Los tests de integración prueban la semilla de DEV (DatabaseInitializer.SeedCatalogsAsync). -->
+    <InternalsVisibleTo Include="PSAG.Mantenimiento.Api.IntegrationTests" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

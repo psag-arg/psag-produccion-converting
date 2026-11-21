@@ -75,10 +75,6 @@
                                             {
                                                 <div class="text-muted">Sin objetivo de eficiencia</div>
                                             }
-                                            @if (!punto.IncluirEnEficiencia)
-                                            {
-                                                <div class="text-muted">No cuenta para la eficiencia</div>
-                                            }
                                         </td>
                                         <td class="text-center"><span class="badge @(punto.Activo ? "bg-success" : "bg-secondary")">@(punto.Activo ? "Activo" : "Inactivo")</span></td>
                                         <td class="text-end">
@@ -239,11 +235,6 @@
                         </div>
                     </div>
                     <div class="form-text">Unidades por hora con la máquina en marcha plena. El objetivo del turno es este valor por las horas programadas del turno. Si queda vacío, el Dashboard muestra "Falta cargar el objetivo".</div>
-                    <div class="form-check mt-2">
-                        <input class="form-check-input" type="checkbox" id="incluirEnEficiencia" @bind="puntoActual.IncluirEnEficiencia" />
-                        <label class="form-check-label" for="incluirEnEficiencia">Cuenta para la eficiencia del Dashboard</label>
-                    </div>
-                    <div class="form-text">Destildala para que la cámara siga informando paradas pero no aparezca en la eficiencia (ej.: la 09 cuando la reemplaza la 8).</div>
                     @if (!string.IsNullOrEmpty(errorModal))
                     {
                         <div class="alert alert-danger mt-3 mb-0">@errorModal</div>
@@ -375,7 +366,7 @@
             Nombre = p.Nombre, Descripcion = p.Descripcion, Activo = p.Activo,
             EquipoId = p.EquipoId, NumeroCamara = p.NumeroCamara, CreaDetenciones = p.CreaDetenciones,
             MinutosUmbralDetencion = p.MinutosUmbralDetencion, SegundosUmbralDetencion = p.SegundosUmbralDetencion,
-            ObjetivoPorHora = p.ObjetivoPorHora, MetodoConteo = p.MetodoConteo, IncluirEnEficiencia = p.IncluirEnEficiencia
+            ObjetivoPorHora = p.ObjetivoPorHora, MetodoConteo = p.MetodoConteo
         };
         (umbralValor, umbralUnidad) = UmbralDetencionUi.Leer(puntoActual);
         _ = CargarEquiposPunto(limpiar: false);

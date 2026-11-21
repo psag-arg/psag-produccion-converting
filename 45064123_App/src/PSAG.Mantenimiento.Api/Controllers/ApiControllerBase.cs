@@ -50,7 +50,7 @@ public abstract class ApiControllerBase : ControllerBase
     /// <summary>
     /// Líneas asignadas al usuario actual (ninguna si no hay sesión).
     /// </summary>
-    protected async Task<int[]> LineasAsignadasAsync(IUsuarioLineaRepository usuariosLineas) =>
+    protected async Task<int[]> LineasAsignadasAsync(IOperadorLineaRepository usuariosLineas) =>
         string.IsNullOrEmpty(CurrentUserId)
             ? Array.Empty<int>()
             : await usuariosLineas.GetLineaIdsAsync(CurrentUserId);
@@ -59,7 +59,7 @@ public abstract class ApiControllerBase : ControllerBase
     /// Calendario base y excepciones de horas programadas: el administrador edita todas las líneas,
     /// el supervisor sólo las suyas (CalendarioLineaReglas.PuedeEditar).
     /// </summary>
-    protected async Task<bool> PuedeEditarCalendarioAsync(IUsuarioLineaRepository usuariosLineas, int lineaId) =>
+    protected async Task<bool> PuedeEditarCalendarioAsync(IOperadorLineaRepository usuariosLineas, int lineaId) =>
         CalendarioLineaReglas.PuedeEditar(Roles, await LineasAsignadasAsync(usuariosLineas), lineaId);
 
     protected IActionResult HandleResult<T>(Result<T> result)

@@ -40,7 +40,7 @@ public class RegistroProcesoService : IRegistroProcesoService
 
         if (request.ProductoId.HasValue)
         {
-            var producto = await _unitOfWork.Productos.GetByIdAsync(request.ProductoId.Value, cancellationToken);
+            var producto = await _unitOfWork.ProductosMaestro.GetByIdAsync(request.ProductoId.Value, cancellationToken);
             if (producto == null)
                 return Result<IniciarRegistroProcesoResponse>.Failure("NOT_FOUND", "Producto no encontrado.");
         }
@@ -81,7 +81,7 @@ public class RegistroProcesoService : IRegistroProcesoService
         var nuevoRegistro = new RegistroProceso
         {
             LineaId = request.LineaId,
-            ProductoId = request.ProductoId,
+            ProductoMaestroId = request.ProductoId,
             TurnoId = turno.TurnoId,
             Fecha = fechaHoy,
             UsuarioId = usuarioId,
@@ -116,7 +116,7 @@ public class RegistroProcesoService : IRegistroProcesoService
         if (registro == null)
             return Result<RegistroProcesoCompletoDto>.Failure("NOT_FOUND", "Registro de proceso no encontrado.");
 
-        var plantilla = await ArmarPlantillaAsync(registro.LineaId, registro.ProductoId, cancellationToken);
+        var plantilla = await ArmarPlantillaAsync(registro.LineaId, registro.ProductoMaestroId, cancellationToken);
 
         var filas = plantilla
             .Select(punto => ADetalle(registroProcesoId, punto,
@@ -146,8 +146,8 @@ public class RegistroProcesoService : IRegistroProcesoService
             RegistroProcesoId = registro.RegistroProcesoId,
             LineaId = registro.LineaId,
             LineaNombre = registro.Linea.Nombre,
-            ProductoId = registro.ProductoId,
-            ProductoNombre = registro.Producto?.Nombre ?? SinProducto,
+            ProductoId = registro.ProductoMaestroId,
+            ProductoNombre = registro.ProductoMaestro?.Nombre ?? SinProducto,
             TurnoId = registro.TurnoId,
             TurnoNombre = registro.Turno.Nombre,
             Fecha = registro.Fecha,
@@ -182,7 +182,7 @@ public class RegistroProcesoService : IRegistroProcesoService
         if (!registro.RowVersion.SequenceEqual(request.RowVersion))
             return Result.Failure("CONCURRENCY", "El registro fue modificado por otro usuario.");
 
-        var plantilla = (await ArmarPlantillaAsync(registro.LineaId, registro.ProductoId, cancellationToken))
+        var plantilla = (await ArmarPlantillaAsync(registro.LineaId, registro.ProductoMaestroId, cancellationToken))
             .ToDictionary(p => p.Parametro.ParametroId);
 
         // Primero se valida todo; si un punto no valida no se guarda ninguno (el maquinista corrige y reintenta).
@@ -304,8 +304,8 @@ public class RegistroProcesoService : IRegistroProcesoService
             RegistroProcesoId = r.RegistroProcesoId,
             LineaId = r.LineaId,
             LineaNombre = r.Linea.Nombre,
-            ProductoId = r.ProductoId,
-            ProductoNombre = r.Producto?.Nombre ?? SinProducto,
+            ProductoId = r.ProductoMaestroId,
+            ProductoNombre = r.ProductoMaestro?.Nombre ?? SinProducto,
             TurnoId = r.TurnoId,
             TurnoNombre = r.Turno.Nombre,
             Fecha = r.Fecha,

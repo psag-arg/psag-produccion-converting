@@ -12,14 +12,14 @@ public interface IUnitOfWork : IDisposable
     ITipoFallaRepository TiposFalla { get; }
     IDetalleFallaRepository DetallesFalla { get; }
     ITurnoRepository Turnos { get; }
-    IUsuarioLineaRepository UsuariosLineas { get; }
+    IOperadorLineaRepository OperadoresLinea { get; }
     IAuditoriaRepository Auditoria { get; }
     IReglaAnalisisRepository ReglasAnalisis { get; }
     ITiempoProgramadoDiaRepository TiemposProgramadosDia { get; }
     ICalendarioLineaRepository CalendariosLinea { get; }
 
     // Eje 2: Variables de proceso
-    IProductoRepository Productos { get; }
+    IProductoMaestroRepository ProductosMaestro { get; }
     IGrupoParametroRepository GruposParametro { get; }
     IParametroRepository Parametros { get; }
     IEstandarParametroRepository EstandaresParametro { get; }

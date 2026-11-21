@@ -12,7 +12,7 @@ public class ConteoCamaraMinutoConfiguration : IEntityTypeConfiguration<ConteoCa
 {
     public void Configure(EntityTypeBuilder<ConteoCamaraMinuto> builder)
     {
-        builder.ToTable("ConteosCamaraMinuto", "mnt", t =>
+        builder.ToTable("CAM_ConteosMinuto", "mnt", t =>
         {
             t.HasCheckConstraint("CK_ConteosCamaraMinuto_Estado",
                 "[Estado] IN ('MARCHA', 'PARADA', 'ACUMULACION', 'SIN_SENAL')");
@@ -45,7 +45,7 @@ public class ParadaCamaraConfiguration : IEntityTypeConfiguration<ParadaCamara>
 {
     public void Configure(EntityTypeBuilder<ParadaCamara> builder)
     {
-        builder.ToTable("ParadasCamara", "mnt", t =>
+        builder.ToTable("CAM_Paradas", "mnt", t =>
         {
             t.HasCheckConstraint("CK_ParadasCamara_Tipo", "[Tipo] IN ('PARADA', 'ACUMULACION', 'SIN_MANGAS')");
             t.HasCheckConstraint("CK_ParadasCamara_Duracion", "[DuracionSegundos] > 0");
@@ -73,7 +73,7 @@ public class AlertaCamaraConfiguration : IEntityTypeConfiguration<AlertaCamara>
 {
     public void Configure(EntityTypeBuilder<AlertaCamara> builder)
     {
-        builder.ToTable("AlertasCamara", "mnt", t =>
+        builder.ToTable("CAM_Alertas", "mnt", t =>
         {
             t.HasCheckConstraint("CK_AlertasCamara_Tipo", "[Tipo] IN ('CONGELADA', 'SIN_VIDEO')");
             t.HasCheckConstraint("CK_AlertasCamara_Fin", "[FechaHoraFin] IS NULL OR [FechaHoraFin] >= [FechaHoraInicio]");

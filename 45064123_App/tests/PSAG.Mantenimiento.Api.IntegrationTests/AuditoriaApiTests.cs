@@ -30,7 +30,7 @@ public class AuditoriaApiTests : CalidadTestBase
     private readonly DetencionService _detenciones;
     private readonly DeclaracionDetencionService _declaracion;
     private readonly DateTimeOffset _parada;   // 10:00 de planta hace 2 días (turno mañana)
-    private UsuarioLinea _operarioTango = null!;
+    private OperadorLinea _operarioTango = null!;
 
     public AuditoriaApiTests()
     {
@@ -40,7 +40,7 @@ public class AuditoriaApiTests : CalidadTestBase
         var hoy = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ZonaPlanta).Date;
         _parada = new DateTimeOffset(hoy.AddDays(-2).AddHours(10), TimeSpan.FromHours(-3));
 
-        _operarioTango = new UsuarioLinea { UsuarioId = Operario, LineaId = Tango2.LineaId, TurnoId = TurnoManana.TurnoId, FechaAsignacion = DateTimeOffset.UtcNow, AsignadoPorUsuarioId = Admin };
+        _operarioTango = new OperadorLinea { UsuarioId = Operario, LineaId = Tango2.LineaId, TurnoHabitualId = TurnoManana.TurnoId, FechaAsignacion = DateTimeOffset.UtcNow, AsignadoPorUsuarioId = Admin };
         Context.Add(_operarioTango);
         Context.SaveChanges();
         Context.ChangeTracker.Clear();
@@ -270,11 +270,11 @@ public class AuditoriaApiTests : CalidadTestBase
         return (controller, userManager);
     }
 
-    private async Task<(UsuarioLinea Tango, UsuarioLinea Futura)> MaquinistaConDetencionAsync(string usuarioId)
+    private async Task<(OperadorLinea Tango, OperadorLinea Futura)> MaquinistaConDetencionAsync(string usuarioId)
     {
         Context.Users.Add(new ApplicationUser { Id = usuarioId, UserName = usuarioId, Email = $"{usuarioId}@psag.test", NombreCompleto = "Maquinista", Activo = true });
-        var tango = new UsuarioLinea { UsuarioId = usuarioId, LineaId = Tango2.LineaId, TurnoId = TurnoManana.TurnoId, FechaAsignacion = DateTimeOffset.UtcNow, AsignadoPorUsuarioId = Admin };
-        var futura = new UsuarioLinea { UsuarioId = usuarioId, LineaId = Futura2.LineaId, FechaAsignacion = DateTimeOffset.UtcNow, AsignadoPorUsuarioId = Admin };
+        var tango = new OperadorLinea { UsuarioId = usuarioId, LineaId = Tango2.LineaId, TurnoHabitualId = TurnoManana.TurnoId, FechaAsignacion = DateTimeOffset.UtcNow, AsignadoPorUsuarioId = Admin };
+        var futura = new OperadorLinea { UsuarioId = usuarioId, LineaId = Futura2.LineaId, FechaAsignacion = DateTimeOffset.UtcNow, AsignadoPorUsuarioId = Admin };
         Context.AddRange(tango, futura);
         await Context.SaveChangesAsync();
         // La creó la cámara (CreadoPor = sistema) con este maquinista: es la que hacía saltar la FK.
@@ -296,7 +296,7 @@ public class AuditoriaApiTests : CalidadTestBase
         var bad = Assert.IsType<BadRequestObjectResult>(r);
         Assert.Contains("Tango 2", Assert.IsType<ProblemDetails>(bad.Value).Detail);
         Context.ChangeTracker.Clear();
-        Assert.Equal(2, await Context.UsuariosLineas.CountAsync(ul => ul.UsuarioId == "maq-1"));
+        Assert.Equal(2, await Context.OperadoresLinea.CountAsync(ul => ul.UsuarioId == "maq-1"));
         Assert.Equal("Maquinista", (await Context.Users.SingleAsync(u => u.Id == "maq-1")).NombreCompleto);   // todo o nada
         userManager.Dispose();
     }
@@ -314,7 +314,7 @@ public class AuditoriaApiTests : CalidadTestBase
 
         Assert.IsType<OkObjectResult>(r);
         Context.ChangeTracker.Clear();
-        Assert.Equal(Tango2.LineaId, (await Context.UsuariosLineas.SingleAsync(ul => ul.UsuarioId == "maq-2")).LineaId);
+        Assert.Equal(Tango2.LineaId, (await Context.OperadoresLinea.SingleAsync(ul => ul.UsuarioId == "maq-2")).LineaId);
         userManager.Dispose();
     }
 
@@ -331,7 +331,7 @@ public class AuditoriaApiTests : CalidadTestBase
         Assert.False(respuesta.Eliminado);
         Context.ChangeTracker.Clear();
         Assert.False((await Context.Users.SingleAsync(u => u.Id == "maq-3")).Activo);
-        Assert.Equal(2, await Context.UsuariosLineas.CountAsync(ul => ul.UsuarioId == "maq-3"));
+        Assert.Equal(2, await Context.OperadoresLinea.CountAsync(ul => ul.UsuarioId == "maq-3"));
         userManager.Dispose();
     }
 

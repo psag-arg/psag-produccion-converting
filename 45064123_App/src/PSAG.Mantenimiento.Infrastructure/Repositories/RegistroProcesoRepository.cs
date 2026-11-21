@@ -16,7 +16,7 @@ public class RegistroProcesoRepository : RepositoryBase<RegistroProceso>, IRegis
     {
         return await _context.RegistrosProceso
             .Include(r => r.Linea)
-            .Include(r => r.Producto)
+            .Include(r => r.ProductoMaestro)
             .Include(r => r.Turno)
             .Include(r => r.Detalles)
                 .ThenInclude(d => d.Parametro)
@@ -35,7 +35,7 @@ public class RegistroProcesoRepository : RepositoryBase<RegistroProceso>, IRegis
             .Include(r => r.Detalles)
             .FirstOrDefaultAsync(r =>
                 r.LineaId == lineaId &&
-                r.ProductoId == productoId &&
+                r.ProductoMaestroId == productoId &&
                 r.TurnoId == turnoId &&
                 r.Fecha == fecha,
                 cancellationToken);
@@ -56,7 +56,7 @@ public class RegistroProcesoRepository : RepositoryBase<RegistroProceso>, IRegis
     {
         var query = _context.RegistrosProceso
             .Include(r => r.Linea)
-            .Include(r => r.Producto)
+            .Include(r => r.ProductoMaestro)
             .Include(r => r.Turno)
             .AsQueryable();
 
@@ -64,7 +64,7 @@ public class RegistroProcesoRepository : RepositoryBase<RegistroProceso>, IRegis
             query = query.Where(r => r.LineaId == lineaId.Value);
 
         if (productoId.HasValue)
-            query = query.Where(r => r.ProductoId == productoId.Value);
+            query = query.Where(r => r.ProductoMaestroId == productoId.Value);
 
         if (turnoId.HasValue)
             query = query.Where(r => r.TurnoId == turnoId.Value);
@@ -101,14 +101,14 @@ public class RegistroProcesoRepository : RepositoryBase<RegistroProceso>, IRegis
     {
         return await _context.RegistrosProceso
             .Include(r => r.Linea)
-            .Include(r => r.Producto)
+            .Include(r => r.ProductoMaestro)
             .Include(r => r.Turno)
             .Include(r => r.Detalles)
                 .ThenInclude(d => d.Parametro)
                     .ThenInclude(p => p.GrupoParametro)
             .Where(r =>
                 r.LineaId == lineaId &&
-                r.ProductoId == productoId &&
+                r.ProductoMaestroId == productoId &&
                 r.Fecha >= fechaDesde &&
                 r.Fecha <= fechaHasta)
             .OrderBy(r => r.Fecha)
@@ -132,7 +132,7 @@ public class RegistroProcesoRepository : RepositoryBase<RegistroProceso>, IRegis
             query = query.Where(d => d.RegistroProceso.Fecha <= fechaHasta.Value);
 
         var result = await query
-            .GroupBy(d => new { d.RegistroProceso.LineaId, d.RegistroProceso.ProductoId, d.ParametroId })
+            .GroupBy(d => new { d.RegistroProceso.LineaId, ProductoId = d.RegistroProceso.ProductoMaestroId, d.ParametroId })
             .Select(g => new
             {
                 g.Key.LineaId,

@@ -262,7 +262,6 @@ public class EficienciaCamaraTests : CalidadTestBase
         }, Admin, [Domain.Common.RolesSistema.Administrador]);
         Assert.True(alta.IsSuccess, alta.ErrorMessage);
         Assert.Equal("BOLSONES", alta.Value!.MetodoConteo);
-        Assert.True(alta.Value.IncluirEnEficiencia);
 
         var r = await _conteo.IngestarAsync(new IngestaConteoCamaraRequest
         {
@@ -280,28 +279,6 @@ public class EficienciaCamaraTests : CalidadTestBase
         Assert.Equal(3, bolsones.Turnos.Single(t => t.TurnoCodigo == "T1").Contadas);
         Assert.Equal(480, bolsones.Turnos.Single(t => t.TurnoCodigo == "T1").Objetivo);   // 60/h x 8 h
         Assert.Equal("mangas", camaras.Single(c => c.Codigo == "TEST-CAM-T2").Unidad);
-    }
-
-    [Fact]
-    public async Task CamaraDestildadaDeLaEficiencia_NoAparece_AunqueTengaDatos()
-    {
-        await CargarDatosAsync();
-        var actual = (await Maestros.ObtenerPuntosControlAsync(null, incluirInactivos: true)).Single(p => p.Codigo == "TEST-CAM-T2");
-        var cambio = await Maestros.ActualizarPuntoControlAsync(CamaraTango.PuntoControlCalidadId, new GuardarPuntoControlCalidadRequest
-        {
-            LineaId = Tango2.LineaId, Codigo = "TEST-CAM-T2", Nombre = actual.Nombre, Activo = true, IncluirEnEficiencia = false
-        }, Admin, [Domain.Common.RolesSistema.Administrador]);
-        Assert.True(cambio.IsSuccess, cambio.ErrorMessage);
-        Assert.False(cambio.Value!.IncluirEnEficiencia);
-
-        Assert.Empty((await _conteo.ObtenerEficienciaAsync(_fecha, Tango2.LineaId)).Value!.Camaras);
-
-        // Guardar sin mandar el campo (Web vieja) no lo cambia.
-        var otra = await Maestros.ActualizarPuntoControlAsync(CamaraTango.PuntoControlCalidadId, new GuardarPuntoControlCalidadRequest
-        {
-            LineaId = Tango2.LineaId, Codigo = "TEST-CAM-T2", Nombre = actual.Nombre, Activo = true
-        }, Admin, [Domain.Common.RolesSistema.Administrador]);
-        Assert.False(otra.Value!.IncluirEnEficiencia);
     }
 
     [Fact]

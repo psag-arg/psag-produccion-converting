@@ -67,7 +67,7 @@ public class DeclaracionDetencionesController : ApiControllerBase
         if (detencion == null)
             return NotFound(new ProblemDetails { Title = "Detención no encontrada", Status = StatusCodes.Status404NotFound });
 
-        var asignacion = await _unitOfWork.UsuariosLineas.GetByUsuarioYLineaAsync(CurrentUserId, detencion.LineaId);
+        var asignacion = await _unitOfWork.OperadoresLinea.GetByUsuarioYLineaAsync(CurrentUserId, detencion.LineaId);
         if (!DetencionCargaReglas.PuedeCargarEnLinea(Roles, asignacion != null))
             return LineaNoAsignada();
 
@@ -89,14 +89,14 @@ public class DeclaracionDetencionesController : ApiControllerBase
         if (!DetencionCamaraReglas.VeDeclaracion(Roles))
             return Ok(new AvisoFinTurnoDto { MinutosAviso = minutosAviso });
 
-        var lineas = await LineasAsignadasAsync(_unitOfWork.UsuariosLineas);
+        var lineas = await LineasAsignadasAsync(_unitOfWork.OperadoresLinea);
         var veTodas = lineas.Length == 0 && Roles.Any(r => r is RolesSistema.Administrador or RolesSistema.Supervisor);
         return Ok(await _servicio.ObtenerAvisoFinTurnoAsync(veTodas ? null : lineas, Math.Clamp(minutosAviso, 5, 120)));
     }
 
     private async Task<bool> PuedeOperarLineaAsync(int lineaId) =>
         DetencionCargaReglas.PuedeCargarEnLinea(Roles,
-            await _unitOfWork.UsuariosLineas.GetByUsuarioYLineaAsync(CurrentUserId!, lineaId) != null);
+            await _unitOfWork.OperadoresLinea.GetByUsuarioYLineaAsync(CurrentUserId!, lineaId) != null);
 
     private ObjectResult LineaNoAsignada() => StatusCode(StatusCodes.Status403Forbidden, new ProblemDetails
     {

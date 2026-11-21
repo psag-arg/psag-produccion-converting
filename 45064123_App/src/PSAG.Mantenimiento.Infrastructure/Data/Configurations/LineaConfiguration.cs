@@ -8,7 +8,7 @@ public class LineaConfiguration : IEntityTypeConfiguration<Linea>
 {
     public void Configure(EntityTypeBuilder<Linea> builder)
     {
-        builder.ToTable("Lineas", "mnt");
+        builder.ToTable("ABM_Lineas", "mnt");
 
         builder.HasKey(x => x.LineaId);
 

@@ -24,14 +24,15 @@ public class MantenimientoDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Detencion> Detenciones => Set<Detencion>();
     public DbSet<DetencionEstadoHistorial> DetencionesEstadoHistorial => Set<DetencionEstadoHistorial>();
     public DbSet<DetencionNota> DetencionesNotas => Set<DetencionNota>();
-    public DbSet<UsuarioLinea> UsuariosLineas => Set<UsuarioLinea>();
+    public DbSet<OperadorLinea> OperadoresLinea => Set<OperadorLinea>();
     public DbSet<Auditoria> Auditoria => Set<Auditoria>();
     public DbSet<ReglaAnalisis> ReglasAnalisis => Set<ReglaAnalisis>();
     public DbSet<TiempoProgramadoDia> TiemposProgramadosDia => Set<TiempoProgramadoDia>();
 
     // Eje 2: Variables de proceso
-    public DbSet<Producto> Productos => Set<Producto>();
-    public DbSet<LineaProducto> LineasProductos => Set<LineaProducto>();
+    public DbSet<ProductoMaestro> ProductosMaestro => Set<ProductoMaestro>();
+    public DbSet<ProductoSku> ProductosSku => Set<ProductoSku>();
+    public DbSet<ParametroLineaProducto> ParametrosLineaProducto => Set<ParametroLineaProducto>();
     public DbSet<GrupoParametro> GruposParametro => Set<GrupoParametro>();
     public DbSet<Parametro> Parametros => Set<Parametro>();
     public DbSet<EstandarParametro> EstandaresParametro => Set<EstandarParametro>();

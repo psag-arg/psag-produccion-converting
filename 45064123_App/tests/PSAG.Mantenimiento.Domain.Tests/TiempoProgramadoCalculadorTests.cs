@@ -131,9 +131,9 @@ public class TiempoProgramadoCalculadorTests
         Assert.Equal(0, MinutosDe(dias, Lunes));
     }
 
-    // T-541: Tango 2 mostraba 25 h por día con origen Estándar. El tiempo programado es la suma de
-    // la duración de los turnos; las 25 h salen de un T3 (21-06) que se pisa una hora con T1 (05-13),
-    // y eso se corrige en los horarios (script 19), no en el cálculo.
+    // T-541: el tiempo programado es la suma de la duración de los turnos. Si dos turnos se pisan, se
+    // corrige el horario (MotivoHorarioInvalido lo impide al guardar), no el cálculo.
+    // Turnos de planta (T-798): T1 05-13, T2 13-21, T3 21-05, de 8 h cada uno.
 
     [Fact]
     public void TresTurnosDeOchoSinSolapamiento_UnDiaEstandarSumaVeinticuatro_Horas()
@@ -148,12 +148,12 @@ public class TiempoProgramadoCalculadorTests
     [Fact]
     public void TurnosQueSeSuperponen_SumanLaDuracionDeCadaUno()
     {
-        // Horarios de planta con T3 terminando a las 06: 8 + 8 + 9 = 25 h (se corrige el turno, no la suma).
-        var turnos = new[] { Turno("T1", 5, 13), Turno("T2", 13, 21), Turno("T3", 21, 6) };
+        // T2 adelantado a las 12 se pisa una hora con T1: igual cuenta 8 + 8 + 8 = 24 h (se corrige el turno, no la suma).
+        var turnos = new[] { Turno("T1", 5, 13), Turno("T2", 12, 20), Turno("T3", 21, 5) };
 
         var dias = TiempoProgramadoCalculador.MinutosProgramadosPorDia(Lunes, Lunes, turnos, [], []);
 
-        Assert.Equal(25 * 60, MinutosDe(dias, Lunes));
+        Assert.Equal(24 * 60, MinutosDe(dias, Lunes));
     }
 
     [Fact]

@@ -66,12 +66,6 @@ public class PuntoControlCalidad : CatalogoBase
     /// </summary>
     public string? MetodoConteo { get; set; }
 
-    /// <summary>
-    /// T-785: la cámara aparece en la eficiencia del Dashboard. Para reemplazar la 09 (rollos) por la 8 (bolsones)
-    /// se destilda la 09: sigue informando paradas, pero no cuenta para la eficiencia. Por defecto, sí.
-    /// </summary>
-    public bool IncluirEnEficiencia { get; set; } = true;
-
     // Navegación
     public virtual Linea Linea { get; set; } = null!;
     public virtual Equipo? Equipo { get; set; }

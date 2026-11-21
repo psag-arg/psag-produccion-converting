@@ -161,16 +161,15 @@ public class CalendarioLineaTests
     [Fact]
     public void LunesConT1YT3_SumaLaDuracionDeAmbosTurnos()
     {
-        // Horarios de planta: T1 05-13 y T3 21-06. Superponerlos en el reloj de un solo día daba 16 h;
-        // la línea trabaja 8 h de T1 más 9 h de T3.
+        // Horarios de planta: T1 05-13 y T3 21-05 (cruza medianoche y cuenta entero): 8 h + 8 h.
         var t1 = new Turno { TurnoId = 1, Codigo = "T1", HoraInicio = new(5, 0), HoraFin = new(13, 0), Activo = true };
-        var t3 = new Turno { TurnoId = 3, Codigo = "T3", HoraInicio = new(21, 0), HoraFin = new(6, 0), Activo = true };
+        var t3 = new Turno { TurnoId = 3, Codigo = "T3", HoraInicio = new(21, 0), HoraFin = new(5, 0), Activo = true };
         var lunes = new DateOnly(2026, 10, 5);
         var calendario = Calendario(1, Desde, (DayOfWeek.Monday, [1, 3]));
 
         var dia = Assert.Single(TiempoProgramadoCalculador.MinutosProgramadosPorDia(lunes, lunes, [t1, t3], [calendario], []));
 
-        Assert.Equal(17 * 60, dia.Minutos);
+        Assert.Equal(16 * 60, dia.Minutos);
         Assert.Equal("T1 + T3", dia.Turnos);
     }
 

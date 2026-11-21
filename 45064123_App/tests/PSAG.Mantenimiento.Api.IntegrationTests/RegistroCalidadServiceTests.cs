@@ -191,7 +191,7 @@ public class RegistroCalidadServiceTests : CalidadTestBase
 
         Assert.True(resultado.IsSuccess, resultado.ErrorMessage);
         var registro = await Context.RegistrosCalidad.SingleAsync();
-        Assert.Equal(Producto.ProductoId, registro.ProductoId);
+        Assert.Equal(Producto.ProductoMaestroId, registro.ProductoMaestroId);
         Assert.Equal(DetencionTango.DetencionId, registro.DetencionId);
     }
 

@@ -206,17 +206,17 @@ public class DetencionesController : ApiControllerBase
         }
 
         // La restricción por línea asignada se valida acá, no sólo en la pantalla.
-        var asignacionPropia = await _unitOfWork.UsuariosLineas.GetByUsuarioYLineaAsync(CurrentUserId, request.LineaId);
+        var asignacionPropia = await _unitOfWork.OperadoresLinea.GetByUsuarioYLineaAsync(CurrentUserId, request.LineaId);
         if (!DetencionCargaReglas.PuedeCargarEnLinea(Roles, asignacionPropia != null))
         {
             return LineaNoAsignada();
         }
 
         // Maquinista: el elegido (admin/supervisor) o la asignación propia en la línea.
-        UsuarioLinea? maquinista = asignacionPropia;
+        OperadorLinea? maquinista = asignacionPropia;
         if (request.UsuarioLineaId.HasValue)
         {
-            maquinista = await _unitOfWork.UsuariosLineas.GetByIdAsync(request.UsuarioLineaId.Value);
+            maquinista = await _unitOfWork.OperadoresLinea.GetByIdAsync(request.UsuarioLineaId.Value);
             if (maquinista == null)
             {
                 return BadRequest(new ProblemDetails
@@ -238,12 +238,12 @@ public class DetencionesController : ApiControllerBase
         var fuenteTurno = DetencionCargaReglas.ElegirFuenteTurno(
             conHoras: tiempoManual.HasValue,
             maquinistaElegido: request.UsuarioLineaId.HasValue,
-            maquinistaTieneTurno: maquinista?.TurnoId.HasValue == true);
+            maquinistaTieneTurno: maquinista?.TurnoHabitualId.HasValue == true);
 
         Turno? turno = fuenteTurno switch
         {
             FuenteTurno.HoraInicio => await _unitOfWork.Turnos.GetTurnoPorHoraAsync(request.HoraInicio!.Value),
-            FuenteTurno.Maquinista => await _unitOfWork.Turnos.GetByIdAsync(maquinista!.TurnoId!.Value),
+            FuenteTurno.Maquinista => await _unitOfWork.Turnos.GetByIdAsync(maquinista!.TurnoHabitualId!.Value),
             FuenteTurno.HoraActual => await _unitOfWork.Turnos.GetTurnoActualAsync(_zonaPlanta),
             _ => null
         };
@@ -544,7 +544,7 @@ public class DetencionesController : ApiControllerBase
             });
         }
 
-        var asignada = await _unitOfWork.UsuariosLineas.GetByUsuarioYLineaAsync(CurrentUserId, detencion.LineaId) != null;
+        var asignada = await _unitOfWork.OperadoresLinea.GetByUsuarioYLineaAsync(CurrentUserId, detencion.LineaId) != null;
         if (!DetencionCargaReglas.PuedeCargarEnLinea(Roles, asignada))
         {
             return LineaNoAsignada();
@@ -1200,7 +1200,7 @@ public class DetencionesController : ApiControllerBase
         var usuarioId = detencion.CreadoPorUsuarioId;
         if (detencion.UsuarioLineaId.HasValue)
         {
-            var asignacion = await _unitOfWork.UsuariosLineas.GetByIdAsync(detencion.UsuarioLineaId.Value);
+            var asignacion = await _unitOfWork.OperadoresLinea.GetByIdAsync(detencion.UsuarioLineaId.Value);
             usuarioId = asignacion?.UsuarioId ?? usuarioId;
         }
 

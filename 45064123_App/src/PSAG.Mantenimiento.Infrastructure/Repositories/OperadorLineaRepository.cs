@@ -5,42 +5,42 @@ using PSAG.Mantenimiento.Infrastructure.Data;
 
 namespace PSAG.Mantenimiento.Infrastructure.Repositories;
 
-public class UsuarioLineaRepository : RepositoryBase<UsuarioLinea>, IUsuarioLineaRepository
+public class OperadorLineaRepository : RepositoryBase<OperadorLinea>, IOperadorLineaRepository
 {
-    public UsuarioLineaRepository(MantenimientoDbContext context) : base(context)
+    public OperadorLineaRepository(MantenimientoDbContext context) : base(context)
     {
     }
 
-    public async Task<UsuarioLinea?> GetByUsuarioIdAsync(string usuarioId, CancellationToken cancellationToken = default)
+    public async Task<OperadorLinea?> GetByUsuarioIdAsync(string usuarioId, CancellationToken cancellationToken = default)
     {
         return await _dbSet
             .Include(ul => ul.Linea)
-            .Include(ul => ul.Turno)
+            .Include(ul => ul.TurnoHabitual)
             .FirstOrDefaultAsync(ul => ul.UsuarioId == usuarioId, cancellationToken);
     }
 
-    public async Task<UsuarioLinea?> GetByUsuarioYLineaAsync(string usuarioId, int lineaId, CancellationToken cancellationToken = default)
+    public async Task<OperadorLinea?> GetByUsuarioYLineaAsync(string usuarioId, int lineaId, CancellationToken cancellationToken = default)
     {
         return await _dbSet
             .Include(ul => ul.Linea)
-            .Include(ul => ul.Turno)
+            .Include(ul => ul.TurnoHabitual)
             .FirstOrDefaultAsync(ul => ul.UsuarioId == usuarioId && ul.LineaId == lineaId, cancellationToken);
     }
 
-    public async Task<IEnumerable<UsuarioLinea>> GetAllWithRelationsAsync(CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<OperadorLinea>> GetAllWithRelationsAsync(CancellationToken cancellationToken = default)
     {
         return await _dbSet
             .Include(ul => ul.Linea)
-            .Include(ul => ul.Turno)
+            .Include(ul => ul.TurnoHabitual)
             .OrderBy(ul => ul.Linea.Nombre)
             .ThenBy(ul => ul.UsuarioId)
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<IEnumerable<UsuarioLinea>> GetByLineaIdAsync(int lineaId, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<OperadorLinea>> GetByLineaIdAsync(int lineaId, CancellationToken cancellationToken = default)
     {
         return await _dbSet
-            .Include(ul => ul.Turno)
+            .Include(ul => ul.TurnoHabitual)
             .Where(ul => ul.LineaId == lineaId)
             .OrderBy(ul => ul.UsuarioId)
             .ToListAsync(cancellationToken);

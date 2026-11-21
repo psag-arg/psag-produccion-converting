@@ -87,8 +87,8 @@ public class TurnoReglasTests
     [Fact]
     public void MinutosProgramados_SumaLaDuracionDeCadaTurno()
     {
-        // T1 05-13 más T3 21-06: 8 h + 9 h, aunque en el reloj de un día se pisen de 05 a 06.
-        Assert.Equal(17 * 60, TurnoReglas.MinutosProgramados([T(1, "T1", 5, 13), T(3, "T3", 21, 6)]));
+        // T1 05-13 más T3 21-05 (cruza medianoche y cuenta entero): 8 h + 8 h.
+        Assert.Equal(16 * 60, TurnoReglas.MinutosProgramados([T(1, "T1", 5, 13), T(3, "T3", 21, 5)]));
     }
 
     [Fact]

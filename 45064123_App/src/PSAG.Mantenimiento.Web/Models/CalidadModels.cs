@@ -28,9 +28,6 @@ public class PuntoControlCalidadDto
 
     /// <summary>CARRILES (rollos), MANGAS, BOLSONES o null (se deduce de los datos).</summary>
     public string? MetodoConteo { get; set; }
-
-    /// <summary>T-785: la cámara cuenta para la eficiencia del Dashboard.</summary>
-    public bool IncluirEnEficiencia { get; set; } = true;
 }
 
 public class TipoDefectoCalidadDto

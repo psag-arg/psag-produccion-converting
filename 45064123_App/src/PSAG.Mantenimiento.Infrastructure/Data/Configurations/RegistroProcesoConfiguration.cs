@@ -9,7 +9,7 @@ public class RegistroProcesoConfiguration : IEntityTypeConfiguration<RegistroPro
 {
     public void Configure(EntityTypeBuilder<RegistroProceso> builder)
     {
-        builder.ToTable("RegistrosProceso", "mnt");
+        builder.ToTable("CPR_Registros", "mnt");
 
         builder.HasKey(x => x.RegistroProcesoId);
 
@@ -40,9 +40,9 @@ public class RegistroProcesoConfiguration : IEntityTypeConfiguration<RegistroPro
             .HasForeignKey(x => x.LineaId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(x => x.Producto)
+        builder.HasOne(x => x.ProductoMaestro)
             .WithMany(p => p.RegistrosProceso)
-            .HasForeignKey(x => x.ProductoId)
+            .HasForeignKey(x => x.ProductoMaestroId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(x => x.Turno)
@@ -50,11 +50,11 @@ public class RegistroProcesoConfiguration : IEntityTypeConfiguration<RegistroPro
             .HasForeignKey(x => x.TurnoId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasIndex(x => new { x.LineaId, x.ProductoId, x.TurnoId, x.Fecha })
+        builder.HasIndex(x => new { x.LineaId, x.ProductoMaestroId, x.TurnoId, x.Fecha })
             .IsUnique();
 
         builder.HasIndex(x => x.LineaId);
-        builder.HasIndex(x => x.ProductoId);
+        builder.HasIndex(x => x.ProductoMaestroId);
         builder.HasIndex(x => x.Fecha);
         builder.HasIndex(x => x.Estado);
     }

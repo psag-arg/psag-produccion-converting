@@ -55,7 +55,7 @@ public class RegistroCalidad : EntityBase
     /// </summary>
     public string? UnidadMedida { get; set; }
 
-    public int? ProductoId { get; set; }
+    public int? ProductoMaestroId { get; set; }
 
     /// <summary>
     /// Detención (parada) relacionada, para el cruce calidad - paradas. Opcional.
@@ -89,7 +89,7 @@ public class RegistroCalidad : EntityBase
     public virtual PuntoControlCalidad PuntoControl { get; set; } = null!;
     public virtual Turno? Turno { get; set; }
     public virtual TipoDefectoCalidad TipoDefecto { get; set; } = null!;
-    public virtual Producto? Producto { get; set; }
+    public virtual ProductoMaestro? ProductoMaestro { get; set; }
     public virtual Detencion? Detencion { get; set; }
     public virtual ICollection<RegistroCalidadRevision> Revisiones { get; set; } = new List<RegistroCalidadRevision>();
 

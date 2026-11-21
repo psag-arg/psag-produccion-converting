@@ -47,7 +47,7 @@ public abstract class CalidadTestBase : IDisposable
     protected PuntoControlCalidad CamaraFutura = null!;
     protected TipoDefectoCalidad Rabo = null!;
     protected TipoDefectoCalidad Mancha = null!;
-    protected Producto Producto = null!;
+    protected ProductoMaestro Producto = null!;
     protected Detencion DetencionTango = null!;
 
     protected CalidadTestBase()
@@ -105,7 +105,7 @@ public abstract class CalidadTestBase : IDisposable
             Codigo = "T2", Nombre = "Turno 2 (Tarde)", HoraInicio = new TimeOnly(14, 0), HoraFin = new TimeOnly(22, 0), Orden = 2,
             CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin
         };
-        Producto = new Producto { Codigo = "SKU-TEST", Nombre = "Producto de prueba", CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin };
+        Producto = new ProductoMaestro { Codigo = "SKU-TEST", Nombre = "Producto de prueba", CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin };
         Context.AddRange(Tango2, Futura2, TurnoManana, TurnoTarde, Producto);
         Context.SaveChanges();
 

@@ -41,7 +41,7 @@ public class CalendarioLineasController : ApiControllerBase
     [ProducesResponseType(typeof(IEnumerable<LineaCalendarioDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetLineas()
     {
-        var asignadas = await LineasAsignadasAsync(_unitOfWork.UsuariosLineas);
+        var asignadas = await LineasAsignadasAsync(_unitOfWork.OperadoresLinea);
         var lineas = (await _unitOfWork.Lineas.GetAllAsync())
             .Where(l => l.Activo)
             .OrderBy(l => l.Orden)
@@ -67,7 +67,7 @@ public class CalendarioLineasController : ApiControllerBase
 
         var turnos = (await _unitOfWork.Turnos.GetActivosAsync()).ToList();
         var versiones = await _unitOfWork.CalendariosLinea.GetActivosAsync(lineaId);
-        var puedeEditar = await PuedeEditarCalendarioAsync(_unitOfWork.UsuariosLineas, lineaId);
+        var puedeEditar = await PuedeEditarCalendarioAsync(_unitOfWork.OperadoresLinea, lineaId);
         var nombres = await _userManager.NombresVisiblesAsync(versiones.Select(v => v.ModificadoPorUsuarioId));
 
         var dto = new CalendarioLineaDto
@@ -132,7 +132,7 @@ public class CalendarioLineasController : ApiControllerBase
         if (linea == null)
             return BadRequest(Problema("Línea inválida", "Elegí una línea válida."));
 
-        if (!await PuedeEditarCalendarioAsync(_unitOfWork.UsuariosLineas, lineaId))
+        if (!await PuedeEditarCalendarioAsync(_unitOfWork.OperadoresLinea, lineaId))
             return Forbid();
 
         if (request.VigenteDesde == default)
@@ -203,7 +203,7 @@ public class CalendarioLineasController : ApiControllerBase
         if (version == null)
             return NotFound();
 
-        if (!await PuedeEditarCalendarioAsync(_unitOfWork.UsuariosLineas, version.LineaId))
+        if (!await PuedeEditarCalendarioAsync(_unitOfWork.OperadoresLinea, version.LineaId))
             return Forbid();
 
         version.Activo = false;

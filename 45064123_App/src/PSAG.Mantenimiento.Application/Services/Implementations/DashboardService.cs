@@ -420,7 +420,7 @@ public class DashboardService : IDashboardService
 
         var parametros = await _unitOfWork.Parametros.GetAllAsync(cancellationToken);
         var lineas = await _unitOfWork.Lineas.GetAllAsync(cancellationToken);
-        var productos = await _unitOfWork.Productos.GetAllAsync(cancellationToken);
+        var productos = await _unitOfWork.ProductosMaestro.GetAllAsync(cancellationToken);
 
         var query = registros.AsEnumerable();
 
@@ -440,7 +440,7 @@ public class DashboardService : IDashboardService
                     ParametroId = detalle.ParametroId,
                     ParametroNombre = parametro?.Nombre ?? "Desconocido",
                     LineaNombre = lineas.FirstOrDefault(l => l.LineaId == registro.LineaId)?.Nombre ?? "Desconocida",
-                    ProductoNombre = productos.FirstOrDefault(p => p.ProductoId == registro.ProductoId)?.Nombre ?? "Desconocido",
+                    ProductoNombre = productos.FirstOrDefault(p => p.ProductoMaestroId == registro.ProductoMaestroId)?.Nombre ?? "Desconocido",
                     ValorCapturado = detalle.ValorReal!.Value,
                     ValorEstandar = decimal.TryParse(detalle.ValorEstandarSnapshot, out var est) ? est : null,
                     ToleranciaInferior = null,

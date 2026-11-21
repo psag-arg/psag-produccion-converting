@@ -8,7 +8,7 @@ public class TurnoConfiguration : IEntityTypeConfiguration<Turno>
 {
     public void Configure(EntityTypeBuilder<Turno> builder)
     {
-        builder.ToTable("Turnos", "mnt");
+        builder.ToTable("ABM_Turnos", "mnt");
 
         builder.HasKey(x => x.TurnoId);
 

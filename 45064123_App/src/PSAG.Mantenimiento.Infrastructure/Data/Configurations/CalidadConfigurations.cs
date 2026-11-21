@@ -11,7 +11,7 @@ public class PuntoControlCalidadConfiguration : IEntityTypeConfiguration<PuntoCo
 {
     public void Configure(EntityTypeBuilder<PuntoControlCalidad> builder)
     {
-        builder.ToTable("PuntosControlCalidad", "mnt");
+        builder.ToTable("CAL_PuntosControl", "mnt");
 
         builder.HasKey(x => x.PuntoControlCalidadId);
 
@@ -35,7 +35,6 @@ public class PuntoControlCalidadConfiguration : IEntityTypeConfiguration<PuntoCo
         // Eficiencia (script 28): objetivo por hora y qué cuenta la cámara. Vacíos = sin cargar.
         builder.Property(x => x.ObjetivoPorHora).HasPrecision(10, 2);
         builder.Property(x => x.MetodoConteo).HasMaxLength(20);
-        builder.Property(x => x.IncluirEnEficiencia).HasDefaultValue(true);
         builder.HasOne(x => x.Equipo)
             .WithMany()
             .HasForeignKey(x => x.EquipoId)
@@ -50,7 +49,7 @@ public class TipoDefectoCalidadConfiguration : IEntityTypeConfiguration<TipoDefe
 {
     public void Configure(EntityTypeBuilder<TipoDefectoCalidad> builder)
     {
-        builder.ToTable("TiposDefectoCalidad", "mnt");
+        builder.ToTable("CAL_TiposDefecto", "mnt");
 
         builder.HasKey(x => x.TipoDefectoCalidadId);
 
@@ -69,7 +68,7 @@ public class RegistroCalidadConfiguration : IEntityTypeConfiguration<RegistroCal
 {
     public void Configure(EntityTypeBuilder<RegistroCalidad> builder)
     {
-        builder.ToTable("RegistrosCalidad", "mnt", t =>
+        builder.ToTable("CAL_Registros", "mnt", t =>
         {
             t.HasCheckConstraint("CK_RegistrosCalidad_Origen",
                 "[Origen] IN ('AUTOMATICO', 'MANUAL')");
@@ -116,7 +115,7 @@ public class RegistroCalidadConfiguration : IEntityTypeConfiguration<RegistroCal
         builder.HasOne(x => x.PuntoControl).WithMany().HasForeignKey(x => x.PuntoControlCalidadId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.Turno).WithMany().HasForeignKey(x => x.TurnoId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.TipoDefecto).WithMany().HasForeignKey(x => x.TipoDefectoCalidadId).OnDelete(DeleteBehavior.Restrict);
-        builder.HasOne(x => x.Producto).WithMany().HasForeignKey(x => x.ProductoId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.ProductoMaestro).WithMany().HasForeignKey(x => x.ProductoMaestroId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.Detencion).WithMany().HasForeignKey(x => x.DetencionId).OnDelete(DeleteBehavior.Restrict);
 
         // Índices: la grilla filtra por fecha y, dentro, por línea / estado.
@@ -135,7 +134,7 @@ public class RegistroCalidadRevisionConfiguration : IEntityTypeConfiguration<Reg
 {
     public void Configure(EntityTypeBuilder<RegistroCalidadRevision> builder)
     {
-        builder.ToTable("RegistrosCalidadRevisiones", "mnt", t =>
+        builder.ToTable("CAL_RegistrosRevisiones", "mnt", t =>
         {
             t.HasCheckConstraint("CK_RegistrosCalidadRevisiones_EstadoAnterior",
                 "[EstadoAnterior] IN ('PENDIENTE', 'CONFIRMADO', 'FALSO_POSITIVO')");

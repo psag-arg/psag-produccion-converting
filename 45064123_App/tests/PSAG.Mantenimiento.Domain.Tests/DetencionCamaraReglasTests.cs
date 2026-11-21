@@ -105,9 +105,9 @@ public class DetencionCamaraReglasTests
         Assert.Equal("45 s", DetencionCamaraReglas.TextoUmbral(new PuntoControlCalidad { MinutosUmbralDetencion = 5, SegundosUmbralDetencion = 45 }));
     }
 
-    private static UsuarioLinea Asignacion(int id, string usuario, int? turnoId, int diasAtras) => new()
+    private static OperadorLinea Asignacion(int id, string usuario, int? turnoId, int diasAtras) => new()
     {
-        UsuarioLineaId = id, UsuarioId = usuario, LineaId = 1, TurnoId = turnoId,
+        UsuarioLineaId = id, UsuarioId = usuario, LineaId = 1, TurnoHabitualId = turnoId,
         FechaAsignacion = T0.AddDays(-diasAtras), AsignadoPorUsuarioId = "admin"
     };
 

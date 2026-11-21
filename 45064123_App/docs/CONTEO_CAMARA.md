@@ -316,8 +316,9 @@ la 09 en la eficiencia. IT habilitó la cámara 8 en el grabador el 10/11.
 - **API y Dashboard**: con el punto `T2-CAM08` (método *Bolsones*, objetivo por hora de bolsones), la eficiencia por turno
   muestra la cámara 10 en mangas y la 8 en bolsones, cada una con su objetivo. La producción del turno
   (`GET api/conteo-camara/produccion`) también sale por cámara, con su unidad.
-- **Reemplazo de la 09**: en Maestros → Calidad, editar la `T2-CAM09` y destildar *Cuenta para la eficiencia*
-  (`IncluirEnEficiencia`, script 33). Sigue informando paradas en *Paradas y producción (cámara)*.
+- **Reemplazo de la 09**: el tilde *Cuenta para la eficiencia* (`IncluirEnEficiencia`) se quitó en T-798 (etapa 1).
+  Lo reemplaza `CAM_Camaras.CuentaProduccionOficial` en la etapa 4 (cámaras unificadas). Hasta entonces, para sacar
+  la 09 de la eficiencia se le borran el objetivo y el método (o se la desactiva).
 
 ### 10.1 Para probar con la cámara real (Francisco)
 

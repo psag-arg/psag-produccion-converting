@@ -28,7 +28,7 @@ public class Detencion : EntityBase
     public int TurnoId { get; set; }
 
     /// <summary>
-    /// Maquinista que registró la detención (UsuarioLinea).
+    /// Maquinista que registró la detención (OperadorLinea).
     /// </summary>
     public int? UsuarioLineaId { get; set; }
 
@@ -174,7 +174,7 @@ public class Detencion : EntityBase
     public virtual TipoFalla? TipoFalla { get; set; }
     public virtual DetalleFalla? DetalleFalla { get; set; }
     public virtual Turno Turno { get; set; } = null!;
-    public virtual UsuarioLinea? UsuarioLinea { get; set; }
+    public virtual OperadorLinea? OperadorLinea { get; set; }
     public virtual ReglaAnalisis? ReglaAnalisis { get; set; }
     public virtual PuntoControlCalidad? PuntoControl { get; set; }
     public virtual ICollection<DetencionEstadoHistorial> HistorialEstados { get; set; } = new List<DetencionEstadoHistorial>();

@@ -52,7 +52,7 @@ public class TareaMantenimientoServiceTests : IDisposable
         _equipo = new Equipo { LineaId = _lineaAsignada.LineaId, Codigo = "GOF", Nombre = "Gofrador", CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin };
         _equipoOtraLinea = new Equipo { LineaId = _otraLinea.LineaId, Codigo = "EMP", Nombre = "Empaquetadora", CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin };
         _context.AddRange(_equipo, _equipoOtraLinea);
-        _context.Add(new UsuarioLinea { UsuarioId = Operario, LineaId = _lineaAsignada.LineaId, AsignadoPorUsuarioId = Admin, FechaAsignacion = DateTimeOffset.UtcNow });
+        _context.Add(new OperadorLinea { UsuarioId = Operario, LineaId = _lineaAsignada.LineaId, AsignadoPorUsuarioId = Admin, FechaAsignacion = DateTimeOffset.UtcNow });
         _context.SaveChanges();
 
         _service = new TareaMantenimientoService(new UnitOfWork(_context), NullLogger<TareaMantenimientoService>.Instance);

@@ -26,7 +26,7 @@ public class PlantillaTango2Tests : IDisposable
     private readonly ControlProcesoPlantillaService _maestro;
     private readonly RegistroProcesoService _carga;
     private readonly Linea _tango2;
-    private readonly Producto _higienico;
+    private readonly ProductoMaestro _higienico;
     private readonly Dictionary<string, int> _parametroPorCodigo = new();
 
     public PlantillaTango2Tests()
@@ -42,7 +42,7 @@ public class PlantillaTango2Tests : IDisposable
 
         // Como en producción: una sola línea, Nombre 'TANGO 2' y Codigo vacío.
         _tango2 = new Linea { Codigo = "", Nombre = "TANGO 2", CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin };
-        _higienico = new Producto { Codigo = "HIGIENICO 30 MTS", Nombre = "Higiénico 30 mts", Orden = 1, CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin };
+        _higienico = new ProductoMaestro { Codigo = "HIGIENICO 30 MTS", Nombre = "Higiénico 30 mts", Orden = 1, CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin };
         var turno = new Turno
         {
             Codigo = "T1", Nombre = "Turno 1 (Mañana)", HoraInicio = new TimeOnly(0, 0), HoraFin = new TimeOnly(0, 0),
@@ -50,7 +50,7 @@ public class PlantillaTango2Tests : IDisposable
         };
         _context.AddRange(_tango2, _higienico, turno);
         _context.SaveChanges();
-        _context.Add(new LineaProducto { LineaId = _tango2.LineaId, ProductoId = _higienico.ProductoId });
+        _context.Add(new ParametroLineaProducto { LineaId = _tango2.LineaId, ProductoMaestroId = _higienico.ProductoMaestroId, VigenteDesde = new DateOnly(2026, 1, 1), Habilitado = true });
         _context.SaveChanges();
     }
 
@@ -94,7 +94,7 @@ public class PlantillaTango2Tests : IDisposable
         await CargarPlantillaAsync();
 
         var inicio = await _carga.IniciarRegistroAsync(
-            new IniciarRegistroProcesoRequest { LineaId = _tango2.LineaId, ProductoId = _higienico.ProductoId }, Maquinista);
+            new IniciarRegistroProcesoRequest { LineaId = _tango2.LineaId, ProductoId = _higienico.ProductoMaestroId }, Maquinista);
         Assert.True(inicio.IsSuccess, inicio.Error);
 
         var control = (await _carga.ObtenerCompletoAsync(inicio.Value!.RegistroProcesoId)).Value!;
@@ -177,7 +177,7 @@ public class PlantillaTango2Tests : IDisposable
     {
         await CargarPlantillaAsync();
         var inicio = await _carga.IniciarRegistroAsync(
-            new IniciarRegistroProcesoRequest { LineaId = _tango2.LineaId, ProductoId = _higienico.ProductoId }, Maquinista);
+            new IniciarRegistroProcesoRequest { LineaId = _tango2.LineaId, ProductoId = _higienico.ProductoMaestroId }, Maquinista);
         var control = (await _carga.ObtenerCompletoAsync(inicio.Value!.RegistroProcesoId)).Value!;
 
         var r = await _carga.GuardarValoresAsync(new GuardarValoresRequest
@@ -233,7 +233,7 @@ public class PlantillaTango2Tests : IDisposable
         _context.AddRange(puntos.Where(p => p.Estandar != null).Select(p => new EstandarParametro
         {
             LineaId = _tango2.LineaId,
-            ProductoId = _higienico.ProductoId,
+            ProductoMaestroId = _higienico.ProductoMaestroId,
             ParametroId = _parametroPorCodigo[p.Codigo],
             ValorEstandarTexto = p.Estandar,
             ValorMin = p.Minimo,

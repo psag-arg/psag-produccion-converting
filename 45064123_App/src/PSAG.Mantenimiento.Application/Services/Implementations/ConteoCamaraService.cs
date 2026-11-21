@@ -203,7 +203,7 @@ public class ConteoCamaraService : IConteoCamaraService
 
         var existentes = (await _unitOfWork.Detenciones.GetPorParadasCamaraAsync(candidatas.Keys.ToList(), cancellationToken))
             .ToDictionary(d => d.IdentificadorParadaCamara!, StringComparer.Ordinal);
-        List<UsuarioLinea>? asignaciones = null;
+        List<OperadorLinea>? asignaciones = null;
 
         foreach (var (id, c) in candidatas.OrderBy(c => c.Value.Inicio))
         {
@@ -227,7 +227,7 @@ public class ConteoCamaraService : IConteoCamaraService
                 continue;
             }
 
-            asignaciones ??= (await _unitOfWork.UsuariosLineas.GetByLineaIdAsync(punto.LineaId, cancellationToken)).ToList();
+            asignaciones ??= (await _unitOfWork.OperadoresLinea.GetByLineaIdAsync(punto.LineaId, cancellationToken)).ToList();
             var maquinista = DetencionCamaraReglas.ElegirMaquinista(asignaciones, turno.TurnoId);
             var inicioPlanta = HoraPlanta.En(c.Inicio, _zonaPlanta)!.Value;
             var sistema = DetencionCamaraReglas.UsuarioSistemaCamara;
@@ -533,8 +533,7 @@ public class ConteoCamaraService : IConteoCamaraService
         // Los puntos de control de defectos de calidad, sin conteo, no aparecen.
         var conDatos = minutos.Select(m => m.PuntoControlCalidadId).ToHashSet();
         var puntos = (await _unitOfWork.PuntosControlCalidad.GetListadoAsync(lineaId, incluirInactivos: false, cancellationToken))
-            .Where(p => p.IncluirEnEficiencia
-                && (conDatos.Contains(p.PuntoControlCalidadId) || p.ObjetivoPorHora != null || p.MetodoConteo != null))
+            .Where(p => conDatos.Contains(p.PuntoControlCalidadId) || p.ObjetivoPorHora != null || p.MetodoConteo != null)
             .OrderBy(p => p.Linea?.Orden ?? 0).ThenBy(p => p.Linea?.Nombre)
             .ThenBy(p => p.NumeroCamara ?? int.MaxValue).ThenBy(p => p.Codigo)
             .ToList();

@@ -9,7 +9,7 @@ public class DetencionConfiguration : IEntityTypeConfiguration<Detencion>
 {
     public void Configure(EntityTypeBuilder<Detencion> builder)
     {
-        builder.ToTable("Detenciones", "mnt", t =>
+        builder.ToTable("DET_Detenciones", "mnt", t =>
         {
             t.HasCheckConstraint("CK_Detenciones_FechaCierre",
                 "[FechaHoraCierre] IS NULL OR [FechaHoraCierre] >= [FechaHoraCreacion]");
@@ -136,7 +136,7 @@ public class DetencionConfiguration : IEntityTypeConfiguration<Detencion>
             .HasForeignKey(x => x.TurnoId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(x => x.UsuarioLinea)
+        builder.HasOne(x => x.OperadorLinea)
             .WithMany()
             .HasForeignKey(x => x.UsuarioLineaId)
             .OnDelete(DeleteBehavior.Restrict);

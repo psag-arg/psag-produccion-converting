@@ -33,7 +33,6 @@ public class PuntoControlCalidadDto
     // Eficiencia (script 28)
     public decimal? ObjetivoPorHora { get; set; }
     public string? MetodoConteo { get; set; }
-    public bool IncluirEnEficiencia { get; set; } = true;
 }
 
 /// <summary>
@@ -70,9 +69,6 @@ public class GuardarPuntoControlCalidadRequest
 
     /// <summary>CARRILES (rollos, cámara 09) o MANGAS (cámara 10). Vacío = se deduce de los datos.</summary>
     public string? MetodoConteo { get; set; }
-
-    /// <summary>T-785: si la cámara cuenta para la eficiencia del Dashboard. Null = no cambia (al crear: sí).</summary>
-    public bool? IncluirEnEficiencia { get; set; }
 }
 
 public class TipoDefectoCalidadDto

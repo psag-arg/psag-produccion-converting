@@ -8,7 +8,7 @@ public class EstandarParametroConfiguration : IEntityTypeConfiguration<EstandarP
 {
     public void Configure(EntityTypeBuilder<EstandarParametro> builder)
     {
-        builder.ToTable("EstandaresParametro", "mnt");
+        builder.ToTable("CPR_Estandares", "mnt");
 
         builder.HasKey(x => x.EstandarParametroId);
 
@@ -37,9 +37,9 @@ public class EstandarParametroConfiguration : IEntityTypeConfiguration<EstandarP
             .HasForeignKey(x => x.LineaId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(x => x.Producto)
+        builder.HasOne(x => x.ProductoMaestro)
             .WithMany(p => p.Estandares)
-            .HasForeignKey(x => x.ProductoId)
+            .HasForeignKey(x => x.ProductoMaestroId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(x => x.Parametro)
@@ -47,9 +47,9 @@ public class EstandarParametroConfiguration : IEntityTypeConfiguration<EstandarP
             .HasForeignKey(x => x.ParametroId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasIndex(x => new { x.LineaId, x.ProductoId, x.ParametroId })
+        builder.HasIndex(x => new { x.LineaId, x.ProductoMaestroId, x.ParametroId })
             .IsUnique();
 
-        builder.HasIndex(x => new { x.LineaId, x.ProductoId });
+        builder.HasIndex(x => new { x.LineaId, x.ProductoMaestroId });
     }
 }

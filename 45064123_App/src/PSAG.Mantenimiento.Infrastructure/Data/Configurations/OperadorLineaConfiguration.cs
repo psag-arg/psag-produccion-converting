@@ -4,11 +4,11 @@ using PSAG.Mantenimiento.Domain.Entities;
 
 namespace PSAG.Mantenimiento.Infrastructure.Data.Configurations;
 
-public class UsuarioLineaConfiguration : IEntityTypeConfiguration<UsuarioLinea>
+public class UsuarioLineaConfiguration : IEntityTypeConfiguration<OperadorLinea>
 {
-    public void Configure(EntityTypeBuilder<UsuarioLinea> builder)
+    public void Configure(EntityTypeBuilder<OperadorLinea> builder)
     {
-        builder.ToTable("UsuariosLineas", "mnt");
+        builder.ToTable("ABM_OperadoresLinea", "mnt");
 
         builder.HasKey(x => x.UsuarioLineaId);
 
@@ -21,13 +21,13 @@ public class UsuarioLineaConfiguration : IEntityTypeConfiguration<UsuarioLinea>
             .HasMaxLength(450);
 
         builder.HasOne(x => x.Linea)
-            .WithMany(x => x.UsuariosLineas)
+            .WithMany(x => x.OperadoresLinea)
             .HasForeignKey(x => x.LineaId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasOne(x => x.Turno)
+        builder.HasOne(x => x.TurnoHabitual)
             .WithMany()
-            .HasForeignKey(x => x.TurnoId)
+            .HasForeignKey(x => x.TurnoHabitualId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(x => x.UsuarioId);

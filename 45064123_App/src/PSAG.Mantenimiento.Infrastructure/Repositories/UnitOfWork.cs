@@ -16,14 +16,14 @@ public class UnitOfWork : IUnitOfWork
     private ITipoFallaRepository? _tiposFalla;
     private IDetalleFallaRepository? _detallesFalla;
     private ITurnoRepository? _turnos;
-    private IUsuarioLineaRepository? _usuariosLineas;
+    private IOperadorLineaRepository? _operadoresLinea;
     private IAuditoriaRepository? _auditoria;
     private IReglaAnalisisRepository? _reglasAnalisis;
     private ITiempoProgramadoDiaRepository? _tiemposProgramadosDia;
     private ICalendarioLineaRepository? _calendariosLinea;
 
     // Eje 2: Variables de proceso
-    private IProductoRepository? _productos;
+    private IProductoMaestroRepository? _productosMaestro;
     private IGrupoParametroRepository? _gruposParametro;
     private IParametroRepository? _parametros;
     private IEstandarParametroRepository? _estandaresParametro;
@@ -59,14 +59,14 @@ public class UnitOfWork : IUnitOfWork
     public ITipoFallaRepository TiposFalla => _tiposFalla ??= new TipoFallaRepository(_context);
     public IDetalleFallaRepository DetallesFalla => _detallesFalla ??= new DetalleFallaRepository(_context);
     public ITurnoRepository Turnos => _turnos ??= new TurnoRepository(_context);
-    public IUsuarioLineaRepository UsuariosLineas => _usuariosLineas ??= new UsuarioLineaRepository(_context);
+    public IOperadorLineaRepository OperadoresLinea => _operadoresLinea ??= new OperadorLineaRepository(_context);
     public IAuditoriaRepository Auditoria => _auditoria ??= new AuditoriaRepository(_context);
     public IReglaAnalisisRepository ReglasAnalisis => _reglasAnalisis ??= new ReglaAnalisisRepository(_context);
     public ITiempoProgramadoDiaRepository TiemposProgramadosDia => _tiemposProgramadosDia ??= new TiempoProgramadoDiaRepository(_context);
     public ICalendarioLineaRepository CalendariosLinea => _calendariosLinea ??= new CalendarioLineaRepository(_context);
 
     // Eje 2: Variables de proceso
-    public IProductoRepository Productos => _productos ??= new ProductoRepository(_context);
+    public IProductoMaestroRepository ProductosMaestro => _productosMaestro ??= new ProductoMaestroRepository(_context);
     public IGrupoParametroRepository GruposParametro => _gruposParametro ??= new GrupoParametroRepository(_context);
     public IParametroRepository Parametros => _parametros ??= new ParametroRepository(_context);
     public IEstandarParametroRepository EstandaresParametro => _estandaresParametro ??= new EstandarParametroRepository(_context);

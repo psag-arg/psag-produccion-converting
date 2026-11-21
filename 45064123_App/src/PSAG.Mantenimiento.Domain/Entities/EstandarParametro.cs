@@ -11,7 +11,7 @@ public class EstandarParametro : EntityBase
 {
     public int EstandarParametroId { get; set; }
     public int LineaId { get; set; }
-    public int ProductoId { get; set; }
+    public int ProductoMaestroId { get; set; }
     public int ParametroId { get; set; }
 
     /// <summary>
@@ -42,6 +42,6 @@ public class EstandarParametro : EntityBase
 
     // Navegación
     public virtual Linea Linea { get; set; } = null!;
-    public virtual Producto Producto { get; set; } = null!;
+    public virtual ProductoMaestro ProductoMaestro { get; set; } = null!;
     public virtual Parametro Parametro { get; set; } = null!;
 }

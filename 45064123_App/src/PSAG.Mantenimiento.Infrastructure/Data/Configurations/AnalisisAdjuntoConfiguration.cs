@@ -9,7 +9,7 @@ public class AnalisisAdjuntoConfiguration : IEntityTypeConfiguration<AnalisisAdj
     public void Configure(EntityTypeBuilder<AnalisisAdjunto> builder)
     {
         // Mismo CHECK que database/20. El tamaño máximo no va en la base: lo controla AdjuntoImagenReglas.
-        builder.ToTable("AnalisisAdjuntos", "mnt", t =>
+        builder.ToTable("DET_AnalisisAdjuntos", "mnt", t =>
             t.HasCheckConstraint("CK_AnalisisAdjuntos_ContentType", "[ContentType] IN ('image/jpeg', 'image/png')"));
 
         builder.HasKey(x => x.AnalisisAdjuntoId);
