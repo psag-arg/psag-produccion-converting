@@ -29,6 +29,9 @@ public class DetencionDetalleDto : DatosAnalisisDetencion
     public DateTimeOffset? FechaHoraParada { get; set; }
     public DateTimeOffset? FechaHoraArranque { get; set; }
     public string OrigenTiempo { get; set; } = string.Empty;
+
+    /// <summary>T-786: MANUAL (la cargó una persona) o CAMARA (la creó el servicio de cámara).</summary>
+    public string OrigenRegistro { get; set; } = "MANUAL";
     public int MinutosEfectivos { get; set; }
 
     public string Descripcion { get; set; } = string.Empty;
@@ -45,6 +48,12 @@ public class DetencionDetalleDto : DatosAnalisisDetencion
     public DateTimeOffset FechaHoraCreacion { get; set; }
     public string CreadoPorUsuarioId { get; set; } = string.Empty;
     public string CreadoPorUsuarioNombre { get; set; } = string.Empty;
+
+    /// <summary>
+    /// T-786: nombre de quien CARGÓ la detención (CreadoPorUsuarioId). Ojo: en este DTO CreadoPorUsuarioNombre trae el
+    /// nombre del maquinista (así lo usa la Web desde antes). Null si la creó la cámara o el usuario no existe.
+    /// </summary>
+    public string? CargadaPorUsuarioNombre { get; set; }
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
     public List<DetencionNotaDto> Notas { get; set; } = new();

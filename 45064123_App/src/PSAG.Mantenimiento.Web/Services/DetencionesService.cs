@@ -17,6 +17,9 @@ public interface IDetencionesService
     Task<(bool Success, string? Error)> CerrarDetencionAsync(long id, CerrarDetencionRequest request);
     Task<List<DetencionDto>> GetDetencionesAbiertasAsync(int? lineaId = null);
     Task<ResumenTurnoResponse> GetResumenTurnoAsync(int? lineaId = null);
+
+    /// <summary>T-786: detenciones de la línea que se pisan con ese horario (para avisar antes de declarar a mano).</summary>
+    Task<List<DetencionSuperpuestaDto>> GetSuperpuestasAsync(int lineaId, DateOnly fecha, TimeOnly horaInicio, TimeOnly horaFin);
 }
 
 public class DetencionFiltroRequest
@@ -35,6 +38,9 @@ public class DetencionFiltroRequest
     public string? Busqueda { get; set; }
     public bool? AnalisisPendiente { get; set; }
     public bool VerEliminadas { get; set; }
+
+    /// <summary>T-786: MANUAL o CAMARA; null = todas.</summary>
+    public string? OrigenRegistro { get; set; }
 }
 
 public class DetencionesService : IDetencionesService
@@ -142,6 +148,19 @@ public class DetencionesService : IDetencionesService
         return result ?? new ResumenTurnoResponse();
     }
 
+    public async Task<List<DetencionSuperpuestaDto>> GetSuperpuestasAsync(int lineaId, DateOnly fecha, TimeOnly horaInicio, TimeOnly horaFin)
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<List<DetencionSuperpuestaDto>>(
+                $"api/detenciones/superpuestas?lineaId={lineaId}&fecha={fecha:yyyy-MM-dd}&horaInicio={horaInicio:HH\\:mm}&horaFin={horaFin:HH\\:mm}") ?? [];
+        }
+        catch (HttpRequestException)
+        {
+            return []; // el aviso es una ayuda: si falla, se puede declarar igual
+        }
+    }
+
     private static string ConstruirQuery(DetencionFiltroRequest filtro)
     {
         var queryParams = new List<string>
@@ -162,6 +181,7 @@ public class DetencionesService : IDetencionesService
         if (!string.IsNullOrEmpty(filtro.Busqueda)) queryParams.Add($"busqueda={Uri.EscapeDataString(filtro.Busqueda)}");
         if (filtro.AnalisisPendiente.HasValue) queryParams.Add($"analisisPendiente={filtro.AnalisisPendiente.Value.ToString().ToLowerInvariant()}");
         if (filtro.VerEliminadas) queryParams.Add("verEliminadas=true");
+        if (!string.IsNullOrEmpty(filtro.OrigenRegistro)) queryParams.Add($"origenRegistro={filtro.OrigenRegistro}");
 
         return string.Join("&", queryParams);
     }

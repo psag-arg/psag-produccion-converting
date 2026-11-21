@@ -112,3 +112,21 @@ Desde la UI o:
 - [ ] Revisar logs de errores
 - [ ] Verificar backups completados
 - [ ] Revisar panel de NO OK (si hay pendientes críticos)
+
+## Declarar una detención manual (corte de energía) — T-786
+
+Ante un corte de energía las cámaras y el sistema se reinician y la detención no queda registrada. El supervisor
+(también mantenimiento o administrador) la declara en **Detenciones → Declarar detención manual**
+(`/detenciones/declarar-manual`):
+
+1. Máquina, fecha, hora **desde** y **hasta** (si hasta es menor, termina al día siguiente). El turno sale de la hora
+   desde y se muestra antes de guardar.
+2. Tipo de falla (obligatorio), detalle y equipo (opcionales), maquinista (opcional: si no se elige, el del turno) y
+   **motivo** (obligatorio; botones rápidos "Corte de energía", "Reinicio del sistema", "Falla de cámara").
+3. Si ya hay otra detención de esa máquina en ese horario (por ejemplo, la que creó la cámara al volver) se avisa con
+   el código: conviene completar esa en lugar de cargar otra. El aviso no bloquea.
+
+La detención queda **REGISTRADA**, con `OrigenRegistro = MANUAL` (las de la cámara son `CAMARA`), minutos calculados
+con desde/hasta, y cuenta en los reportes como cualquier otra. Quién la cargó y cuándo se ven en el detalle
+("Registrado": fecha y "Cargada por …"). El listado de detenciones muestra la insignia **Manual** / **Cámara** y filtra
+por **Origen**; el Excel exportado trae la columna *Origen*.

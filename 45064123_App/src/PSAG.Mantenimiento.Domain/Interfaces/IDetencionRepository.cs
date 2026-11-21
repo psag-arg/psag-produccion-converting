@@ -105,5 +105,13 @@ public interface IDetencionRepository : IRepository<Detencion>
         string? ordenarPor = null,
         bool ordenDescendente = true,
         int? minutosMinimos = null,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        OrigenRegistroDetencion? origenRegistro = null);
+
+    /// <summary>
+    /// T-786: detenciones de la línea con hora de parada entre <paramref name="paradaDesde"/> y
+    /// <paramref name="paradaHasta"/> (sin las eliminadas), para avisar superposiciones al declarar a mano. Sólo lectura.
+    /// </summary>
+    Task<IReadOnlyList<Detencion>> GetConParadaEntreAsync(
+        int lineaId, DateTimeOffset paradaDesde, DateTimeOffset paradaHasta, CancellationToken cancellationToken = default);
 }
