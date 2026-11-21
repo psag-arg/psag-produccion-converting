@@ -5,6 +5,8 @@ Este documento cubre la **Fase 1 (diagnóstico)** y la **Fase 2 (diseño)**. No 
 
 Base del análisis: `main` en `158d535`, más las ramas sin mergear T-783, T-784, T-785 y T-786.
 
+**Versión 2 (21/11):** incorpora los datos del cliente que ya existían: el mail de Ferretti del 04/11 (T-607) y el de Francisco del 10/11 (T-779). Se usan como datos, no como preguntas. Los cambios están marcados con **[v2]**.
+
 ---
 
 ## 0. Resumen
@@ -33,6 +35,21 @@ Base del análisis: `main` en `158d535`, más las ramas sin mergear T-783, T-784
 | "No hay tabla de productos" | **Sí existe `mnt.Productos`** (Código, Nombre, Descripción, Orden), con `mnt.LineasProductos`. La usan Control de Proceso (`EstandaresParametro`, `RegistrosProceso.ProductoId`) y Calidad (`RegistrosCalidad.ProductoId`). En producción el script 24 cargó **`HIGIENICO 30 MTS`** en Tango 2, con 54 estándares. Es una lista plana: no tiene maestro/SKU, ni objetivos, ni metros. |
 | `mnt.Turnos` = T1/T2/T3 | Es **global, no por línea**. Cada línea solo elige, por día de la semana, cuáles corre (`CalendarioLinea` + `CalendarioLineaTurno`). La búsqueda del turno por hora toma el primer turno que contiene la hora. **No admite esquemas distintos por línea.** |
 | T-783, T-784, T-785 y T-786 | Ninguna está en `main` ni en producción: son ramas. En DEV corren juntas, en la integración local. |
+
+### Datos del cliente incorporados [v2]
+
+| Dato | Valor | Fuente | Uso en el diseño |
+|---|---|---|---|
+| Turnos de Tango 2 | T1 05–13, T2 13–21, T3 21–05 (**8 h cada uno**) | Francisco 10/11, confirmado por Emiliano | `DefinicionesTurno` de Tango 2. **En producción el T3 está cargado de 21 a 06** (por eso el día suma 25 h, T-541): la migración lo corrige a 21–05. |
+| Rollos por manga (tronco), SH 30 | **28** | Ferretti 04/11 | `ProductosMaestro.RollosPorManga`. SH 50: **sin dato** (abierto). |
+| Metros por manga (tronco) | 30 m en SH 30 (largo del tronco = largo de cada rollo que sale de él) | Ferretti 04/11 | `ProductosMaestro.MetrosPorManga`. Velocidad = mangas/min × metros por manga. |
+| Velocidad normal de marcha de Tango 2 | **670 m/min** (≈ 22 mangas/min) | Ferretti 04/11 | Referencia de velocidad. El objetivo de 11.200 (100 %) equivale a 700 m/min. |
+| Producto habitual | SH 30 el 95 % del tiempo | Ferretti 04/11 | Los cambios de producto son raros: el tramo único es el caso normal. |
+| Qué cuenta la máquina | Troncos o mangas, no rollos de la cortadora | Ferretti 04/11 | La magnitud oficial de Tango 2 es **MANGAS**. Los rollos de la cámara 09 quedan como dato de control. |
+| Producción real típica | 9.000–9.500 mangas por turno (11.200 = 100 %) | Ferretti 04/11 | Eficiencia típica esperada: **80–85 %**. Sirve para validar el cálculo. |
+| Empalme de bobina madre | Automático: baja la velocidad, se descarta un tronco, **no es detención** | Ferretti 04/11 | Coincide con T-784 (empalme ≠ parada). Ferretti pide declarar solo lo de más de 5 min; para Emiliano (20/11) toda microparada se registra y el reporte decide. |
+| Paquetes por bolsón | **Un solo lugar**: es el contenido del SKU bolsón y lo controla la cámara 3 de calidad (embolsadora, T-608/T-613) | Orden 21/11 | `ProductosSku.PaquetesPorBolson` (ver 2.2). |
+| Hipótesis **a confirmar** (no es dato) | 28 rollos ÷ 4 por paquete = 7 paquetes por manga, así que ≈ 12 paquetes por bolsón en SH 30 (11.200 × 7 ÷ 6.500) y ≈ 10 en SH 50 (si también tiene 28 rollos) | Orden 21/11 | Pregunta abierta 5. **No se carga.** |
 
 ---
 
@@ -93,6 +110,7 @@ erDiagram
    El mismo turno T3 queda partido en dos días según el reporte.
 3. **El acumulado del turno pierde el T3**: filtra `Fecha = hoy`, así que después de medianoche no ve lo que pasó antes.
 4. **Los turnos son globales.** No hay esquema por línea: un T3 de 9 h en una línea y de 8 h en otra es imposible. Si se cargan turnos que se superponen, `GetTurnoPorHoraAsync` toma el primero.
+   - [v2] Ya pasó: en producción el T3 está cargado de 21 a 06 (el real es 21–05), el día suma 25 h (T-541) y entre las 05:00 y las 06:00 el turno queda ambiguo.
 
 **Maquinista y usuarios**
 
@@ -160,6 +178,7 @@ erDiagram
 - **Insert-only** donde ya rige: detenciones, historial, producción declarada, operadores. Las correcciones son registros nuevos.
 - **Nombres que dicen lo que guardan.** Sin prefijos de línea en los códigos como convención.
 - Todo por **línea**: turnos, objetivos, cámaras.
+- [v2] Un dato en **un solo lugar**: por ejemplo, los paquetes por bolsón van en el SKU y los usan tanto la producción como la cámara 3 de calidad.
 
 ### 2.2 Modelo de datos propuesto
 
@@ -176,7 +195,7 @@ Tipos SQL Server (en SQLite de DEV se mapean igual). Todas las tablas de catálo
 | `LineaId` | INT NOT NULL FK `Lineas` | **Nuevo.** Cada línea con su esquema. |
 | `Codigo` | NVARCHAR(10) | T1, T2, T3. Único por línea (`UX_DefinicionesTurno_Linea_Codigo`). |
 | `Nombre` | NVARCHAR(50) | |
-| `HoraInicio`, `HoraFin` | TIME | Si fin ≤ inicio, cruza medianoche. La duración sale de acá (T3 de 9 h = 21:00–06:00). |
+| `HoraInicio`, `HoraFin` | TIME | Si fin ≤ inicio, cruza medianoche. La duración sale de acá. Tango 2: 05–13, 13–21 y 21–05 (8 h cada uno). [v2] |
 | `Orden` | INT | |
 | `Activo` | BIT | |
 
@@ -192,16 +211,19 @@ Tipos SQL Server (en SQLite de DEV se mapean igual). Todas las tablas de catálo
 | `Codigo` | NVARCHAR(50) UNIQUE | Ej.: `SH30X4-PH1-20`. |
 | `Nombre` | NVARCHAR(100) | "HIGIÉNICO SH 30 mts x 4 – PH1 20". |
 | `TipoProducto` | NVARCHAR(30) | HIGIENICO, ROLLO_COCINA… Catálogo chico; ver pregunta abierta. |
-| `MetrosPorRollo` | DECIMAL(9,2) NOT NULL | 30 / 50. Lo que el cliente llama "metros por manga": ver nota abajo. |
-| `RollosPorManga` | INT NULL | El "x 4" del nombre. Confirmar. |
-| `MangasPorBolson` | DECIMAL(9,2) NULL | **No se supone** (pregunta abierta). |
+| `MetrosPorManga` | DECIMAL(9,2) NOT NULL | Largo del tronco o manga, que es también el largo de cada rollo: 30 (SH 30), 50 (SH 50). [v2] |
+| `RollosPorManga` | INT NULL | Rollos que salen de cada tronco en la cortadora: **28 en SH 30** (Ferretti). SH 50: null hasta que se confirme. [v2] |
+| `RollosPorPaquete` | INT NULL | El "x 4" del nombre. [v2] |
 | `Descripcion`, `Orden`, `Activo` | | Como hoy. |
 
-> **Metros por manga.** El pedido dice "metros/manga = 30", pero si la manga es un pack de 4 rollos de 30 m, la manga tiene
-> 120 m. Para la velocidad en m lineales/min importa cuál es. Queda como pregunta abierta: guardo `MetrosPorRollo` y
-> `RollosPorManga`, y la velocidad se define con la respuesta.
+> **[v2] Resuelto.** La manga o tronco es el rollo grande que se corta en 28 rollos. El largo del papel (30 m) es el
+> mismo en el tronco y en cada rollo. Por eso la velocidad en m lineales/min = mangas/min × `MetrosPorManga`
+> (≈ 22,3 × 30 = 670 m/min).
+>
+> `MangasPorBolson` **ya no se guarda**: se deriva de `PaquetesPorBolson` (del SKU), `RollosPorPaquete` y
+> `RollosPorManga`, para no tener el mismo dato en dos lugares.
 
-**`mnt.ProductosSku`** (nueva, opcional). Por qué: el objetivo es del maestro; el SKU solo identifica la presentación comercial (ERP, calidad). Puede quedar vacía.
+**`mnt.ProductosSku`** (nueva). Por qué: el objetivo es del maestro; el SKU identifica la presentación comercial (ERP, calidad) y **es el único lugar del contenido del bolsón** [v2]. Ese dato lo controla también la cámara 3 de calidad (embolsadora, T-608/T-613), que lee este mismo campo.
 
 | Columna | Tipo | Notas |
 |---|---|---|
@@ -209,6 +231,7 @@ Tipos SQL Server (en SQLite de DEV se mapean igual). Todas las tablas de catálo
 | `CodigoSku` | NVARCHAR(50) UNIQUE | |
 | `Descripcion` | NVARCHAR(200) | |
 | `ProductoMaestroId` | INT FK | Varios SKU → un maestro. |
+| `PaquetesPorBolson` | INT NULL | **Único lugar** del contenido del bolsón. Lo usan la conversión manga↔bolsón y el control de la cámara 3 de calidad. Null hasta que el cliente lo confirme (la hipótesis de 12 y 10 no se carga). [v2] |
 
 **`mnt.ObjetivosProduccion`** (nueva). Por qué: **el objetivo es por producto + línea** (el mismo producto puede correr a distinta velocidad en otra línea), con vigencia para no reescribir el histórico. Reemplaza `PuntosControlCalidad.ObjetivoPorHora`.
 
@@ -277,7 +300,8 @@ Regla: sin superposición entre los tramos no anulados de un turno.
 | `MangasObjetivoTurnoSnapshot` | INT | |
 | `BolsonesObjetivoTurnoSnapshot` | INT NULL | |
 | `MinutosTurnoReferenciaSnapshot` | INT | |
-| `MetrosPorRolloSnapshot`, `RollosPorMangaSnapshot` | DECIMAL / INT | Para la velocidad. |
+| `ProductoSkuId` | INT NULL FK | SKU que se embolsa en el tramo (si se sabe). Si el maestro tiene un solo SKU, se completa solo. Lo usa el control de paquetes por bolsón. [v2] |
+| `MetrosPorMangaSnapshot`, `RollosPorMangaSnapshot` | DECIMAL / INT | Para la velocidad y las conversiones. |
 | `DeclaradoPorUsuarioId` | NVARCHAR(450) | |
 | `Origen` | NVARCHAR(20) | `LOGIN`, `CAMBIO`, `SUPERVISOR`. |
 | `AnuladoPorId` | BIGINT NULL FK self | |
@@ -370,7 +394,7 @@ erDiagram
     CalendarioLinea ||--o{ CalendarioLineaTurno : ""
     DefinicionesTurno ||--o{ CalendarioLineaTurno : ""
     Lineas ||--o{ TiemposProgramadosDia : ""
-    ProductosMaestro ||--o{ ProductosSku : "opcional"
+    ProductosMaestro ||--o{ ProductosSku : "presentación (bolsón)"
     Lineas ||--o{ ObjetivosProduccion : ""
     ProductosMaestro ||--o{ ObjetivosProduccion : "por vigencia"
     Lineas ||--o{ TurnosProduccion : ""
@@ -401,7 +425,7 @@ erDiagram
 
 | Tabla actual | Destino |
 |---|---|
-| `Turnos` | **Renombrar** a `DefinicionesTurno` y agregar `LineaId`. Las 3 globales se copian a cada línea (ids nuevos por línea; Tango 2 conserva los actuales). |
+| `Turnos` | **Renombrar** a `DefinicionesTurno` y agregar `LineaId`. Las 3 globales se copian a cada línea (ids nuevos por línea; Tango 2 conserva los actuales). **[v2] Se corrigen los horarios de Tango 2 a 05–13, 13–21 y 21–05**: en producción el T3 está de 21 a 06 y el día suma 25 h. |
 | `Productos` | **Renombrar** a `ProductosMaestro` y agregar columnas. |
 | `LineasProductos` | Se queda (FK renombrado). |
 | `PuntosControlCalidad` | **Transformar**: las filas de cámaras (con `NumeroCamara` o `MetodoConteo`) **se mueven** a `CamarasConteo` y sus columnas de cámara se eliminan. |
@@ -451,19 +475,21 @@ erDiagram
 
 ### 2.6 Indicadores, con ejemplos numéricos
 
-Productos: **A** = SH 30 (11.200 mangas y 6.500 bolsones por turno; 30 m) y **B** = SH 50 (6.720 mangas y 4.700 bolsones por turno; 50 m). Supuesto marcado: `MinutosTurnoReferencia = 480`.
+Productos: **A** = SH 30 (11.200 mangas y 6.500 bolsones por turno; 30 m; 28 rollos por manga) y **B** = SH 50 (6.720 mangas y 4.700 bolsones por turno; 50 m). Los turnos de Tango 2 son de 8 h, así que `MinutosTurnoReferencia = 480` coincide con el turno completo [v2].
 
 **Objetivo de un tramo** = `ObjetivoTurno × minutos del tramo ÷ MinutosTurnoReferencia`.
 **Objetivo del turno** = Σ de los tramos. **Eficiencia** = Σ producción oficial ÷ Σ objetivo (de la línea, el turno o el período, sumando numerador y denominador, nunca promediando porcentajes).
 
 | Caso | Tramos | Objetivo mangas | Producido | Eficiencia |
 |---|---|---|---|---|
-| 1. T1 de 8 h, solo A | A 06:00–14:00 (480 min) | 11.200 | 10.080 | **90,0 %** |
-| 2. T2 con cambio de producto | A 14:00–17:00 (180) + B 17:00–22:00 (300) | 11.200×180/480 + 6.720×300/480 = 4.200 + 4.200 = **8.400** | 3.900 + 3.850 = 7.750 | **92,3 %** (A 92,9 %; B 91,7 %) |
-| 3a. T3 de 9 h con B, prorrateado | B 21:00–06:00 (540) | 6.720×540/480 = **7.560** | 6.900 | **91,3 %** |
-| 3b. T3 de 9 h con B, objetivo fijo por turno | igual | **6.720** | 6.900 | **102,7 %** |
+| 1. T1 típico, solo A [v2] | A 05:00–13:00 (480 min) | 11.200 | 9.300 (rango real 9.000–9.500) | **83,0 %** (rango 80,4–84,8 %) |
+| 2. T2 con cambio de producto | A 13:00–16:00 (180) + B 16:00–21:00 (300) | 11.200×180/480 + 6.720×300/480 = 4.200 + 4.200 = **8.400** | 3.900 + 3.850 = 7.750 | **92,3 %** (A 92,9 %; B 91,7 %) |
+| 3. T3 que cruza medianoche, solo B [v2] | B 21:00–05:00 (480) | **6.720** | 6.200 | **92,3 %**. Los conteos de 00:00 a 05:00 son del mismo turno (`FechaProduccion` = día de inicio). |
+| 4a. Turno cortado a 6 h (excepción del día), prorrateado [v2] | A 05:00–11:00 (360) | 11.200×360/480 = **8.400** | 7.000 | **83,3 %** |
+| 4b. Igual, con objetivo fijo por turno | igual | **11.200** | 7.000 | **62,5 %** |
 
-Los casos 3a y 3b muestran por qué la pregunta abierta 2 cambia el número.
+Con turnos de 8 h, la pregunta abierta 2 solo aplica a los turnos cortados (excepción de horas del día) y a los cambios
+de producto. Los casos 4a y 4b muestran por qué cambia el número. [v2] Ya no hay T3 de 9 h: era el error de carga de 21–06.
 
 **Producción de bolsones** (mismo prorrateo):
 - caso 2: 6.500×180/480 + 4.700×300/480 = 2.437,5 + 2.937,5 = **5.375** de objetivo;
@@ -473,8 +499,9 @@ Mientras no haya cámara de bolsones: si no hay `ProduccionesTurno` de BOLSONES,
 
 **Velocidad** (m lineales/min) = mangas en el minuto × metros de la manga del producto **vigente en ese minuto** (el tramo da el producto).
 - Promedio de un tramo = Σ mangas ÷ minutos en marcha (`SegundosMarcha`) × metros por manga.
-- Ejemplo A: 23,3 mangas/min × 30 m = **700 m/min**. Ejemplo B: 14 mangas/min × 50 m = **700 m/min**.
-- Dato útil: los dos objetivos equivalen a **700 m/min** en 8 h (11.200 ÷ 480 × 30 = 6.720 ÷ 480 × 50 = 700). Parece que el objetivo sale de una velocidad de línea de 700 m/min. Si se confirma, el objetivo podría derivarse de la velocidad. Además, sugiere que "metros por manga" = metros de la manga tal como se cuenta, y no por rollo (confirmar).
+- Ejemplo A en marcha normal (Ferretti): 22,3 mangas/min × 30 m = **670 m/min** [v2].
+- Los dos objetivos equivalen a **700 m/min** durante las 8 h, sin paradas (11.200 ÷ 480 × 30 = 6.720 ÷ 480 × 50 = 700). Es decir: el 100 % supone marchar todo el turno un poco por encima de la velocidad normal.
+- Producir 9.000–9.500 mangas a 670 m/min equivale a 403–425 min en marcha de 480: el resto son paradas, empalmes y arranques. Los números son coherentes. [v2]
 
 **Indisponibilidad** = Σ minutos de detención de los turnos ÷ Σ `MinutosProgramados` de esos turnos.
 - Sigue funcionando: los minutos programados ahora salen del snapshot del turno (que se arma con el mismo calendario y las mismas excepciones).
@@ -482,7 +509,9 @@ Mientras no haya cámara de bolsones: si no hay `ProduccionesTurno` de BOLSONES,
 
 **Horas programadas**: `TiempoProgramadoCalculador` no cambia; pasa a usar `DefinicionesTurno` de la línea.
 
-**Relación manga/bolsón** (no se supone): con los objetivos, A tiene 0,58 bolsones por manga y B 0,70. **No es constante**, así que el conteo de una cámara no sirve para validar el de otra hasta que el cliente defina la relación.
+**Relación manga/bolsón** [v2]: bolsones esperados = mangas × `RollosPorManga` ÷ `RollosPorPaquete` ÷ `PaquetesPorBolson`.
+- Con la hipótesis a confirmar (28 rollos, 4 por paquete, 12 paquetes por bolsón): 11.200 mangas × 7 ÷ 12 ≈ 6.533, cerca del objetivo de 6.500.
+- Mientras `PaquetesPorBolson` esté vacío, **no se cruzan** los conteos de la cámara de mangas con la de bolsones.
 
 ### 2.7 Impacto
 
@@ -509,25 +538,30 @@ Mientras no haya cámara de bolsones: si no hay `ProduccionesTurno` de BOLSONES,
 | **B. Convertir con turnos inferidos** *(recomendada)* | Un script crea un `TurnoProduccion` por cada (línea, turno, fecha de producción) con datos, con estado `CERRADO`, origen `SISTEMA` y sin producto. Cuelga ahí detenciones, conteos y registros. Operador = el del `UsuarioLineaId` de la detención, si hay. | Conserva todo para comparar y probar reportes. Valida el script de migración que habría que usar igual en las otras líneas. | Turnos sin producto: la eficiencia histórica queda "sin objetivo" salvo que se cargue el producto a mano. Hay que decidir qué hacer con las detenciones de cámara pendientes. |
 | C. Migrar 1:1 con producto | Como B, más asignar `HIGIENICO 30 MTS` a todos los tramos. | Eficiencia histórica calculable. | **Inventa un dato**: no sabemos qué producto corrió. No recomendado sin confirmación. |
 
-Recomiendo **B** y, si molesta, se borra después (son datos de prueba). Antes de cualquier opción: backup de la base y de `C:\PSAG_Mantenimiento\Adjuntos`.
+Recomiendo **B** y, si molesta, se borra después (son datos de prueba).
+
+[v2] **Corrección del T3 en la migración**: los registros de prueba entre las 05:00 y las 06:00 hoy tienen el T3 (por el error de 21–06). Al convertirlos (opción B) se reasignan al **T1** según su hora, con los horarios corregidos. Es una excepción documentada a "no recalcular el turno": se corrige un error de carga, no un cambio de horario. Antes de cualquier opción: backup de la base y de `C:\PSAG_Mantenimiento\Adjuntos`.
 
 ### 2.9 Preguntas abiertas para el cliente
 
 1. **Validación del conteo de cámara contra el contador de la máquina.**
    - Opciones: (a) el supervisor valida cada turno; (b) se valida sola si la cobertura es ≥ 90 % y el supervisor solo corrige; (c) se carga el contador de la máquina a mano y la cámara queda como referencia.
    - ¿Quién valida? ¿Hay contador en la máquina?
-2. **Objetivo de un turno que no dura 8 h** (T3 de 9 h, turnos cortos, cambio de producto).
-   - Opciones: (a) prorrateo por minuto (caso 3a); (b) objetivo fijo por turno, con prorrateo solo en cambios de producto (3b); (c) objetivo por hora de la línea (deriva de los 700 m/min).
+2. **Objetivo de un turno cortado** (excepción de horas del día) y en cambios de producto. Todos los turnos de Tango 2 son de 8 h. [v2]
+   - Opciones: (a) prorrateo por minuto (caso 4a); (b) objetivo fijo por turno, con prorrateo solo en cambios de producto (4b); (c) objetivo por hora de la línea (deriva de los 700 m/min).
 3. **SKU vs. producto maestro.**
    - ¿`HIGIENICO 30 MTS` (producción, con 54 estándares de proceso) es el mismo maestro que "SH 30 mts x 4 – PH1 20"?
    - ¿Hace falta registrar el SKU, y de dónde sale (ERP)?
-4. **Metros por manga.** ¿30 es por rollo o por manga? ¿Una manga = 4 rollos?
-5. **Relación rollo / manga / bolsón.** ¿Cuántos rollos por manga y cuántas mangas por bolsón, por producto? (Los objetivos dan 0,58 y 0,70 bolsones por manga, que no es constante.)
+4. ~~Metros por manga~~ **Resuelta [v2]**: 30 m por tronco (= largo de cada rollo); 28 rollos por manga en SH 30. **Sigue abierto: rollos por manga de SH 50.**
+5. **Paquetes por bolsón (contenido del SKU bolsón).** Hipótesis a confirmar: 4 rollos por paquete y 7 paquetes por manga, así que ≈ 12 por bolsón en SH 30 y ≈ 10 en SH 50.
+   - ¿Es correcto?
+   - ¿Hay un solo SKU bolsón por producto maestro?
+   - ¿La cámara 3 de calidad va a validar este mismo número?
 6. **Quién corrige un turno cerrado** (operador, producto, producción).
    - Opciones: (a) solo supervisor de la línea; (b) supervisor y mantenimiento; (c) además, un plazo (por ejemplo 48 h) después del cual solo admin.
-7. **Otras 4 líneas.** ¿Mismo esquema de turnos (¿T3 de 9 h en todas?), mismas magnitudes (¿mangas y bolsones o rollos?) e indicadores?
-8. **Horas reales de cada turno en Tango 2** (si el T3 es de 9 h, ¿el T2 es de 7 h?).
-9. **Tiempo de cambio de producto**: ¿cuenta contra el objetivo del producto nuevo, del anterior, o se descuenta como parada programada?
+7. **Otras 4 líneas.** ¿Mismo esquema de turnos (05–13, 13–21, 21–05), mismas magnitudes (¿mangas y bolsones, o rollos?) e indicadores?
+8. ~~Horas reales de los turnos de Tango 2~~ **Resuelta [v2]**: 05–13, 13–21, 21–05. Hay que corregir el T3 en producción (21–06 → 21–05).
+9. **Tiempo de cambio de producto** (poco frecuente: SH 30 corre el 95 % del tiempo) [v2]: ¿cuenta contra el objetivo del producto nuevo, del anterior, o se descuenta como parada programada?
 10. **Producción fuera de horario programado** (turno no programado que igual se trabaja): ¿cuenta para la eficiencia con objetivo completo, o solo se informa?
 11. **Paradas programadas** (preventivo, limpieza, falta de programa): ¿restan de los minutos programados, o cuentan como indisponibilidad?
 12. **Tolerancias**: el cierre automático (propuesta: 30 min después del fin) y la cobertura mínima de datos (propuesta: 90 %).
