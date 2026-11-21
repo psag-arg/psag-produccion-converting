@@ -1,7 +1,9 @@
 # T-798 · Rediseño del modelo de producción: el evento Turno
 
-Este documento cubre la **Fase 1 (diagnóstico)** y la **Fase 2 (diseño)**. No se modificó código, scripts ni bases.
-**Punto de control:** espera el OK de Emiliano antes de la Fase 3.
+Este documento cubre la **Fase 1 (diagnóstico)** y la **Fase 2 (diseño)**.
+
+**v3 (21/11): aplica las decisiones de Emiliano. El punto de control está levantado y la ejecución en DEV es por etapas (2.13).**
+La Fase 2 vigente es la sección 2 (v3). Las secciones 0 y 1 son el diagnóstico del v1, con los datos del cliente de la v2.
 
 Base del análisis: `main` en `158d535`, más las ramas sin mergear T-783, T-784, T-785 y T-786.
 
@@ -169,416 +171,315 @@ erDiagram
 
 ---
 
-## 2. FASE 2 – Diseño
+## 2. FASE 2 – Diseño v3 (vigente)
 
-### 2.1 Principios
+> **v3 (21/11):** aplica las decisiones de Emiliano del 21/11. **Esta sección manda** sobre la v1 y la v2.
+> Las secciones 0 y 1 (resumen y diagnóstico) siguen valiendo como diagnóstico.
 
-- El eje es **`TurnosProduccion`**. Todo hecho operativo (conteo, parada, detención, producción declarada, registro de proceso, defecto de calidad) cuelga de un turno de producción o puede asociarse a uno.
-- **Snapshot** de lo que puede cambiar: objetivo, metros por manga, horario programado, operador. Es la misma regla que `ValorEstandarSnapshot` (trampa 3) y el turno materializado (trampa 4).
-- **Insert-only** donde ya rige: detenciones, historial, producción declarada, operadores. Las correcciones son registros nuevos.
-- **Nombres que dicen lo que guardan.** Sin prefijos de línea en los códigos como convención.
-- Todo por **línea**: turnos, objetivos, cámaras.
-- [v2] Un dato en **un solo lugar**: por ejemplo, los paquetes por bolsón van en el SKU y los usan tanto la producción como la cámara 3 de calidad.
+### 2.0 Qué cambió respecto del v1
 
-### 2.2 Modelo de datos propuesto
+| # | v1 / v2 | v3 (decisión de Emiliano) |
+|---|---|---|
+| 1 | Turnos por línea (`DefinicionesTurno` + `LineaId`) | **Turnos = ABM global** `ABM_Turnos` (T1 05–13, T2 13–21, T3 21–05), sin `LineaId`. La planta trabaja 24 h con 3 turnos iguales; cambia el operador, no la máquina. |
+| 2 | Calendario de 2 tablas sin tocar | **Programación** = plan: `PRD_ProgramacionLinea` (versión por vigencia) + `PRD_ProgramacionLineaTurnos` (día de la semana × turno). Se mantienen las 2 tablas: ver 2.3. `PRD_ExcepcionesHorasDia` es la excepción por fecha. |
+| 3 | `ObjetivosProduccion` aparte de `LineasProductos` | **Una sola parametrización** `PRD_ParametrosLineaProducto` (habilitado + objetivos por turno, con vigencia) = **PRESUPUESTO**. `PRD_ProduccionesTurno` = **REAL**. |
+| 4 | `ProductosSku` opcional | `ABM_ProductosSku` con FK **NOT NULL** al maestro y **jerarquía BOLSON / PALLET** (paquetes por bolsón, bolsones por pallet; aceptan nulo). |
+| 5 | Nombres sin prefijo | **Prefijo por módulo** (`ABM_`, `PRD_`, `CAM_`, `DET_`, `MNT_`, `CPR_`, `INS_`, `CAL_`, `CFG_`). Mapeo completo en 2.2. |
+| 6 | `CamarasConteo` separada de los puntos de calidad | **Un solo maestro de cámaras** `CAM_Camaras` (el dispositivo) con su **función** (CONTEO o CALIDAD). `CAL_PuntosControl` **referencia** la cámara. Ver 2.4. |
+| 7 | Magnitudes MANGAS / BOLSONES / ROLLOS | **MANGAS, ROLLOS, PAQUETES, BOLSONES, PALLETS**. Sin dato: "sin datos", nunca 0 %. |
+| 8 | Detenciones sin clasificar | `ABM_TiposFalla.CuentaParaIndicadores` (parametrizable): si la detención de ese tipo cuenta para indisponibilidad y eficiencia (no programada) o no (programada). |
+| 9 | Metros por manga y "x 4" en duda | **Confirmado por Emiliano**: metros por manga = 30 / 50 y "x 4" = **rollos por paquete**. Rollos por manga 28 en SH 30 (Ferretti); el resto se deja en nulo. |
+| 10 | Datos de prueba: recomendación | **Decidido: opción B** (convertir con turnos inferidos, sin inventar producto). |
+| 11 | Punto de control | **Levantado**: se ejecuta en DEV por etapas (2.10). |
 
-Tipos SQL Server (en SQLite de DEV se mapean igual). Todas las tablas de catálogo heredan la auditoría de siempre:
-`FechaHoraCreacion`, `FechaHoraModificacion`, `CreadoPorUsuarioId` y `ModificadoPorUsuarioId`, más `Activo` en los catálogos.
+### 2.1 Principios (se mantienen)
 
-#### Catálogos
+- El eje es `PRD_TurnosProduccion` (transacción, no ABM). Toda detención, conteo, parada, registro de proceso y de calidad cuelga de un turno de producción.
+- Presupuesto (`PRD_ParametrosLineaProducto` y la programación) **vs.** real (`PRD_TurnosProduccion` + `PRD_ProduccionesTurno` + `DET_Detenciones`).
+- Snapshot de lo que puede cambiar (objetivo, metros, minutos programados, operador). Insert-only en lo transaccional; borrado lógico donde ya existe.
+- Un dato en un solo lugar (paquetes por bolsón: en el SKU bolsón; también lo usa la cámara 3 de calidad).
+- Nombres que no engañan (`Rollos` → `Cantidad`; la magnitud la da la cámara).
+- Esquema SQL: sigue siendo `mnt` (`mnt.ABM_Lineas`). `AspNet*` y `Auditoria` no se renombran.
 
-**`mnt.DefinicionesTurno`** (transforma `mnt.Turnos`). Por qué: los turnos pasan a ser por línea, y el nombre distingue la *definición* del *evento*.
+### 2.2 Mapeo de nombres: tablas
+
+| Módulo | Tabla actual | Tabla nueva | Cambio |
+|---|---|---|---|
+| Maestros | `Lineas` | `ABM_Lineas` | Renombre |
+| Maestros | `Equipos` | `ABM_Equipos` | Renombre |
+| Maestros | `Turnos` | `ABM_Turnos` | Renombre. **Datos: T3 21–06 → 21–05**; T1 05–13 y T2 13–21. |
+| Maestros | `Productos` | `ABM_ProductosMaestro` | Renombre + columnas (2.5) |
+| Maestros | — | `ABM_ProductosSku` | **Nueva** |
+| Maestros | `TiposFalla` | `ABM_TiposFalla` | Renombre + `CuentaParaIndicadores` |
+| Maestros | `DetallesFalla` | `ABM_DetallesFalla` | Renombre |
+| Maestros | `UsuariosLineas` | `ABM_OperadoresLinea` | Renombre: **habilitación** del usuario en la línea (y turno habitual opcional). Ya no es el "maquinista" histórico. |
+| Producción | `CalendariosLinea` | `PRD_ProgramacionLinea` | Renombre (versión del plan por vigencia) |
+| Producción | `CalendariosLineaTurnos` | `PRD_ProgramacionLineaTurnos` | Renombre |
+| Producción | `TiemposProgramadosDia` | `PRD_ExcepcionesHorasDia` | Renombre (excepción por fecha) |
+| Producción | `LineasProductos` | `PRD_ParametrosLineaProducto` | **Transforma**: se le suman vigencia y objetivos (presupuesto) |
+| Producción | — | `PRD_TurnosProduccion` | **Nueva** (eje) |
+| Producción | `MaquinistasTurno` (T-783, no desplegada) | `PRD_TurnosProduccionOperadores` | **Reemplaza** (relevos) |
+| Producción | — | `PRD_TurnosProduccionProductos` | **Nueva** (tramos de producto) |
+| Producción | — | `PRD_ProduccionesTurno` | **Nueva** (real oficial) |
+| Cámaras | filas de cámara de `PuntosControlCalidad` | `CAM_Camaras` | **Nueva** (maestro único de cámaras) |
+| Cámaras | `ConteosCamaraMinuto` | `CAM_ConteosMinuto` | Renombre + columnas |
+| Cámaras | `ParadasCamara` | `CAM_Paradas` | Renombre + columnas (incluye la marca de umbral de T-784) |
+| Cámaras | `AlertasCamara` | `CAM_Alertas` | Renombre + columnas |
+| Detenciones | `Detenciones` | `DET_Detenciones` | Renombre + columnas (2.7) |
+| Detenciones | `DetencionesEstadoHistorial` | `DET_HistorialEstados` | Renombre |
+| Detenciones | `DetencionesNotas` | `DET_Notas` | Renombre |
+| Detenciones | `AnalisisCambios` | `DET_AnalisisCambios` | Renombre |
+| Detenciones | `AnalisisAdjuntos` | `DET_AnalisisAdjuntos` | Renombre |
+| Detenciones | `ReglasAnalisis` | `DET_ReglasAnalisis` | Renombre |
+| Tareas de mantenimiento | `TareasMantenimiento` | `MNT_Tareas` | Renombre |
+| Control de Proceso | `GruposParametro` | `CPR_GruposParametro` | Renombre |
+| Control de Proceso | `Parametros` | `CPR_Parametros` | Renombre |
+| Control de Proceso | `EstandaresParametro` | `CPR_Estandares` | Renombre |
+| Control de Proceso | `RegistrosProceso` | `CPR_Registros` | Renombre + `TurnoProduccionId` |
+| Control de Proceso | `RegistrosProcesoDetalle` | `CPR_RegistrosDetalle` | Renombre |
+| Inspecciones | `PlanesInspeccion` | `INS_Planes` | Renombre |
+| Inspecciones | `ItemsPlanInspeccion` | `INS_ItemsPlan` | Renombre |
+| Inspecciones | `EjecucionesInspeccion` | `INS_Ejecuciones` | Renombre |
+| Inspecciones | `EjecucionesInspeccionDetalle` | `INS_EjecucionesDetalle` | Renombre |
+| Inspecciones | `HallazgosNoOk` | `INS_HallazgosNoOk` | Renombre |
+| Calidad | `PuntosControlCalidad` | `CAL_PuntosControl` | Renombre; **pierde** las columnas de cámara y **gana** `CamaraId` |
+| Calidad | `TiposDefectoCalidad` | `CAL_TiposDefecto` | Renombre |
+| Calidad | `RegistrosCalidad` | `CAL_Registros` | Renombre + `TurnoProduccionId`; `PuntoControlCalidadId` → `PuntoControlId` |
+| Calidad | `RegistrosCalidadRevisiones` | `CAL_RegistrosRevisiones` | Renombre |
+| — | `Auditoria`, `AspNet*` | sin cambio | Excepción pedida |
+
+`CFG_` queda reservado: hoy no hay tablas de configuración del sistema fuera de Identity y `ABM_Turnos`. El ABM de turnos está en `/configuracion/turnos`, pero se lo deja en `ABM_` como pidió Emiliano.
+
+### 2.3 Programación (plan) vs. turno de producción (real)
+
+- **Plan**: `PRD_ProgramacionLinea` (`LineaId`, `VigenteDesde`, `Activo`) + `PRD_ProgramacionLineaTurnos` (`DiaSemana`, `TurnoId`).
+  - Responde qué turnos de qué línea están programados cada día, desde qué fecha.
+  - **Se mantienen 2 tablas** (no se reduce a 1) por dos razones. (a) Una versión **vacía** ("desde el 01/12 la línea no trabaja") necesita existir aunque no tenga turnos, y con una sola tabla no hay dónde ponerla. (b) El alta, la baja y la auditoría se hacen por versión.
+  - Es la estructura que ya usan las horas programadas (T-541/542), con otro nombre.
+- **Excepción por fecha**: `PRD_ExcepcionesHorasDia` (horas de un día puntual).
+- Del plan salen:
+  - `PRD_TurnosProduccion.MinutosProgramados` (snapshot al abrir el turno o al convertir datos);
+  - la detección de **`SIN_APERTURA`**: turno programado, pasó su inicio más la tolerancia y nadie lo abrió.
+- **Real**: `PRD_TurnosProduccion`.
+
+### 2.4 Cámaras: maestro único vs. `CamarasConteo` separado (elección)
+
+Se elige el **maestro único `CAM_Camaras`**, como propuso Emiliano. La cámara es un dispositivo: tiene canal, línea y equipo, y está habilitada o no, sea de conteo o de calidad. Separarlas duplicaba esos datos y dejaba dos lugares para decirle al servicio qué leer.
+
+Las columnas que son solo del conteo quedan en nulo en las cámaras de calidad. Lo controla un CHECK por función.
 
 | Columna | Tipo | Notas |
 |---|---|---|
-| `DefinicionTurnoId` | INT IDENTITY PK | Conserva los ids de `Turnos` en la migración. |
-| `LineaId` | INT NOT NULL FK `Lineas` | **Nuevo.** Cada línea con su esquema. |
-| `Codigo` | NVARCHAR(10) | T1, T2, T3. Único por línea (`UX_DefinicionesTurno_Linea_Codigo`). |
-| `Nombre` | NVARCHAR(50) | |
-| `HoraInicio`, `HoraFin` | TIME | Si fin ≤ inicio, cruza medianoche. La duración sale de acá. Tango 2: 05–13, 13–21 y 21–05 (8 h cada uno). [v2] |
-| `Orden` | INT | |
-| `Activo` | BIT | |
+| `CamaraId` | INT PK | |
+| `Codigo` | NVARCHAR(30) UNIQUE | Clave con el servicio (`appsettings` → `Camara`). Sin significado: la línea va por FK. |
+| `Nombre` | NVARCHAR(100) | |
+| `LineaId` | INT FK `ABM_Lineas` | |
+| `EquipoId` | INT NULL FK `ABM_Equipos` | Equipo que ve. |
+| `NumeroCanalGrabador` | INT NULL | 8, 9, 10. |
+| `Funcion` | NVARCHAR(10) | `CONTEO` o `CALIDAD` (CHECK). |
+| `Magnitud` | NVARCHAR(10) NULL | `MANGAS`, `ROLLOS`, `PAQUETES`, `BOLSONES`, `PALLETS`. Obligatoria si es CONTEO. |
+| `CantidadCarriles` | TINYINT NULL | 4 en la 09, 1 en la 10 y la 8. |
+| `DetectaParadas`, `CreaDetenciones` | BIT | Solo CONTEO. |
+| `UmbralDetencionSegundos` | INT NULL | Un solo campo (30 a 14400). Reemplaza minutos y segundos. |
+| `CuentaProduccionOficial` | BIT | La cámara que alimenta el real de su magnitud. Una por línea y magnitud (índice filtrado). Reemplaza `IncluirEnEficiencia` (T-785). |
+| `Habilitada` | BIT | **Única fuente de verdad**: el servicio pide `GET api/camaras/configuracion` y corre solo las habilitadas. |
+| `UltimoDatoRecibido` | DATETIMEOFFSET NULL | Se actualiza en cada lote. |
+| `Activo` | BIT | Catálogo (borrado lógico). |
 
-- Regla: dentro de una línea, las definiciones activas **no se superponen** (se valida en backend; no hay CHECK entre filas).
-- `CalendarioLineaTurno.TurnoId` → `DefinicionTurnoId`, con la validación de que la definición sea de la misma línea.
-- `TiemposProgramadosDia` sigue igual.
+- `CAL_PuntosControl.CamaraId` (NULL FK): el punto de calidad **usa** una cámara, por ejemplo la cámara 3 de la embolsadora. No la duplica.
+- `CAM_ConteosMinuto`, `CAM_Paradas` y `CAM_Alertas` cuelgan de `CamaraId`.
+- `DET_Detenciones.CamaraId` indica la cámara que la creó.
 
-**`mnt.ProductosMaestro`** (transforma `mnt.Productos`: se renombra y se agregan columnas; **se conservan los ids**, así no se rompen `EstandaresParametro`, `RegistrosProceso` ni `RegistrosCalidad`).
+### 2.5 Productos, SKU y parametrización (presupuesto)
+
+**`ABM_ProductosMaestro`** (ex `Productos`; conserva los ids, así no se rompen los estándares de Control de Proceso)
 
 | Columna | Tipo | Notas |
 |---|---|---|
 | `ProductoMaestroId` | INT PK | Ex `ProductoId`. |
-| `Codigo` | NVARCHAR(50) UNIQUE | Ej.: `SH30X4-PH1-20`. |
-| `Nombre` | NVARCHAR(100) | "HIGIÉNICO SH 30 mts x 4 – PH1 20". |
-| `TipoProducto` | NVARCHAR(30) | HIGIENICO, ROLLO_COCINA… Catálogo chico; ver pregunta abierta. |
-| `MetrosPorManga` | DECIMAL(9,2) NOT NULL | Largo del tronco o manga, que es también el largo de cada rollo: 30 (SH 30), 50 (SH 50). [v2] |
-| `RollosPorManga` | INT NULL | Rollos que salen de cada tronco en la cortadora: **28 en SH 30** (Ferretti). SH 50: null hasta que se confirme. [v2] |
-| `RollosPorPaquete` | INT NULL | El "x 4" del nombre. [v2] |
-| `Descripcion`, `Orden`, `Activo` | | Como hoy. |
+| `Codigo`, `Nombre`, `Descripcion`, `Orden`, `Activo` | | Como hoy. |
+| `TipoProducto` | NVARCHAR(30) NULL | Texto libre por ahora (pregunta abierta). |
+| `MetrosPorManga` | DECIMAL(9,2) NULL | 30 / 50 (confirmado). Null si no se conoce. |
+| `RollosPorManga` | INT NULL | 28 en SH 30; SH 50 = null. |
+| `RollosPorPaquete` | INT NULL | El "x 4". |
 
-> **[v2] Resuelto.** La manga o tronco es el rollo grande que se corta en 28 rollos. El largo del papel (30 m) es el
-> mismo en el tronco y en cada rollo. Por eso la velocidad en m lineales/min = mangas/min × `MetrosPorManga`
-> (≈ 22,3 × 30 = 670 m/min).
->
-> `MangasPorBolson` **ya no se guarda**: se deriva de `PaquetesPorBolson` (del SKU), `RollosPorPaquete` y
-> `RollosPorManga`, para no tener el mismo dato en dos lugares.
-
-**`mnt.ProductosSku`** (nueva). Por qué: el objetivo es del maestro; el SKU identifica la presentación comercial (ERP, calidad) y **es el único lugar del contenido del bolsón** [v2]. Ese dato lo controla también la cámara 3 de calidad (embolsadora, T-608/T-613), que lee este mismo campo.
+**`ABM_ProductosSku`**
 
 | Columna | Tipo | Notas |
 |---|---|---|
 | `ProductoSkuId` | INT PK | |
+| `ProductoMaestroId` | INT **NOT NULL** FK | No existe un SKU sin maestro. |
 | `CodigoSku` | NVARCHAR(50) UNIQUE | |
 | `Descripcion` | NVARCHAR(200) | |
-| `ProductoMaestroId` | INT FK | Varios SKU → un maestro. |
-| `PaquetesPorBolson` | INT NULL | **Único lugar** del contenido del bolsón. Lo usan la conversión manga↔bolsón y el control de la cámara 3 de calidad. Null hasta que el cliente lo confirme (la hipótesis de 12 y 10 no se carga). [v2] |
+| `TipoSku` | NVARCHAR(10) | `BOLSON` o `PALLET` (CHECK). |
+| `PaquetesPorBolson` | INT NULL | Solo BOLSON (CHECK). **Único lugar** del dato; también lo usa la cámara 3 de calidad. |
+| `SkuContenidoId` | INT NULL FK self | Solo PALLET: el SKU bolsón que lleva. |
+| `BolsonesPorPallet` | INT NULL | Solo PALLET (CHECK). |
+| `Activo` | BIT | |
 
-**`mnt.ObjetivosProduccion`** (nueva). Por qué: **el objetivo es por producto + línea** (el mismo producto puede correr a distinta velocidad en otra línea), con vigencia para no reescribir el histórico. Reemplaza `PuntosControlCalidad.ObjetivoPorHora`.
+**`PRD_ParametrosLineaProducto`** (presupuesto; transforma `LineasProductos` y absorbe `ObjetivosProduccion`)
 
 | Columna | Tipo | Notas |
 |---|---|---|
-| `ObjetivoProduccionId` | INT PK | |
+| `ParametroLineaProductoId` | INT PK | |
 | `LineaId` | INT FK | |
 | `ProductoMaestroId` | INT FK | |
 | `VigenteDesde` | DATE | Único (Línea, Producto, VigenteDesde). |
-| `MangasObjetivoTurno` | INT NOT NULL | 11.200 / 6.720. |
-| `BolsonesObjetivoTurno` | INT NULL | 6.500 / 4.700. Null = no se mide. |
-| `MinutosTurnoReferencia` | INT NOT NULL DEFAULT 480 | Duración a la que corresponde el objetivo (pregunta abierta para T3 de 9 h). |
+| `Habilitado` | BIT | Se puede producir en la línea (lo usa Control de Proceso para listar productos). |
+| `MangasObjetivoTurno` | INT NULL | 11.200 / 6.720. |
+| `BolsonesObjetivoTurno` | INT NULL | 6.500 / 4.700. Null = no se mide (sin datos). |
+| `MinutosTurnoReferencia` | INT NOT NULL DEFAULT 480 | |
 
-`LineasProductos` queda como "producto habilitado en la línea" (lo usa Control de Proceso), con el FK renombrado a `ProductoMaestroId`.
+El vigente para una fecha es el registro con el mayor `VigenteDesde` menor o igual a esa fecha. Las filas actuales de `LineasProductos` se convierten en una fila con `VigenteDesde = 2026-01-01`, `Habilitado = 1` y sin objetivos.
 
-#### Evento turno
+### 2.6 Turno de producción y sus hijas
 
-**`mnt.TurnosProduccion`** (nueva, eje del modelo)
+Igual que en el v1/v2 (2.2 y 2.5 de las versiones anteriores), con los nombres nuevos:
 
-| Columna | Tipo | Notas |
+- **`PRD_TurnosProduccion`**: `LineaId`, `TurnoId` (de `ABM_Turnos`), `FechaProduccion` (día de inicio), `InicioProgramado`/`FinProgramado` (snapshot), `MinutosProgramados` (snapshot del plan), `InicioReal`/`FinReal`, `Estado` (`ABIERTO`, `CERRADO`, `CERRADO_AUTOMATICO`, `SIN_APERTURA`), `OrigenApertura` (`LOGIN`, `SUPERVISOR`, `SISTEMA`), quién lo abrió y quién lo cerró, `ObservacionCierre` y `RowVersion`.
+  - Único (`LineaId`, `TurnoId`, `FechaProduccion`).
+  - **Un solo ABIERTO por línea**: índice único filtrado.
+- **`PRD_TurnosProduccionOperadores`**: relevos (operador = usuario, desde/hasta, origen, motivo, `AnuladoPorId`).
+- **`PRD_TurnosProduccionProductos`**: tramos, con snapshot del objetivo (`MangasObjetivoTurno`, `BolsonesObjetivoTurno`, `MinutosTurnoReferencia`), `MetrosPorManga`, `ParametroLineaProductoId` usado, `ProductoSkuId` opcional, `AnuladoPorId`. **"A completar"**: un turno convertido o abierto por SISTEMA sin tramo de producto.
+- **`PRD_ProduccionesTurno`**: real oficial por tramo y `Magnitud`. `CantidadCamara`, `MinutosConDatos`, `CantidadOficial`, `Origen` (`CAMARA`, `CAMARA_CORREGIDA`, `MANUAL`), `EstadoValidacion` (`PENDIENTE`, `VALIDADA`, `SIN_DATOS`) y `AnuladoPorId`.
+
+**Reglas** (las de 2.5 de la v1, con los turnos globales):
+
+1. Se abre en el login (T-783 rehecho) o por SISTEMA si llega un dato sin turno.
+2. Un solo turno abierto por línea. Abrir el siguiente cierra el anterior (`CERRADO_AUTOMATICO`).
+3. Cierre automático a `FinProgramado` + 30 min.
+4. El T3 (21–05) es **un solo turno**, de `FechaProduccion` = día de las 21:00.
+5. `SIN_APERTURA` si el turno está programado y pasó su inicio + 30 min sin apertura.
+6. Fuera de programación: se abre igual, con `MinutosProgramados = 0`.
+
+### 2.7 Detenciones
+
+| Columna actual | Nueva | Notas |
 |---|---|---|
-| `TurnoProduccionId` | BIGINT PK | |
-| `LineaId` | INT FK | |
-| `DefinicionTurnoId` | INT FK | De la misma línea. |
-| `FechaProduccion` | DATE | **Día en que empieza el turno** (regla única para todo el sistema). |
-| `InicioProgramado`, `FinProgramado` | DATETIMEOFFSET | Snapshot de la definición al crear el turno. |
-| `MinutosProgramados` | INT | Snapshot: calendario más excepción del día (0 = no programado). |
-| `InicioReal` | DATETIMEOFFSET NULL | Apertura. |
-| `FinReal` | DATETIMEOFFSET NULL | Cierre. |
-| `Estado` | NVARCHAR(20) | `ABIERTO`, `CERRADO`, `CERRADO_AUTOMATICO`, `SIN_APERTURA` (CHECK). |
-| `OrigenApertura` | NVARCHAR(20) | `LOGIN`, `SUPERVISOR`, `SISTEMA` (lo abrió una detección o un conteo). |
-| `AbiertoPorUsuarioId`, `CerradoPorUsuarioId` | NVARCHAR(450) NULL | |
-| `ObservacionCierre` | NVARCHAR(500) NULL | |
-| `RowVersion` | ROWVERSION | |
+| `TurnoId` + `Fecha` | `TurnoProduccionId` NOT NULL | La fecha y el turno salen del turno. Arregla el acumulado del T3. |
+| `UsuarioLineaId` | `OperadorUsuarioId` NULL | Usuario vigente a la hora de la parada (snapshot). |
+| `PuntoControlCalidadId` | `CamaraId` NULL | La cámara que la creó. |
 
-- Único (`LineaId`, `DefinicionTurnoId`, `FechaProduccion`).
-- **Un solo turno abierto por línea**: índice único filtrado `UX_TurnosProduccion_LineaAbierto ON (LineaId) WHERE Estado = 'ABIERTO'`.
-- Índice (`LineaId`, `FechaProduccion`).
+**Clasificación**: `ABM_TiposFalla.CuentaParaIndicadores` (BIT, por defecto 1).
+- Las detenciones cuyo tipo tiene 0 (por ejemplo, paradas programadas) se registran igual, pero **no suman** en indisponibilidad ni en eficiencia.
+- Una detención sin tipo (pendiente de declarar) cuenta: es lo conservador.
+- Qué tipos tienen 0 lo define el cliente en Maestros.
 
-**`mnt.TurnosProduccionOperadores`** (nueva; **reemplaza `MaquinistasTurno` de T-783**). Por qué: los relevos son tramos dentro del turno, y una tabla hija del evento los representa sin otra clave paralela (línea + turno + día).
+### 2.8 Mapeo de columnas que cambian
 
-| Columna | Tipo | Notas |
+| Tabla nueva | Columna actual | Columna nueva |
 |---|---|---|
-| `TurnoProduccionOperadorId` | BIGINT PK | |
-| `TurnoProduccionId` | BIGINT FK | |
-| `OperadorUsuarioId` | NVARCHAR(450) | **El usuario**, no la asignación. |
-| `Desde` | DATETIMEOFFSET | |
-| `Hasta` | DATETIMEOFFSET NULL | Null = sigue. |
-| `Origen` | NVARCHAR(20) | `LOGIN`, `SUPERVISOR`. |
-| `RegistradoPorUsuarioId` | NVARCHAR(450) | |
-| `Motivo` | NVARCHAR(500) NULL | Obligatorio si es `SUPERVISOR`. |
-| `AnuladoPorId` | BIGINT NULL FK self | Corrección insert-only: el registro nuevo anula al anterior. |
+| `CAM_ConteosMinuto` | `Rollos` | `Cantidad` |
+| `CAM_ConteosMinuto` | `PuntoControlCalidadId` | `CamaraId` |
+| `CAM_ConteosMinuto` | `TurnoId` | `TurnoProduccionId` (NULL) |
+| `CAM_ConteosMinuto` | `LineaId` | (se elimina) |
+| `CAM_Paradas` | `PuntoControlCalidadId` / `TurnoId` / `LineaId` | `CamaraId` / `TurnoProduccionId` / (se elimina) |
+| `CAM_Alertas` | `PuntoControlCalidadId` / `LineaId` | `CamaraId` / (se elimina) |
+| `DET_Detenciones` | `TurnoId`, `Fecha`, `UsuarioLineaId`, `PuntoControlCalidadId` | `TurnoProduccionId`, (se elimina), `OperadorUsuarioId`, `CamaraId` |
+| `CAL_PuntosControl` | `NumeroCamara`, `MetodoConteo`, `CreaDetenciones`, `MinutosUmbralDetencion`, `SegundosUmbralDetencion`, `ObjetivoPorHora`, `EquipoId` | pasan a `CAM_Camaras` (o al parámetro); se suma `CamaraId` |
+| `CAL_Registros` | `PuntoControlCalidadId`, `TurnoId` | `PuntoControlId`, `TurnoProduccionId` |
+| `CPR_Registros` | `TurnoId` + `Fecha` | `TurnoProduccionId` (se mantienen `TurnoId` y `Fecha` como hoy hasta la etapa 3; después salen del turno) |
+| `ABM_ProductosMaestro` | `ProductoId` | `ProductoMaestroId` (más `MetrosPorManga`, `RollosPorManga`, `RollosPorPaquete`, `TipoProducto`) |
+| `ABM_OperadoresLinea` | `TurnoId` | `TurnoHabitualId` |
+| `ABM_TiposFalla` | — | `CuentaParaIndicadores` |
+| `PRD_ParametrosLineaProducto` | (`LineasProductos`: `LineaId`, `ProductoId`) | + `ParametroLineaProductoId`, `VigenteDesde`, `Habilitado`, objetivos |
+| `CPR_Estandares`, `CPR_Registros`, `CAL_Registros` | `ProductoId` | `ProductoMaestroId` |
 
-Regla: sin superposición entre los tramos no anulados de un turno.
-
-**`mnt.TurnosProduccionProductos`** (nueva): tramos de producto con snapshot del objetivo.
-
-| Columna | Tipo | Notas |
-|---|---|---|
-| `TurnoProduccionProductoId` | BIGINT PK | |
-| `TurnoProduccionId` | BIGINT FK | |
-| `ProductoMaestroId` | INT FK | |
-| `Desde` | DATETIMEOFFSET | |
-| `Hasta` | DATETIMEOFFSET NULL | |
-| `ObjetivoProduccionId` | INT FK | Qué versión de objetivo se usó. |
-| `MangasObjetivoTurnoSnapshot` | INT | |
-| `BolsonesObjetivoTurnoSnapshot` | INT NULL | |
-| `MinutosTurnoReferenciaSnapshot` | INT | |
-| `ProductoSkuId` | INT NULL FK | SKU que se embolsa en el tramo (si se sabe). Si el maestro tiene un solo SKU, se completa solo. Lo usa el control de paquetes por bolsón. [v2] |
-| `MetrosPorMangaSnapshot`, `RollosPorMangaSnapshot` | DECIMAL / INT | Para la velocidad y las conversiones. |
-| `DeclaradoPorUsuarioId` | NVARCHAR(450) | |
-| `Origen` | NVARCHAR(20) | `LOGIN`, `CAMBIO`, `SUPERVISOR`. |
-| `AnuladoPorId` | BIGINT NULL FK self | |
-
-Regla: los tramos no anulados cubren sin superponerse; un cambio de producto cierra el tramo anterior.
-
-**`mnt.ProduccionesTurno`** (nueva): dato **oficial** de producción, por tramo de producto y magnitud.
-
-| Columna | Tipo | Notas |
-|---|---|---|
-| `ProduccionTurnoId` | BIGINT PK | |
-| `TurnoProduccionProductoId` | BIGINT FK | |
-| `Magnitud` | NVARCHAR(10) | `MANGAS`, `BOLSONES`, `ROLLOS` (CHECK). |
-| `CantidadCamara` | DECIMAL(12,1) NULL | Calculada del conteo crudo al cerrar el tramo. Null = sin cámara. |
-| `MinutosConDatos` | INT NULL | Cobertura del conteo. |
-| `CantidadOficial` | DECIMAL(12,1) NULL | Lo que cuenta para los indicadores. |
-| `Origen` | NVARCHAR(20) | `CAMARA`, `CAMARA_CORREGIDA`, `MANUAL`. |
-| `EstadoValidacion` | NVARCHAR(20) | `PENDIENTE`, `VALIDADA`, `SIN_DATOS`. |
-| `ValidadoPorUsuarioId`, `FechaHoraValidacion` | | |
-| `AnuladoPorId` | BIGINT NULL FK self | Insert-only. |
-
-Así quedan separados el conteo crudo (`ConteosCamaraMinuto`) y el dato oficial, que tiene origen y estado de validación. "Sin datos" (`SIN_DATOS`, cantidad null) queda distinto de "cero" (0, `VALIDADA`). Mientras no haya cámara de bolsones, se cargan a mano (`MANUAL`) o la fila no se crea y el indicador se omite.
-
-#### Cámaras
-
-**`mnt.CamarasConteo`** (nueva; sale de `PuntosControlCalidad`)
-
-| Columna | Tipo | Notas |
-|---|---|---|
-| `CamaraConteoId` | INT PK | |
-| `Codigo` | NVARCHAR(30) UNIQUE | Clave con el servicio, **sin significado**: la línea va por FK. |
-| `Nombre` | NVARCHAR(100) | |
-| `LineaId` | INT FK | |
-| `EquipoId` | INT NULL FK | Equipo que ve. Se propone en la detención. |
-| `NumeroCanalGrabador` | INT | 8, 9, 10. El servicio arma la ruta RTSP con esto. |
-| `Magnitud` | NVARCHAR(10) | `ROLLOS`, `MANGAS`, `BOLSONES` (CHECK). |
-| `MetodoDeteccion` | NVARCHAR(20) | `CARRILES`, `PASOS` (técnica). |
-| `CantidadCarriles` | TINYINT | 4 en la 09, 1 en la 10 y la 8. |
-| `CuentaProduccionOficial` | BIT | Qué cámara alimenta `ProduccionesTurno` para su magnitud. Una por línea y magnitud: índice único filtrado. Reemplaza `IncluirEnEficiencia` (T-785). |
-| `DetectaParadas`, `CreaDetenciones` | BIT | |
-| `UmbralDetencionSegundos` | INT | **Un solo campo**: reemplaza minutos y segundos (30 a 14400). |
-| `Habilitada` | BIT | **Única fuente de verdad**: el servicio lee la lista de la API. |
-| `UltimoMinutoRecibido` | DATETIMEOFFSET NULL | Se actualiza en cada lote. |
-| `Activo` | BIT | Catálogo. |
-
-- La parte técnica (zona de imagen, umbrales de píxeles, fps) sigue en el appsettings del servicio, porque es calibración. Pero **qué cámaras corren lo decide la tabla**.
-- Si una cámara está habilitada y el server no tiene su calibración, se abre una alerta `SIN_CONFIGURACION`.
-
-**`mnt.ConteosCamaraMinuto`** (se transforma)
-
-| Columna | Cambio |
-|---|---|
-| `Rollos` | → **`Cantidad`** (la magnitud la da la cámara). |
-| `PuntoControlCalidadId` | → `CamaraConteoId`. |
-| `TurnoId` | → **`TurnoProduccionId`** NULL (null = no había turno: ver reglas). |
-| `LineaId` | **Se elimina** (se deriva de la cámara). |
-| El resto | Igual: segundos de marcha, parada, acumulación y sin señal, y estado. |
-
-**`mnt.ParadasCamara`** y **`mnt.AlertasCamara`**:
-- `PuntoControlCalidadId` → `CamaraConteoId`; `TurnoId` → `TurnoProduccionId`;
-- se elimina `LineaId`;
-- `ParadasCamara` conserva `UmbralSegundos` y `SuperaUmbral` (T-784).
-
-**`mnt.PuntosControlCalidad`** queda **solo para calidad** (T-611). Se le quitan `NumeroCamara`, `CreaDetenciones`, los umbrales, `ObjetivoPorHora`, `MetodoConteo` y `IncluirEnEficiencia`. El nombre ya es correcto para lo que queda.
-
-En Maestros, "Puntos de control de proceso" (`GruposParametro`) pasa a llamarse **"Grupos de variables de proceso"** (solo la pantalla), para no chocar con calidad.
-
-#### Detenciones
-
-`mnt.Detenciones` (se transforma):
-
-| Columna | Cambio |
-|---|---|
-| `TurnoProduccionId` | **Nueva**, BIGINT NOT NULL FK. Toda detención cuelga de un turno. |
-| `TurnoId` y `Fecha` | **Se eliminan** (salen del turno: `DefinicionTurnoId`, `FechaProduccion`). |
-| `UsuarioLineaId` | → **`OperadorUsuarioId`** NVARCHAR(450) NULL. Snapshot del operador vigente a la hora de la parada. |
-| `PuntoControlCalidadId` | → `CamaraConteoId`. |
-| `IdentificadorParadaCamara` | Se mantiene. Opcional: FK a `ParadasCamara.ParadaCamaraId` en lugar del texto. |
-
-`RegistrosProceso` y `RegistrosCalidad` (`TurnoId` + `Fecha`): reciben `TurnoProduccionId` y dejan de recalcular el turno. Es la misma regla.
-
-`UsuariosLineas` queda como **habilitación del usuario en la línea** (permiso). `TurnoId` pasa a `DefinicionTurnoHabitualId` NULL: solo sirve para proponer el operador y para avisar si alguien de otro turno se confirma. Al no tener FKs desde `Detenciones`, se puede editar libremente.
-
-### 2.3 Diagrama del modelo propuesto
+### 2.9 Diagrama
 
 ```mermaid
 erDiagram
-    Lineas ||--o{ DefinicionesTurno : "esquema de turnos"
-    Lineas ||--o{ CalendarioLinea : ""
-    CalendarioLinea ||--o{ CalendarioLineaTurno : ""
-    DefinicionesTurno ||--o{ CalendarioLineaTurno : ""
-    Lineas ||--o{ TiemposProgramadosDia : ""
-    ProductosMaestro ||--o{ ProductosSku : "presentación (bolsón)"
-    Lineas ||--o{ ObjetivosProduccion : ""
-    ProductosMaestro ||--o{ ObjetivosProduccion : "por vigencia"
-    Lineas ||--o{ TurnosProduccion : ""
-    DefinicionesTurno ||--o{ TurnosProduccion : ""
-    TurnosProduccion ||--o{ TurnosProduccionOperadores : "relevos"
-    TurnosProduccion ||--o{ TurnosProduccionProductos : "tramos"
-    ProductosMaestro ||--o{ TurnosProduccionProductos : ""
-    ObjetivosProduccion ||--o{ TurnosProduccionProductos : "snapshot"
-    TurnosProduccionProductos ||--o{ ProduccionesTurno : "oficial por magnitud"
-    TurnosProduccion ||--o{ Detenciones : ""
-    TurnosProduccion |o--o{ ConteosCamaraMinuto : ""
-    TurnosProduccion |o--o{ ParadasCamara : ""
-    TurnosProduccion |o--o{ RegistrosProceso : ""
-    TurnosProduccion |o--o{ RegistrosCalidad : ""
-    Lineas ||--o{ CamarasConteo : ""
-    Equipos |o--o{ CamarasConteo : ""
-    CamarasConteo ||--o{ ConteosCamaraMinuto : ""
-    CamarasConteo ||--o{ ParadasCamara : ""
-    CamarasConteo ||--o{ AlertasCamara : ""
-    CamarasConteo |o--o{ Detenciones : "la creó"
-    Lineas ||--o{ PuntosControlCalidad : "solo calidad"
-    PuntosControlCalidad ||--o{ RegistrosCalidad : ""
-    Lineas ||--o{ UsuariosLineas : "habilitación"
-    ProductosMaestro ||--o{ EstandaresParametro : ""
+    ABM_Lineas ||--o{ ABM_Equipos : ""
+    ABM_Lineas ||--o{ PRD_ProgramacionLinea : "plan por vigencia"
+    PRD_ProgramacionLinea ||--o{ PRD_ProgramacionLineaTurnos : "día × turno"
+    ABM_Turnos ||--o{ PRD_ProgramacionLineaTurnos : ""
+    ABM_Lineas ||--o{ PRD_ExcepcionesHorasDia : "excepción por fecha"
+    ABM_ProductosMaestro ||--o{ ABM_ProductosSku : "NOT NULL"
+    ABM_ProductosSku |o--o{ ABM_ProductosSku : "pallet contiene bolsón"
+    ABM_Lineas ||--o{ PRD_ParametrosLineaProducto : "presupuesto"
+    ABM_ProductosMaestro ||--o{ PRD_ParametrosLineaProducto : ""
+    ABM_Lineas ||--o{ PRD_TurnosProduccion : ""
+    ABM_Turnos ||--o{ PRD_TurnosProduccion : ""
+    PRD_TurnosProduccion ||--o{ PRD_TurnosProduccionOperadores : "relevos"
+    PRD_TurnosProduccion ||--o{ PRD_TurnosProduccionProductos : "tramos"
+    PRD_ParametrosLineaProducto ||--o{ PRD_TurnosProduccionProductos : "snapshot"
+    ABM_ProductosSku |o--o{ PRD_TurnosProduccionProductos : "opcional"
+    PRD_TurnosProduccionProductos ||--o{ PRD_ProduccionesTurno : "real por magnitud"
+    PRD_TurnosProduccion ||--o{ DET_Detenciones : ""
+    ABM_TiposFalla |o--o{ DET_Detenciones : "CuentaParaIndicadores"
+    PRD_TurnosProduccion |o--o{ CAM_ConteosMinuto : ""
+    PRD_TurnosProduccion |o--o{ CAM_Paradas : ""
+    PRD_TurnosProduccion |o--o{ CPR_Registros : ""
+    PRD_TurnosProduccion |o--o{ CAL_Registros : ""
+    ABM_Lineas ||--o{ CAM_Camaras : ""
+    ABM_Equipos |o--o{ CAM_Camaras : ""
+    CAM_Camaras ||--o{ CAM_ConteosMinuto : ""
+    CAM_Camaras ||--o{ CAM_Paradas : ""
+    CAM_Camaras ||--o{ CAM_Alertas : ""
+    CAM_Camaras |o--o{ DET_Detenciones : "la creó"
+    CAM_Camaras |o--o{ CAL_PuntosControl : "la usa"
+    CAL_PuntosControl ||--o{ CAL_Registros : ""
+    ABM_Lineas ||--o{ ABM_OperadoresLinea : "habilitación"
+    ABM_ProductosMaestro ||--o{ CPR_Estandares : ""
 ```
 
-### 2.4 Qué pasa con cada tabla actual
+### 2.10 Indicadores (presupuesto vs. real)
 
-| Tabla actual | Destino |
-|---|---|
-| `Turnos` | **Renombrar** a `DefinicionesTurno` y agregar `LineaId`. Las 3 globales se copian a cada línea (ids nuevos por línea; Tango 2 conserva los actuales). **[v2] Se corrigen los horarios de Tango 2 a 05–13, 13–21 y 21–05**: en producción el T3 está de 21 a 06 y el día suma 25 h. |
-| `Productos` | **Renombrar** a `ProductosMaestro` y agregar columnas. |
-| `LineasProductos` | Se queda (FK renombrado). |
-| `PuntosControlCalidad` | **Transformar**: las filas de cámaras (con `NumeroCamara` o `MetodoConteo`) **se mueven** a `CamarasConteo` y sus columnas de cámara se eliminan. |
-| `ConteosCamaraMinuto`, `ParadasCamara`, `AlertasCamara` | **Transformar** (columnas renombradas y FKs nuevas; sin `LineaId`). |
-| `Detenciones` | **Transformar** (`TurnoProduccionId`, `OperadorUsuarioId`, `CamaraConteoId`; sin `TurnoId`, `Fecha` ni `UsuarioLineaId`). |
-| `RegistrosProceso`, `RegistrosCalidad` | Agregar `TurnoProduccionId`. |
-| `UsuariosLineas` | Se queda como habilitación (`TurnoId` → `DefinicionTurnoHabitualId`). |
-| `MaquinistasTurno` (T-783, script 31) | **No se despliega.** Se reemplaza por `TurnosProduccionOperadores`. |
-| Script 33 (T-785: `IncluirEnEficiencia`, BOLSONES en el CHECK) | **No se despliega.** Lo reemplazan `CamarasConteo.CuentaProduccionOficial` y `Magnitud`. |
-| Script 32 (T-784: marca de umbral) | Se mantiene sobre `ParadasCamara` renombrada. |
+Ejemplos con turnos de 8 h (los de la v2, que siguen valiendo):
 
-### 2.5 Ciclo de vida del turno y reglas
-
-```
-          (nadie lo abrió y pasó InicioProgramado + tolerancia)
- [no existe] ───────────────────────────────────────────────► SIN_APERTURA ──(alguien entra)──► ABIERTO
-     │ login del operador / supervisor / detección de la cámara                              │
-     └──────────────────────────────────────────────────────────────────────► ABIERTO ──────┤
-                                                                                           │ cierre manual (operador o supervisor)
-                                                                                           │ o automático: FinProgramado + tolerancia,
-                                                                                           │ o al abrir el turno siguiente de la línea
-                                                                                           ▼
-                                                                          CERRADO / CERRADO_AUTOMATICO
-```
-
-1. **Apertura en el login (T-783).** El operador habilitado en la línea entra.
-   - Si no hay turno abierto de esa línea para la definición en curso, se crea y queda `ABIERTO`, con él como primer operador.
-   - Se le pide el **producto con el que arranca**, o se le propone el del turno anterior.
-   - Si el turno ya está abierto con otro operador, se le pregunta si lo releva. Si dice que sí, se cierra el tramo anterior y empieza el suyo (`TurnosProduccionOperadores`).
-2. **Un solo turno abierto por línea** (índice filtrado). Abrir el turno siguiente cierra el anterior como `CERRADO_AUTOMATICO`. Esto resuelve el cambio de turno sin depender de que alguien cierre.
-3. **Cierre automático**: un job cada minuto cierra los turnos con `FinProgramado + 30 min` (tolerancia configurable) vencido.
-4. **Turno que nadie abrió.**
-   - Si llega un conteo, una parada de cámara o una detención manual para una línea y hora sin turno abierto, se **abre solo** (`OrigenApertura = SISTEMA`), sin operador ni producto. Queda marcado "a completar".
-   - Si la hora cae en una definición **no programada** ese día, se abre igual, con `MinutosProgramados = 0` (horario extra). Ver pregunta abierta.
-   - Nunca se pierde un dato por falta de turno.
-5. **Turno que cruza medianoche**: `FechaProduccion` es el día de inicio, siempre. Los conteos, paradas y detenciones después de las 00:00 cuelgan del mismo turno. Esto arregla los problemas 2 y 3.
-6. **Cambio de producto**: el operador declara "cambio a X a las HH:mm". Se cierra el tramo vigente y se abre uno nuevo, con **snapshot del objetivo vigente**. El tiempo de cambio cuenta para el tramo nuevo, salvo que el cliente decida otra cosa (pregunta abierta).
-7. **Detenciones**:
-   - la manual toma el turno abierto de la línea, o el que corresponda a la hora desde (lo abre si hace falta);
-   - la de cámara toma el turno de su hora de parada;
-   - `OperadorUsuarioId` es el operador vigente a esa hora.
-8. **Correcciones de un turno cerrado** (operador, producto o producción): solo supervisor o admin, con motivo, como registro nuevo que anula al anterior. Qué roles pueden hacerlo es pregunta abierta.
-9. **Producción oficial al cerrar el turno**:
-   - por cada tramo y magnitud, se calcula `CantidadCamara` sumando los minutos de la cámara `CuentaProduccionOficial` dentro del tramo;
-   - si la cobertura es menor al 90 % (parámetro) de los minutos con turno abierto, el estado es `SIN_DATOS` y se pide carga manual;
-   - si no, queda `PENDIENTE` de validación (o se valida sola, según la respuesta del cliente).
-
-### 2.6 Indicadores, con ejemplos numéricos
-
-Productos: **A** = SH 30 (11.200 mangas y 6.500 bolsones por turno; 30 m; 28 rollos por manga) y **B** = SH 50 (6.720 mangas y 4.700 bolsones por turno; 50 m). Los turnos de Tango 2 son de 8 h, así que `MinutosTurnoReferencia = 480` coincide con el turno completo [v2].
-
-**Objetivo de un tramo** = `ObjetivoTurno × minutos del tramo ÷ MinutosTurnoReferencia`.
-**Objetivo del turno** = Σ de los tramos. **Eficiencia** = Σ producción oficial ÷ Σ objetivo (de la línea, el turno o el período, sumando numerador y denominador, nunca promediando porcentajes).
-
-| Caso | Tramos | Objetivo mangas | Producido | Eficiencia |
-|---|---|---|---|---|
-| 1. T1 típico, solo A [v2] | A 05:00–13:00 (480 min) | 11.200 | 9.300 (rango real 9.000–9.500) | **83,0 %** (rango 80,4–84,8 %) |
-| 2. T2 con cambio de producto | A 13:00–16:00 (180) + B 16:00–21:00 (300) | 11.200×180/480 + 6.720×300/480 = 4.200 + 4.200 = **8.400** | 3.900 + 3.850 = 7.750 | **92,3 %** (A 92,9 %; B 91,7 %) |
-| 3. T3 que cruza medianoche, solo B [v2] | B 21:00–05:00 (480) | **6.720** | 6.200 | **92,3 %**. Los conteos de 00:00 a 05:00 son del mismo turno (`FechaProduccion` = día de inicio). |
-| 4a. Turno cortado a 6 h (excepción del día), prorrateado [v2] | A 05:00–11:00 (360) | 11.200×360/480 = **8.400** | 7.000 | **83,3 %** |
-| 4b. Igual, con objetivo fijo por turno | igual | **11.200** | 7.000 | **62,5 %** |
-
-Con turnos de 8 h, la pregunta abierta 2 solo aplica a los turnos cortados (excepción de horas del día) y a los cambios
-de producto. Los casos 4a y 4b muestran por qué cambia el número. [v2] Ya no hay T3 de 9 h: era el error de carga de 21–06.
-
-**Producción de bolsones** (mismo prorrateo):
-- caso 2: 6.500×180/480 + 4.700×300/480 = 2.437,5 + 2.937,5 = **5.375** de objetivo;
-- con 5.000 contados, 93,0 %.
-
-Mientras no haya cámara de bolsones: si no hay `ProduccionesTurno` de BOLSONES, el indicador se muestra como **"sin datos"** (nunca 0 %).
-
-**Velocidad** (m lineales/min) = mangas en el minuto × metros de la manga del producto **vigente en ese minuto** (el tramo da el producto).
-- Promedio de un tramo = Σ mangas ÷ minutos en marcha (`SegundosMarcha`) × metros por manga.
-- Ejemplo A en marcha normal (Ferretti): 22,3 mangas/min × 30 m = **670 m/min** [v2].
-- Los dos objetivos equivalen a **700 m/min** durante las 8 h, sin paradas (11.200 ÷ 480 × 30 = 6.720 ÷ 480 × 50 = 700). Es decir: el 100 % supone marchar todo el turno un poco por encima de la velocidad normal.
-- Producir 9.000–9.500 mangas a 670 m/min equivale a 403–425 min en marcha de 480: el resto son paradas, empalmes y arranques. Los números son coherentes. [v2]
-
-**Indisponibilidad** = Σ minutos de detención de los turnos ÷ Σ `MinutosProgramados` de esos turnos.
-- Sigue funcionando: los minutos programados ahora salen del snapshot del turno (que se arma con el mismo calendario y las mismas excepciones).
-- Si en un día no hay turnos, se usa el calendario, como hoy (así los meses sin uso dan igual).
-
-**Horas programadas**: `TiempoProgramadoCalculador` no cambia; pasa a usar `DefinicionesTurno` de la línea.
-
-**Relación manga/bolsón** [v2]: bolsones esperados = mangas × `RollosPorManga` ÷ `RollosPorPaquete` ÷ `PaquetesPorBolson`.
-- Con la hipótesis a confirmar (28 rollos, 4 por paquete, 12 paquetes por bolsón): 11.200 mangas × 7 ÷ 12 ≈ 6.533, cerca del objetivo de 6.500.
-- Mientras `PaquetesPorBolson` esté vacío, **no se cruzan** los conteos de la cámara de mangas con la de bolsones.
-
-### 2.7 Impacto
-
-| Área | Cambio |
-|---|---|
-| **Login** | Pantalla de T-783 ampliada: confirmar línea y turno, elegir el producto con el que arranca y aceptar el relevo si hay otro operador. |
-| **Barra de turno (nueva)**, en todas las pantallas del operador | "Tango 2 · T2 · SH 30 desde 14:00 · Op. Juan". Botones: *Cambiar producto*, *Cerrar turno*. |
-| **Nueva detención / declarar** | Ya no se elige fecha ni turno: se toma el turno abierto, o el de la hora desde para cargar algo pasado (supervisor). Se muestra el operador del turno. |
-| **Acumulado del turno** | Por `TurnoProduccionId`: arregla el T3. Suma producción, objetivo a la hora y eficiencia parcial. |
-| **Maestros** | Productos maestro (con objetivos por línea y vigencia, y SKU opcional); Turnos por línea; **Cámaras de conteo** (pantalla propia, con estado "último minuto recibido"); Calidad sin campos de cámara. |
-| **Dashboards** | Eficiencia por línea y turno desde `ProduccionesTurno` + tramos (un solo cálculo; se elimina el de cámara con `ObjetivoPorHora`). Velocidad por producto. Indisponibilidad sobre turnos. |
-| **Supervisor** | Pantalla *Turnos de producción*: listado por día y línea; completar los abiertos por el sistema; validar la producción; corregir operador o producto con motivo. Absorbe *Maquinistas del turno* de T-783. |
-| **API** | `api/turnos-produccion` (abrir, relevar, cambiar producto, cerrar, corregir, validar producción), `api/productos-maestro`, `api/camaras-conteo`, `api/camaras-conteo/configuracion` (para el servicio, con la clave de ingesta). |
-| **Ingesta** | El campo `puntoControl` del lote pasa a `camara` (código de `CamarasConteo`); el contenido del minuto `rollos` pasa a `cantidad`. Durante la transición, la API acepta los dos nombres. La API asigna `TurnoProduccionId` (y abre el turno si falta). Actualiza `UltimoMinutoRecibido`. |
-| **Servicio de cámaras** | Al arrancar, y cada 5 min, pide `configuracion`: qué cámaras están habilitadas, su canal y su magnitud. Corre las que tienen calibración local. En el appsettings: se quita `Activa` y `PuntoControl` pasa a `Camara`; las zonas y los umbrales de imagen se quedan. |
-| **Alertas** | Nueva `SIN_DATOS`: turno abierto y la cámara oficial sin minutos hace más de 5 min. Se ve en el Dashboard y en Mis pendientes. |
-| **Roles** | Operario: abrir, relevarse, cambiar producto y cerrar **su** turno. Supervisor y mantenimiento: corregir, validar y completar. Admin: maestros. Gerencia: lectura. |
-
-### 2.8 Datos de prueba actuales
-
-| Opción | Cómo | Pros | Contras / qué se pierde |
+| Caso | Presupuesto (objetivo) | Real | Eficiencia |
 |---|---|---|---|
-| **A. Reiniciar** | Se vacían las tablas transaccionales (detenciones, conteos, paradas, alertas, registros de proceso y calidad). Se conservan los catálogos, los estándares y los usuarios. | Simple, sin datos raros; el modelo arranca limpio. | Se pierde la historia de prueba de Tango 2: la comparación de cámara y detenciones del 13/11 y los registros de proceso. |
-| **B. Convertir con turnos inferidos** *(recomendada)* | Un script crea un `TurnoProduccion` por cada (línea, turno, fecha de producción) con datos, con estado `CERRADO`, origen `SISTEMA` y sin producto. Cuelga ahí detenciones, conteos y registros. Operador = el del `UsuarioLineaId` de la detención, si hay. | Conserva todo para comparar y probar reportes. Valida el script de migración que habría que usar igual en las otras líneas. | Turnos sin producto: la eficiencia histórica queda "sin objetivo" salvo que se cargue el producto a mano. Hay que decidir qué hacer con las detenciones de cámara pendientes. |
-| C. Migrar 1:1 con producto | Como B, más asignar `HIGIENICO 30 MTS` a todos los tramos. | Eficiencia histórica calculable. | **Inventa un dato**: no sabemos qué producto corrió. No recomendado sin confirmación. |
+| T1 típico, SH 30 | 11.200 | 9.300 | 83,0 % |
+| T2 con cambio (SH 30 3 h + SH 50 5 h) | 4.200 + 4.200 = 8.400 | 7.750 | 92,3 % |
+| T3 21–05 con SH 50 (cruza medianoche, un solo turno) | 6.720 | 6.200 | 92,3 % |
+| Turno cortado a 6 h (excepción), prorrateado | 8.400 | 7.000 | 83,3 % |
 
-Recomiendo **B** y, si molesta, se borra después (son datos de prueba).
+- **Eficiencia** = Σ real (MANGAS) ÷ Σ objetivo prorrateado de los tramos.
+- **Producción** = real vs. objetivo, por magnitud (mangas y bolsones). Sin `PRD_ProduccionesTurno` de BOLSONES: "sin datos".
+- **Velocidad** = mangas/min × `MetrosPorManga` del tramo vigente (normal: 670 m/min).
+- **Indisponibilidad** = Σ minutos de las detenciones **que cuentan** (`CuentaParaIndicadores`) ÷ Σ minutos programados de los turnos.
+- **Presupuesto vs. real**: por línea, turno, producto y período.
+  - Presupuesto = Σ objetivo prorrateado de los tramos (o, si el turno no tiene producto, "sin objetivo").
+  - Real = Σ producción oficial.
 
-[v2] **Corrección del T3 en la migración**: los registros de prueba entre las 05:00 y las 06:00 hoy tienen el T3 (por el error de 21–06). Al convertirlos (opción B) se reasignan al **T1** según su hora, con los horarios corregidos. Es una excepción documentada a "no recalcular el turno": se corrige un error de carga, no un cambio de horario. Antes de cualquier opción: backup de la base y de `C:\PSAG_Mantenimiento\Adjuntos`.
+### 2.11 Datos de prueba (opción B, decidida)
 
-### 2.9 Preguntas abiertas para el cliente
+Script T-SQL idempotente, con rollback (es el mismo para producción):
 
-1. **Validación del conteo de cámara contra el contador de la máquina.**
-   - Opciones: (a) el supervisor valida cada turno; (b) se valida sola si la cobertura es ≥ 90 % y el supervisor solo corrige; (c) se carga el contador de la máquina a mano y la cámara queda como referencia.
-   - ¿Quién valida? ¿Hay contador en la máquina?
-2. **Objetivo de un turno cortado** (excepción de horas del día) y en cambios de producto. Todos los turnos de Tango 2 son de 8 h. [v2]
-   - Opciones: (a) prorrateo por minuto (caso 4a); (b) objetivo fijo por turno, con prorrateo solo en cambios de producto (4b); (c) objetivo por hora de la línea (deriva de los 700 m/min).
-3. **SKU vs. producto maestro.**
-   - ¿`HIGIENICO 30 MTS` (producción, con 54 estándares de proceso) es el mismo maestro que "SH 30 mts x 4 – PH1 20"?
-   - ¿Hace falta registrar el SKU, y de dónde sale (ERP)?
-4. ~~Metros por manga~~ **Resuelta [v2]**: 30 m por tronco (= largo de cada rollo); 28 rollos por manga en SH 30. **Sigue abierto: rollos por manga de SH 50.**
-5. **Paquetes por bolsón (contenido del SKU bolsón).** Hipótesis a confirmar: 4 rollos por paquete y 7 paquetes por manga, así que ≈ 12 por bolsón en SH 30 y ≈ 10 en SH 50.
-   - ¿Es correcto?
-   - ¿Hay un solo SKU bolsón por producto maestro?
-   - ¿La cámara 3 de calidad va a validar este mismo número?
-6. **Quién corrige un turno cerrado** (operador, producto, producción).
-   - Opciones: (a) solo supervisor de la línea; (b) supervisor y mantenimiento; (c) además, un plazo (por ejemplo 48 h) después del cual solo admin.
-7. **Otras 4 líneas.** ¿Mismo esquema de turnos (05–13, 13–21, 21–05), mismas magnitudes (¿mangas y bolsones, o rollos?) e indicadores?
-8. ~~Horas reales de los turnos de Tango 2~~ **Resuelta [v2]**: 05–13, 13–21, 21–05. Hay que corregir el T3 en producción (21–06 → 21–05).
-9. **Tiempo de cambio de producto** (poco frecuente: SH 30 corre el 95 % del tiempo) [v2]: ¿cuenta contra el objetivo del producto nuevo, del anterior, o se descuenta como parada programada?
-10. **Producción fuera de horario programado** (turno no programado que igual se trabaja): ¿cuenta para la eficiencia con objetivo completo, o solo se informa?
-11. **Paradas programadas** (preventivo, limpieza, falta de programa): ¿restan de los minutos programados, o cuentan como indisponibilidad?
-12. **Tolerancias**: el cierre automático (propuesta: 30 min después del fin) y la cobertura mínima de datos (propuesta: 90 %).
+1. Corrige el T3 a 21–05 y el T1 a 05–13 si están distintos.
+2. Por cada (línea, turno, fecha de producción) con datos (detenciones, conteos, paradas, registros de proceso y calidad), crea un `PRD_TurnosProduccion` en `CERRADO`, con `OrigenApertura = SISTEMA`, `MinutosProgramados` sacados del plan y **sin tramo de producto** ("a completar").
+   - Fecha de producción: la del día de inicio del turno, recalculada con los horarios corregidos. Lo de 05:00–06:00 pasa al T1.
+3. Cuelga ahí todos los registros.
+4. Operador: el usuario del `UsuarioLineaId` de la detención, si lo hay. Si no, el turno queda sin operador.
+5. Conteos de cámara: `PRD_ProduccionesTurno` **no** se crea para los turnos convertidos, porque no hay tramo de producto. El conteo crudo queda colgado del turno y la eficiencia histórica dice "sin objetivo".
 
-### 2.10 Plan de la Fase 3 (para el OK)
+### 2.12 Preguntas abiertas (una sola lista, priorizada)
 
-Cada etapa compila, tiene tests y se verifica en DEV. Cada una lleva su script numerado desde el **34**, idempotente, con rollback.
+Primero las que cambian números.
 
-1. **Productos maestro**: renombrar `Productos`, agregar columnas, `ObjetivosProduccion` y `ProductosSku`. Maestros con los dos productos de Tango 2. *Tests*: vigencia del objetivo y unicidad.
-2. **Turnos por línea y evento turno**: `DefinicionesTurno` (+ `LineaId`), `TurnosProduccion`, `TurnosProduccionOperadores` y `TurnosProduccionProductos`. Login de T-783 rehecho sobre el evento. Cierre automático. *Tests*: un abierto por línea, T3 que cruza medianoche, relevo, cambio de producto, turno sin apertura.
-3. **Detenciones colgadas del turno**: `TurnoProduccionId` y `OperadorUsuarioId`; acumulado del turno. *Tests*: detención sin turno abierto (lo abre), detención después de medianoche.
-4. **Cámaras**: `CamarasConteo`, renombres en los conteos, configuración desde la API, `UltimoMinutoRecibido`, alerta `SIN_DATOS`. T-785 alineada (bolsones = magnitud). *Tests*: cámara sin datos, ingesta con los dos formatos.
-5. **Indicadores**: `ProduccionesTurno`, eficiencia, producción, velocidad e indisponibilidad sobre turnos. *Tests*: prorrateo, cambio de producto, T3 de 9 h (las dos variantes), sin datos ≠ cero.
-6. **Pantallas**: barra de turno, *Turnos de producción* (supervisor), Maestros y Dashboard.
-7. **Migración de los datos de prueba** (opción elegida) y paquete para producción: scripts en orden, backup, cambios de appsettings y consultas de verificación.
+| # | Pregunta | Opciones | Responde |
+|---|---|---|---|
+| 1 | Objetivo de un turno **cortado** (excepción del día) y en cambios de producto | (a) prorrateo por minuto, la propuesta; (b) fijo por turno; (c) por hora de la línea (700 m/min) | Emiliano |
+| 2 | Validación del conteo de cámara contra el contador de la máquina, y quién valida | (a) el supervisor, cada turno; (b) automática si la cobertura es ≥ 90 %; (c) carga manual del contador | Cliente |
+| 3 | Qué tipos de falla **no cuentan** para indicadores (programadas: preventivo, limpieza, cambio de formato…) | Lista del cliente → `CuentaParaIndicadores = 0` | Cliente |
+| 4 | Paquetes por bolsón (hipótesis 12 en SH 30 y 10 en SH 50) y si hay un solo SKU bolsón por maestro | Confirmar el número y el código SKU | Cliente |
+| 5 | Rollos por manga de SH 50 | Dato | Cliente |
+| 6 | Bolsones por pallet (SKU pallet) | Dato | Cliente |
+| 7 | Tiempo de cambio de producto: ¿cuenta contra el objetivo? | (a) del producto nuevo; (b) se descuenta como programada | Emiliano |
+| 8 | Producción fuera de programación: ¿cuenta para eficiencia? | (a) sí, con objetivo completo; (b) solo informativa | Emiliano |
+| 9 | Quién corrige un turno cerrado | (a) supervisor de la línea; (b) más mantenimiento; (c) plazo de 48 h y después admin | Emiliano |
+| 10 | Otras líneas: ¿mismas magnitudes (mangas y bolsones) y objetivos? | Datos por línea | Cliente |
+| 11 | `TipoProducto`: ¿catálogo fijo (higiénico, cocina, servilleta…)? | Lista | Cliente |
+| 12 | Tolerancias: cierre automático (+30 min) y cobertura mínima de datos (90 %) | Confirmar | Emiliano |
 
-Las ramas T-783, T-784, T-785 y T-786 se rebasan sobre este modelo:
+### 2.13 Ejecución (etapas en DEV)
 
-- **T-784 y T-786** entran casi como están: el detector de la cámara y la marca de umbral; la declaración manual sobre el turno.
-- **T-783 y T-785** se reescriben dentro de las etapas 2 y 4. Sus scripts 31 y 33 no se despliegan.
+Rama `agente-psag-conv/T-798`, sobre `main` + T-784 + T-785 + T-786. Los scripts del paquete se numeran **desde 31**: los 31, 32 y 33 de las ramas anteriores se descartan y su contenido útil (la marca de umbral de T-784) entra en los scripts nuevos. Al cierre de cada etapa va una nota en PILL.
+
+1. Renombre por módulo + maestros (turnos corregidos, productos maestro, SKU, parametrización con los 2 productos de Tango 2, `CuentaParaIndicadores`).
+2. `PRD_TurnosProduccion` y sus hijas + login (T-783 rehecho) + cierre automático + `SIN_APERTURA`.
+3. Detenciones colgadas del turno + acumulado del turno.
+4. Cámaras unificadas + conteos + T-785 alineada.
+5. Indicadores desde turno + parámetro.
+6. Pantallas: barra de turno, turnos de producción (supervisor), maestros y dashboard.
+7. Conversión de los datos de prueba + paquete para producción (scripts, backup, appsettings, verificación).
