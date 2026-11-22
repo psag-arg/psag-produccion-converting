@@ -12,8 +12,10 @@
 --   2. Vistas VW_* de detenciones: vuelven a la versión del 31 (TurnoId y Fecha de la detención).
 --   3. Elimina DET_Detenciones.TurnoProduccionId y OperadorUsuarioId (con su FK e índices) y
 --      CPR_Registros.TurnoProduccionId / CAL_Registros.TurnoProduccionId.
---   4. Elimina los turnos de producción que creó la conversión del 35 (ObservacionCierre "Convertido (T-798
---      etapa 3)...") si no tienen operador ni producto, y el respaldo.
+--   4. Elimina los turnos de producción que crearon las conversiones del 35 y del 36 (ObservacionCierre
+--      "Convertido (T-798 etapa 3)..." / "Convertido (T-798 etapa 4)...") si no tienen operador ni producto, y el
+--      respaldo. (Los que creó el 38 los elimina su propio rollback.)
+-- Requiere: 38_t798_conversion_turnos_rollback.sql y 36_t798_camaras_rollback.sql corridos antes (orden inverso).
 --   Antes de correrlo, volver a una API que no use estas columnas (anterior a T-798 etapa 3).
 -- Idempotente: se puede ejecutar más de una vez.
 -- Correr con la API detenida.
@@ -25,6 +27,16 @@ GO
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
+GO
+
+-- Orden inverso: antes van 38_t798_conversion_turnos_rollback.sql y 36_t798_camaras_rollback.sql (los conteos y paradas
+-- de cámara y los registros convertidos por el 38 apuntan a los turnos de producción que este script elimina).
+IF OBJECT_ID(N'mnt.PRD_ConversionTurnosT798', N'U') IS NOT NULL
+   OR OBJECT_ID(N'mnt.CAM_Camaras', N'U') IS NOT NULL
+BEGIN
+    RAISERROR(N'Correr antes 38_t798_conversion_turnos_rollback.sql y 36_t798_camaras_rollback.sql (orden inverso). No se cambió nada.', 16, 1);
+    SET NOEXEC ON;
+END
 GO
 
 -- ============================================================================
@@ -297,14 +309,14 @@ IF COL_LENGTH(N'mnt.CAL_Registros', N'TurnoProduccionId') IS NOT NULL
 GO
 
 -- ============================================================================
--- 4. Turnos que creó la conversión del 35 (sin operador ni producto) y respaldo.
+-- 4. Turnos que crearon las conversiones del 35 y del 36 (sin operador ni producto) y respaldo.
 -- ============================================================================
 IF OBJECT_ID(N'mnt.PRD_TurnosProduccion', N'U') IS NOT NULL
 BEGIN
     DELETE tp
     FROM [mnt].[PRD_TurnosProduccion] tp
     WHERE tp.[OrigenApertura] = N'SISTEMA'
-      AND tp.[ObservacionCierre] LIKE N'Convertido (T-798 etapa 3)%'
+      AND tp.[ObservacionCierre] LIKE N'Convertido (T-798 etapa %'
       AND NOT EXISTS (SELECT 1 FROM [mnt].[PRD_TurnosProduccionOperadores] o WHERE o.[TurnoProduccionId] = tp.[TurnoProduccionId])
       AND NOT EXISTS (SELECT 1 FROM [mnt].[PRD_TurnosProduccionProductos] p WHERE p.[TurnoProduccionId] = tp.[TurnoProduccionId]);
     PRINT CONCAT('Turnos de producción de la conversión eliminados: ', @@ROWCOUNT);

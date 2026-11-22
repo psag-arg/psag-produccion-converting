@@ -6,6 +6,7 @@
 --   SEGURIDAD: si alguna tiene filas, se detiene y no borra nada (son datos de planta: turnos tomados, relevos,
 --   productos). Para forzar, primero exportar y vaciar las tablas a mano, con el OK de Emiliano.
 --   Antes de correrlo, volver a una API que no use estas tablas (anterior a T-798 etapa 2).
+-- Requiere: 37, 36 y 35 _rollback corridos antes (orden inverso; se verifica).
 -- Idempotente: se puede ejecutar más de una vez.
 -- Correr con la API detenida.
 -- ==============================================================================
@@ -16,6 +17,19 @@ GO
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
+GO
+
+-- Orden inverso: antes van los rollback de 37, 36 y 35 (detenciones, conteos, paradas y registros apuntan a los turnos).
+IF COL_LENGTH(N'mnt.DET_Detenciones', N'TurnoProduccionId') IS NOT NULL
+   OR COL_LENGTH(N'mnt.CAM_ConteosMinuto', N'TurnoProduccionId') IS NOT NULL
+   OR COL_LENGTH(N'mnt.CAM_Paradas', N'TurnoProduccionId') IS NOT NULL
+   OR COL_LENGTH(N'mnt.CPR_Registros', N'TurnoProduccionId') IS NOT NULL
+   OR COL_LENGTH(N'mnt.CAL_Registros', N'TurnoProduccionId') IS NOT NULL
+   OR COL_LENGTH(N'mnt.PRD_ProduccionesTurno', N'Motivo') IS NOT NULL
+BEGIN
+    RAISERROR(N'Correr antes 37, 36 y 35 _rollback (orden inverso): todavía hay columnas que apuntan a los turnos de producción. No se cambió nada.', 16, 1);
+    SET NOEXEC ON;
+END
 GO
 
 DECLARE @Hay BIT = 0;

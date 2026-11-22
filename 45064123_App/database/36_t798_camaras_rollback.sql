@@ -10,10 +10,11 @@
 --      LineaId; conteos y paradas, TurnoId desde su turno de producción), con los nombres de FK e índices de los
 --      scripts 25 y 26. CAM_ConteosMinuto.Cantidad vuelve a llamarse Rollos.
 --   4. Elimina CamaraId (y TurnoProduccionId de conteos y paradas), CAM_Camaras y el respaldo.
---   Los turnos de producción que creó la conversión quedan (los usa el script 35; su rollback los trata).
+--   Los turnos de producción que creó la conversión quedan: los elimina 35_t798_detenciones_turno_rollback.sql.
 --   Las alertas SIN_DATOS / SIN_CONFIGURACION no se borran: si hay, el CHECK de tipos queda con los cuatro valores.
 --   Antes de correrlo, volver a una API y a un servicio PSAG_ConteoCamara anteriores a T-798 etapa 4 (y al
 --   appsettings del servidor con "PuntoControl" y "Activa").
+-- Requiere: 38_t798_conversion_turnos_rollback.sql corrido antes (se verifica).
 -- Idempotente: se puede ejecutar más de una vez. Cada paso que toca datos va en transacción.
 -- Correr con la API y el servicio PSAG_ConteoCamara detenidos.
 -- ==============================================================================
@@ -24,6 +25,14 @@ GO
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
+GO
+
+-- Orden inverso: antes va 38_t798_conversion_turnos_rollback.sql (cuelga conteos y paradas de turnos que crea él).
+IF OBJECT_ID(N'mnt.PRD_ConversionTurnosT798', N'U') IS NOT NULL
+BEGIN
+    RAISERROR(N'Correr antes 38_t798_conversion_turnos_rollback.sql (orden inverso). No se cambió nada.', 16, 1);
+    SET NOEXEC ON;
+END
 GO
 
 IF OBJECT_ID(N'mnt.CAM_Camaras', N'U') IS NULL

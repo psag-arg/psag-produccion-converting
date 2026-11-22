@@ -8,7 +8,7 @@
 --      RollosPorPaquete si tienen los valores del 33, y la descripción si es la que puso el 33
 --      (el 33 solo la completaba si estaba vacía). Lo mismo para HIGIENICO 50 MTS si ya existía.
 -- Idempotente: se puede ejecutar más de una vez.
--- Correr antes de 32_t798_maestros_productos_rollback.sql.
+-- Correr antes de 32_t798_maestros_productos_rollback.sql y después de 34_t798_turnos_produccion_rollback.sql (se verifica).
 -- ==============================================================================
 
 USE [PSAG_Mantenimiento]
@@ -17,6 +17,14 @@ GO
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
+GO
+
+-- Orden inverso: antes va 34_t798_turnos_produccion_rollback.sql (los tramos de producto apuntan a los parámetros).
+IF OBJECT_ID(N'mnt.PRD_TurnosProduccionProductos', N'U') IS NOT NULL
+BEGIN
+    RAISERROR(N'Correr antes 34_t798_turnos_produccion_rollback.sql (orden inverso). No se cambió nada.', 16, 1);
+    SET NOEXEC ON;
+END
 GO
 
 IF COL_LENGTH(N'mnt.ABM_ProductosMaestro', N'MetrosPorManga') IS NULL

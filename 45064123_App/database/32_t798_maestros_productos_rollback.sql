@@ -12,7 +12,7 @@
 --   5. ABM_Turnos: NO se vuelven a los horarios anteriores salvo que se pida (@RestaurarTurnosAnteriores = 1):
 --      el script 32 dejó en el log el horario anterior de cada turno que cambió. Con 1 se ponen los del
 --      diseño (T-798, 2.2): T1 05-13, T2 13-21 y T3 21-06 (el T3 de 9 h que se pisaba con el T1).
--- Requiere: 33_t798_datos_tango2_rollback.sql corrido antes (si se corrió el 33).
+-- Requiere: 34_t798_turnos_produccion_rollback.sql (se verifica) y 33_t798_datos_tango2_rollback.sql corridos antes.
 -- Idempotente: se puede ejecutar más de una vez.
 -- Correr con la API detenida. Después, si se vuelve atrás todo, 31_t798_renombre_por_modulo_rollback.sql.
 -- ==============================================================================
@@ -23,6 +23,14 @@ GO
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
+GO
+
+-- Orden inverso: antes va 34_t798_turnos_produccion_rollback.sql (los tramos de producto apuntan a los parámetros).
+IF OBJECT_ID(N'mnt.PRD_TurnosProduccionProductos', N'U') IS NOT NULL
+BEGIN
+    RAISERROR(N'Correr antes 34_t798_turnos_produccion_rollback.sql (orden inverso). No se cambió nada.', 16, 1);
+    SET NOEXEC ON;
+END
 GO
 
 -- Seguridad: no se pierden SKUs ni vigencias cargadas.

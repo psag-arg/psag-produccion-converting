@@ -22,7 +22,8 @@
 --   4. Repunta CAM_ConteosMinuto, CAM_Paradas, CAM_Alertas y DET_Detenciones a la cámara nueva.
 --      Conteos y paradas con TurnoId: se cuelgan del turno de producción (como el script 35 con las detenciones:
 --      si falta, se crea CERRADO por SISTEMA sin operador ni producto; fecha de producción = día de inicio del turno
---      materializado, hora de planta UTC-3).
+--      materializado, hora de planta UTC-3; lo de 05:00 a 06:00 que quedó en el T3 pasa al T1, excepción 2.11).
+--      Los minutos programados de esos turnos los recalcula el script 38.
 --   5. CamaraId NOT NULL en los CAM_*, FK e índices nuevos; CHECK de alertas con SIN_DATOS y SIN_CONFIGURACION.
 --   6. Recién ahí elimina las columnas viejas (con sus FK, CHECK, DEFAULT, estadísticas e índices):
 --      CAM_ConteosMinuto y CAM_Paradas: LineaId, PuntoControlCalidadId, TurnoId; CAM_Alertas: LineaId,
@@ -434,32 +435,52 @@ BEGIN
     SET XACT_ABORT ON;
     BEGIN TRANSACTION;
 
-    CREATE TABLE #Conversion ([Tabla] CHAR(1) NOT NULL, [Id] BIGINT NOT NULL, [LineaId] INT NOT NULL, [TurnoId] INT NOT NULL, [FechaProduccion] DATE NOT NULL);
+    CREATE TABLE #Conversion ([Tabla] CHAR(1) NOT NULL, [Id] BIGINT NOT NULL, [LineaId] INT NOT NULL, [TurnoId] INT NOT NULL,
+                              [FechaProduccion] DATE NOT NULL, [Excepcion0506] BIT NOT NULL);
 
     -- Fecha de producción = día de inicio del turno materializado (hora de planta UTC-3; el T3 después de medianoche
     -- es del día anterior). La línea es la de la cámara.
+    -- EXCEPCIÓN (2.11, igual que el 35): lo de 05:00 a 06:00 que quedó en el T3 por el horario viejo 21-06 pasa al T1
+    -- de ese día. El rollback les devuelve el TurnoId desde su turno de producción (T1, coherente con los horarios
+    -- corregidos, que el rollback del 32 no revierte salvo que se pida).
     IF COL_LENGTH(N'mnt.CAM_ConteosMinuto', N'TurnoId') IS NOT NULL
         EXEC sys.sp_executesql N'
-            INSERT INTO #Conversion ([Tabla], [Id], [LineaId], [TurnoId], [FechaProduccion])
-            SELECT ''M'', m.[ConteoCamaraMinutoId], c.[LineaId], m.[TurnoId],
-                   CASE WHEN t.[HoraFin] <= t.[HoraInicio] AND CAST(SWITCHOFFSET(m.[Minuto], ''-03:00'') AS TIME) < t.[HoraInicio]
-                        THEN DATEADD(DAY, -1, CAST(SWITCHOFFSET(m.[Minuto], ''-03:00'') AS DATE))
-                        ELSE CAST(SWITCHOFFSET(m.[Minuto], ''-03:00'') AS DATE) END
+            INSERT INTO #Conversion ([Tabla], [Id], [LineaId], [TurnoId], [FechaProduccion], [Excepcion0506])
+            SELECT ''M'', m.[ConteoCamaraMinutoId], c.[LineaId],
+                   CASE WHEN x.[Excepcion0506] = 1 THEN t1.[TurnoId] ELSE m.[TurnoId] END,
+                   CASE WHEN x.[Excepcion0506] = 1 THEN h.[FechaLocal]
+                        WHEN t.[HoraFin] <= t.[HoraInicio] AND h.[HoraLocal] < t.[HoraInicio] THEN DATEADD(DAY, -1, h.[FechaLocal])
+                        ELSE h.[FechaLocal] END,
+                   x.[Excepcion0506]
             FROM [mnt].[CAM_ConteosMinuto] m
             INNER JOIN [mnt].[CAM_Camaras] c ON c.[CamaraId] = m.[CamaraId]
             INNER JOIN [mnt].[ABM_Turnos] t ON t.[TurnoId] = m.[TurnoId]
+            CROSS APPLY (SELECT CAST(SWITCHOFFSET(m.[Minuto], ''-03:00'') AS TIME) AS [HoraLocal],
+                                CAST(SWITCHOFFSET(m.[Minuto], ''-03:00'') AS DATE) AS [FechaLocal]) h
+            OUTER APPLY (SELECT TOP 1 [TurnoId], [HoraInicio] FROM [mnt].[ABM_Turnos] WHERE [Codigo] = N''T1'') t1
+            CROSS APPLY (SELECT CASE WHEN t.[Codigo] = N''T3'' AND t1.[TurnoId] IS NOT NULL
+                                          AND h.[HoraLocal] >= t1.[HoraInicio] AND h.[HoraLocal] < CAST(''06:00'' AS TIME)
+                                     THEN 1 ELSE 0 END AS [Excepcion0506]) x
             WHERE m.[TurnoProduccionId] IS NULL AND m.[TurnoId] IS NOT NULL;';
 
     IF COL_LENGTH(N'mnt.CAM_Paradas', N'TurnoId') IS NOT NULL
         EXEC sys.sp_executesql N'
-            INSERT INTO #Conversion ([Tabla], [Id], [LineaId], [TurnoId], [FechaProduccion])
-            SELECT ''P'', p.[ParadaCamaraId], c.[LineaId], p.[TurnoId],
-                   CASE WHEN t.[HoraFin] <= t.[HoraInicio] AND CAST(SWITCHOFFSET(p.[FechaHoraInicio], ''-03:00'') AS TIME) < t.[HoraInicio]
-                        THEN DATEADD(DAY, -1, CAST(SWITCHOFFSET(p.[FechaHoraInicio], ''-03:00'') AS DATE))
-                        ELSE CAST(SWITCHOFFSET(p.[FechaHoraInicio], ''-03:00'') AS DATE) END
+            INSERT INTO #Conversion ([Tabla], [Id], [LineaId], [TurnoId], [FechaProduccion], [Excepcion0506])
+            SELECT ''P'', p.[ParadaCamaraId], c.[LineaId],
+                   CASE WHEN x.[Excepcion0506] = 1 THEN t1.[TurnoId] ELSE p.[TurnoId] END,
+                   CASE WHEN x.[Excepcion0506] = 1 THEN h.[FechaLocal]
+                        WHEN t.[HoraFin] <= t.[HoraInicio] AND h.[HoraLocal] < t.[HoraInicio] THEN DATEADD(DAY, -1, h.[FechaLocal])
+                        ELSE h.[FechaLocal] END,
+                   x.[Excepcion0506]
             FROM [mnt].[CAM_Paradas] p
             INNER JOIN [mnt].[CAM_Camaras] c ON c.[CamaraId] = p.[CamaraId]
             INNER JOIN [mnt].[ABM_Turnos] t ON t.[TurnoId] = p.[TurnoId]
+            CROSS APPLY (SELECT CAST(SWITCHOFFSET(p.[FechaHoraInicio], ''-03:00'') AS TIME) AS [HoraLocal],
+                                CAST(SWITCHOFFSET(p.[FechaHoraInicio], ''-03:00'') AS DATE) AS [FechaLocal]) h
+            OUTER APPLY (SELECT TOP 1 [TurnoId], [HoraInicio] FROM [mnt].[ABM_Turnos] WHERE [Codigo] = N''T1'') t1
+            CROSS APPLY (SELECT CASE WHEN t.[Codigo] = N''T3'' AND t1.[TurnoId] IS NOT NULL
+                                          AND h.[HoraLocal] >= t1.[HoraInicio] AND h.[HoraLocal] < CAST(''06:00'' AS TIME)
+                                     THEN 1 ELSE 0 END AS [Excepcion0506]) x
             WHERE p.[TurnoProduccionId] IS NULL AND p.[TurnoId] IS NOT NULL;';
 
     -- Turnos de producción que faltan (CERRADO por SISTEMA, sin operador ni producto: "a completar").
@@ -479,6 +500,8 @@ BEGIN
     WHERE NOT EXISTS (SELECT 1 FROM [mnt].[PRD_TurnosProduccion] tp
                       WHERE tp.[LineaId] = k.[LineaId] AND tp.[TurnoId] = k.[TurnoId] AND tp.[FechaProduccion] = k.[FechaProduccion]);
     PRINT CONCAT('Turnos de producción creados por la conversión de cámara: ', @@ROWCOUNT);
+    DECLARE @Excepcion0506 INT = (SELECT COUNT(*) FROM #Conversion WHERE [Excepcion0506] = 1);
+    PRINT CONCAT('Conteos y paradas de 05:00 a 06:00 materializados en el T3 que pasan al T1 (excepción 2.11): ', @Excepcion0506);
 
     UPDATE m SET m.[TurnoProduccionId] = tp.[TurnoProduccionId]
     FROM [mnt].[CAM_ConteosMinuto] m

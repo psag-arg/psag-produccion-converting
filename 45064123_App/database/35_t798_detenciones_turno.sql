@@ -7,10 +7,12 @@
 --      mnt.DET_DetencionesRespaldoT798 (lo usa el rollback para dejarlas como estaban).
 --   3. Conversión (opción B, 2.11) de las detenciones existentes (en producción hay detenciones reales de prueba):
 --      por cada (LineaId, TurnoId, fecha de producción) que falte crea un PRD_TurnosProduccion CERRADO, con
---      OrigenApertura SISTEMA, sin operador ni producto ("a completar") y MinutosProgramados = 0 (se recalculan
---      con el plan en la etapa 7; quedan marcados en ObservacionCierre). Fecha de producción = día de inicio del
+--      OrigenApertura SISTEMA, sin operador ni producto ("a completar") y MinutosProgramados = 0 (los recalcula
+--      desde la programación el script 38; quedan marcados en ObservacionCierre). Fecha de producción = día de inicio del
 --      turno según FechaHoraParada (hora de planta, UTC-3: el T3 después de medianoche es del día anterior) si la
---      hay; si no, la Fecha de la detención. El TurnoId es el materializado en la detención (no se recalcula).
+--      hay; si no, la Fecha de la detención. El TurnoId es el materializado en la detención (no se recalcula),
+--      con UNA excepción documentada (2.11): lo de 05:00 a 06:00 que quedó en el T3 por el horario viejo 21-06 pasa
+--      al T1 de ese día (el valor original queda en el respaldo y el rollback lo restaura).
 --      Cuelga cada detención de su turno y completa OperadorUsuarioId con el usuario de UsuarioLineaId
 --      (ABM_OperadoresLinea.UsuarioId).
 --   4. TurnoProduccionId pasa a NOT NULL, con FK e índices.
@@ -103,18 +105,31 @@ BEGIN
 
     DECLARE @Sql NVARCHAR(MAX) = N'
         -- Fecha de producción de cada detención sin turno de producción.
-        SELECT d.[DetencionId], d.[LineaId], d.[TurnoId],
+        -- EXCEPCIÓN (2.11): con el T3 viejo de 21 a 06, lo de 05:00 a 06:00 quedó materializado en el T3; con los
+        -- horarios corregidos (T1 desde las 05:00) pasa al T1 de ese mismo día. Es la única vez que se cambia el turno
+        -- materializado; el original queda en mnt.DET_DetencionesRespaldoT798.
+        SELECT d.[DetencionId], d.[LineaId],
+               CASE WHEN x.[Excepcion0506] = 1 THEN t1.[TurnoId] ELSE d.[TurnoId] END AS [TurnoId],
                CASE
                    WHEN d.[FechaHoraParada] IS NULL THEN d.[Fecha]
-                   WHEN t.[HoraFin] <= t.[HoraInicio]
-                        AND CAST(SWITCHOFFSET(d.[FechaHoraParada], ''-03:00'') AS TIME) < t.[HoraInicio]
-                       THEN DATEADD(DAY, -1, CAST(SWITCHOFFSET(d.[FechaHoraParada], ''-03:00'') AS DATE))
-                   ELSE CAST(SWITCHOFFSET(d.[FechaHoraParada], ''-03:00'') AS DATE)
-               END AS [FechaProduccion]
+                   WHEN x.[Excepcion0506] = 1 THEN h.[FechaLocal]
+                   WHEN t.[HoraFin] <= t.[HoraInicio] AND h.[HoraLocal] < t.[HoraInicio]
+                       THEN DATEADD(DAY, -1, h.[FechaLocal])
+                   ELSE h.[FechaLocal]
+               END AS [FechaProduccion],
+               x.[Excepcion0506]
         INTO #Conversion
         FROM [mnt].[DET_Detenciones] d
         INNER JOIN [mnt].[ABM_Turnos] t ON t.[TurnoId] = d.[TurnoId]
+        OUTER APPLY (SELECT CAST(SWITCHOFFSET(d.[FechaHoraParada], ''-03:00'') AS TIME) AS [HoraLocal],
+                            CAST(SWITCHOFFSET(d.[FechaHoraParada], ''-03:00'') AS DATE) AS [FechaLocal]) h
+        OUTER APPLY (SELECT TOP 1 [TurnoId], [HoraInicio] FROM [mnt].[ABM_Turnos] WHERE [Codigo] = N''T1'') t1
+        CROSS APPLY (SELECT CASE WHEN t.[Codigo] = N''T3'' AND t1.[TurnoId] IS NOT NULL AND h.[HoraLocal] IS NOT NULL
+                                      AND h.[HoraLocal] >= t1.[HoraInicio] AND h.[HoraLocal] < CAST(''06:00'' AS TIME)
+                                 THEN 1 ELSE 0 END AS [Excepcion0506]) x
         WHERE d.[TurnoProduccionId] IS NULL;
+        DECLARE @Excepcion0506 INT = (SELECT COUNT(*) FROM #Conversion WHERE [Excepcion0506] = 1);
+        PRINT CONCAT(''Detenciones de 05:00 a 06:00 materializadas en el T3 que pasan al T1 (excepción 2.11): '', @Excepcion0506);
 
         -- Turnos de producción que faltan (CERRADO por SISTEMA, sin operador ni producto).
         INSERT INTO [mnt].[PRD_TurnosProduccion]
