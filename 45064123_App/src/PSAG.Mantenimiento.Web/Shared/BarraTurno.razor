@@ -1,0 +1,343 @@
+@* T-798 etapa 6 · Barra de turno: arriba de todas las pantallas, el turno de producción de la línea con su producto,
+   operador, eficiencia parcial y paradas que cuentan. El operario ve sus líneas; supervisión (sin líneas propias)
+   elige la línea. Refresca cada 60 s y al navegar; si la API falla no muestra nada (no rompe la pantalla). *@
+@using Microsoft.AspNetCore.Components.Authorization
+@using Blazored.LocalStorage
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ITurnosProduccionService TurnosService
+@inject IIndicadoresService IndicadoresService
+@inject ICatalogosService CatalogosService
+@inject ILocalStorageService LocalStorage
+@inject NavigationManager Navigation
+@implements IDisposable
+
+@if (visible)
+{
+    <div class="barra-turno mb-3" data-testid="barra-turno">
+        @if (eligeLinea)
+        {
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <label class="small text-muted mb-0" for="barra-linea">Turno de la línea</label>
+                <select id="barra-linea" class="form-select form-select-sm w-auto" value="@lineaElegida" @onchange="@(async e => await ElegirLinea(e))">
+                    @foreach (var l in lineas)
+                    {
+                        <option value="@l.Id">@l.Nombre</option>
+                    }
+                </select>
+            </div>
+        }
+        @foreach (var item in items)
+        {
+            <div class="border rounded bg-body-tertiary px-3 py-2 mb-1 d-flex flex-wrap align-items-center gap-2 small">
+                @if (item.Turno == null)
+                {
+                    <span><i class="bi bi-clock me-1"></i><strong>@item.LineaNombre</strong> · sin turno abierto</span>
+                    @if (esOperarioDeLinea(item.LineaId))
+                    {
+                        <a class="btn btn-sm btn-outline-primary ms-auto" href="produccion/inicio-turno">Tomar turno</a>
+                    }
+                }
+                else
+                {
+                    var t = item.Turno;
+                    var partes = PSAG.Mantenimiento.Web.Shared.ProduccionUi.PartesBarra(t, item.Indicadores);
+                    <span class="me-1"><i class="bi bi-play-circle-fill text-success me-1"></i><strong>@partes[0]</strong></span>
+                    @foreach (var parte in partes.Skip(1))
+                    {
+                        <span class="text-body-secondary">·</span>
+                        <span>@parte</span>
+                    }
+                    @if (item.Indicadores != null)
+                    {
+                        <span class="text-body-secondary">·</span>
+                        <span title="Detenciones del turno que cuentan para indicadores">
+                            Paradas @EficienciaUi.Minutos(item.Indicadores.MinutosParadaQueCuentan)
+                        </span>
+                    }
+                    @if (t.Estado == "ABIERTO" && PSAG.Mantenimiento.Web.Shared.ProduccionUi.PuedeOperarTurno(roles, lineasHabilitadas, t.LineaId))
+                    {
+                        <span class="ms-auto d-flex gap-1">
+                            <button class="btn btn-sm btn-outline-primary" @onclick="@(async () => await AbrirCambio(item))">
+                                <i class="bi bi-box-seam me-1"></i>Cambiar producto
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => AbrirCierre(item)">
+                                <i class="bi bi-stop-circle me-1"></i>Cerrar turno
+                            </button>
+                        </span>
+                    }
+                }
+            </div>
+        }
+        @if (mensaje != null)
+        {
+            <div class="text-success small">@mensaje</div>
+        }
+    </div>
+}
+
+@if (dialogo != Dialogo.Ninguno && itemDialogo?.Turno is { } td)
+{
+    <div class="modal d-block" tabindex="-1" style="background: rgba(0,0,0,.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(dialogo == Dialogo.Cambio ? "Cambiar producto" : "Cerrar turno") · @td.LineaNombre</h5>
+                    <button type="button" class="btn-close" @onclick="CerrarDialogo"></button>
+                </div>
+                <div class="modal-body">
+                    @if (dialogo == Dialogo.Cambio)
+                    {
+                        <p class="small text-muted">Desde ahora se produce otro producto. El objetivo del turno se reparte por los minutos de cada uno.</p>
+                        <label class="form-label small mb-1">Producto nuevo</label>
+                        <select class="form-select" @bind="productoId">
+                            <option value="0">(elegir)</option>
+                            @foreach (var p in productos.Where(p => p.ProductoId != td.ProductoActual?.ProductoMaestroId))
+                            {
+                                <option value="@p.ProductoId">@p.Nombre</option>
+                            }
+                        </select>
+                        @if (productos.Count == 0)
+                        {
+                            <div class="small text-muted mt-1">No hay productos habilitados en esta línea (Maestros → Parámetros línea + producto).</div>
+                        }
+                    }
+                    else
+                    {
+                        <p>¿Cerrar el turno de @td.LineaNombre ahora? Si viene otro operario, también lo puede tomar sin cerrar.</p>
+                        <label class="form-label small mb-1">Observación (opcional)</label>
+                        <textarea class="form-control" rows="2" maxlength="500" @bind="observacion"></textarea>
+                    }
+                    @if (errorDialogo != null)
+                    {
+                        <div class="alert alert-danger mt-2 mb-0">@errorDialogo</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CerrarDialogo">Cancelar</button>
+                    <button class="btn @(dialogo == Dialogo.Cambio ? "btn-primary" : "btn-danger")" disabled="@enviando" @onclick="@(async () => await Confirmar())">
+                        @(dialogo == Dialogo.Cambio ? "Cambiar" : "Cerrar turno")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private const string ClaveLinea = "barraTurno.lineaId";
+    private enum Dialogo { Ninguno, Cambio, Cierre }
+
+    private sealed class Item
+    {
+        public int LineaId { get; init; }
+        public string LineaNombre { get; init; } = string.Empty;
+        public TurnoProduccionDto? Turno { get; set; }
+        public IndicadoresTurnoDto? Indicadores { get; set; }
+    }
+
+    private bool visible;
+    private bool eligeLinea;
+    private List<string> roles = [];
+    private List<int> lineasHabilitadas = [];
+    private List<(int Id, string Nombre)> lineas = [];
+    private int lineaElegida;
+    private List<Item> items = [];
+    private Timer? timer;
+    private DateTime ultimaCarga = DateTime.MinValue;
+    private bool cargando;
+    private string? mensaje;
+
+    private Dialogo dialogo;
+    private Item? itemDialogo;
+    private List<ProductoDto> productos = [];
+    private int productoId;
+    private string? observacion;
+    private string? errorDialogo;
+    private bool enviando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var usuario = (await AuthStateProvider.GetAuthenticationStateAsync()).User;
+            roles = new[] { "OPERARIO", "SUPERVISOR", "MANTENIMIENTO", "ADMINISTRADOR" }.Where(usuario.IsInRole).ToList();
+            if (roles.Count == 0)
+                return;   // gerencia (sólo lectura) no tiene barra
+
+            var asignaciones = await CatalogosService.GetMisAsignacionesAsync();
+            lineasHabilitadas = asignaciones.Select(a => a.LineaId).Distinct().ToList();
+            if (lineasHabilitadas.Count > 0)
+            {
+                lineas = asignaciones.GroupBy(a => a.LineaId).Select(g => (g.Key, g.First().LineaNombre)).ToList();
+            }
+            else if (roles.Any(ProduccionUi.RolesSupervision.Contains))
+            {
+                lineas = (await CatalogosService.GetLineasAsync()).Select(l => (l.LineaId, l.Nombre)).ToList();
+                eligeLinea = lineas.Count > 0;
+                lineaElegida = await LeerLineaGuardadaAsync();
+            }
+            if (lineas.Count == 0)
+                return;   // operario sin líneas: lo avisa "Inicio de turno"
+
+            visible = true;
+            await CargarAsync();
+            Navigation.LocationChanged += AlNavegar;
+            timer = new Timer(async _ =>
+            {
+                await CargarAsync();
+                await InvokeAsync(StateHasChanged);
+            }, null, TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(60));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Barra de turno: {ex.Message}");
+            visible = false;
+        }
+    }
+
+    private bool esOperarioDeLinea(int lineaId) => roles.Contains("OPERARIO") && lineasHabilitadas.Contains(lineaId);
+
+    private async Task<int> LeerLineaGuardadaAsync()
+    {
+        try
+        {
+            var guardada = await LocalStorage.GetItemAsync<int?>(ClaveLinea);
+            if (guardada is { } id && lineas.Any(l => l.Id == id))
+                return id;
+        }
+        catch
+        {
+            // sin almacenamiento local: se usa la primera línea
+        }
+        return lineas[0].Id;
+    }
+
+    private async Task ElegirLinea(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var id))
+            return;
+        lineaElegida = id;
+        try { await LocalStorage.SetItemAsync(ClaveLinea, id); } catch { /* no es crítico */ }
+        await CargarAsync();
+    }
+
+    // Al cargar una detención y volver, el acumulado se actualiza (sin consultar en cada clic).
+    private async void AlNavegar(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        if (DateTime.UtcNow - ultimaCarga < TimeSpan.FromSeconds(3))
+            return;
+        await CargarAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CargarAsync()
+    {
+        if (cargando)
+            return;
+        cargando = true;
+        ultimaCarga = DateTime.UtcNow;
+        try
+        {
+            var candidatas = eligeLinea ? lineas.Where(l => l.Id == lineaElegida) : lineas;
+            var nuevos = new List<Item>();
+            foreach (var (id, nombre) in candidatas)
+            {
+                var item = new Item { LineaId = id, LineaNombre = nombre };
+                try
+                {
+                    item.Turno = await TurnosService.GetActualAsync(id);
+                    if (item.Turno != null)
+                        item.Indicadores = await IndicadoresService.GetTurnoAsync(item.Turno.TurnoProduccionId);
+                }
+                catch (Exception ex)
+                {
+                    // La API falló para esta línea: se muestra lo que haya (o nada), sin romper la pantalla.
+                    Console.WriteLine($"Barra de turno ({nombre}): {ex.Message}");
+                    if (item.Turno == null)
+                        continue;
+                }
+                nuevos.Add(item);
+            }
+            items = nuevos;
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task AbrirCambio(Item item)
+    {
+        itemDialogo = item;
+        dialogo = Dialogo.Cambio;
+        productoId = 0;
+        errorDialogo = null;
+        mensaje = null;
+        try
+        {
+            productos = await CatalogosService.GetProductosAsync(item.LineaId);
+        }
+        catch (Exception)
+        {
+            productos = [];
+            errorDialogo = ApiErrores.SinConexion;
+        }
+    }
+
+    private void AbrirCierre(Item item)
+    {
+        itemDialogo = item;
+        dialogo = Dialogo.Cierre;
+        observacion = null;
+        errorDialogo = null;
+        mensaje = null;
+    }
+
+    private void CerrarDialogo()
+    {
+        dialogo = Dialogo.Ninguno;
+        itemDialogo = null;
+    }
+
+    private async Task Confirmar()
+    {
+        var t = itemDialogo!.Turno!;
+        errorDialogo = null;
+        if (dialogo == Dialogo.Cambio && productoId == 0)
+        {
+            errorDialogo = "Elegí el producto.";
+            return;
+        }
+        enviando = true;
+        try
+        {
+            var r = dialogo == Dialogo.Cambio
+                ? await TurnosService.CambiarProductoAsync(t.TurnoProduccionId, new CambiarProductoTurnoRequest { ProductoMaestroId = productoId })
+                : await TurnosService.CerrarAsync(t.TurnoProduccionId, new CerrarTurnoProduccionRequest { Observacion = observacion });
+            if (r.Resultado == null)
+            {
+                errorDialogo = r.Error;
+                return;
+            }
+            mensaje = dialogo == Dialogo.Cambio ? "Listo: producto cambiado." : "Listo: turno cerrado.";
+            CerrarDialogo();
+            await CargarAsync();
+        }
+        catch (Exception)
+        {
+            errorDialogo = ApiErrores.SinConexion;
+        }
+        finally
+        {
+            enviando = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        timer?.Dispose();
+        Navigation.LocationChanged -= AlNavegar;
+    }
+}

@@ -7,7 +7,7 @@
         <div class="card border-info">
             <div class="card-header text-bg-info d-flex justify-content-between align-items-center">
                 <h6 class="mb-0"><i class="bi bi-speedometer2 me-2"></i>Presupuesto vs. real</h6>
-                <small class="d-none d-sm-inline">Mangas por turno, ayer y hoy</small>
+                <a class="small text-reset d-none d-sm-inline" href="dashboard/produccion">Mangas por turno, ayer y hoy · ver más</a>
             </div>
             <div class="card-body p-2 p-md-3">
                 @if (cargando)
@@ -69,7 +69,9 @@
                     </div>
                     <div class="small text-muted mt-2">
                         Objetivo prorrateado por los minutos de cada producto del turno. * provisorio: producción sin validar o turno en curso.
-                        Parada: detenciones que cuentan para indicadores. <a href="/paradas-camara">Ver paradas y producción de las cámaras</a>
+                        Parada: detenciones que cuentan para indicadores.
+                        <a href="dashboard/produccion@(LineaId is { } l ? $"?lineaId={l}" : "")">Ver presupuesto vs. real completo y microcortes</a> ·
+                        <a href="/paradas-camara">Paradas de las cámaras</a>
                     </div>
                 }
             </div>

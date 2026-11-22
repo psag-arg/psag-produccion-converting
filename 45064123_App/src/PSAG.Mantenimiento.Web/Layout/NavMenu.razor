@@ -83,6 +83,12 @@
                     <NavLink class="nav-link" href="maestros/inspecciones">
                         <span class="bi bi-clipboard-check me-2"></span> Planes de inspección
                     </NavLink>
+                    <NavLink class="nav-link" href="maestros/productos">
+                        <span class="bi bi-box-seam me-2"></span> Productos
+                    </NavLink>
+                    <NavLink class="nav-link" href="maestros/parametros-linea-producto">
+                        <span class="bi bi-bullseye me-2"></span> Parámetros línea + producto
+                    </NavLink>
                     <NavLink class="nav-link" href="maestros/camaras">
                         <span class="bi bi-camera-video me-2"></span> Cámaras
                     </NavLink>
@@ -129,8 +135,8 @@
             }
         </div>
 
-        @* PRODUCCIÓN (T-798 etapa 2): inicio de turno del operario y turnos de producción del supervisor *@
-        <AuthorizeView Roles="ADMINISTRADOR,MANTENIMIENTO,SUPERVISOR,OPERARIO" Context="produccion">
+        @* PRODUCCIÓN (T-798): inicio de turno del operario, turnos de producción del supervisor y presupuesto vs. real (todos) *@
+        <AuthorizeView Roles="ADMINISTRADOR,MANTENIMIENTO,SUPERVISOR,OPERARIO,GERENCIA" Context="produccion">
         <div class="nav-section">
             <div class="nav-section-header" @onclick="() => ToggleSection(8)">
                 <span class="bi bi-gear-wide-connected me-2"></span>
@@ -153,6 +159,9 @@
                             <span class="bi bi-calendar3 me-2"></span> Turnos de producción
                         </NavLink>
                     </AuthorizeView>
+                    <NavLink class="nav-link" href="dashboard/produccion">
+                        <span class="bi bi-graph-up-arrow me-2"></span> Presupuesto vs. real
+                    </NavLink>
                 </div>
             }
         </div>
@@ -354,7 +363,7 @@
         if (sidebarCollapsed)
         {
             // Si está colapsado, navegar directamente a la primera opción de la sección
-            var routes = new[] { "", "maestros/lineas", "detenciones", "control-proceso", "inspecciones", "configuracion/turnos", "calidad", "tareas-mantenimiento", "produccion/turnos" };
+            var routes = new[] { "", "maestros/lineas", "detenciones", "control-proceso", "inspecciones", "configuracion/turnos", "calidad", "tareas-mantenimiento", "dashboard/produccion" };
             Navigation.NavigateTo(routes[index]);
             return;
         }

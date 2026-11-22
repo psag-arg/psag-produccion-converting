@@ -25,6 +25,8 @@ public class UnitOfWork : IUnitOfWork
 
     // Eje 2: Variables de proceso
     private IProductoMaestroRepository? _productosMaestro;
+    private IProductoSkuRepository? _productosSku;
+    private IParametroLineaProductoRepository? _parametrosLineaProducto;
     private IGrupoParametroRepository? _gruposParametro;
     private IParametroRepository? _parametros;
     private IEstandarParametroRepository? _estandaresParametro;
@@ -70,6 +72,8 @@ public class UnitOfWork : IUnitOfWork
 
     // Eje 2: Variables de proceso
     public IProductoMaestroRepository ProductosMaestro => _productosMaestro ??= new ProductoMaestroRepository(_context);
+    public IProductoSkuRepository ProductosSku => _productosSku ??= new ProductoSkuRepository(_context);
+    public IParametroLineaProductoRepository ParametrosLineaProducto => _parametrosLineaProducto ??= new ParametroLineaProductoRepository(_context);
     public IGrupoParametroRepository GruposParametro => _gruposParametro ??= new GrupoParametroRepository(_context);
     public IParametroRepository Parametros => _parametros ??= new ParametroRepository(_context);
     public IEstandarParametroRepository EstandaresParametro => _estandaresParametro ??= new EstandarParametroRepository(_context);

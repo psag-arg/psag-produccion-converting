@@ -1,0 +1,261 @@
+@page "/dashboard/produccion"
+@using Microsoft.AspNetCore.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize]
+@inject IIndicadoresService IndicadoresService
+@inject IConteoCamaraService ConteoCamaraService
+@inject ICatalogosService CatalogosService
+
+<PageTitle>Presupuesto vs. real - PSAG Produccion</PageTitle>
+
+@* T-798 etapa 6 · Presupuesto vs. real (api/indicadores/produccion): un solo cálculo, el de la API. Por línea y
+   período, agrupado por turno, día o producto. "Sin datos" nunca es 0 y "sin objetivo" nunca es 0 %. Abajo, los
+   microcortes por turno de cada cámara (api/conteo-camara/paradas). *@
+<div class="container-fluid">
+    <div class="d-flex flex-wrap align-items-end justify-content-between gap-2 mb-3">
+        <div>
+            <h2 class="mb-0">Presupuesto vs. real</h2>
+            <div class="text-muted small">Objetivo de los parámetros línea + producto contra la producción oficial de cada turno.</div>
+        </div>
+        <div class="d-flex flex-wrap gap-2 align-items-end">
+            <div>
+                <label class="form-label small mb-1">Línea</label>
+                <select class="form-select form-select-sm" @bind="lineaId">
+                    <option value="0">Todas</option>
+                    @foreach (var l in lineas)
+                    {
+                        <option value="@l.LineaId">@l.Nombre</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label class="form-label small mb-1">Desde</label>
+                <input type="date" class="form-control form-control-sm" @bind="desde" />
+            </div>
+            <div>
+                <label class="form-label small mb-1">Hasta</label>
+                <input type="date" class="form-control form-control-sm" @bind="hasta" />
+            </div>
+            <div>
+                <label class="form-label small mb-1">Agrupar por</label>
+                <select class="form-select form-select-sm" @bind="agrupar">
+                    <option value="turno">Turno</option>
+                    <option value="dia">Día</option>
+                    <option value="producto">Producto</option>
+                </select>
+            </div>
+            <button class="btn btn-primary btn-sm" @onclick="@(async () => await Cargar())"><i class="bi bi-arrow-clockwise me-1"></i>Ver</button>
+        </div>
+    </div>
+
+    @if (cargando)
+    {
+        <div class="text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Cargando...</span></div></div>
+    }
+    else if (error != null)
+    {
+        <div class="alert alert-warning">@error</div>
+    }
+    else if (datos != null)
+    {
+        <div class="row g-2 mb-3">
+            <div class="col-6 col-md-3">
+                <div class="border rounded p-2 text-center h-100">
+                    <div class="small text-muted">Eficiencia (mangas)</div>
+                    <div class="fs-4 fw-semibold @EficienciaUi.ClasePorcentaje(datos.Total.Eficiencia)">@EficienciaUi.TextoPorcentaje(datos.Total.Eficiencia)</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="border rounded p-2 text-center h-100">
+                    <div class="small text-muted">Mangas real / objetivo</div>
+                    <div class="fs-5 fw-semibold">@EficienciaUi.TextoReal(datos.Total.Mangas)</div>
+                    <div class="small text-muted">de @EficienciaUi.TextoObjetivo(datos.Total.Mangas)</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="border rounded p-2 text-center h-100">
+                    <div class="small text-muted">Bolsones real / objetivo</div>
+                    <div class="fs-5 fw-semibold">@EficienciaUi.TextoReal(datos.Total.Bolsones)</div>
+                    <div class="small text-muted">de @EficienciaUi.TextoObjetivo(datos.Total.Bolsones) · @EficienciaUi.TextoPorcentaje(datos.Total.Bolsones)</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="border rounded p-2 text-center h-100">
+                    <div class="small text-muted">Indisponibilidad</div>
+                    <div class="fs-5 fw-semibold">@TextoIndisponibilidad(datos.Total)</div>
+                    <div class="small text-muted">Velocidad @EficienciaUi.TextoVelocidad(datos.Total.VelocidadMetrosMinuto)</div>
+                </div>
+            </div>
+        </div>
+
+        @if (!datos.Filas.Any())
+        {
+            <div class="alert alert-info">No hay turnos de producción en ese período.</div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>@TituloGrupo()</th>
+                            <th class="text-end d-none d-md-table-cell">Turnos</th>
+                            <th class="text-end">Mangas obj.</th>
+                            <th class="text-end">Mangas real</th>
+                            <th class="text-end">Eficiencia</th>
+                            <th class="text-end d-none d-md-table-cell">Bolsones obj.</th>
+                            <th class="text-end d-none d-md-table-cell">Bolsones real</th>
+                            <th class="text-end d-none d-md-table-cell">%</th>
+                            <th class="text-end d-none d-lg-table-cell">Velocidad</th>
+                            <th class="text-end d-none d-lg-table-cell">Indisponibilidad</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var f in datos.Filas.Concat([datos.Total]))
+                        {
+                            var total = f.Clave == "total";
+                            <tr class="@(total ? "fw-semibold table-group-divider" : "")">
+                                <td>
+                                    @if (total)
+                                    {
+                                        <span>Total</span>
+                                    }
+                                    else
+                                    {
+                                        <span>@Etiqueta(f)</span>
+                                        @if (f.IncluyeAbiertos) { <span class="badge bg-primary ms-1">En curso</span> }
+                                        @if (f.TurnoProduccionId is { } tid && f.FechaProduccion is { } fp)
+                                        {
+                                            <AuthorizeView Roles="ADMINISTRADOR,MANTENIMIENTO,SUPERVISOR" Context="sup">
+                                                <a class="small ms-1" href="@($"produccion/turnos?fecha={fp:yyyy-MM-dd}&turno={tid}")" title="Ver el turno, validar o corregir la producción">detalle</a>
+                                            </AuthorizeView>
+                                        }
+                                    }
+                                </td>
+                                <td class="text-end d-none d-md-table-cell">@f.Turnos</td>
+                                <td class="text-end">@EficienciaUi.TextoObjetivo(f.Mangas)</td>
+                                <td class="text-end">@EficienciaUi.TextoReal(f.Mangas)</td>
+                                <td class="text-end @EficienciaUi.ClasePorcentaje(f.Eficiencia)">@EficienciaUi.TextoPorcentaje(f.Eficiencia)</td>
+                                <td class="text-end d-none d-md-table-cell">@EficienciaUi.TextoObjetivo(f.Bolsones)</td>
+                                <td class="text-end d-none d-md-table-cell">@EficienciaUi.TextoReal(f.Bolsones)</td>
+                                <td class="text-end d-none d-md-table-cell @EficienciaUi.ClasePorcentaje(f.Bolsones)">@EficienciaUi.TextoPorcentaje(f.Bolsones)</td>
+                                <td class="text-end d-none d-lg-table-cell">@EficienciaUi.TextoVelocidad(f.VelocidadMetrosMinuto)</td>
+                                <td class="text-end d-none d-lg-table-cell">@TextoIndisponibilidad(f)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="small text-muted mb-4">
+                Objetivo prorrateado por los minutos de cada producto del turno (en curso: hasta ahora). * provisorio: producción
+                sin validar o turno en curso. Indisponibilidad: minutos de las detenciones que cuentan ÷ minutos programados
+                @(agrupar == "producto" ? "(no se calcula por producto: las paradas son del turno)." : ".")
+            </div>
+        }
+
+        <h5 class="mt-2">Microcortes por turno y cámara</h5>
+        <MicrocortesTurnos Paradas="paradas" Error="@errorParadas" />
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "lineaId")] public int? LineaIdQuery { get; set; }
+
+    private List<LineaDto> lineas = [];
+    private int lineaId;
+    private DateOnly desde = DateOnly.FromDateTime(DateTime.Today.AddDays(-6));
+    private DateOnly hasta = DateOnly.FromDateTime(DateTime.Today);
+    private string agrupar = "turno";
+    private PresupuestoRealDto? datos;
+    private List<ParadaCamaraDto>? paradas;
+    private string? errorParadas;
+    private bool cargando = true;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        lineaId = LineaIdQuery ?? 0;
+        try
+        {
+            lineas = await CatalogosService.GetLineasAsync();
+        }
+        catch (Exception)
+        {
+            // sin lista de líneas se puede ver "Todas"
+        }
+        await Cargar();
+    }
+
+    private async Task Cargar()
+    {
+        error = null;
+        if (hasta < desde)
+        {
+            error = "La fecha hasta no puede ser anterior a la fecha desde.";
+            cargando = false;
+            return;
+        }
+        if (hasta.DayNumber - desde.DayNumber > 90)
+        {
+            error = "Elegí un período de hasta 3 meses.";
+            cargando = false;
+            return;
+        }
+        cargando = true;
+        var linea = lineaId > 0 ? lineaId : (int?)null;
+        try
+        {
+            datos = await IndicadoresService.GetProduccionAsync(desde, hasta, linea, agrupar: agrupar);
+        }
+        catch (HttpRequestException ex)
+        {
+            error = ex.Message;
+            datos = null;
+        }
+        catch (Exception)
+        {
+            error = ApiErrores.SinConexion;
+            datos = null;
+        }
+
+        // Microcortes: el T3 termina al día siguiente, por eso se pide un día más y se filtra por fecha de producción del turno.
+        errorParadas = null;
+        try
+        {
+            var r = await ConteoCamaraService.GetParadasAsync(desde, hasta.AddDays(1), linea, soloSinDetencion: false, segundosMinimos: 0);
+            var turnosDelPeriodo = datos?.Filas.Where(f => f.TurnoProduccionId != null).Select(f => f.TurnoProduccionId!.Value).ToHashSet();
+            paradas = agrupar == "turno" && turnosDelPeriodo != null
+                ? r.Items.Where(p => p.TurnoProduccionId is { } t && turnosDelPeriodo.Contains(t)).ToList()
+                : r.Items.Where(p => DateOnly.FromDateTime(p.FechaHoraInicio.DateTime) <= hasta).ToList();
+        }
+        catch (Exception)
+        {
+            paradas = null;
+            errorParadas = "No se pudieron cargar las paradas de las cámaras.";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private string TituloGrupo() => agrupar switch
+    {
+        "dia" => "Día",
+        "producto" => "Producto",
+        _ => "Turno"
+    };
+
+    private string Etiqueta(FilaPresupuestoRealDto f) => agrupar switch
+    {
+        "turno" => $"{f.FechaProduccion:dd/MM} · {f.LineaNombre} · {f.TurnoNombre}",
+        "dia" => f.FechaProduccion is { } d ? d.ToString("ddd dd/MM") : f.Etiqueta,
+        _ => f.ProductoNombre ?? f.Etiqueta
+    };
+
+    private static string TextoIndisponibilidad(FilaPresupuestoRealDto f) =>
+        f.Indisponibilidad is { } i
+            ? $"{i:N1} % ({EficienciaUi.Minutos(f.MinutosParadaQueCuentan ?? 0)})"
+            : f.MinutosParadaQueCuentan is { } m ? EficienciaUi.Minutos(m) : "-";
+}

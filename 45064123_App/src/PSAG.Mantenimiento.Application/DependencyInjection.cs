@@ -42,6 +42,9 @@ public static class DependencyInjection
         // Indicadores: presupuesto vs. real desde el turno y el parámetro (T-798 etapa 5)
         services.AddScoped<IIndicadoresService, IndicadoresService>();
 
+        // Maestros de producción: productos + SKU y parametrización línea + producto (T-798 etapa 6)
+        services.AddScoped<IMaestrosProduccionService, MaestrosProduccionService>();
+
         // Dashboard consolidado
         services.AddScoped<IDashboardService, DashboardService>();
 

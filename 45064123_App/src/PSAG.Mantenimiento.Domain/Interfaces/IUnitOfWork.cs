@@ -23,6 +23,8 @@ public interface IUnitOfWork : IDisposable
 
     // Eje 2: Variables de proceso
     IProductoMaestroRepository ProductosMaestro { get; }
+    IProductoSkuRepository ProductosSku { get; }
+    IParametroLineaProductoRepository ParametrosLineaProducto { get; }
     IGrupoParametroRepository GruposParametro { get; }
     IParametroRepository Parametros { get; }
     IEstandarParametroRepository EstandaresParametro { get; }

@@ -346,7 +346,8 @@ public class CatalogosController : ApiControllerBase
             Descripcion = t.Descripcion,
             Orden = t.Orden,
             Color = t.Color,
-            Activo = t.Activo
+            Activo = t.Activo,
+            CuentaParaIndicadores = t.CuentaParaIndicadores
         }).OrderBy(t => t.Orden);
 
         return Ok(items);
@@ -369,7 +370,8 @@ public class CatalogosController : ApiControllerBase
             Descripcion = tipo.Descripcion,
             Orden = tipo.Orden,
             Color = tipo.Color,
-            Activo = tipo.Activo
+            Activo = tipo.Activo,
+            CuentaParaIndicadores = tipo.CuentaParaIndicadores
         });
     }
 
@@ -397,6 +399,7 @@ public class CatalogosController : ApiControllerBase
             Orden = request.Orden,
             Color = color,
             Activo = true,
+            CuentaParaIndicadores = request.CuentaParaIndicadores,
             CreadoPorUsuarioId = CurrentUserId,
             ModificadoPorUsuarioId = CurrentUserId
         };
@@ -414,7 +417,8 @@ public class CatalogosController : ApiControllerBase
             Descripcion = tipo.Descripcion,
             Orden = tipo.Orden,
             Color = tipo.Color,
-            Activo = tipo.Activo
+            Activo = tipo.Activo,
+            CuentaParaIndicadores = tipo.CuentaParaIndicadores
         });
     }
 
@@ -461,6 +465,8 @@ public class CatalogosController : ApiControllerBase
         tipo.Orden = request.Orden;
         tipo.Color = color;
         tipo.Activo = request.Activo;
+        if (request.CuentaParaIndicadores is { } cuenta)
+            tipo.CuentaParaIndicadores = cuenta;
         tipo.ModificadoPorUsuarioId = CurrentUserId;
         tipo.FechaHoraModificacion = DateTimeOffset.UtcNow;
 
@@ -477,7 +483,8 @@ public class CatalogosController : ApiControllerBase
             Descripcion = tipo.Descripcion,
             Orden = tipo.Orden,
             Color = tipo.Color,
-            Activo = tipo.Activo
+            Activo = tipo.Activo,
+            CuentaParaIndicadores = tipo.CuentaParaIndicadores
         });
     }
 

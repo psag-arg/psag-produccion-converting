@@ -14,6 +14,12 @@ public interface ITurnosProduccionService
     Task<(TurnoProduccionDto? Resultado, string? Error)> CerrarAsync(long id, CerrarTurnoProduccionRequest request);
     Task<(TurnoProduccionDto? Resultado, string? Error)> CorregirOperadorAsync(long id, CorregirOperadorTurnoRequest request);
     Task<(TurnoProduccionDto? Resultado, string? Error)> CorregirProductoAsync(long id, CorregirProductoTurnoRequest request);
+
+    /// <summary>Turno abierto de la línea (o el de la hora actual); null si no hay (204). Lanza si la API falla.</summary>
+    Task<TurnoProduccionDto?> GetActualAsync(int lineaId);
+
+    /// <summary>Producción oficial de un tramo: VALIDAR, CORREGIR o MANUAL (supervisor).</summary>
+    Task<(ProduccionTurnoDto? Resultado, string? Error)> RegistrarProduccionAsync(long id, RegistrarProduccionTurnoRequest request);
 }
 
 public class TurnosProduccionService : ITurnosProduccionService
@@ -61,6 +67,22 @@ public class TurnosProduccionService : ITurnosProduccionService
 
     public Task<(TurnoProduccionDto? Resultado, string? Error)> CorregirProductoAsync(long id, CorregirProductoTurnoRequest request) =>
         PostTurnoAsync($"{Base}/{id}/corregir-producto", request, "No se pudo corregir el producto.");
+
+    public async Task<TurnoProduccionDto?> GetActualAsync(int lineaId)
+    {
+        var response = await _httpClient.GetAsync($"{Base}/actual?lineaId={lineaId}");
+        await ApiErrores.AsegurarExitoAsync(response);
+        if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
+            return null;
+        return await response.Content.ReadFromJsonAsync<TurnoProduccionDto>();
+    }
+
+    public async Task<(ProduccionTurnoDto? Resultado, string? Error)> RegistrarProduccionAsync(long id, RegistrarProduccionTurnoRequest request)
+    {
+        var response = await _httpClient.PostAsJsonAsync($"{Base}/{id}/produccion", request);
+        var (ok, error) = await ApiErrores.ResultadoAsync(response, "No se pudo registrar la producción.");
+        return ok ? (await response.Content.ReadFromJsonAsync<ProduccionTurnoDto>(), null) : (null, error);
+    }
 
     private async Task<(TurnoProduccionDto? Resultado, string? Error)> PostTurnoAsync<T>(string url, T request, string mensaje)
     {

@@ -39,6 +39,7 @@
                             <th>Nombre</th>
                             <th>Color en gráficos</th>
                             <th>Descripción</th>
+                            <th class="text-center" title="Si las detenciones de este tipo suman en indisponibilidad y eficiencia">Cuenta para indicadores</th>
                             <th class="text-center">Activo</th>
                             <th class="text-end">Acciones</th>
                         </tr>
@@ -66,6 +67,16 @@
                                     </td>
                                     <td>@tipo.Descripcion</td>
                                     <td class="text-center">
+                                        @if (tipo.CuentaParaIndicadores)
+                                        {
+                                            <span class="badge text-bg-primary">Sí</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge text-bg-light border" title="Parada programada: se registra pero no suma">No (programada)</span>
+                                        }
+                                    </td>
+                                    <td class="text-center">
                                         @if (tipo.Activo)
                                         {
                                             <span class="badge bg-success">Activo</span>
@@ -92,7 +103,7 @@
                         else
                         {
                             <tr>
-                                <td colspan="6" class="text-center text-muted py-4">No hay tipos de falla registrados</td>
+                                <td colspan="7" class="text-center text-muted py-4">No hay tipos de falla registrados</td>
                             </tr>
                         }
                     </tbody>
@@ -134,6 +145,11 @@
                         {
                             <small class="text-muted">Sin color propio, el gráfico usa el color automático del sistema.</small>
                         }
+                    </div>
+                    <div class="form-check mb-3">
+                        <input type="checkbox" class="form-check-input" id="cuentaIndicadores" @bind="tipoFallaActual.CuentaParaIndicadores" />
+                        <label class="form-check-label" for="cuentaIndicadores">Cuenta para indisponibilidad y eficiencia</label>
+                        <div class="form-text">Destildalo para paradas programadas (preventivo, limpieza, cambio de formato): se registran igual pero no suman en los indicadores.</div>
                     </div>
                     <div class="form-check">
                         <input type="checkbox" class="form-check-input" id="activo" @bind="tipoFallaActual.Activo" />
@@ -212,7 +228,8 @@
             Descripcion = tipo.Descripcion,
             Orden = tipo.Orden,
             Color = tipo.Color,
-            Activo = tipo.Activo
+            Activo = tipo.Activo,
+            CuentaParaIndicadores = tipo.CuentaParaIndicadores
         };
         editando = true;
         errorMessage = null;

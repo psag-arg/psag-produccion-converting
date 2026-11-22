@@ -1,0 +1,405 @@
+@page "/maestros/productos"
+@using Microsoft.AspNetCore.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize(Roles = "ADMINISTRADOR")]
+@inject IMaestrosProduccionService MaestrosService
+@inject IJSRuntime JS
+
+<PageTitle>Productos - PSAG Produccion</PageTitle>
+
+@* T-798 etapa 6 · Productos maestro (lo que se fabrica: SH 30, SH 50) con sus SKU de empaque: el bolsón (paquetes por
+   bolsón) y el pallet (bolsones por pallet). Los datos que no se saben quedan vacíos, nunca en 0. Nada se borra. *@
+<div class="container-fluid">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <h3 class="mb-0">Productos</h3>
+        <button class="btn btn-primary" @onclick="NuevoProducto"><i class="bi bi-plus-circle me-2"></i>Nuevo producto</button>
+    </div>
+    <p class="text-muted">
+        El producto maestro es lo que se fabrica en la línea; los SKU son cómo se empaca (bolsón y pallet).
+        Qué producto se puede hacer en cada línea y su objetivo se cargan en <a href="maestros/parametros-linea-producto">Parámetros línea + producto</a>.
+    </p>
+
+    <AvisoDescartable @bind-Mensaje="mensajeLista" />
+    <SwitchInactivos @bind-Mostrar="mostrarInactivos" @bind-Mostrar:after="Cargar"
+                     Ayuda="Los desactivados no aparecen para elegir en las líneas. Para reactivar uno, mostralo y editalo." />
+
+    @if (cargando)
+    {
+        <div class="text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Cargando...</span></div></div>
+    }
+    else if (errorCarga != null)
+    {
+        <div class="alert alert-danger">@errorCarga</div>
+    }
+    else
+    {
+        <div class="card">
+            <div class="card-body p-0 table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Código</th>
+                            <th>Nombre</th>
+                            <th class="text-end d-none d-md-table-cell">Metros por manga</th>
+                            <th class="text-end d-none d-md-table-cell">Rollos por manga</th>
+                            <th class="text-end d-none d-md-table-cell">Rollos por paquete</th>
+                            <th>SKU</th>
+                            <th class="text-center">Estado</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!productos.Any())
+                        {
+                            <tr><td colspan="8" class="text-center text-muted py-4">No hay productos cargados.</td></tr>
+                        }
+                        @foreach (var p in productos)
+                        {
+                            var skus = p.Skus.Where(s => mostrarInactivos || s.Activo).ToList();
+                            <tr>
+                                <td class="font-monospace small">@p.Codigo</td>
+                                <td>
+                                    <strong>@p.Nombre</strong>
+                                    @if (!string.IsNullOrEmpty(p.TipoProducto)) { <div class="small text-muted">@p.TipoProducto</div> }
+                                </td>
+                                <td class="text-end d-none d-md-table-cell">@Dato(p.MetrosPorManga)</td>
+                                <td class="text-end d-none d-md-table-cell">@Dato(p.RollosPorManga)</td>
+                                <td class="text-end d-none d-md-table-cell">@Dato(p.RollosPorPaquete)</td>
+                                <td>
+                                    <button class="btn btn-sm btn-link p-0" @onclick="() => Alternar(p.ProductoMaestroId)">
+                                        @(skus.Count == 0 ? "Sin SKU" : $"{skus.Count} SKU") <i class="bi @(abiertos.Contains(p.ProductoMaestroId) ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                    </button>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge @(p.Activo ? "bg-success" : "bg-secondary")">@(p.Activo ? "Activo" : "Inactivo")</span>
+                                </td>
+                                <td class="text-end text-nowrap">
+                                    <button class="btn btn-sm btn-outline-primary me-1" title="Editar" @onclick="() => EditarProducto(p)"><i class="bi bi-pencil"></i></button>
+                                    @if (p.Activo)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger" title="Desactivar" @onclick="@(async () => await DesactivarProducto(p))"><i class="bi bi-pause-circle"></i></button>
+                                    }
+                                </td>
+                            </tr>
+                            @if (abiertos.Contains(p.ProductoMaestroId))
+                            {
+                                <tr>
+                                    <td colspan="8" class="bg-body-tertiary">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <strong class="small">SKU de @p.Nombre</strong>
+                                            <button class="btn btn-sm btn-outline-primary" @onclick="() => NuevoSku(p)"><i class="bi bi-plus me-1"></i>Agregar SKU</button>
+                                        </div>
+                                        @if (skus.Count == 0)
+                                        {
+                                            <div class="small text-muted">Todavía no tiene SKU. Agregá el bolsón y, si se sabe, el pallet.</div>
+                                        }
+                                        else
+                                        {
+                                            <table class="table table-sm mb-0 small">
+                                                <thead><tr><th>Código SKU</th><th>Tipo</th><th>Contenido</th><th>Descripción</th><th class="text-center">Estado</th><th></th></tr></thead>
+                                                <tbody>
+                                                    @foreach (var s in skus)
+                                                    {
+                                                        <tr>
+                                                            <td class="font-monospace">@s.CodigoSku</td>
+                                                            <td>@(s.TipoSku == ProductoSkuDto.TipoBolson ? "Bolsón" : "Pallet")</td>
+                                                            <td>@Contenido(s)</td>
+                                                            <td>@s.Descripcion</td>
+                                                            <td class="text-center"><span class="badge @(s.Activo ? "bg-success" : "bg-secondary")">@(s.Activo ? "Activo" : "Inactivo")</span></td>
+                                                            <td class="text-end"><button class="btn btn-sm btn-outline-primary" title="Editar" @onclick="() => EditarSku(p, s)"><i class="bi bi-pencil"></i></button></td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@if (productoActual != null)
+{
+    <div class="modal d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(productoActual.ProductoMaestroId == 0 ? "Nuevo producto" : "Editar producto")</h5>
+                    <button type="button" class="btn-close" @onclick="() => productoActual = null"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-2">
+                        <div class="col-sm-6">
+                            <label class="form-label small mb-1">Código *</label>
+                            <input class="form-control" maxlength="50" @bind="productoActual.Codigo" />
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label small mb-1">Nombre *</label>
+                            <input class="form-control" maxlength="100" @bind="productoActual.Nombre" />
+                        </div>
+                        <div class="col-sm-8">
+                            <label class="form-label small mb-1">Tipo de producto</label>
+                            <input class="form-control" maxlength="30" placeholder="higiénico, cocina..." @bind="productoActual.TipoProducto" />
+                        </div>
+                        <div class="col-sm-4">
+                            <label class="form-label small mb-1">Orden</label>
+                            <input type="number" class="form-control" @bind="productoActual.Orden" />
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small mb-1">Metros por manga</label>
+                            <input type="number" step="0.01" min="0" class="form-control" @bind="productoActual.MetrosPorManga" />
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small mb-1">Rollos por manga</label>
+                            <input type="number" min="1" class="form-control" @bind="productoActual.RollosPorManga" />
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small mb-1">Rollos por paquete</label>
+                            <input type="number" min="1" class="form-control" @bind="productoActual.RollosPorPaquete" />
+                        </div>
+                        <div class="col-12 form-text mt-0">Si un dato no se sabe, dejalo vacío (no pongas 0). Metros por manga se usa para la velocidad (m/min).</div>
+                        <div class="col-12">
+                            <label class="form-label small mb-1">Descripción</label>
+                            <textarea class="form-control" rows="2" maxlength="500" @bind="productoActual.Descripcion"></textarea>
+                        </div>
+                        <div class="col-12 form-check ms-1">
+                            <input type="checkbox" class="form-check-input" id="productoActivo" @bind="productoActual.Activo" />
+                            <label class="form-check-label" for="productoActivo">Activo</label>
+                        </div>
+                    </div>
+                    @if (errorModal != null)
+                    {
+                        <div class="alert alert-danger mt-3 mb-0">@errorModal</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => productoActual = null">Cancelar</button>
+                    <button class="btn btn-primary" disabled="@guardando" @onclick="@(async () => await GuardarProducto())">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (skuActual != null && productoDelSku != null)
+{
+    <div class="modal d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(skuActual.ProductoSkuId == 0 ? "Nuevo SKU" : "Editar SKU") · @productoDelSku.Nombre</h5>
+                    <button type="button" class="btn-close" @onclick="() => skuActual = null"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-2">
+                        <div class="col-sm-7">
+                            <label class="form-label small mb-1">Código SKU *</label>
+                            <input class="form-control" maxlength="50" @bind="skuActual.CodigoSku" />
+                        </div>
+                        <div class="col-sm-5">
+                            <label class="form-label small mb-1">Tipo *</label>
+                            <select class="form-select" @bind="skuActual.TipoSku">
+                                <option value="@ProductoSkuDto.TipoBolson">Bolsón</option>
+                                <option value="@ProductoSkuDto.TipoPallet">Pallet</option>
+                            </select>
+                        </div>
+                        @if (skuActual.TipoSku == ProductoSkuDto.TipoBolson)
+                        {
+                            <div class="col-sm-6">
+                                <label class="form-label small mb-1">Paquetes por bolsón</label>
+                                <input type="number" min="1" class="form-control" @bind="skuActual.PaquetesPorBolson" />
+                                <div class="form-text">Único lugar del dato: también lo usa la cámara de calidad de la embolsadora.</div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="col-sm-7">
+                                <label class="form-label small mb-1">Bolsón que lleva</label>
+                                <select class="form-select" @bind="skuActual.SkuContenidoId">
+                                    <option value="">(sin definir)</option>
+                                    @foreach (var b in productoDelSku.Skus.Where(x => x.TipoSku == ProductoSkuDto.TipoBolson && x.Activo))
+                                    {
+                                        <option value="@b.ProductoSkuId">@b.CodigoSku</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-sm-5">
+                                <label class="form-label small mb-1">Bolsones por pallet</label>
+                                <input type="number" min="1" class="form-control" @bind="skuActual.BolsonesPorPallet" />
+                            </div>
+                        }
+                        <div class="col-12">
+                            <label class="form-label small mb-1">Descripción</label>
+                            <input class="form-control" maxlength="200" @bind="skuActual.Descripcion" />
+                        </div>
+                        <div class="col-12 form-check ms-1">
+                            <input type="checkbox" class="form-check-input" id="skuActivo" @bind="skuActual.Activo" />
+                            <label class="form-check-label" for="skuActivo">Activo</label>
+                        </div>
+                    </div>
+                    @if (errorModal != null)
+                    {
+                        <div class="alert alert-danger mt-3 mb-0">@errorModal</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => skuActual = null">Cancelar</button>
+                    <button class="btn btn-primary" disabled="@guardando" @onclick="@(async () => await GuardarSku())">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<ProductoMaestroDto> productos = [];
+    private bool cargando = true;
+    private string? errorCarga;
+    private string? mensajeLista;
+    private bool mostrarInactivos;
+    private readonly HashSet<int> abiertos = [];
+
+    private ProductoMaestroDto? productoActual;
+    private ProductoSkuDto? skuActual;
+    private ProductoMaestroDto? productoDelSku;
+    private string? errorModal;
+    private bool guardando;
+
+    protected override async Task OnInitializedAsync() => await Cargar();
+
+    private async Task Cargar()
+    {
+        cargando = true;
+        errorCarga = null;
+        try
+        {
+            productos = await MaestrosService.GetProductosAsync(mostrarInactivos);
+        }
+        catch (Exception ex)
+        {
+            errorCarga = ex is HttpRequestException ? ex.Message : ApiErrores.SinConexion;
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private static string Dato(decimal? v) => v is { } x ? x.ToString("0.##") : "-";
+    private static string Dato(int? v) => v?.ToString() ?? "-";
+
+    private static string Contenido(ProductoSkuDto s) => s.TipoSku == ProductoSkuDto.TipoBolson
+        ? (s.PaquetesPorBolson is { } p ? $"{p} paquetes por bolsón" : "paquetes por bolsón: sin dato")
+        : $"{(s.BolsonesPorPallet is { } b ? $"{b} bolsones" : "bolsones: sin dato")} de {s.SkuContenidoCodigo ?? "(bolsón sin definir)"}";
+
+    private void Alternar(int id)
+    {
+        if (!abiertos.Remove(id))
+            abiertos.Add(id);
+    }
+
+    private void NuevoProducto()
+    {
+        errorModal = null;
+        productoActual = new ProductoMaestroDto { Activo = true, Orden = (productos.Count == 0 ? 0 : productos.Max(p => p.Orden)) + 1 };
+    }
+
+    private void EditarProducto(ProductoMaestroDto p)
+    {
+        errorModal = null;
+        productoActual = new ProductoMaestroDto
+        {
+            ProductoMaestroId = p.ProductoMaestroId, Codigo = p.Codigo, Nombre = p.Nombre, Descripcion = p.Descripcion, Orden = p.Orden,
+            Activo = p.Activo, TipoProducto = p.TipoProducto, MetrosPorManga = p.MetrosPorManga, RollosPorManga = p.RollosPorManga,
+            RollosPorPaquete = p.RollosPorPaquete
+        };
+    }
+
+    private async Task GuardarProducto()
+    {
+        guardando = true;
+        errorModal = null;
+        try
+        {
+            var (valor, error) = await MaestrosService.GuardarProductoAsync(productoActual!);
+            if (valor == null)
+            {
+                errorModal = error;
+                return;
+            }
+            productoActual = null;
+            await Cargar();
+        }
+        catch (Exception)
+        {
+            errorModal = ApiErrores.SinConexion;
+        }
+        finally
+        {
+            guardando = false;
+        }
+    }
+
+    private async Task DesactivarProducto(ProductoMaestroDto p)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"¿Desactivar el producto '{p.Nombre}'? Deja de aparecer para elegir en las líneas. Los turnos ya cargados no cambian."))
+            return;
+        EditarProducto(p);
+        productoActual!.Activo = false;
+        var (valor, error) = await MaestrosService.GuardarProductoAsync(productoActual);
+        productoActual = null;
+        mensajeLista = valor == null ? error : null;
+        await Cargar();
+    }
+
+    private void NuevoSku(ProductoMaestroDto p)
+    {
+        errorModal = null;
+        productoDelSku = p;
+        skuActual = new ProductoSkuDto { ProductoMaestroId = p.ProductoMaestroId, TipoSku = ProductoSkuDto.TipoBolson, Activo = true };
+    }
+
+    private void EditarSku(ProductoMaestroDto p, ProductoSkuDto s)
+    {
+        errorModal = null;
+        productoDelSku = p;
+        skuActual = new ProductoSkuDto
+        {
+            ProductoSkuId = s.ProductoSkuId, ProductoMaestroId = s.ProductoMaestroId, CodigoSku = s.CodigoSku, Descripcion = s.Descripcion,
+            TipoSku = s.TipoSku, PaquetesPorBolson = s.PaquetesPorBolson, SkuContenidoId = s.SkuContenidoId, BolsonesPorPallet = s.BolsonesPorPallet,
+            Activo = s.Activo
+        };
+    }
+
+    private async Task GuardarSku()
+    {
+        guardando = true;
+        errorModal = null;
+        try
+        {
+            var (valor, error) = await MaestrosService.GuardarSkuAsync(skuActual!);
+            if (valor == null)
+            {
+                errorModal = error;
+                return;
+            }
+            skuActual = null;
+            abiertos.Add(valor.ProductoMaestroId);
+            await Cargar();
+        }
+        catch (Exception)
+        {
+            errorModal = ApiErrores.SinConexion;
+        }
+        finally
+        {
+            guardando = false;
+        }
+    }
+}
