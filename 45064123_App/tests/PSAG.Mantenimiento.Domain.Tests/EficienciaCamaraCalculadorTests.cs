@@ -118,37 +118,6 @@ public class EficienciaCamaraCalculadorTests
         Assert.Equal(480, EficienciaCamaraCalculador.MinutosProgramadosTurno(Lunes, T1, Turnos, [], [Excepcion(Lunes.AddDays(1), 0)]));
     }
 
-    // ---------- Turno en curso ----------
-
-    [Fact]
-    public void Momento()
-    {
-        var inicio = new DateTimeOffset(2026, 11, 2, 21, 0, 0, TimeSpan.FromHours(-3));
-        var fin = inicio.AddHours(8);
-
-        Assert.Equal(MomentoTurno.SinEmpezar, EficienciaCamaraCalculador.Momento(inicio.AddMinutes(-1), inicio, fin));
-        Assert.Equal(MomentoTurno.EnCurso, EficienciaCamaraCalculador.Momento(inicio.AddHours(4), inicio, fin));
-        Assert.Equal(MomentoTurno.Terminado, EficienciaCamaraCalculador.Momento(fin, inicio, fin));
-    }
-
-    // ---------- Paradas ----------
-
-    [Fact]
-    public void MinutosParada_RecortaALaVentanaDelTurno()
-    {
-        var desde = new DateTimeOffset(2026, 11, 3, 5, 0, 0, TimeSpan.FromHours(-3));
-        var hasta = desde.AddHours(8);
-        var paradas = new[]
-        {
-            (desde.AddMinutes(-10), desde.AddMinutes(5)),   // viene del turno de noche: cuentan 5
-            (desde.AddHours(1), desde.AddHours(1).AddMinutes(12)), // 12
-            (hasta.AddMinutes(-3), hasta.AddMinutes(20)),   // sigue en el turno siguiente: cuentan 3
-            (hasta.AddHours(1), hasta.AddHours(2))          // afuera
-        };
-
-        Assert.Equal(20, EficienciaCamaraCalculador.MinutosParadaEnVentana(paradas, desde, hasta));
-    }
-
     // ---------- Unidad ----------
 
     [Theory]

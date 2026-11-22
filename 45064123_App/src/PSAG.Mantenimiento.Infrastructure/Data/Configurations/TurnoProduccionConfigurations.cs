@@ -173,6 +173,7 @@ public class ProduccionTurnoConfiguration : IEntityTypeConfiguration<ProduccionT
         builder.Property(x => x.CantidadOficial).HasPrecision(12, 1);
         builder.Property(x => x.ValidadoPorUsuarioId).HasMaxLength(450);
         builder.Property(x => x.RegistradoPorUsuarioId).IsRequired().HasMaxLength(450);
+        builder.Property(x => x.Motivo).HasMaxLength(ProduccionTurno.MotivoMaximo);
         builder.Property(x => x.Origen)
             .IsRequired()
             .HasConversion(v => v.ToString(), v => Enum.Parse<OrigenProduccionTurno>(v))

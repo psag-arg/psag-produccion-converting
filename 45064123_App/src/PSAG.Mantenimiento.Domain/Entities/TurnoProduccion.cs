@@ -141,11 +141,16 @@ public class TurnoProduccionProducto
 }
 
 /// <summary>
-/// Producción OFICIAL por tramo de producto y magnitud (PRD_ProduccionesTurno). Se crea vacía en la etapa 2 y se
-/// llena en la etapa 5 (cámara + validación). "Sin datos" (SIN_DATOS, cantidad null) es distinto de cero.
+/// Producción OFICIAL por tramo de producto y magnitud (PRD_ProduccionesTurno, T-798 etapa 5). Al cerrar el tramo se
+/// crea una fila por cada magnitud con cámara oficial en la línea (Origen CAMARA, PENDIENTE o SIN_DATOS según la
+/// cobertura); el supervisor la valida, la corrige (CAMARA_CORREGIDA, con motivo) o carga el dato a mano (MANUAL).
+/// Insert-only: cada acción del supervisor es una fila nueva que anula a la anterior (<see cref="AnuladoPorId"/>).
+/// "Sin datos" (SIN_DATOS, cantidad null) es distinto de cero. Qué cuenta como real: <c>ProduccionOficialReglas</c>.
 /// </summary>
 public class ProduccionTurno
 {
+    public const int MotivoMaximo = 500;
+
     public long ProduccionTurnoId { get; set; }
     public long TurnoProduccionProductoId { get; set; }
 
@@ -161,8 +166,14 @@ public class ProduccionTurno
     public DateTimeOffset? FechaHoraValidacion { get; set; }
     public string RegistradoPorUsuarioId { get; set; } = string.Empty;
     public DateTimeOffset FechaHoraRegistro { get; set; }
+
+    /// <summary>Obligatorio en CAMARA_CORREGIDA; opcional en MANUAL (script 37).</summary>
+    public string? Motivo { get; set; }
+
     public long? AnuladoPorId { get; set; }
 
     // Navegación
     public virtual TurnoProduccionProducto TurnoProduccionProducto { get; set; } = null!;
+
+    public bool Anulado => AnuladoPorId != null;
 }

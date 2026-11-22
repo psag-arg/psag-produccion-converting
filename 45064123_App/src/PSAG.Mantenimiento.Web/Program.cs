@@ -55,6 +55,7 @@ builder.Services.AddScoped<IConteoCamaraService, ConteoCamaraService>();
 builder.Services.AddScoped<ICamarasService, CamarasService>();
 builder.Services.AddScoped<IDeclaracionDetencionService, DeclaracionDetencionService>();
 builder.Services.AddScoped<ITurnosProduccionService, TurnosProduccionService>();
+builder.Services.AddScoped<IIndicadoresService, IndicadoresService>();
 
 // Servicio de temas
 builder.Services.AddScoped<IThemeService, ThemeService>();

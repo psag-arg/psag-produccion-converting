@@ -41,19 +41,6 @@ public class ConteoCamaraController : ApiControllerBase
         return resultado.IsFailure ? ErrorResult(resultado) : Ok(resultado.Value);
     }
 
-    /// <summary>
-    /// Conteos por turno de las cámaras de conteo, en un día de planta (Dashboard): contadas, minutos con datos,
-    /// minutos de parada y microcortes. T-798 etapa 4: sin objetivo ni % (el objetivo sale del parámetro línea +
-    /// producto en la etapa 5). Un turno sin minutos viene con SinDatos = true, nunca como 0.
-    /// </summary>
-    [HttpGet("eficiencia")]
-    [ProducesResponseType(typeof(EficienciaCamaraDiaDto), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetEficiencia([FromQuery] DateOnly fecha, [FromQuery] int? lineaId)
-    {
-        var resultado = await _servicio.ObtenerEficienciaAsync(fecha, lineaId);
-        return resultado.IsFailure ? ErrorResult(resultado) : Ok(resultado.Value);
-    }
-
     /// <summary>Alertas de cámara (congelada, sin video, sin datos, sin configuración): abiertas y las cerradas en las últimas <c>horas</c> (24 por defecto).</summary>
     [HttpGet("alertas")]
     [ProducesResponseType(typeof(IReadOnlyList<AlertaCamaraDto>), StatusCodes.Status200OK)]

@@ -36,6 +36,20 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
             .OrderBy(d => d.FechaHoraParada ?? d.FechaHoraCreacion)
             .ToList();
 
+    public async Task<IReadOnlyDictionary<long, int>> GetMinutosQueCuentanPorTurnoAsync(
+        IReadOnlyCollection<long> turnoProduccionIds, CancellationToken cancellationToken = default)
+    {
+        if (turnoProduccionIds.Count == 0)
+            return new Dictionary<long, int>();
+        var filas = await _dbSet.AsNoTracking()
+            .Where(d => turnoProduccionIds.Contains(d.TurnoProduccionId))
+            .Where(DetencionIndicadores.CuentaExpr)
+            .GroupBy(d => d.TurnoProduccionId)
+            .Select(g => new { TurnoProduccionId = g.Key, Minutos = g.Sum(d => d.MinutosEfectivos) })
+            .ToListAsync(cancellationToken);
+        return filas.ToDictionary(f => f.TurnoProduccionId, f => f.Minutos);
+    }
+
     public async Task<Detencion?> GetByCodigoAsync(string codigo, CancellationToken cancellationToken = default)
     {
         return await _dbSet

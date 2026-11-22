@@ -216,6 +216,7 @@ public class TurnoProduccionService : ITurnoProduccionService
                 }
             }
 
+            await RegistrarProduccionTramosCerradosAsync(tp, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             await _unitOfWork.CommitTransactionAsync(cancellationToken);
 
@@ -324,6 +325,7 @@ public class TurnoProduccionService : ITurnoProduccionService
             vigente.Hasta = desde;
         tp.Productos.Add(NuevoTramoProducto(parametro, desde, null, OrigenTramoProducto.CAMBIO, usuarioId, ahora, null));
         tp.ModificadoPorUsuarioId = usuarioId;
+        await RegistrarProduccionTramosCerradosAsync(tp, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Turno de producción {TurnoProduccionId}: cambio de producto a {ProductoMaestroId} desde {Desde} por {UsuarioId}",
@@ -374,6 +376,7 @@ public class TurnoProduccionService : ITurnoProduccionService
 
         var ahora = _ahora();
         Cerrar(tp, EstadoTurnoProduccion.CERRADO, ahora, usuarioId, string.IsNullOrWhiteSpace(observacion) ? null : observacion.Trim());
+        await RegistrarProduccionTramosCerradosAsync(tp, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Turno de producción {TurnoProduccionId} cerrado a mano por {UsuarioId}", turnoProduccionId, usuarioId);
@@ -501,6 +504,8 @@ public class TurnoProduccionService : ITurnoProduccionService
                 anulado.AnuladoPorId = nuevo.TurnoProduccionProductoId;
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
             }
+            await RegistrarProduccionTramosCerradosAsync(tp, cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
             await _unitOfWork.CommitTransactionAsync(cancellationToken);
         }
         catch
@@ -512,6 +517,157 @@ public class TurnoProduccionService : ITurnoProduccionService
         _logger.LogInformation("Turno de producción {TurnoProduccionId}: producto corregido por {UsuarioId} ({Producto}, anula {Anulado})",
             turnoProduccionId, usuarioId, request.ProductoMaestroId, request.AnulaTramoId);
         return await RecargarAsync(turnoProduccionId, cancellationToken);
+    }
+
+    // ===================== Producción oficial (T-798 etapa 5) =====================
+
+    public async Task<Result<ProduccionTurnoDto>> RegistrarProduccionAsync(
+        long turnoProduccionId, RegistrarProduccionTurnoRequest request, string usuarioId, IReadOnlyCollection<string> roles,
+        IReadOnlyCollection<int> lineasAsignadas, CancellationToken cancellationToken = default)
+    {
+        static Result<ProduccionTurnoDto> Invalido(string mensaje) => Result<ProduccionTurnoDto>.Failure("VALIDATION", mensaje);
+
+        var tp = await _unitOfWork.TurnosProduccion.GetConDetalleAsync(turnoProduccionId, cancellationToken);
+        if (tp == null)
+            return Result<ProduccionTurnoDto>.Failure("NOT_FOUND", "El turno de producción no existe.");
+        if (!TurnoProduccionReglas.PuedeCorregir(roles, lineasAsignadas, tp.LineaId))
+            return Result<ProduccionTurnoDto>.Failure("FORBIDDEN", $"No podés registrar la producción del turno de {tp.Linea.Nombre}.");
+
+        var magnitud = request.Magnitud?.Trim().ToUpperInvariant() ?? string.Empty;
+        if (!MagnitudProduccion.Todas.Contains(magnitud))
+            return Invalido("La magnitud tiene que ser MANGAS, ROLLOS, PAQUETES, BOLSONES o PALLETS.");
+        var accion = request.Accion?.Trim().ToUpperInvariant() ?? string.Empty;
+        if (!AccionProduccionTurno.Todas.Contains(accion))
+            return Invalido("La acción tiene que ser VALIDAR, CORREGIR o MANUAL.");
+
+        var tramo = tp.Productos.FirstOrDefault(p => p.TurnoProduccionProductoId == request.TurnoProduccionProductoId && !p.Anulado);
+        if (tramo == null)
+            return Invalido("El tramo de producto no es de este turno o ya fue corregido.");
+        if (tramo.Hasta == null)
+            return Invalido("El tramo todavía está abierto: la producción se registra cuando cierra (cambio de producto o cierre del turno).");
+
+        var motivo = string.IsNullOrWhiteSpace(request.Motivo) ? null : request.Motivo.Trim();
+        if (motivo?.Length > ProduccionTurno.MotivoMaximo)
+            return Invalido($"El motivo no puede pasar de {ProduccionTurno.MotivoMaximo} caracteres.");
+        decimal? cantidad = request.Cantidad is { } c ? Math.Round(c, 1, MidpointRounding.AwayFromZero) : null;
+        if (accion != AccionProduccionTurno.Validar && (cantidad is not { } valor || valor < 0 || valor > 99_999_999_999.9m))
+            return Invalido("Indicá la cantidad (cero o más).");
+
+        var vigente = ProduccionOficialReglas.Vigente(tramo.Producciones, magnitud);
+        var ahora = _ahora();
+        var nueva = new ProduccionTurno
+        {
+            Magnitud = magnitud,
+            EstadoValidacion = EstadoValidacionProduccion.VALIDADA,
+            ValidadoPorUsuarioId = usuarioId,
+            FechaHoraValidacion = ahora,
+            RegistradoPorUsuarioId = usuarioId,
+            FechaHoraRegistro = ahora
+        };
+        switch (accion)
+        {
+            case AccionProduccionTurno.Validar:
+                if (vigente == null || vigente.Origen != OrigenProduccionTurno.CAMARA)
+                    return Invalido("No hay producción de cámara para validar en este tramo: cargala a mano.");
+                if (vigente.EstadoValidacion == EstadoValidacionProduccion.VALIDADA)
+                    return Invalido("La producción de este tramo ya está validada.");
+                if (vigente.EstadoValidacion == EstadoValidacionProduccion.SIN_DATOS || vigente.CantidadCamara == null)
+                    return Invalido("La cámara no tuvo datos suficientes en el tramo: corregí con el dato del contador.");
+                nueva.Origen = OrigenProduccionTurno.CAMARA;
+                nueva.CantidadOficial = vigente.CantidadCamara;
+                nueva.Motivo = motivo;
+                break;
+            case AccionProduccionTurno.Corregir:
+                if (vigente == null || vigente.Origen == OrigenProduccionTurno.MANUAL)
+                    return Invalido("No hay producción de cámara para corregir en este tramo: cargala a mano.");
+                if (motivo == null)
+                    return Invalido("Escribí el motivo de la corrección.");
+                nueva.Origen = OrigenProduccionTurno.CAMARA_CORREGIDA;
+                nueva.CantidadOficial = cantidad;
+                nueva.Motivo = motivo;
+                break;
+            default:
+                nueva.Origen = OrigenProduccionTurno.MANUAL;
+                nueva.CantidadOficial = cantidad;
+                nueva.Motivo = motivo;
+                break;
+        }
+        if (nueva.Origen != OrigenProduccionTurno.MANUAL)
+        {
+            nueva.CantidadCamara = vigente!.CantidadCamara;
+            nueva.MinutosConDatos = vigente.MinutosConDatos;
+        }
+
+        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            tramo.Producciones.Add(nueva);
+            tp.ModificadoPorUsuarioId = usuarioId;
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            if (vigente != null)
+            {
+                vigente.AnuladoPorId = nueva.ProduccionTurnoId;
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+            await _unitOfWork.CommitTransactionAsync(cancellationToken);
+        }
+        catch
+        {
+            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+            throw;
+        }
+
+        _logger.LogInformation(
+            "Turno de producción {TurnoProduccionId}, tramo {TramoId}: producción {Magnitud} {Accion} = {Cantidad} por {UsuarioId} (anula {Anulada})",
+            turnoProduccionId, tramo.TurnoProduccionProductoId, magnitud, accion, nueva.CantidadOficial, usuarioId, vigente?.ProduccionTurnoId);
+        return Result<ProduccionTurnoDto>.Success(ProduccionTurnoDto.De(nueva, _zonaPlanta));
+    }
+
+    /// <summary>
+    /// Al cerrar tramos de producto (cambio de producto, cierre manual o automático, corrección): por cada tramo cerrado
+    /// y cada magnitud con cámara oficial en la línea que todavía no tenga fila, crea la producción de la cámara
+    /// (Σ minutos del tramo, minutos con datos, PENDIENTE o SIN_DATOS según la cobertura; ProduccionOficialReglas).
+    /// Sin cámara para la magnitud no se crea fila ("sin datos"). Agrega las filas al turno (quien llama guarda).
+    /// </summary>
+    private async Task RegistrarProduccionTramosCerradosAsync(TurnoProduccion tp, CancellationToken cancellationToken)
+    {
+        var cerrados = tp.Productos.Where(p => !p.Anulado && p.Hasta is { } h && h > p.Desde).ToList();
+        if (cerrados.Count == 0)
+            return;
+        var camaras = (await _unitOfWork.Camaras.GetOficialesAsync(cancellationToken))
+            .Where(c => c.LineaId == tp.LineaId && c.Magnitud != null)
+            .ToList();
+        var faltantes = cerrados
+            .SelectMany(t => camaras.Where(c => !t.Producciones.Any(p => p.Magnitud == c.Magnitud)).Select(c => (Tramo: t, Camara: c)))
+            .ToList();
+        if (faltantes.Count == 0)
+            return;
+
+        var minutos = await _unitOfWork.ConteosCamaraMinuto.GetMinutosAsync(
+            faltantes.Select(f => f.Camara.CamaraId).Distinct().ToList(),
+            faltantes.Min(f => f.Tramo.Desde), faltantes.Max(f => f.Tramo.Hasta!.Value), cancellationToken);
+        var ahora = _ahora();
+        foreach (var (tramo, camara) in faltantes)
+        {
+            var hasta = tramo.Hasta!.Value;
+            var (cantidad, conDatos) = ProduccionOficialReglas.ConteoDelTramo(minutos, camara.CamaraId, tramo.Desde, hasta);
+            var fila = ProduccionOficialReglas.FilaDeCamara(cantidad, conDatos,
+                ProduccionOficialReglas.MinutosTramo(tramo.Desde, hasta), _opciones.CoberturaMinimaProduccion);
+            tramo.Producciones.Add(new ProduccionTurno
+            {
+                Magnitud = camara.Magnitud!,
+                CantidadCamara = fila.CantidadCamara,
+                MinutosConDatos = fila.MinutosConDatos,
+                CantidadOficial = fila.CantidadOficial,
+                Origen = OrigenProduccionTurno.CAMARA,
+                EstadoValidacion = fila.Estado,
+                RegistradoPorUsuarioId = UsuarioSistema,
+                FechaHoraRegistro = ahora
+            });
+            _logger.LogInformation(
+                "Turno de producción {TurnoProduccionId}, tramo {TramoId}: producción de cámara {Camara} {Magnitud} = {Cantidad} ({Minutos} min con datos, {Estado})",
+                tp.TurnoProduccionId, tramo.TurnoProduccionProductoId, camara.Codigo, camara.Magnitud, fila.CantidadCamara, conDatos, fila.Estado);
+        }
     }
 
     // ===================== Job: cierre automático y SIN_APERTURA =====================
@@ -526,6 +682,7 @@ public class TurnoProduccionService : ITurnoProduccionService
         {
             Cerrar(t, EstadoTurnoProduccion.CERRADO_AUTOMATICO, Min(ahora, t.FinProgramado), null,
                 $"Cerrado automáticamente: pasó el fin del turno ({HoraPlanta.En(t.FinProgramado, _zonaPlanta):HH:mm}) más {tolerancia} min de tolerancia.");
+            await RegistrarProduccionTramosCerradosAsync(t, cancellationToken);
         }
         if (vencidos.Count > 0)
         {
@@ -673,6 +830,7 @@ public class TurnoProduccionService : ITurnoProduccionService
             return null;
         Cerrar(abierto, EstadoTurnoProduccion.CERRADO_AUTOMATICO, Min(ahora, abierto.FinProgramado), null,
             $"Cerrado automáticamente al abrir el {turnoNuevo.Nombre} del {fechaNueva:dd/MM/yyyy}.");
+        await RegistrarProduccionTramosCerradosAsync(abierto, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return abierto.TurnoProduccionId;
     }

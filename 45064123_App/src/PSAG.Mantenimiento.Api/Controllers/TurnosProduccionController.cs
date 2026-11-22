@@ -190,6 +190,25 @@ public class TurnosProduccionController : ApiControllerBase
         return await RespuestaAsync(resultado);
     }
 
+    /// <summary>
+    /// Producción oficial de un tramo cerrado (T-798 etapa 5): VALIDAR lo de la cámara, CORREGIRLO (con motivo) o cargar
+    /// a MANO (p. ej. bolsones sin cámara). Insert-only: la fila nueva anula a la vigente.
+    /// </summary>
+    [HttpPost("{id:long}/produccion")]
+    [Authorize(Policy = "RequireSupervisor")]
+    [ProducesResponseType(typeof(ProduccionTurnoDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> RegistrarProduccion(long id, [FromBody] RegistrarProduccionTurnoRequest request)
+    {
+        if (string.IsNullOrEmpty(CurrentUserId))
+            return Unauthorized();
+        var resultado = await _servicio.RegistrarProduccionAsync(id, request, CurrentUserId, Roles, await LineasAsignadasAsync(_unitOfWork.OperadoresLinea));
+        return resultado.IsFailure
+            ? ProblemaDe(resultado, "No se pudo registrar la producción", "Turno no encontrado", "Sin permiso sobre la línea")
+            : Ok(resultado.Value);
+    }
+
     private async Task<IActionResult> RespuestaAsync(Application.Common.Result<TurnoProduccionDto> resultado)
     {
         if (resultado.IsFailure)

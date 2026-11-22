@@ -39,6 +39,9 @@ public static class DependencyInjection
         // Turno de producción (T-798 etapa 2). TurnosProduccionOpciones la registra la API desde appsettings.
         services.AddScoped<ITurnoProduccionService, TurnoProduccionService>();
 
+        // Indicadores: presupuesto vs. real desde el turno y el parámetro (T-798 etapa 5)
+        services.AddScoped<IIndicadoresService, IndicadoresService>();
+
         // Dashboard consolidado
         services.AddScoped<IDashboardService, DashboardService>();
 

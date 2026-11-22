@@ -31,6 +31,13 @@ public interface IConteoCamaraMinutoRepository : IRepository<ConteoCamaraMinuto>
     Task<IReadOnlyList<ConteoCamaraMinuto>> GetRangoAsync(
         DateTimeOffset desde, DateTimeOffset hasta, int? lineaId = null, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Minutos de [desde, hasta) de esas cámaras, livianos (sin navegación ni seguimiento): para la producción oficial
+    /// de un tramo, el parcial y la velocidad (T-798 etapa 5).
+    /// </summary>
+    Task<IReadOnlyList<Services.MinutoConteo>> GetMinutosAsync(
+        IReadOnlyCollection<int> camaraIds, DateTimeOffset desde, DateTimeOffset hasta, CancellationToken cancellationToken = default);
+
     /// <summary>Último minuto guardado de la cámara (o null si nunca mandó).</summary>
     Task<DateTimeOffset?> GetUltimoMinutoAsync(int camaraId, CancellationToken cancellationToken = default);
 }

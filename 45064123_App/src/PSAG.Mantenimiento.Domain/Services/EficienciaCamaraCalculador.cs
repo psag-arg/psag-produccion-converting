@@ -3,18 +3,11 @@ using PSAG.Mantenimiento.Domain.Enums;
 
 namespace PSAG.Mantenimiento.Domain.Services;
 
-/// <summary>En qué momento está el turno respecto de ahora.</summary>
-public static class MomentoTurno
-{
-    public const string SinEmpezar = "SIN_EMPEZAR";
-    public const string EnCurso = "EN_CURSO";
-    public const string Terminado = "TERMINADO";
-}
-
 /// <summary>
-/// Conteos por turno de una cámara (ex eficiencia por cámara de la reunión 03/11). T-798 etapa 4: el
-/// <c>ObjetivoPorHora</c> de la cámara desapareció; hasta la etapa 5 (objetivo desde el parámetro línea + producto)
-/// sólo se informan contadas, paradas y horas programadas, SIN objetivo ni %. Funciones puras: no tocan la base.
+/// Ventana y minutos programados de un turno de planta en un día, y la unidad de una magnitud. Funciones puras: no
+/// tocan la base. T-798 etapa 5: la eficiencia por cámara de la etapa 4 se reemplazó por los indicadores
+/// (<see cref="IndicadoresProduccionCalculador"/>, un solo cálculo); acá quedan sólo las reglas de tiempo que usan
+/// el turno de producción y las horas programadas.
 /// </summary>
 public static class EficienciaCamaraCalculador
 {
@@ -73,29 +66,6 @@ public static class EficienciaCamaraCalculador
         if (minutosDia >= baseDia)
             return duracion;
         return (int)Math.Round((decimal)duracion * minutosDia / baseDia, MidpointRounding.AwayFromZero);
-    }
-
-    public static string Momento(DateTimeOffset ahora, DateTimeOffset inicio, DateTimeOffset fin) =>
-        ahora < inicio ? MomentoTurno.SinEmpezar
-        : ahora < fin ? MomentoTurno.EnCurso
-        : MomentoTurno.Terminado;
-
-    /// <summary>
-    /// Minutos de parada dentro de la ventana del turno: cada parada se recorta a la ventana (una parada que empieza
-    /// antes de las 05:00 cuenta en el turno siguiente sólo lo que pasó después de las 05:00).
-    /// </summary>
-    public static int MinutosParadaEnVentana(
-        IEnumerable<(DateTimeOffset Inicio, DateTimeOffset Fin)> paradas, DateTimeOffset desde, DateTimeOffset hasta)
-    {
-        var segundos = 0d;
-        foreach (var (inicio, fin) in paradas)
-        {
-            var a = inicio > desde ? inicio : desde;
-            var b = fin < hasta ? fin : hasta;
-            if (b > a)
-                segundos += (b - a).TotalSeconds;
-        }
-        return (int)Math.Round(segundos / 60d, MidpointRounding.AwayFromZero);
     }
 
     /// <summary>Unidad que se muestra según la magnitud de la cámara ("mangas", "rollos", ...); sin magnitud, "unidades".</summary>

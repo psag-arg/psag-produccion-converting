@@ -623,6 +623,31 @@ public class DashboardService : IDashboardService
         return Result<IReadOnlyList<TiempoProgramadoDiaDto>>.Success(delMes);
     }
 
+    /// <summary>
+    /// T-798 etapa 5: minutos programados por mes desde los TURNOS DE PRODUCCIÓN (fecha de producción) del año, del mes
+    /// desde al mes hasta y hasta hoy: el snapshot de cada turno o, si es 0, el recálculo desde la programación
+    /// (<see cref="MinutosProgramadosTurnos"/>). Un turno programado que nadie abrió entra igual (queda SIN_APERTURA).
+    /// </summary>
+    private async Task<Dictionary<int, int>> MinutosProgramadosPorMesDeTurnosAsync(
+        int anio, int mesDesde, int mesHasta, int? lineaId, CancellationToken cancellationToken)
+    {
+        if (anio is < 1 or > 9999 || mesDesde is < 1 or > 12 || mesHasta < mesDesde)
+            return new Dictionary<int, int>();
+        var desde = new DateOnly(anio, mesDesde, 1);
+        var finRango = new DateOnly(anio, Math.Min(mesHasta, 12), 1).AddMonths(1).AddDays(-1);
+        var hasta = TiempoProgramadoReporte.HastaHoy(anio, Hoy);
+        if (finRango < hasta)
+            hasta = finRango;
+        if (hasta < desde)
+            return new Dictionary<int, int>();
+
+        var turnos = await _unitOfWork.TurnosProduccion.GetPorFechasAsync(desde, hasta, lineaId is { } l ? [l] : null, cancellationToken);
+        var minutos = await MinutosProgramadosTurnos.CalcularAsync(_unitOfWork, turnos, cancellationToken);
+        return turnos
+            .GroupBy(t => t.FechaProduccion.Month)
+            .ToDictionary(g => g.Key, g => g.Sum(t => minutos.GetValueOrDefault(t.TurnoProduccionId)));
+    }
+
     public async Task<Result<IndisponibilidadReporteDto>> ObtenerIndisponibilidadAsync(
         ReporteFiltroRequest filtro,
         CancellationToken cancellationToken = default)
@@ -634,7 +659,6 @@ public class DashboardService : IDashboardService
         var detenciones = await _unitOfWork.Detenciones.GetAllAsync(cancellationToken);
         var tiposFalla = await _unitOfWork.TiposFalla.GetAllAsync(cancellationToken);
         var lineas = await _unitOfWork.Lineas.GetAllAsync(cancellationToken);
-        var turnos = await _unitOfWork.Turnos.GetAllAsync(cancellationToken);
 
         // Filtrar por linea si se especifica
         var query = detenciones.AsEnumerable();
@@ -646,8 +670,7 @@ public class DashboardService : IDashboardService
 
         var detencionesLista = query.ToList();
 
-        var minutosProgramadosPorMes = TiempoProgramadoReporte.MinutosPorMes(
-            await CargarTiempoProgramadoAsync(lineas, turnos, anio, filtro.LineaId, cancellationToken));
+        var minutosProgramadosPorMes = await MinutosProgramadosPorMesDeTurnosAsync(anio, mesDesde, mesHasta, filtro.LineaId, cancellationToken);
 
         var reporte = new IndisponibilidadReporteDto
         {

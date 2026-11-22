@@ -5,7 +5,7 @@ namespace PSAG.Mantenimiento.Domain.Interfaces;
 /// <summary>Turnos de producción (PRD_TurnosProduccion) con sus tramos de operador y de producto.</summary>
 public interface ITurnoProduccionRepository : IRepository<TurnoProduccion>
 {
-    /// <summary>El turno con línea, turno de planta, operadores y productos (con su maestro).</summary>
+    /// <summary>El turno con línea, turno de planta, operadores y productos (con su maestro y su producción oficial).</summary>
     Task<TurnoProduccion?> GetConDetalleAsync(long turnoProduccionId, CancellationToken cancellationToken = default);
 
     /// <summary>El turno de esa línea, turno de planta y fecha de producción (clave única), con detalle.</summary>

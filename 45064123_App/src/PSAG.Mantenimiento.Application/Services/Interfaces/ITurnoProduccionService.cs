@@ -54,6 +54,14 @@ public interface ITurnoProduccionService
         long turnoProduccionId, CorregirProductoTurnoRequest request, string usuarioId, IReadOnlyCollection<string> roles,
         IReadOnlyCollection<int> lineasAsignadas, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Producción oficial de un tramo cerrado (T-798 etapa 5), por el supervisor: VALIDAR lo de la cámara, CORREGIRLO
+    /// (con motivo) o cargarlo a MANO. Insert-only: la fila nueva anula a la vigente. Devuelve la fila nueva.
+    /// </summary>
+    Task<Result<ProduccionTurnoDto>> RegistrarProduccionAsync(
+        long turnoProduccionId, RegistrarProduccionTurnoRequest request, string usuarioId, IReadOnlyCollection<string> roles,
+        IReadOnlyCollection<int> lineasAsignadas, CancellationToken cancellationToken = default);
+
     /// <summary>Cierra los ABIERTO con FinProgramado + tolerancia vencido (CERRADO_AUTOMATICO). Devuelve cuántos cerró.</summary>
     Task<int> CerrarVencidosAsync(DateTimeOffset ahora, CancellationToken cancellationToken = default);
 

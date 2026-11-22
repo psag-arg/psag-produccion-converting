@@ -4,32 +4,36 @@ using PSAG.Mantenimiento.Web.Models;
 namespace PSAG.Mantenimiento.Web.Shared;
 
 /// <summary>
-/// Textos de la tarjeta "Producción por cámara" del Dashboard (ex "Eficiencia (cámara)"). Los números los calcula la
-/// API; acá sólo se muestran. T-798 etapa 4: sin objetivo ni % hasta la etapa 5 (objetivo desde el parámetro
-/// línea + producto); un turno sin minutos dice "Sin datos", nunca 0.
+/// Textos de la tarjeta "Presupuesto vs. real" del Dashboard (T-798 etapa 5; reemplaza "Producción por cámara").
+/// Los números los calcula la API (api/indicadores); acá sólo se muestran. "Sin datos" nunca es 0 y "sin objetivo"
+/// nunca es 0 %.
 /// </summary>
 public static class EficienciaUi
 {
     public const string TextoSinDatos = "Sin datos";
+    public const string TextoSinObjetivo = "Sin objetivo";
 
-    /// <summary>"9.300" o "Sin datos" si la cámara no mandó ningún minuto en el turno.</summary>
-    public static string TextoContadas(EficienciaTurnoDto turno) => turno.SinDatos ? TextoSinDatos : Numero(turno.Contadas);
+    /// <summary>"9.300", o "Sin datos" si no hay real.</summary>
+    public static string TextoReal(ComparacionProduccionDto c) => c.Real is { } r ? Numero(r) : TextoSinDatos;
 
-    public static string? TextoMomento(string momento) => momento switch
+    /// <summary>"11.200", o "Sin objetivo".</summary>
+    public static string TextoObjetivo(ComparacionProduccionDto c) => c.Objetivo is { } o ? Numero(o) : TextoSinObjetivo;
+
+    /// <summary>"83,0 %" (con "*" si es provisorio), "Sin objetivo" o "Sin datos".</summary>
+    public static string TextoPorcentaje(ComparacionProduccionDto c) => c.Estado switch
     {
-        "EN_CURSO" => "En curso",
-        "SIN_EMPEZAR" => "Sin empezar",
-        _ => null
+        "OK" when c.Porcentaje is { } p => p.ToString("N1", CultureInfo.CurrentCulture) + " %" + (c.Provisorio ? " *" : ""),
+        "SIN_OBJETIVO" => TextoSinObjetivo,
+        _ => TextoSinDatos
     };
 
-    public static string Horario(EficienciaTurnoDto turno) => $"{turno.Inicio:HH:mm} a {turno.Fin:HH:mm}";
+    /// <summary>Color del %: verde desde 95, amarillo desde 85, rojo debajo; gris sin dato.</summary>
+    public static string ClasePorcentaje(ComparacionProduccionDto c) => c.Estado != "OK" || c.Porcentaje is not { } p
+        ? "text-muted"
+        : p >= 95 ? "text-success" : p >= 85 ? "text-warning-emphasis" : "text-danger";
 
-    /// <summary>Ej.: "Tango 2 · Cámara 10 (mangas)".</summary>
-    public static string Titulo(EficienciaCamaraPuntoDto camara)
-    {
-        var nombre = camara.NumeroCanalGrabador is { } n ? $"Cámara {n:00}" : camara.Nombre;
-        return $"{camara.LineaNombre} · {nombre} ({camara.Unidad})";
-    }
+    public static string TextoVelocidad(decimal? metrosMinuto) =>
+        metrosMinuto is { } v ? v.ToString("N0", CultureInfo.CurrentCulture) + " m/min" : "-";
 
     public static string Numero(decimal valor) => valor.ToString("N0", CultureInfo.CurrentCulture);
 

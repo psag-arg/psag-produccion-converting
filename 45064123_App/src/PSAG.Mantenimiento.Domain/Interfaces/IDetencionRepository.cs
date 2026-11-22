@@ -43,6 +43,12 @@ public interface IDetencionRepository : IRepository<Detencion>
     Task<IReadOnlyList<Detencion>> GetPorTurnoProduccionAsync(long turnoProduccionId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Σ MinutosEfectivos de las detenciones que cuentan para indicadores (DetencionIndicadores.CuentaExpr), por turno de
+    /// producción. Los turnos sin detenciones que cuenten no vienen en el diccionario (T-798 etapa 5).
+    /// </summary>
+    Task<IReadOnlyDictionary<long, int>> GetMinutosQueCuentanPorTurnoAsync(IReadOnlyCollection<long> turnoProduccionIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Detenciones que requieren análisis y todavía no están cerradas, más antiguas primero.
     /// </summary>
     Task<IEnumerable<Detencion>> GetAnalisisAbiertosAsync(CancellationToken cancellationToken = default);

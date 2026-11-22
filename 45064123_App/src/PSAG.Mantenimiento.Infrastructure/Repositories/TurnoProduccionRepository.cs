@@ -17,6 +17,7 @@ public class TurnoProduccionRepository : RepositoryBase<TurnoProduccion>, ITurno
         .Include(t => t.Turno)
         .Include(t => t.Operadores)
         .Include(t => t.Productos).ThenInclude(p => p.ProductoMaestro)
+        .Include(t => t.Productos).ThenInclude(p => p.Producciones)
         .AsSplitQuery();
 
     public Task<TurnoProduccion?> GetConDetalleAsync(long turnoProduccionId, CancellationToken cancellationToken = default) =>
@@ -31,7 +32,7 @@ public class TurnoProduccionRepository : RepositoryBase<TurnoProduccion>, ITurno
     public async Task<IReadOnlyList<TurnoProduccion>> GetAbiertosAsync(CancellationToken cancellationToken = default) =>
         await _dbSet
             .Include(t => t.Operadores)
-            .Include(t => t.Productos)
+            .Include(t => t.Productos).ThenInclude(p => p.Producciones)
             .AsSplitQuery()
             .Where(t => t.Estado == EstadoTurnoProduccion.ABIERTO)
             .ToListAsync(cancellationToken);

@@ -308,8 +308,11 @@ Probar sin instalar: `.\PSAG.Mantenimiento.ConteoCamara.exe vivo --camara T2-CAM
   actual). Los reportes deciden si toman las microparadas. *Paradas y producción (cámara)* filtra por umbral.
 - **Unidad**: `MetodoConteo` del punto (`CARRILES` = rollos, `MANGAS` = mangas). Vacío: 1 carril con datos = mangas,
   más = rollos.
-- **API**: `GET api/conteo-camara/eficiencia?fecha=YYYY-MM-DD&lineaId=` (el Dashboard pide hoy y ayer). Aparecen las
-  cámaras con conteo en esos días o con objetivo o método cargado.
+- **API** (histórica): `GET api/conteo-camara/eficiencia`. **T-798 etapa 5: se quitó.** La eficiencia sale de los
+  indicadores (`GET api/indicadores/turno/{id}` y `GET api/indicadores/produccion`): objetivo del parámetro línea +
+  producto (snapshot en el tramo, prorrateado por minutos) vs. la producción oficial del turno (`PRD_ProduccionesTurno`,
+  que se llena con la cámara `CuentaProduccionOficial` al cerrar cada tramo y la valida el supervisor). Las paradas y
+  microparadas por cámara siguen en *Paradas y producción (cámara)* (`GET api/conteo-camara/paradas`).
 
 ## 10. Cámara 8: bolsones para la eficiencia (T-785)
 

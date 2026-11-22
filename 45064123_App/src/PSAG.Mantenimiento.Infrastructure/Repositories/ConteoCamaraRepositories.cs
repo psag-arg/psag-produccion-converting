@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PSAG.Mantenimiento.Domain.Entities;
 using PSAG.Mantenimiento.Domain.Interfaces;
+using PSAG.Mantenimiento.Domain.Services;
 using PSAG.Mantenimiento.Infrastructure.Data;
 
 namespace PSAG.Mantenimiento.Infrastructure.Repositories;
@@ -68,6 +69,18 @@ public class ConteoCamaraMinutoRepository : RepositoryBase<ConteoCamaraMinuto>, 
         if (lineaId.HasValue)
             query = query.Where(m => m.Camara.LineaId == lineaId.Value);
         return await query.OrderBy(m => m.Minuto).ThenBy(m => m.Carril).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<MinutoConteo>> GetMinutosAsync(
+        IReadOnlyCollection<int> camaraIds, DateTimeOffset desde, DateTimeOffset hasta, CancellationToken cancellationToken = default)
+    {
+        if (camaraIds.Count == 0 || hasta <= desde)
+            return [];
+        var filas = await _dbSet.AsNoTracking()
+            .Where(m => camaraIds.Contains(m.CamaraId) && m.Minuto >= desde && m.Minuto < hasta)
+            .Select(m => new { m.CamaraId, m.Minuto, m.Cantidad, m.SegundosMarcha })
+            .ToListAsync(cancellationToken);
+        return filas.Select(m => new MinutoConteo(m.CamaraId, m.Minuto, m.Cantidad, m.SegundosMarcha)).ToList();
     }
 
     public async Task<DateTimeOffset?> GetUltimoMinutoAsync(int camaraId, CancellationToken cancellationToken = default)

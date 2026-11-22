@@ -1,3 +1,5 @@
+using PSAG.Mantenimiento.Domain.Services;
+
 namespace PSAG.Mantenimiento.Application.DTOs.Produccion;
 
 // T-798 etapa 2 · Turno de producción (api/turnos-produccion). Los nombres de usuario (…Nombre) los completa el
@@ -25,6 +27,12 @@ public class TurnosProduccionOpciones
     /// SIN_DATOS (la vigila el mismo job). Por defecto 5.
     /// </summary>
     public int MinutosSinDatosCamara { get; set; } = 5;
+
+    /// <summary>
+    /// T-798 etapa 5: cobertura mínima (minutos con datos ÷ minutos del tramo) para que la producción de la cámara quede
+    /// PENDIENTE al cerrar el tramo; por debajo, SIN_DATOS. Por defecto 0,90 (pregunta abierta 12).
+    /// </summary>
+    public decimal CoberturaMinimaProduccion { get; set; } = ProduccionOficialReglas.CoberturaMinimaPorDefecto;
 }
 
 public class TurnoProduccionDto

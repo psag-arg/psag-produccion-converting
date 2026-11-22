@@ -18,12 +18,6 @@ public interface IConteoCamaraService
     Task<Result<ProduccionCamaraDto>> ObtenerProduccionAsync(DateOnly fecha, int? lineaId, int? camaraId = null, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Conteos por turno de cada cámara de conteo (de una línea o de todas) en un día de planta: contadas, minutos
-    /// con datos, minutos de parada y microcortes. T-798 etapa 4: SIN objetivo ni % hasta la etapa 5.
-    /// </summary>
-    Task<Result<EficienciaCamaraDiaDto>> ObtenerEficienciaAsync(DateOnly fecha, int? lineaId, DateTimeOffset? ahora = null, CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// Job (T-798 etapa 4): abre la alerta SIN_DATOS de cada cámara oficial habilitada cuya línea tiene un turno
     /// ABIERTO y no manda minutos hace más de <paramref name="minutosSinDatos"/>. Devuelve cuántas abrió.
     /// </summary>

@@ -508,6 +508,8 @@ public class TurnoProduccionScriptTests
         using var context = new MantenimientoDbContext(new DbContextOptionsBuilder<MantenimientoDbContext>().UseSqlite(conexion).Options);
         var script = ScriptSql.Texto("34_t798_turnos_produccion.sql");
         var rollback = ScriptSql.Texto("34_t798_turnos_produccion_rollback.sql");
+        // T-798 etapa 5: PRD_ProduccionesTurno.Motivo la agrega el script 37.
+        var script37 = ScriptSql.Texto("37_t798_indicadores.sql");
 
         var tablas = new[] { typeof(TurnoProduccion), typeof(TurnoProduccionOperador), typeof(TurnoProduccionProducto), typeof(ProduccionTurno) };
         foreach (var tipo in tablas)
@@ -519,10 +521,21 @@ public class TurnoProduccionScriptTests
             foreach (var check in entidad.GetCheckConstraints())
                 Assert.Contains(check.Name!, script);
             foreach (var columna in entidad.GetProperties())
-                Assert.Contains($"[{columna.GetColumnName()}]", script);
+                Assert.Contains($"[{columna.GetColumnName()}]", script + script37);
         }
         Assert.Contains("UX_PRD_TurnosProduccion_LineaAbierto", script);
         Assert.Contains("WHERE [Estado] = N'ABIERTO'", script);
         Assert.Contains("UX_PRD_TurnosProduccion_Linea_Turno_Fecha", script);
+    }
+
+    [Fact]
+    public void Script37_AgregaElMotivoDeLaProduccionOficial_ConElLargoDelModelo()
+    {
+        var script = ScriptSql.Texto("37_t798_indicadores.sql");
+        var rollback = ScriptSql.Texto("37_t798_indicadores_rollback.sql");
+
+        Assert.Contains($"ADD [Motivo] NVARCHAR({ProduccionTurno.MotivoMaximo}) NULL", script);
+        Assert.Contains("COL_LENGTH(N'mnt.PRD_ProduccionesTurno', N'Motivo') IS NULL", script);
+        Assert.Contains("DROP COLUMN [Motivo]", rollback);
     }
 }
