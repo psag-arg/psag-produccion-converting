@@ -14,7 +14,8 @@ using PSAG.Mantenimiento.ConteoCamara.Video;
 
 // T-610 · Conteo de producción y paradas por cámara: 09 (carriles de la cortadora) y 10 (mangas y rodillo de
 // la rebobinadora). Con varias cámaras en ConteoCamara:Camaras, las herramientas usan --camara CODIGO (o la primera).
-//   (sin argumentos)                    servicio (lo corre NSSM): todas las cámaras configuradas
+//   (sin argumentos)                    servicio (lo corre NSSM): las cámaras habilitadas en Maestros → Cámaras
+//                                       (GET api/camaras/configuracion) que tienen calibración local
 //   procesar --archivo X.mp4 --inicio 2026-10-28T10:15:00-03:00 [--json salida.json] [--eco] [--enviar]
 //   vivo --segundos 300 [--json salida.json]          prueba en vivo contra el NVR, sin mandar a la API
 //   foto --salida foto.jpg [--archivo X.mp4 --segundo 30]  foto a resolución completa (NVR o video)
@@ -31,7 +32,7 @@ var configuracion = new ConfigurationBuilder()
     .Build();
 var camaras = OpcionesConteo.CargarCamaras(configuracion);
 var opciones = argumentos.Valor("camara") is { } codigoCamara
-    ? camaras.FirstOrDefault(c => string.Equals(c.PuntoControl, codigoCamara, StringComparison.OrdinalIgnoreCase))
+    ? camaras.FirstOrDefault(c => string.Equals(c.Camara, codigoCamara, StringComparison.OrdinalIgnoreCase))
       ?? throw new ArgumentException($"No hay una cámara {codigoCamara} en ConteoCamara:Camaras.")
     : camaras[0];
 var zona = ZonaPlanta(configuracion["ConteoCamara:ZonaHoraria"]);
@@ -43,6 +44,7 @@ if (argumentos.Comando is null or "servicio")
     builder.Logging.ClearProviders();
     builder.Logging.AddSimpleConsole(o => { o.SingleLine = true; o.TimestampFormat = "yyyy-MM-dd HH:mm:ss "; });
     builder.Services.AddSingleton<IReadOnlyList<OpcionesConteo>>(camaras);
+    builder.Services.AddSingleton(OpcionesConteo.CargarApiComun(configuracion));
     builder.Services.AddSingleton(zona);
     builder.Services.AddHttpClient("api", c =>
     {

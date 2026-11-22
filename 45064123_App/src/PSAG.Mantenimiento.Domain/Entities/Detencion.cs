@@ -107,8 +107,8 @@ public class Detencion : EntityBase
     /// </summary>
     public string? IdentificadorParadaCamara { get; set; }
 
-    /// <summary>Cámara (punto de control) que detectó la parada.</summary>
-    public int? PuntoControlCalidadId { get; set; }
+    /// <summary>Cámara que detectó la parada y creó la detención (T-798 etapa 4: CAM_Camaras).</summary>
+    public int? CamaraId { get; set; }
 
     /// <summary>
     /// Hora en que la cámara vio arrancar la máquina. Es sólo una sugerencia para el operador: la hora de
@@ -174,7 +174,7 @@ public class Detencion : EntityBase
     public virtual DetalleFalla? DetalleFalla { get; set; }
     public virtual TurnoProduccion TurnoProduccion { get; set; } = null!;
     public virtual ReglaAnalisis? ReglaAnalisis { get; set; }
-    public virtual PuntoControlCalidad? PuntoControl { get; set; }
+    public virtual Camara? Camara { get; set; }
     public virtual ICollection<DetencionEstadoHistorial> HistorialEstados { get; set; } = new List<DetencionEstadoHistorial>();
     public virtual ICollection<DetencionNota> Notas { get; set; } = new List<DetencionNota>();
     public virtual ICollection<AnalisisCambio> CambiosAnalisis { get; set; } = new List<AnalisisCambio>();

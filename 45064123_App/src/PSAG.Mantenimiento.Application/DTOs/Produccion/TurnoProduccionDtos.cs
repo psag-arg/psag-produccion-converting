@@ -19,6 +19,12 @@ public class TurnosProduccionOpciones
 
     /// <summary>Cada cuántos segundos corre el job (por defecto 60).</summary>
     public int JobIntervaloSegundos { get; set; } = 60;
+
+    /// <summary>
+    /// T-798 etapa 4: minutos sin datos de la cámara oficial de la línea, con su turno ABIERTO, para abrir la alerta
+    /// SIN_DATOS (la vigila el mismo job). Por defecto 5.
+    /// </summary>
+    public int MinutosSinDatosCamara { get; set; } = 5;
 }
 
 public class TurnoProduccionDto

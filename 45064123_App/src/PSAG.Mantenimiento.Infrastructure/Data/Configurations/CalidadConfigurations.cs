@@ -26,19 +26,12 @@ public class PuntoControlCalidadConfiguration : IEntityTypeConfiguration<PuntoCo
             .HasForeignKey(x => x.LineaId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // Cámara asociada (T-610, script 26)
-        builder.Property(x => x.CreaDetenciones).IsRequired().HasDefaultValue(false);
-        builder.Property(x => x.MinutosUmbralDetencion).IsRequired().HasDefaultValue(5);
-        // Umbral en segundos para pruebas (script 30). Vacío = se usan los minutos.
-        builder.Property(x => x.SegundosUmbralDetencion);
-
-        // Eficiencia (script 28): objetivo por hora y qué cuenta la cámara. Vacíos = sin cargar.
-        builder.Property(x => x.ObjetivoPorHora).HasPrecision(10, 2);
-        builder.Property(x => x.MetodoConteo).HasMaxLength(20);
-        builder.HasOne(x => x.Equipo)
+        // T-798 etapa 4: el punto usa una cámara del maestro único (opcional). Los datos de la cámara ya no están acá.
+        builder.HasOne(x => x.Camara)
             .WithMany()
-            .HasForeignKey(x => x.EquipoId)
+            .HasForeignKey(x => x.CamaraId)
             .OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(x => x.CamaraId).HasDatabaseName("IX_CAL_PuntosControl_CamaraId");
 
         builder.HasIndex(x => x.Codigo).IsUnique();
         builder.HasIndex(x => x.LineaId);

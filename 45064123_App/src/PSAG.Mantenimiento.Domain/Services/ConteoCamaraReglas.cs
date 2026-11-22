@@ -24,15 +24,15 @@ public static class ConteoCamaraReglas
     public static readonly TimeSpan ToleranciaCruce = TimeSpan.FromMinutes(5);
 
     /// <summary>Motivo por el que el minuto no se puede guardar, o null si está bien.</summary>
-    public static string? MotivoMinutoInvalido(DateTimeOffset minuto, int carril, decimal rollos,
+    public static string? MotivoMinutoInvalido(DateTimeOffset minuto, int carril, decimal cantidad,
         int marcha, int parada, int acumulacion, int sinSenal)
     {
         if (minuto.Second != 0 || minuto.Millisecond != 0)
             return "El minuto tiene que venir con los segundos en cero.";
         if (carril < 1 || carril > CarrilMaximo)
             return $"El carril tiene que estar entre 1 y {CarrilMaximo}.";
-        if (rollos < 0 || rollos > 10000)
-            return "Los rollos del minuto tienen que estar entre 0 y 10000.";
+        if (cantidad < 0 || cantidad > 10000)
+            return "La cantidad del minuto tiene que estar entre 0 y 10000.";
         if (marcha < 0 || parada < 0 || acumulacion < 0 || sinSenal < 0)
             return "Los segundos no pueden ser negativos.";
         if (marcha + parada + acumulacion + sinSenal != 60)
@@ -74,17 +74,17 @@ public static class ConteoCamaraReglas
     }
 
     /// <summary>
-    /// Cruza una parada de cámara con las detenciones (no eliminadas) de su línea.
-    /// CON_DETENCION si alguna con horario se superpone (con la tolerancia); si no, POSIBLE si hay alguna
-    /// sin horario del mismo turno de producción (fecha de producción + turno de planta; T-798: las detenciones traen
-    /// cargado su <c>TurnoProduccion</c>); si no, SIN_DETENCION. Devuelve también los códigos que la explican.
+    /// Cruza una parada de cámara con las detenciones (no eliminadas) de su línea (<paramref name="lineaId"/>, la de
+    /// la cámara). CON_DETENCION si alguna con horario se superpone (con la tolerancia); si no, POSIBLE si hay alguna
+    /// sin horario del mismo turno de producción (T-798: parada y detención cuelgan de PRD_TurnosProduccion); si no,
+    /// SIN_DETENCION. Devuelve también los códigos que la explican.
     /// </summary>
     public static (CruceDetencionCamara Cruce, IReadOnlyList<string> Codigos) Cruzar(
-        ParadaCamara parada, DateOnly diaPlanta, IEnumerable<Detencion> detenciones)
+        ParadaCamara parada, int lineaId, IEnumerable<Detencion> detenciones)
     {
         var desde = parada.FechaHoraInicio - ToleranciaCruce;
         var hasta = parada.FechaHoraFin + ToleranciaCruce;
-        var candidatas = detenciones.Where(d => !d.Eliminada && d.LineaId == parada.LineaId).ToList();
+        var candidatas = detenciones.Where(d => !d.Eliminada && d.LineaId == lineaId).ToList();
 
         var conHorario = candidatas
             .Where(d => IntervaloDetencion(d) is { } i && i.Desde <= hasta && i.Hasta >= desde)
@@ -94,8 +94,7 @@ public static class ConteoCamaraReglas
             return (CruceDetencionCamara.CON_DETENCION, conHorario);
 
         var posibles = candidatas
-            .Where(d => d.FechaHoraParada == null && d.TurnoProduccion is { } tp && tp.FechaProduccion == diaPlanta
-                        && (parada.TurnoId == null || tp.TurnoId == parada.TurnoId))
+            .Where(d => d.FechaHoraParada == null && parada.TurnoProduccionId is { } tp && d.TurnoProduccionId == tp)
             .Select(d => d.Codigo)
             .ToList();
         if (posibles.Count > 0)

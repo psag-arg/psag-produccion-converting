@@ -14,29 +14,14 @@ public class PuntoControlCalidadDto
     public string? Descripcion { get; set; }
     public bool Activo { get; set; }
 
-    // Cámara asociada (T-610)
-    public int? EquipoId { get; set; }
-    public string? EquipoNombre { get; set; }
-    public int? NumeroCamara { get; set; }
-    public bool CreaDetenciones { get; set; }
-    public int MinutosUmbralDetencion { get; set; } = 5;
-
-    /// <summary>Umbral en segundos (modo prueba, script 30), o null si se usan los minutos.</summary>
-    public int? SegundosUmbralDetencion { get; set; }
-
-    /// <summary>Umbral efectivo en segundos (segundos si están cargados; si no, minutos x 60).</summary>
-    public int UmbralSegundos { get; set; } = 300;
-
-    /// <summary>Umbral efectivo legible ("5 min", "45 s").</summary>
-    public string UmbralTexto { get; set; } = "5 min";
-
-    // Eficiencia (script 28)
-    public decimal? ObjetivoPorHora { get; set; }
-    public string? MetodoConteo { get; set; }
+    /// <summary>Cámara que usa el punto (T-798 etapa 4: Maestros → Cámaras), o null.</summary>
+    public int? CamaraId { get; set; }
+    public string? CamaraCodigo { get; set; }
+    public string? CamaraNombre { get; set; }
 }
 
 /// <summary>
-/// Alta y edición de un punto de control (cámara). El código es el que manda el detector.
+/// Alta y edición de un punto de control de calidad. El código es el que manda el detector.
 /// </summary>
 public class GuardarPuntoControlCalidadRequest
 {
@@ -46,29 +31,11 @@ public class GuardarPuntoControlCalidadRequest
     public string? Descripcion { get; set; }
     public bool Activo { get; set; } = true;
 
-    /// <summary>Cuerpo de la línea que mira la cámara (referencia; no se copia a la detención).</summary>
-    public int? EquipoId { get; set; }
-
-    /// <summary>Número de cámara en el grabador (ej.: 10).</summary>
-    public int? NumeroCamara { get; set; }
-
-    /// <summary>Si crea detenciones automáticas (pendientes de declaración).</summary>
-    public bool CreaDetenciones { get; set; }
-
-    /// <summary>Minutos de parada para crear la detención (1 a 240, por defecto 5). Se usa si no vienen segundos.</summary>
-    public int MinutosUmbralDetencion { get; set; } = 5;
-
     /// <summary>
-    /// Umbral en segundos para probar en planta (30 a 14400). Con valor, manda sobre los minutos y los minutos
-    /// guardados no cambian; vacío (lo normal) = umbral en minutos y se borra el de segundos.
+    /// Cámara que usa el punto (opcional). Tiene que ser de la misma línea. Los datos de la cámara (canal, umbral,
+    /// qué cuenta) se cargan en Maestros → Cámaras (T-798 etapa 4).
     /// </summary>
-    public int? SegundosUmbralDetencion { get; set; }
-
-    /// <summary>Unidades por hora en marcha plena (rollos o mangas). Vacío = todavía no se cargó.</summary>
-    public decimal? ObjetivoPorHora { get; set; }
-
-    /// <summary>CARRILES (rollos, cámara 09) o MANGAS (cámara 10). Vacío = se deduce de los datos.</summary>
-    public string? MetodoConteo { get; set; }
+    public int? CamaraId { get; set; }
 }
 
 public class TipoDefectoCalidadDto

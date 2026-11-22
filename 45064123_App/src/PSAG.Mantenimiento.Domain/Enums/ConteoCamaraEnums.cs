@@ -54,5 +54,36 @@ public enum TipoAlertaCamara
     /// <summary>La imagen quedó congelada: el reloj de la cámara no avanza o el cuadro es idéntico.</summary>
     CONGELADA = 1,
     /// <summary>No llega video del grabador (pérdida de conexión).</summary>
-    SIN_VIDEO = 2
+    SIN_VIDEO = 2,
+    /// <summary>
+    /// T-798 etapa 4: hay un turno ABIERTO de la línea y la cámara que cuenta la producción oficial no manda minutos
+    /// hace más de N minutos. "Sin datos" no es producción cero. La abre el job de la API y se cierra al llegar un minuto.
+    /// </summary>
+    SIN_DATOS = 3,
+    /// <summary>T-798 etapa 4: la cámara está habilitada en Maestros pero el servicio no tiene su calibración local.</summary>
+    SIN_CONFIGURACION = 4
+}
+
+/// <summary>Función de la cámara (CAM_Camaras.Funcion, T-798 2.4). Se guarda como texto (CHECK).</summary>
+public static class FuncionCamara
+{
+    /// <summary>Cuenta producción (y detecta paradas): la lee el servicio PSAG_ConteoCamara.</summary>
+    public const string Conteo = "CONTEO";
+
+    /// <summary>La usa un punto de control de calidad (detector de defectos).</summary>
+    public const string Calidad = "CALIDAD";
+
+    public static readonly IReadOnlyList<string> Todas = [Conteo, Calidad];
+}
+
+/// <summary>Cómo detecta la cámara de conteo (CAM_Camaras.MetodoDeteccion). Se guarda como texto (CHECK).</summary>
+public static class MetodoDeteccionCamara
+{
+    /// <summary>Brillo de cada carril a la salida de la cortadora (cámara 09).</summary>
+    public const string Carriles = "CARRILES";
+
+    /// <summary>Pasos por una zona: mangas en la mesa de la rebobinadora (10) o bolsones (8).</summary>
+    public const string Pasos = "PASOS";
+
+    public static readonly IReadOnlyList<string> Todos = [Carriles, Pasos];
 }

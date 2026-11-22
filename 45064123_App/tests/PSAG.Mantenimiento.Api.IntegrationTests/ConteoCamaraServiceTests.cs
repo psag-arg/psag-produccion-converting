@@ -13,7 +13,7 @@ namespace PSAG.Mantenimiento.Api.IntegrationTests;
 
 /// <summary>
 /// T-610: ingesta del servicio de conteo por cámara (idempotente, todo o nada), cruce de las paradas con
-/// detenciones y producción por hora. Reusa la base de calidad: la cámara es un punto de control.
+/// detenciones y producción por hora. Reusa la base de calidad; la cámara es la de CAM_Camaras (T-798 etapa 4).
 /// </summary>
 public class ConteoCamaraServiceTests : CalidadTestBase
 {
@@ -68,21 +68,23 @@ public class ConteoCamaraServiceTests : CalidadTestBase
         Context.ChangeTracker.Clear();
         var minutos = await Context.ConteosCamaraMinuto.ToListAsync();
         Assert.Equal(3, minutos.Count);
+        var fecha = DateOnly.FromDateTime(_dia.DateTime);
+        var turno = await Context.TurnosProduccion.SingleAsync(t => t.FechaProduccion == fecha);
+        Assert.Equal((Tango2.LineaId, TurnoManana.TurnoId, DateOnly.FromDateTime(_dia.DateTime)), (turno.LineaId, turno.TurnoId, turno.FechaProduccion));
         Assert.All(minutos, m =>
         {
-            Assert.Equal(Tango2.LineaId, m.LineaId);
-            Assert.Equal(CamaraTango.PuntoControlCalidadId, m.PuntoControlCalidadId);
-            Assert.Equal(TurnoManana.TurnoId, m.TurnoId);
+            Assert.Equal(CamTango.CamaraId, m.CamaraId);
+            Assert.Equal(turno.TurnoProduccionId, m.TurnoProduccionId);
         });
         var parada = await Context.ParadasCamara.SingleAsync();
         Assert.Equal("1,2,3,4", parada.Carriles);
         Assert.Equal(90, parada.DuracionSegundos);
         Assert.Equal(TipoParadaCamara.PARADA, parada.Tipo);
-        Assert.Equal(TurnoManana.TurnoId, parada.TurnoId);
+        Assert.Equal(turno.TurnoProduccionId, parada.TurnoProduccionId);
     }
 
     [Fact]
-    public async Task Ingesta_PuntoInexistente_Falla()
+    public async Task Ingesta_CamaraInexistente_Falla()
     {
         var lote = Lote(Minuto(_dia, 1));
         lote.PuntoControl = "NO-EXISTE";
@@ -187,8 +189,8 @@ public class ConteoCamaraServiceTests : CalidadTestBase
         Assert.Equal([1, 2], cam.Carriles);
         Assert.Equal("rollos", cam.Unidad);
         Assert.Equal(2, cam.Horas.Count);
-        Assert.Equal(260, cam.Horas[0].RollosPorCarril[1]);
-        Assert.Equal(170, cam.Horas[0].RollosPorCarril[2]);
+        Assert.Equal(260, cam.Horas[0].CantidadPorCarril[1]);
+        Assert.Equal(170, cam.Horas[0].CantidadPorCarril[2]);
         Assert.Equal(_dia, cam.Horas[0].Hora);
         Assert.Equal(3, cam.Horas[0].MinutosCarrilMarcha);
     }

@@ -1,13 +1,14 @@
-@* Dashboard: eficiencia por turno según la cámara (reunión 03/11 [8:31]). Contadas / objetivo del turno, con
-   objetivo = objetivo por hora (Maestros → Calidad) x horas programadas del turno. Hoy y ayer. *@
+@* Dashboard: producción por turno según las cámaras (ex "Eficiencia (cámara)", reunión 03/11). Hoy y ayer.
+   T-798 etapa 4: el objetivo por hora de la cámara se quitó; el objetivo (y el %) sale del parámetro línea +
+   producto en la etapa 5. Un turno sin minutos dice "Sin datos", nunca 0. *@
 @inject IConteoCamaraService ConteoCamaraService
 
 <div class="row mb-4">
     <div class="col-12">
         <div class="card border-info">
             <div class="card-header text-bg-info d-flex justify-content-between align-items-center">
-                <h6 class="mb-0"><i class="bi bi-camera-video me-2"></i>Eficiencia (cámara)</h6>
-                <small class="d-none d-sm-inline">Contadas / objetivo del turno</small>
+                <h6 class="mb-0"><i class="bi bi-camera-video me-2"></i>Producción por cámara</h6>
+                <small class="d-none d-sm-inline">Contadas por turno</small>
             </div>
             <div class="card-body p-2 p-md-3">
                 @if (cargando)
@@ -16,7 +17,7 @@
                 }
                 else if (error)
                 {
-                    <div class="text-danger small">No se pudo cargar la eficiencia de las cámaras. Tocá Actualizar.</div>
+                    <div class="text-danger small">No se pudo cargar la producción de las cámaras. Tocá Actualizar.</div>
                 }
                 else if (!camaras.Any())
                 {
@@ -31,17 +32,13 @@
                                 <div class="border rounded p-2 h-100">
                                     <div class="d-flex flex-wrap justify-content-between align-items-baseline gap-1 mb-1">
                                         <strong>@EficienciaUi.Titulo(camara)</strong>
-                                        @if (camara.ObjetivoPorHora is { } porHora)
+                                        @if (camara.CuentaProduccionOficial)
                                         {
-                                            <small class="text-muted">Objetivo @EficienciaUi.Numero(porHora) @camara.Unidad/h</small>
-                                        }
-                                        else
-                                        {
-                                            <small class="text-warning-emphasis">@EficienciaUi.TextoSinObjetivo</small>
+                                            <span class="badge text-bg-primary" title="Es la cámara que cuenta la producción oficial de su magnitud en la línea">Oficial</span>
                                         }
                                     </div>
 
-                                    @foreach (var (etiqueta, dia) in DiasDe(camara.PuntoControlCalidadId))
+                                    @foreach (var (etiqueta, dia) in DiasDe(camara.CamaraId))
                                     {
                                         <div class="small text-uppercase text-muted fw-semibold mt-2">@etiqueta @dia.Fecha.ToString("dd/MM")</div>
                                         @foreach (var t in dia.Turnos)
@@ -62,33 +59,13 @@
                                                 }
                                                 else
                                                 {
-                                                <div class="col-4 col-md-2">
-                                                    <div class="fs-5 fw-semibold lh-1">@EficienciaUi.Numero(t.Contadas)</div>
+                                                <div class="col-6 col-md-3">
+                                                    <div class="fs-5 fw-semibold lh-1 @(t.SinDatos ? "text-warning-emphasis" : "")">@EficienciaUi.TextoContadas(t)</div>
                                                     <small class="text-muted">Contadas</small>
                                                 </div>
-                                                @if (t.Estado == "OK")
-                                                {
-                                                    <div class="col-4 col-md-2">
-                                                        <div class="fs-5 lh-1">@EficienciaUi.Numero(t.Objetivo ?? 0)</div>
-                                                        <small class="text-muted">Objetivo</small>
-                                                    </div>
-                                                    <div class="col-4 col-md-2">
-                                                        <div class="fs-5 fw-bold lh-1 @EficienciaUi.ColorPorcentaje(t.Porcentaje)">@EficienciaUi.TextoPorcentaje(t)</div>
-                                                        <div class="progress mt-1" style="height: 4px;" role="progressbar" aria-label="Eficiencia del turno">
-                                                            <div class="progress-bar @EficienciaUi.ColorBarra(t.Porcentaje)" style="width: @EficienciaUi.AnchoBarra(t.Porcentaje)"></div>
-                                                        </div>
-                                                        @if (t.ObjetivoHastaAhora is { } aHora)
-                                                        {
-                                                            <small class="text-muted" title="Parte del objetivo que corresponde a lo que va del turno">A esta hora: @EficienciaUi.Numero(aHora)</small>
-                                                        }
-                                                    </div>
-                                                }
-                                                else
-                                                {
-                                                    <div class="col-8 col-md-4">
-                                                        <span class="badge @(t.Estado == "SIN_OBJETIVO" ? "text-bg-warning" : "text-bg-secondary") text-wrap">@EficienciaUi.TextoPorcentaje(t)</span>
-                                                    </div>
-                                                }
+                                                <div class="col-6 col-md-3 small text-muted">
+                                                    @(t.SinDatos ? "La cámara no mandó datos en el turno" : $"{EficienciaUi.Minutos(t.MinutosConDatos)} con datos")
+                                                </div>
                                                 <div class="col-6 col-md-2">
                                                     <div class="fw-semibold @(t.MinutosParada > 0 ? "text-danger" : "")">@EficienciaUi.Minutos(t.MinutosParada)</div>
                                                     <small class="text-muted">Parada</small>
@@ -110,7 +87,7 @@
                         }
                     </div>
                     <div class="small text-muted mt-2">
-                        Objetivo del turno = objetivo por hora × horas programadas del turno (Maestros → Calidad).
+                        El objetivo y la eficiencia salen del producto de la línea (próximamente). "Sin datos" no es producción cero.
                         Microcortes: paradas de la cámara más cortas que el umbral de detención (marcadas con el umbral del momento en que pasaron).
                         <a href="/paradas-camara">Ver paradas y producción</a>
                     </div>
@@ -151,13 +128,13 @@
             ayer = await tareaAyer;
             // Una tarjeta por cámara, aunque sólo tenga datos uno de los dos días.
             camaras = hoy.Camaras.Concat(ayer.Camaras)
-                .GroupBy(c => c.PuntoControlCalidadId)
+                .GroupBy(c => c.CamaraId)
                 .Select(g => g.First())
                 .ToList();
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error cargando eficiencia: {ex.Message}");
+            Console.WriteLine($"Error cargando la producción por cámara: {ex.Message}");
             error = true;
         }
         finally
@@ -166,11 +143,11 @@
         }
     }
 
-    private IEnumerable<(string Etiqueta, DiaCamara Dia)> DiasDe(int puntoId)
+    private IEnumerable<(string Etiqueta, DiaCamara Dia)> DiasDe(int camaraId)
     {
         foreach (var (etiqueta, dia) in new[] { ("Hoy", hoy), ("Ayer", ayer) })
         {
-            var camara = dia.Camaras.FirstOrDefault(c => c.PuntoControlCalidadId == puntoId);
+            var camara = dia.Camaras.FirstOrDefault(c => c.CamaraId == camaraId);
             if (camara != null)
                 yield return (etiqueta, new DiaCamara(dia.Fecha, camara.Turnos));
         }

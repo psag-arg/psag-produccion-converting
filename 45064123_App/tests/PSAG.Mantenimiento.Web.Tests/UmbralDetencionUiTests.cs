@@ -3,37 +3,27 @@ using PSAG.Mantenimiento.Web.Shared;
 
 namespace PSAG.Mantenimiento.Web.Tests;
 
-/// <summary>Maestros → Calidad: umbral de detención como número + unidad (min / segundos), reunión 10/11.</summary>
+/// <summary>Maestros → Cámaras: umbral de detención como número + unidad (min / segundos), un solo campo en segundos.</summary>
 public class UmbralDetencionUiTests
 {
     [Fact]
-    public void AlEditar_MuestraLaUnidadConQueSeGuardo()
+    public void AlEditar_MinutosEnterosEnMinutos_ElRestoEnSegundos_VacioEs5Min()
     {
-        Assert.Equal((5, UmbralDetencionUi.Minutos), UmbralDetencionUi.Leer(new PuntoControlCalidadDto { MinutosUmbralDetencion = 5 }));
-        Assert.Equal((45, UmbralDetencionUi.Segundos),
-            UmbralDetencionUi.Leer(new PuntoControlCalidadDto { MinutosUmbralDetencion = 5, SegundosUmbralDetencion = 45 }));
+        Assert.Equal((5, UmbralDetencionUi.Minutos), UmbralDetencionUi.Leer(new CamaraDto { UmbralDetencionSegundos = null }));
+        Assert.Equal((5, UmbralDetencionUi.Minutos), UmbralDetencionUi.Leer(new CamaraDto { UmbralDetencionSegundos = 300 }));
+        Assert.Equal((45, UmbralDetencionUi.Segundos), UmbralDetencionUi.Leer(new CamaraDto { UmbralDetencionSegundos = 45 }));
     }
 
     [Fact]
-    public void GuardarEnSegundos_CargaLosSegundosYDejaLosMinutos()
+    public void Guardar_PasaASegundos()
     {
-        var p = new PuntoControlCalidadDto { MinutosUmbralDetencion = 5 };
+        var c = new CamaraDto();
 
-        UmbralDetencionUi.Aplicar(p, 30, UmbralDetencionUi.Segundos);
+        UmbralDetencionUi.Aplicar(c, 30, UmbralDetencionUi.Segundos);
+        Assert.Equal(30, c.UmbralDetencionSegundos);
 
-        Assert.Equal(30, p.SegundosUmbralDetencion);
-        Assert.Equal(5, p.MinutosUmbralDetencion);
-    }
-
-    [Fact]
-    public void GuardarEnMinutos_BorraLosSegundos()
-    {
-        var p = new PuntoControlCalidadDto { MinutosUmbralDetencion = 5, SegundosUmbralDetencion = 30 };
-
-        UmbralDetencionUi.Aplicar(p, 5, UmbralDetencionUi.Minutos);
-
-        Assert.Null(p.SegundosUmbralDetencion);
-        Assert.Equal(5, p.MinutosUmbralDetencion);
+        UmbralDetencionUi.Aplicar(c, 5, UmbralDetencionUi.Minutos);
+        Assert.Equal(300, c.UmbralDetencionSegundos);
     }
 
     [Fact]

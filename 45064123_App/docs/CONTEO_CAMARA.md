@@ -84,7 +84,7 @@ Parámetros principales (`appsettings.json` → `ConteoCamara`):
 
 | Clave | Valor | Para qué |
 |---|---|---|
-| `PuntoControl` | `T2-CAM09` | código del punto de control (Maestros → Calidad) que define la línea |
+| `Camara` | `T2-CAM09` | código de la cámara (Maestros → Cámaras) que define la línea. T-798 etapa 4: antes `PuntoControl` (se sigue leyendo) |
 | `Fuente:RutaRtsp` | `/Streaming/Channels/901` | canal 09 en vivo |
 | `Fuente:Canal` | (vacío) | T-785: número de cámara del grabador; si está, la ruta es `/Streaming/Channels/{Canal}01` y manda sobre `RutaRtsp` |
 | `Fuente:AnchoDecodificado` × `AltoDecodificado` @ `Fps` | 640 × 480 @ 10 | lo justo para el método |
@@ -110,7 +110,7 @@ El servidor tiene que llegar al NVR `172.16.9.67:554` (RTSP/TCP). Verificar ante
 1. Base: correr `database\25_t610_conteo_camara.sql` (requiere el 23). `sqlcmd -S localhost\SQLEXPRESS -I -b -f 65001 -i 25_t610_conteo_camara.sql`.
 2. API: publicar la versión de esta rama (`02-Publicar-Aplicacion.ps1`) y reiniciar `PSAG_Mantenimiento_API` y IIS.
    Si todavía no tiene `Calidad__ClaveIngesta`, configurarla (ver `docs/CALIDAD.md`).
-3. Web → Maestros → Calidad → Cámaras: dar de alta **`T2-CAM09`** en la línea Tango 2 (o el bloque comentado del script 25).
+3. Web → Maestros → Cámaras: dar de alta **`T2-CAM09`** en la línea Tango 2 y dejarla **Habilitada** (T-798 etapa 4; ver la sección 11).
 4. Crear `C:\PSAG\secretos\nvr.env` con las tres líneas `NVR=172.16.9.67`, `NVR_USER=...`, `NVR_PASS=...`.
 5. Descomprimir el ZIP en una carpeta temporal y, desde ahí: `.\06-Instalar-ConteoCamara.ps1`
    - copia a `C:\PSAG\ConteoCamara` (conserva `zonas-camara.json` y `appsettings.local.json` si ya existían),
@@ -148,9 +148,9 @@ Las fotos y videos quedan en el servidor: no se mandan a ningún servicio extern
 
 ```json
 {
-  "puntoControl": "T2-CAM09",
+  "camara": "T2-CAM09",
   "minutos": [
-    { "minuto": "2026-10-30T08:16:00-03:00", "carril": 1, "rollos": 166.7, "segundosMarcha": 60,
+    { "minuto": "2026-10-30T08:16:00-03:00", "carril": 1, "cantidad": 166.7, "segundosMarcha": 60,
       "segundosParada": 0, "segundosAcumulacion": 0, "segundosSinSenal": 0, "estado": "MARCHA" }
   ],
   "paradas": [
@@ -270,7 +270,10 @@ de turno**: banner en todas las pantallas cuando faltan 30 min o menos y hay pen
 
 La sección común (`Fuente`, `Analisis`, `Vigilancia`, `Api`) vale para todas; cada cámara pisa lo suyo. La 09 sigue
 leyendo sus carriles de `zonas-camara.json` y conserva la carpeta `pendientes\`; las demás usan `pendientes\<código>`.
-La 10 viene **apagada** (`"Activa": false`) hasta que el usuario del servicio tenga permiso sobre el canal 10. Para
+> **T-798 etapa 4**: `Activa` ya no existe (si viene, se ignora y se loguea): la habilitación está en Maestros →
+> Cámaras. Los ejemplos de abajo con `PuntoControl`/`Activa` son históricos; ver la sección 11.
+
+La 10 venía **apagada** (`"Activa": false`) hasta que el usuario del servicio tenga permiso sobre el canal 10. Para
 encenderla, en `appsettings.local.json` del servidor:
 
 ```json
@@ -280,9 +283,14 @@ encenderla, en `appsettings.local.json` del servidor:
 Probar sin instalar: `.\PSAG.Mantenimiento.ConteoCamara.exe vivo --camara T2-CAM10 --segundos 120` o
 `procesar --camara T2-CAM10 --archivo c10.mp4 --inicio 2026-11-03T02:25:00-03:00 --eco`.
 
-**Umbral, cuerpo y número de cámara**: Web → Maestros → Calidad → editar `T2-CAM10` → *Cámara asociada*.
+**Umbral, cuerpo y número de cámara**: Web → Maestros → Cámaras → editar `T2-CAM10` (T-798 etapa 4).
 
 ## 9. Eficiencia por turno en el Dashboard (reunión 03/11, script 28)
+
+> **T-798 etapa 4**: `ObjetivoPorHora` se quitó de las cámaras. La tarjeta del Dashboard pasa a "Producción por cámara"
+> y muestra contadas, minutos con datos, paradas y microcortes **sin objetivo ni %**; un turno sin minutos dice
+> "Sin datos" (nunca 0). El objetivo y la eficiencia vuelven en la etapa 5 desde `PRD_ParametrosLineaProducto`. Lo que
+> sigue describe el cálculo anterior.
 
 - **Fórmula** [8:31]: eficiencia = contadas en el turno / objetivo del turno; objetivo = `ObjetivoPorHora` (Maestros →
   Calidad → cámara) x horas programadas del turno.
@@ -349,3 +357,57 @@ Desde `C:\PSAG\ConteoCamara`, con la versión nueva instalada y el usuario del N
    - destildar la 09 en la eficiencia;
    - reiniciar `PSAG_ConteoCamara`.
 
+
+## 11. Cámaras unificadas (T-798 etapa 4, script 36)
+
+**Maestro único `CAM_Camaras`** (Web → Maestros → Cámaras): cada cámara es un dispositivo con código, línea, equipo que
+mira, canal del grabador y función (CONTEO o CALIDAD). Las de conteo dicen qué cuentan (`Magnitud`: MANGAS, ROLLOS,
+PAQUETES, BOLSONES, PALLETS), cómo (`CARRILES` o `PASOS`), carriles, si detectan paradas, si crean detenciones y desde
+qué umbral (un solo campo en segundos, 30 a 14400; vacío = 5 min) y si son la **producción oficial** de su magnitud en
+la línea (una sola por línea y magnitud). Los puntos de control de calidad ya no tienen datos de cámara: eligen qué
+cámara usan (opcional). La pantalla muestra el **último dato recibido** (verde ≤ 5 min, amarillo ≤ 30 min, rojo).
+
+**`Habilitada` es la única fuente de verdad** de qué corre el servicio:
+
+1. Al arrancar y cada `ConteoCamara:Api:MinutosRefrescoConfiguracion` (5) el servicio pide
+   `GET api/camaras/configuracion` con `X-Clave-Ingesta` (la misma clave de la ingesta). La API devuelve las cámaras
+   activas y habilitadas: `codigo`, `nombre`, `lineaId`, `lineaNombre`, `canal`, `funcion`, `magnitud`,
+   `metodoDeteccion`, `cantidadCarriles`, `detectaParadas`, `creaDetenciones`, `umbralDetencionSegundos` (efectivo).
+2. Corre **sólo** las de CONTEO que además tienen calibración local en `ConteoCamara:Camaras` (por `Camara`, sin
+   distinguir mayúsculas). Si se deshabilita una, la detiene (manda lo pendiente); si se habilita, la arranca.
+3. Una habilitada **sin calibración local** se loguea y se manda la alerta `SIN_CONFIGURACION` (una vez por arranque; la
+   API no la duplica mientras siga abierta y la cierra cuando llegan minutos de esa cámara).
+4. El canal sale de la API si la entrada local de la cámara no define `Fuente:RutaRtsp` ni `Fuente:Canal`.
+5. Si la API no responde, sigue con la **última lista conocida** (`pendientes\camaras-configuracion.json`). Sin API ni
+   lista guardada (primer arranque con la API caída) no corre ninguna y reintenta cada 30 s.
+
+**Ingesta** (`POST api/conteo-camara/ingesta`): acepta `camara` (nuevo) o `puntoControl` (viejo: la cámara se busca por
+ese código, la migración lo conservó) y en cada minuto `cantidad` (nuevo) o `rollos` (viejo). Rechaza (400) si la
+cámara no existe, está inactiva, **no está habilitada** o es de calidad. Cada minuto y cada parada cuelgan del turno de
+producción de su hora (`AsegurarTurno`: si no había, lo abre el SISTEMA). Actualiza `UltimoDatoRecibido`. Las
+detenciones automáticas guardan `CamaraId` y usan el umbral de la cámara. Respuesta: además `minutosSinTurno`.
+
+**Alerta `SIN_DATOS`**: el job de la API (el de turnos de producción, cada minuto) abre la alerta si la línea tiene un
+turno ABIERTO y su cámara de producción oficial (habilitada) no manda minutos hace más de
+`TurnosProduccion:MinutosSinDatosCamara` (5). Se cierra cuando llega un minuto. **Sin datos no es producción cero**: un
+minuto con cantidad 0 es un dato y no abre la alerta.
+
+### 11.1 Cambios en el appsettings del servidor (`C:\PSAG\ConteoCamara`)
+
+| Antes | Ahora |
+|---|---|
+| `"PuntoControl": "T2-CAM10"` | `"Camara": "T2-CAM10"` (se sigue aceptando `PuntoControl`; si vienen las dos, gana `Camara`) |
+| `"Activa": true/false` por cámara | **se elimina**: se habilita en Maestros → Cámaras (si queda, se ignora y se loguea) |
+| — | `Api:MinutosRefrescoConfiguracion` (opcional, 5) |
+
+El `appsettings.json` del repo trae la calibración de la 09, la 10 y la 8 sin `Activa`. En el
+`appsettings.local.json` del servidor conviene reemplazar `PuntoControl` por `Camara` y borrar `Activa` (no es
+obligatorio el mismo día: se leen igual). **Antes de arrancar el servicio nuevo**, dejar habilitadas en Maestros →
+Cámaras sólo las cámaras que tienen que correr (las que tenían `"Activa": true`): el script 36 pone
+`Habilitada` = `Activo` del punto viejo, que puede no coincidir.
+
+### 11.2 Script 36
+
+Ver `database/README.md`. Migra los puntos que eran cámaras a `CAM_Camaras` conservando el código, repunta conteos,
+paradas, alertas y detenciones, cuelga conteos y paradas del turno de producción y recién al final borra las columnas
+viejas. Rollback: `36_t798_camaras_rollback.sql`.

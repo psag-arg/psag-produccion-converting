@@ -480,7 +480,7 @@ public class ContratoYCredencialesTests
         var parada = new ParadaDetectada(Senales.T0, Senales.T0.AddSeconds(60), TipoParada.PARADA, [1, 2, 3, 4], false, true);
         var lote = new LoteConteo
         {
-            PuntoControl = "T2-CAM09",
+            Camara = "T2-CAM09",
             Minutos = [MinutoLote.Desde(new ConteoMinuto(Senales.T0, 2, 166.8, 50, 10, 0, 0))],
             Paradas = [ParadaLote.Desde("T2-CAM09", parada)]
         };
@@ -488,10 +488,17 @@ public class ContratoYCredencialesTests
 
         var api = JsonSerializer.Deserialize<IngestaConteoCamaraRequest>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
 
-        Assert.Equal("T2-CAM09", api.PuntoControl);
+        // T-798 etapa 4: el lote manda "camara" y "cantidad" (la API también acepta los nombres viejos).
+        Assert.Equal("T2-CAM09", api.Camara);
+        Assert.Null(api.PuntoControl);
+        Assert.Equal("T2-CAM09", api.CodigoCamara);
         var m = Assert.Single(api.Minutos);
         Assert.Equal(Senales.T0, m.Minuto);
-        Assert.Equal(166.8m, m.Rollos);
+        Assert.Equal(166.8m, m.Cantidad);
+        Assert.Null(m.Rollos);
+        Assert.Equal(166.8m, m.CantidadEfectiva);
+        Assert.DoesNotContain("rollos", json);
+        Assert.DoesNotContain("puntoControl", json);
         Assert.Equal("MARCHA", m.Estado);
         var p = Assert.Single(api.Paradas);
         Assert.Equal("T2-CAM09-20261028T131500Z", p.IdentificadorExterno);

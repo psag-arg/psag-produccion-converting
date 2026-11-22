@@ -47,7 +47,7 @@ public class DetencionesTurnoProduccionTests : IDisposable
     private readonly Turno _t3;
     private readonly TipoFalla _mecanica;
     private readonly TipoFalla _programada;
-    private readonly PuntoControlCalidad _camara;
+    private readonly Camara _camara;
 
     /// <summary>Día base: hace 3 días en la planta (00:00).</summary>
     private readonly DateTime _dia;
@@ -68,10 +68,12 @@ public class DetencionesTurnoProduccionTests : IDisposable
         _context.AddRange(_tango2, _t1, _t2, _t3, _mecanica, _programada);
         _context.SaveChanges();
 
-        _camara = new PuntoControlCalidad
+        _camara = new Camara
         {
-            LineaId = _tango2.LineaId, Codigo = "TEST-CAM-T798", Nombre = "Cámara de prueba", CreaDetenciones = true,
-            MinutosUmbralDetencion = 5, CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin
+            LineaId = _tango2.LineaId, Codigo = "TEST-CAM-T798", Nombre = "Cámara de prueba", Funcion = FuncionCamara.Conteo,
+            Magnitud = MagnitudProduccion.Mangas, MetodoDeteccion = MetodoDeteccionCamara.Pasos, CantidadCarriles = 1,
+            DetectaParadas = true, CreaDetenciones = true, UmbralDetencionSegundos = 300, Habilitada = true,
+            CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin
         };
         var asignada = DateTimeOffset.UtcNow.AddDays(-30);
         _context.AddRange(
@@ -310,7 +312,7 @@ public class DetencionesTurnoProduccionTests : IDisposable
         };
         var r = await conteo.IngestarAsync(new IngestaConteoCamaraRequest
         {
-            PuntoControl = _camara.Codigo,
+            Camara = _camara.Codigo,
             ParadasEnCurso = [EnCurso(H(0, 8)), EnCurso(H(0, 10))]
         });
         Assert.True(r.IsSuccess, r.ErrorMessage);

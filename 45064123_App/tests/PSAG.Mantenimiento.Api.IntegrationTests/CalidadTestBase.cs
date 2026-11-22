@@ -40,12 +40,20 @@ public abstract class CalidadTestBase : IDisposable
     protected readonly RegistroCalidadService Service;
     protected readonly CalidadMaestrosService Maestros;
 
+    /// <summary>Maestro de cámaras (T-798 etapa 4).</summary>
+    protected readonly CamaraService Camaras;
+
     protected Linea Tango2 = null!;
     protected Linea Futura2 = null!;
     protected Turno TurnoManana = null!;
     protected Turno TurnoTarde = null!;
+    /// <summary>Puntos de control de calidad (usan las cámaras de abajo, como deja la migración del script 36).</summary>
     protected PuntoControlCalidad CamaraTango = null!;
     protected PuntoControlCalidad CamaraFutura = null!;
+
+    /// <summary>T-798 etapa 4: cámaras del maestro único (CAM_Camaras), de conteo, habilitadas, con los mismos códigos.</summary>
+    protected Camara CamTango = null!;
+    protected Camara CamFutura = null!;
     protected TipoDefectoCalidad Rabo = null!;
     protected TipoDefectoCalidad Mancha = null!;
     protected ProductoMaestro Producto = null!;
@@ -64,6 +72,7 @@ public abstract class CalidadTestBase : IDisposable
         var unitOfWork = new UnitOfWork(Context);
         Service = new RegistroCalidadService(unitOfWork, Almacen, ZonaPlanta, NullLogger<RegistroCalidadService>.Instance);
         Maestros = new CalidadMaestrosService(unitOfWork, NullLogger<CalidadMaestrosService>.Instance);
+        Camaras = new CamaraService(unitOfWork, ZonaPlanta, NullLogger<CamaraService>.Instance);
 
         CrearDatosDePrueba();
     }
@@ -97,6 +106,24 @@ public abstract class CalidadTestBase : IDisposable
     protected static Application.DTOs.Calidad.ImagenEntrante ImagenDe(byte[] bytes, string nombre = "frame.png") =>
         new(nombre, bytes.Length, new MemoryStream(bytes));
 
+    /// <summary>Cámara de conteo de prueba: rollos por carriles (como la 09), habilitada, sin detenciones automáticas.</summary>
+    protected static Camara NuevaCamara(int lineaId, string codigo, string nombre, string magnitud = MagnitudProduccion.Rollos) => new()
+    {
+        LineaId = lineaId, Codigo = codigo, Nombre = nombre, Funcion = FuncionCamara.Conteo, Magnitud = magnitud,
+        MetodoDeteccion = magnitud == MagnitudProduccion.Rollos ? MetodoDeteccionCamara.Carriles : MetodoDeteccionCamara.Pasos,
+        CantidadCarriles = (byte)(magnitud == MagnitudProduccion.Rollos ? 4 : 1), DetectaParadas = true, Habilitada = true,
+        CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin
+    };
+
+    /// <summary>Request de Maestros → Cámaras con los datos actuales de la cámara (para cambiarle algo y guardarla).</summary>
+    protected static Application.DTOs.Camaras.GuardarCamaraRequest RequestDe(Camara c) => new()
+    {
+        Codigo = c.Codigo, Nombre = c.Nombre, LineaId = c.LineaId, EquipoId = c.EquipoId, NumeroCanalGrabador = c.NumeroCanalGrabador,
+        Funcion = c.Funcion, Magnitud = c.Magnitud, MetodoDeteccion = c.MetodoDeteccion, CantidadCarriles = c.CantidadCarriles,
+        DetectaParadas = c.DetectaParadas, CreaDetenciones = c.CreaDetenciones, UmbralDetencionSegundos = c.UmbralDetencionSegundos,
+        CuentaProduccionOficial = c.CuentaProduccionOficial, Habilitada = c.Habilitada, Activo = c.Activo
+    };
+
     private void CrearDatosDePrueba()
     {
         Tango2 = new Linea { Codigo = "T2", Nombre = "Tango 2", Orden = 1, CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin };
@@ -115,13 +142,20 @@ public abstract class CalidadTestBase : IDisposable
         Context.AddRange(Tango2, Futura2, TurnoManana, TurnoTarde, Producto);
         Context.SaveChanges();
 
+        CamTango = NuevaCamara(Tango2.LineaId, "TEST-CAM-T2", "Cámara de prueba Tango");
+        CamFutura = NuevaCamara(Futura2.LineaId, "TEST-CAM-F2", "Cámara de prueba Futura");
+        Context.AddRange(CamTango, CamFutura);
+        Context.SaveChanges();
+
         CamaraTango = new PuntoControlCalidad
         {
-            LineaId = Tango2.LineaId, Codigo = "TEST-CAM-T2", Nombre = "Cámara de prueba Tango", CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin
+            LineaId = Tango2.LineaId, Codigo = "TEST-CAM-T2", Nombre = "Cámara de prueba Tango", CamaraId = CamTango.CamaraId,
+            CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin
         };
         CamaraFutura = new PuntoControlCalidad
         {
-            LineaId = Futura2.LineaId, Codigo = "TEST-CAM-F2", Nombre = "Cámara de prueba Futura", CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin
+            LineaId = Futura2.LineaId, Codigo = "TEST-CAM-F2", Nombre = "Cámara de prueba Futura", CamaraId = CamFutura.CamaraId,
+            CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin
         };
         // Defectos de prueba: no son los de la ficha del cliente (que todavía no llegó).
         Rabo = new TipoDefectoCalidad { Codigo = "TEST-RABO", Nombre = "Defecto de prueba con medida", UnidadMedida = "mm", CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin };

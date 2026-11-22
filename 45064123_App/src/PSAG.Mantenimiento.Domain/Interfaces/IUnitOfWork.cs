@@ -41,7 +41,8 @@ public interface IUnitOfWork : IDisposable
     ITipoDefectoCalidadRepository TiposDefectoCalidad { get; }
     IRegistroCalidadRepository RegistrosCalidad { get; }
 
-    // Conteo de producción y paradas por cámara (T-610)
+    // Conteo de producción y paradas por cámara (T-610; maestro de cámaras T-798 etapa 4)
+    ICamaraRepository Camaras { get; }
     IConteoCamaraMinutoRepository ConteosCamaraMinuto { get; }
     IParadaCamaraRepository ParadasCamara { get; }
     IAlertaCamaraRepository AlertasCamara { get; }

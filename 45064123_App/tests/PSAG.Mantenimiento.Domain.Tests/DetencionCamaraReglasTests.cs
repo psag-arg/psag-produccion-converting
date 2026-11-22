@@ -11,27 +11,13 @@ public class DetencionCamaraReglasTests
     private static readonly DateTimeOffset T0 = new(2026, 11, 3, 10, 43, 0, TimeSpan.FromHours(-3));
 
     [Theory]
-    [InlineData(299, 5, false)]   // 4:59 es microcorte
-    [InlineData(300, 5, true)]    // 5:00 justo crea la detención
-    [InlineData(1800, 5, true)]
-    [InlineData(150, 2, true)]    // umbral configurado en 2 min
-    [InlineData(150, 3, false)]
+    [InlineData(299, 300, false)]   // 4:59 es microcorte
+    [InlineData(300, 300, true)]    // 5:00 justo crea la detención
+    [InlineData(1800, 300, true)]
+    [InlineData(150, 120, true)]    // umbral configurado en 2 min
+    [InlineData(150, 180, false)]
     public void SuperaUmbral_DesdeElUmbralInclusive(int segundos, int umbral, bool esperado) =>
-        Assert.Equal(esperado, DetencionCamaraReglas.SuperaUmbral(T0, T0.AddSeconds(segundos), DetencionCamaraReglas.UmbralSegundos(null, umbral)));
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    [InlineData(241)]
-    public void UmbralFueraDeRango_SeRechazaYAlEvaluarVuelveA5(int umbral)
-    {
-        Assert.NotNull(DetencionCamaraReglas.MotivoUmbralInvalido(umbral));
-        Assert.Equal(5, DetencionCamaraReglas.UmbralValido(umbral));
-        Assert.False(DetencionCamaraReglas.SuperaUmbral(T0, T0.AddMinutes(4), DetencionCamaraReglas.UmbralSegundos(null, umbral)));
-        Assert.True(DetencionCamaraReglas.SuperaUmbral(T0, T0.AddMinutes(5), DetencionCamaraReglas.UmbralSegundos(null, umbral)));
-    }
-
-    // ===== Umbral en segundos (reunión 10/11/2026): para probar en planta =====
+        Assert.Equal(esperado, DetencionCamaraReglas.SuperaUmbral(T0, T0.AddSeconds(segundos), DetencionCamaraReglas.UmbralSegundos(umbral)));
 
     [Theory]
     [InlineData(40, 30, true)]    // parada de 40 s con umbral de 30 s: crea la detención
@@ -43,49 +29,31 @@ public class DetencionCamaraReglasTests
         Assert.Equal(esperado, DetencionCamaraReglas.SuperaUmbral(T0, T0.AddSeconds(segundos), umbralSegundos));
 
     [Fact]
-    public void UmbralEfectivo_SegundosMandanSobreMinutos_SinSegundosUsaMinutos()
+    public void UmbralEfectivo_DeLaCamara_VacioEs5Min()
     {
-        Assert.Equal(30, DetencionCamaraReglas.UmbralSegundos(new PuntoControlCalidad { MinutosUmbralDetencion = 5, SegundosUmbralDetencion = 30 }));
-        Assert.Equal(300, DetencionCamaraReglas.UmbralSegundos(new PuntoControlCalidad { MinutosUmbralDetencion = 5 }));
-        Assert.Equal(120, DetencionCamaraReglas.UmbralSegundos(new PuntoControlCalidad { MinutosUmbralDetencion = 2, SegundosUmbralDetencion = null }));
-        // Valores fuera de rango en la base (no deberían pasar el CHECK): segundos se ignoran; minutos vuelven a 5.
-        Assert.Equal(120, DetencionCamaraReglas.UmbralSegundos(10, 2));
-        Assert.Equal(300, DetencionCamaraReglas.UmbralSegundos(null, 0));
+        // T-798 etapa 4: un solo campo en segundos (CAM_Camaras.UmbralDetencionSegundos).
+        Assert.Equal(30, DetencionCamaraReglas.UmbralSegundos(new Camara { UmbralDetencionSegundos = 30 }));
+        Assert.Equal(300, DetencionCamaraReglas.UmbralSegundos(new Camara()));
+        Assert.Equal(120, DetencionCamaraReglas.UmbralSegundos(new Camara { UmbralDetencionSegundos = 120 }));
+        // Valores fuera de rango en la base (no deberían pasar el CHECK): vuelven a 5 min.
+        Assert.Equal(300, DetencionCamaraReglas.UmbralSegundos(10));
         Assert.Equal(300, DetencionCamaraReglas.UmbralSegundosValido(20));
+        Assert.Equal(300, DetencionCamaraReglas.UmbralSegundos(14401));
     }
 
     [Theory]
+    [InlineData(null, true)]
     [InlineData(29, false)]
     [InlineData(30, true)]
     [InlineData(14400, true)]
     [InlineData(14401, false)]
     [InlineData(0, false)]
-    public void ValidacionUmbralEnSegundos_De30A14400(int segundos, bool valido)
+    public void ValidacionUmbral_De30A14400_VacioValido(int? segundos, bool valido)
     {
-        var motivo = DetencionCamaraReglas.MotivoUmbralInvalido(segundos, minutosUmbral: 5);
+        var motivo = DetencionCamaraReglas.MotivoUmbralInvalido(segundos);
         Assert.Equal(valido, motivo == null);
         if (!valido)
-            Assert.Contains("segundos tiene que estar entre 30 y 14400", motivo);
-    }
-
-    [Theory]
-    [InlineData(0, false)]
-    [InlineData(1, true)]
-    [InlineData(240, true)]
-    [InlineData(241, false)]
-    public void ValidacionUmbralEnMinutos_SinSegundos_De1A240(int minutos, bool valido)
-    {
-        var motivo = DetencionCamaraReglas.MotivoUmbralInvalido(null, minutos);
-        Assert.Equal(valido, motivo == null);
-        if (!valido)
-            Assert.Contains("entre 1 y 240 minutos", motivo);
-    }
-
-    [Fact]
-    public void ConSegundos_LosMinutosNoSeValidan()
-    {
-        // En modo prueba los minutos guardados no se usan: un valor viejo no bloquea el guardado.
-        Assert.Null(DetencionCamaraReglas.MotivoUmbralInvalido(45, minutosUmbral: 0));
+            Assert.Contains("entre 30 segundos y 240 minutos", motivo);
     }
 
     [Theory]
@@ -99,10 +67,18 @@ public class DetencionCamaraReglasTests
         Assert.Equal(esperado, DetencionCamaraReglas.TextoUmbral(segundos));
 
     [Fact]
-    public void TextoUmbral_DelPunto_UsaElUmbralEfectivo()
+    public void TextoUmbral_DeLaCamara_UsaElUmbralEfectivo()
     {
-        Assert.Equal("5 min", DetencionCamaraReglas.TextoUmbral(new PuntoControlCalidad { MinutosUmbralDetencion = 5 }));
-        Assert.Equal("45 s", DetencionCamaraReglas.TextoUmbral(new PuntoControlCalidad { MinutosUmbralDetencion = 5, SegundosUmbralDetencion = 45 }));
+        Assert.Equal("5 min", DetencionCamaraReglas.TextoUmbral(new Camara()));
+        Assert.Equal("45 s", DetencionCamaraReglas.TextoUmbral(new Camara { UmbralDetencionSegundos = 45 }));
+    }
+
+    [Fact]
+    public void AlertaSinDatos_DespuesDeNMinutosSinMinutos()
+    {
+        Assert.False(DetencionCamaraReglas.CorrespondeAlertaSinDatos(T0, T0.AddMinutes(5), 5));   // justo 5: todavía no
+        Assert.True(DetencionCamaraReglas.CorrespondeAlertaSinDatos(T0, T0.AddMinutes(5).AddSeconds(1), 5));
+        Assert.Equal("Cámara sin datos con el turno abierto", DetencionCamaraReglas.DescripcionAlerta(TipoAlertaCamara.SIN_DATOS));
     }
 
     private static Detencion Pendiente() => new()

@@ -10,10 +10,11 @@ using PSAG.Mantenimiento.Domain.Services;
 namespace PSAG.Mantenimiento.Application.Services.Implementations;
 
 /// <summary>
-/// Conteo de producción y paradas por cámara (T-610). Todas las paradas quedan en ParadasCamara (log, incluye
-/// microcortes). Si la cámara tiene "crea detenciones" en Maestros, la parada que llega al umbral (5 min por
-/// defecto) da de alta una detención pendiente de declaración; idempotente por identificador de parada.
-/// El cruce con detenciones se calcula al consultar.
+/// Conteo de producción y paradas por cámara (T-610). Todas las paradas quedan en CAM_Paradas (log, incluye
+/// microcortes). Si la cámara tiene "crea detenciones" en Maestros → Cámaras, la parada que llega al umbral (5 min
+/// por defecto) da de alta una detención pendiente de declaración; idempotente por identificador de parada.
+/// El cruce con detenciones se calcula al consultar. T-798 etapa 4: todo cuelga de la cámara (CAM_Camaras) y del
+/// turno de producción (AsegurarTurnoAsync); sólo se aceptan datos de cámaras activas y habilitadas.
 /// </summary>
 public class ConteoCamaraService : IConteoCamaraService
 {
@@ -36,17 +37,22 @@ public class ConteoCamaraService : IConteoCamaraService
     public async Task<Result<IngestaConteoCamaraRespuesta>> IngestarAsync(
         IngestaConteoCamaraRequest request, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(request.PuntoControl))
-            return Fallo("Falta puntoControl.");
+        if (string.IsNullOrWhiteSpace(request.CodigoCamara))
+            return Fallo("Falta camara.");
         var minutos = request.Minutos ?? [];
         var paradas = request.Paradas ?? [];
         if (minutos.Count > ConteoCamaraReglas.MaximoMinutosPorLote || paradas.Count > ConteoCamaraReglas.MaximoParadasPorLote)
             return Fallo($"El lote admite hasta {ConteoCamaraReglas.MaximoMinutosPorLote} minutos y {ConteoCamaraReglas.MaximoParadasPorLote} paradas.");
 
-        var codigo = CalidadReglas.NormalizarCodigo(request.PuntoControl);
-        var punto = await _unitOfWork.PuntosControlCalidad.GetByCodigoAsync(codigo, cancellationToken);
-        if (punto == null || !punto.Activo)
-            return Fallo($"No existe el punto de control {codigo} o está inactivo. Cargalo en Maestros → Calidad.");
+        // T-798 etapa 4: la cámara del maestro único. Transición: el formato viejo manda "puntoControl" con el mismo código.
+        var codigo = CalidadReglas.NormalizarCodigo(request.CodigoCamara);
+        var camara = await _unitOfWork.Camaras.GetByCodigoAsync(codigo, cancellationToken);
+        if (camara == null || !camara.Activo)
+            return Fallo($"No existe la cámara {codigo} o está inactiva. Cargala en Maestros → Cámaras.");
+        if (!camara.Habilitada)
+            return Fallo($"La cámara {codigo} no está habilitada en Maestros → Cámaras: no se aceptan sus datos.");
+        if (!camara.EsConteo)
+            return Fallo($"La cámara {codigo} es de calidad: no cuenta producción.");
 
         var ahora = DateTimeOffset.UtcNow;
 
@@ -55,7 +61,9 @@ public class ConteoCamaraService : IConteoCamaraService
         {
             if (!Enum.TryParse<EstadoCarrilCamara>(m.Estado, ignoreCase: true, out var estado) || !Enum.IsDefined(estado))
                 return Fallo($"Estado de minuto no válido: {m.Estado}.");
-            var motivo = ConteoCamaraReglas.MotivoMinutoInvalido(m.Minuto, m.Carril, m.Rollos,
+            if (m.CantidadEfectiva is not { } cantidad)
+                return Fallo($"Minuto {m.Minuto:yyyy-MM-dd HH:mm} carril {m.Carril}: falta la cantidad.");
+            var motivo = ConteoCamaraReglas.MotivoMinutoInvalido(m.Minuto, m.Carril, cantidad,
                 m.SegundosMarcha, m.SegundosParada, m.SegundosAcumulacion, m.SegundosSinSenal);
             if (motivo != null)
                 return Fallo($"Minuto {m.Minuto:yyyy-MM-dd HH:mm} carril {m.Carril}: {motivo}");
@@ -100,13 +108,17 @@ public class ConteoCamaraService : IConteoCamaraService
         }
 
         var respuesta = new IngestaConteoCamaraRespuesta();
-        var turnos = new Dictionary<TimeOnly, Turno?>();
 
-        // Minutos: únicos por punto + minuto + carril (también dentro del mismo lote).
+        // Turnos de producción de los minutos y paradas, ANTES de agregar nada al contexto: AsegurarTurnoAsync guarda
+        // (y abre por SISTEMA el turno que falte), y no tiene que arrastrar minutos a medio validar.
+        var turnosProduccion = await AsegurarTurnosAsync(
+            camara.LineaId, minutos.Select(m => m.Minuto).Concat(paradas.Select(p => p.Inicio)), cancellationToken);
+
+        // Minutos: únicos por cámara + minuto + carril (también dentro del mismo lote).
         if (minutos.Count > 0)
         {
             var existentes = await _unitOfWork.ConteosCamaraMinuto.GetClavesExistentesAsync(
-                punto.PuntoControlCalidadId, minutos.Min(m => m.Minuto), minutos.Max(m => m.Minuto), cancellationToken);
+                camara.CamaraId, minutos.Min(m => m.Minuto), minutos.Max(m => m.Minuto), cancellationToken);
             foreach (var m in minutos)
             {
                 var clave = (m.Minuto.ToUniversalTime(), (byte)m.Carril);
@@ -115,15 +127,15 @@ public class ConteoCamaraService : IConteoCamaraService
                     respuesta.MinutosDuplicados++;
                     continue;
                 }
-                var turno = await TurnoAsync(m.Minuto, turnos, cancellationToken);
+                var turno = turnosProduccion(m.Minuto);
+                if (turno == null) respuesta.MinutosSinTurno++;
                 await _unitOfWork.ConteosCamaraMinuto.AddAsync(new ConteoCamaraMinuto
                 {
                     Minuto = m.Minuto,
-                    LineaId = punto.LineaId,
-                    PuntoControlCalidadId = punto.PuntoControlCalidadId,
-                    TurnoId = turno?.TurnoId,
+                    CamaraId = camara.CamaraId,
+                    TurnoProduccionId = turno?.TurnoProduccionId,
                     Carril = (byte)m.Carril,
-                    Rollos = Math.Round(m.Rollos, 1),
+                    Cantidad = Math.Round(m.CantidadEfectiva!.Value, 1),
                     SegundosMarcha = (short)m.SegundosMarcha,
                     SegundosParada = (short)m.SegundosParada,
                     SegundosAcumulacion = (short)m.SegundosAcumulacion,
@@ -138,7 +150,7 @@ public class ConteoCamaraService : IConteoCamaraService
         // Paradas: únicas por identificador externo. Todas, micro y grandes (T-784), marcadas con el umbral de hoy.
         if (paradas.Count > 0)
         {
-            var umbralSegundos = DetencionCamaraReglas.UmbralSegundos(punto);
+            var umbralSegundos = DetencionCamaraReglas.UmbralSegundos(camara);
             var ids = paradas.Select(p => p.IdentificadorExterno.Trim()).ToList();
             var existentes = await _unitOfWork.ParadasCamara.GetIdentificadoresExistentesAsync(ids, cancellationToken);
             foreach (var p in paradas)
@@ -149,12 +161,10 @@ public class ConteoCamaraService : IConteoCamaraService
                     respuesta.ParadasDuplicadas++;
                     continue;
                 }
-                var turno = await TurnoAsync(p.Inicio, turnos, cancellationToken);
                 await _unitOfWork.ParadasCamara.AddAsync(new ParadaCamara
                 {
-                    LineaId = punto.LineaId,
-                    PuntoControlCalidadId = punto.PuntoControlCalidadId,
-                    TurnoId = turno?.TurnoId,
+                    CamaraId = camara.CamaraId,
+                    TurnoProduccionId = turnosProduccion(p.Inicio)?.TurnoProduccionId,
                     FechaHoraInicio = p.Inicio,
                     FechaHoraFin = p.Fin,
                     DuracionSegundos = (int)Math.Round((p.Fin - p.Inicio).TotalSeconds),
@@ -171,19 +181,53 @@ public class ConteoCamaraService : IConteoCamaraService
             }
         }
 
-        var alertasCambiadas = await GuardarAlertasAsync(punto, codigo, alertas, ahora, respuesta, cancellationToken);
+        var alertasCambiadas = await GuardarAlertasAsync(camara, codigo, alertas, ahora, respuesta, cancellationToken);
 
-        if (respuesta.MinutosNuevos + respuesta.ParadasNuevas + alertasCambiadas > 0)
+        // Llegaron minutos: la cámara ya no está "sin datos" ni "sin configuración" (un minuto en 0 también es un dato).
+        if (minutos.Count > 0)
+            alertasCambiadas += await CerrarAlertasDeFaltaDeDatosAsync(camara, ahora, respuesta, cancellationToken);
+
+        var huboDatos = minutos.Count > 0 || paradas.Count > 0 || enCurso.Count > 0;
+        if (huboDatos)
+            camara.UltimoDatoRecibido = ahora;
+
+        if (huboDatos || alertasCambiadas > 0)
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        if (punto.CreaDetenciones)
-            await CrearDetencionesAsync(punto, paradas, enCurso, respuesta, cancellationToken);
+        if (camara.CreaDetenciones && camara.DetectaParadas)
+            await CrearDetencionesAsync(camara, paradas, enCurso, respuesta, cancellationToken);
 
         _logger.LogInformation(
-            "Conteo por cámara {Punto}: {MinNuevos} minutos nuevos ({MinDup} repetidos), {ParNuevas} paradas nuevas ({ParDup} repetidas), {DetNuevas} detenciones automáticas, {AlNuevas} alertas nuevas, {AlCerradas} cerradas",
-            codigo, respuesta.MinutosNuevos, respuesta.MinutosDuplicados, respuesta.ParadasNuevas, respuesta.ParadasDuplicadas,
+            "Conteo por cámara {Camara}: {MinNuevos} minutos nuevos ({MinDup} repetidos, {MinSinTurno} sin turno), {ParNuevas} paradas nuevas ({ParDup} repetidas), {DetNuevas} detenciones automáticas, {AlNuevas} alertas nuevas, {AlCerradas} cerradas",
+            codigo, respuesta.MinutosNuevos, respuesta.MinutosDuplicados, respuesta.MinutosSinTurno, respuesta.ParadasNuevas, respuesta.ParadasDuplicadas,
             respuesta.DetencionesCreadas, respuesta.AlertasNuevas, respuesta.AlertasCerradas);
         return Result<IngestaConteoCamaraRespuesta>.Success(respuesta);
+    }
+
+    /// <summary>
+    /// Asegura el turno de producción de cada instante (uno por turno de planta y fecha de producción, aunque haya
+    /// cientos de minutos) y devuelve con qué buscarlo. Si no había, lo crea el SISTEMA (TurnoProduccionService).
+    /// Null para un instante que ningún turno de planta cubre: el dato se guarda igual, sin turno.
+    /// </summary>
+    private async Task<Func<DateTimeOffset, TurnoProduccion?>> AsegurarTurnosAsync(
+        int lineaId, IEnumerable<DateTimeOffset> instantes, CancellationToken ct)
+    {
+        var turnos = (await _unitOfWork.Turnos.GetActivosAsync(ct)).ToList();
+        var porClave = new Dictionary<(int TurnoId, DateOnly Fecha), TurnoProduccion?>();
+        (int, DateOnly)? Clave(DateTimeOffset instante) =>
+            TurnoProduccionReglas.TurnoQueContiene(turnos, HoraPlanta.En(instante, _zonaPlanta)!.Value.DateTime) is var (turno, fecha)
+                ? (turno.TurnoId, fecha)
+                : null;
+
+        foreach (var instante in instantes.OrderBy(i => i))
+        {
+            if (Clave(instante) is not { } clave || porClave.ContainsKey(clave))
+                continue;
+            // Si otro proceso crea el mismo turno a la vez (índice único), la ingesta falla y el servicio reenvía el lote
+            // (idempotente): en el reenvío el turno ya existe.
+            porClave[clave] = await _turnosProduccion.AsegurarTurnoAsync(lineaId, instante, ct);
+        }
+        return instante => Clave(instante) is { } clave ? porClave.GetValueOrDefault(clave) : null;
     }
 
     /// <summary>
@@ -195,10 +239,10 @@ public class ConteoCamaraService : IConteoCamaraService
     /// esa hora queda null y se completa al declarar.
     /// </summary>
     private async Task CrearDetencionesAsync(
-        PuntoControlCalidad punto, List<ParadaCamaraIngesta> cerradas, List<ParadaEnCursoIngesta> enCurso,
+        Camara camara, List<ParadaCamaraIngesta> cerradas, List<ParadaEnCursoIngesta> enCurso,
         IngestaConteoCamaraRespuesta respuesta, CancellationToken cancellationToken)
     {
-        var umbral = DetencionCamaraReglas.UmbralSegundos(punto);
+        var umbral = DetencionCamaraReglas.UmbralSegundos(camara);
         var candidatas = new Dictionary<string, (DateTimeOffset Inicio, DateTimeOffset? Arranque, bool InicioIncierto)>(StringComparer.Ordinal);
         foreach (var p in enCurso.Where(p => DetencionCamaraReglas.SuperaUmbral(p.Inicio, p.Hasta, umbral)))
             candidatas[p.IdentificadorExterno.Trim()] = (p.Inicio, null, p.InicioIncierto);
@@ -226,11 +270,11 @@ public class ConteoCamaraService : IConteoCamaraService
 
             // Si otro proceso crea el mismo turno a la vez (índice único), la ingesta falla y el servicio reenvía el lote
             // (idempotente): en el reenvío el turno ya existe.
-            var turnoProduccion = await _turnosProduccion.AsegurarTurnoAsync(punto.LineaId, c.Inicio, cancellationToken);
+            var turnoProduccion = await _turnosProduccion.AsegurarTurnoAsync(camara.LineaId, c.Inicio, cancellationToken);
             if (turnoProduccion == null)
             {
                 respuesta.DetencionesSinTurno++;
-                _logger.LogWarning("La parada {Id} de la cámara {Punto} llegó al umbral pero no hay turno para esa hora: no se creó la detención", id, punto.Codigo);
+                _logger.LogWarning("La parada {Id} de la cámara {Camara} llegó al umbral pero no hay turno para esa hora: no se creó la detención", id, camara.Codigo);
                 continue;
             }
 
@@ -244,7 +288,7 @@ public class ConteoCamaraService : IConteoCamaraService
             var detencion = new Detencion
             {
                 Codigo = await _unitOfWork.Detenciones.GenerarCodigoDetencionAsync(cancellationToken),
-                LineaId = punto.LineaId,
+                LineaId = camara.LineaId,
                 TurnoProduccionId = turnoProduccion.TurnoProduccionId,
                 OperadorUsuarioId = operador?.OperadorUsuarioId,
                 FechaHoraParada = c.Inicio,
@@ -256,7 +300,7 @@ public class ConteoCamaraService : IConteoCamaraService
                 EstadoActual = EstadoDetencion.PENDIENTE_JUSTIFICACION,
                 OrigenRegistro = OrigenRegistroDetencion.CAMARA,
                 IdentificadorParadaCamara = id,
-                PuntoControlCalidadId = punto.PuntoControlCalidadId,
+                CamaraId = camara.CamaraId,
                 CreadoPorUsuarioId = sistema,
                 ModificadoPorUsuarioId = sistema
             };
@@ -266,7 +310,7 @@ public class ConteoCamaraService : IConteoCamaraService
                 EstadoNuevo = EstadoDetencion.PENDIENTE_JUSTIFICACION,
                 FechaHora = DateTimeOffset.UtcNow,
                 UsuarioId = sistema,
-                Observacion = DetencionCamaraReglas.ObservacionAlta(punto.Codigo, inicioPlanta, c.InicioIncierto) + " " + motivoOperador,
+                Observacion = DetencionCamaraReglas.ObservacionAlta(camara.Codigo, inicioPlanta, c.InicioIncierto) + " " + motivoOperador,
                 OrigenAccion = "CAMARA"
             });
 
@@ -274,14 +318,17 @@ public class ConteoCamaraService : IConteoCamaraService
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             existentes[id] = detencion;
             respuesta.DetencionesCreadas++;
-            _logger.LogInformation("Detención automática {Codigo} creada por la cámara {Punto} (parada desde {Inicio:HH:mm:ss})",
-                detencion.Codigo, punto.Codigo, inicioPlanta);
+            _logger.LogInformation("Detención automática {Codigo} creada por la cámara {Camara} (parada desde {Inicio:HH:mm:ss})",
+                detencion.Codigo, camara.Codigo, inicioPlanta);
         }
     }
 
-    /// <summary>Alta o cierre de alertas de cámara. Devuelve cuántas cambiaron (para saber si hay que guardar).</summary>
+    /// <summary>
+    /// Alta o cierre de alertas de cámara. Devuelve cuántas cambiaron (para saber si hay que guardar). Las de falta de
+    /// datos (SIN_CONFIGURACION, SIN_DATOS) no se duplican: si ya hay una abierta del mismo tipo, la nueva se ignora.
+    /// </summary>
     private async Task<int> GuardarAlertasAsync(
-        PuntoControlCalidad punto, string codigo, List<AlertaCamaraIngesta> alertas, DateTimeOffset ahora,
+        Camara camara, string codigo, List<AlertaCamaraIngesta> alertas, DateTimeOffset ahora,
         IngestaConteoCamaraRespuesta respuesta, CancellationToken cancellationToken)
     {
         if (alertas.Count == 0)
@@ -293,10 +340,13 @@ public class ConteoCamaraService : IConteoCamaraService
             .ToDictionary(g => g.Key, g => g.OrderBy(x => x.Alerta.Fin.HasValue).Last().Alerta);
         var existentes = (await _unitOfWork.AlertasCamara.GetPorIdentificadoresAsync(porId.Keys.ToList(), cancellationToken))
             .ToDictionary(a => a.IdentificadorExterno, StringComparer.Ordinal);
+        var abiertasFaltaDatos = (await _unitOfWork.AlertasCamara.GetAbiertasAsync(camara.CamaraId, AlertasDeFaltaDeDatos, cancellationToken))
+            .Select(a => a.Tipo).ToHashSet();
 
         var cambios = 0;
         foreach (var (id, a) in porId)
         {
+            var tipo = Enum.Parse<TipoAlertaCamara>(a.Tipo, true);
             if (existentes.TryGetValue(id, out var existente))
             {
                 if (a.Fin is { } fin && existente.FechaHoraFin == null)
@@ -308,11 +358,12 @@ public class ConteoCamaraService : IConteoCamaraService
                 }
                 continue;
             }
+            if (a.Fin == null && AlertasDeFaltaDeDatos.Contains(tipo) && !abiertasFaltaDatos.Add(tipo))
+                continue;   // ya hay una abierta de ese tipo (el servicio la repite al reiniciar)
             await _unitOfWork.AlertasCamara.AddAsync(new AlertaCamara
             {
-                PuntoControlCalidadId = punto.PuntoControlCalidadId,
-                LineaId = punto.LineaId,
-                Tipo = Enum.Parse<TipoAlertaCamara>(a.Tipo, true),
+                CamaraId = camara.CamaraId,
+                Tipo = tipo,
                 FechaHoraInicio = a.Inicio,
                 FechaHoraFin = a.Fin,
                 IdentificadorExterno = id,
@@ -323,19 +374,69 @@ public class ConteoCamaraService : IConteoCamaraService
             respuesta.AlertasNuevas++;
             if (a.Fin != null) respuesta.AlertasCerradas++;
             cambios++;
-            _logger.LogWarning("Alerta de cámara {Punto}: {Tipo} desde {Inicio:HH:mm:ss}", codigo, a.Tipo, HoraPlanta.En(a.Inicio, _zonaPlanta));
+            _logger.LogWarning("Alerta de cámara {Camara}: {Tipo} desde {Inicio:HH:mm:ss}", codigo, a.Tipo, HoraPlanta.En(a.Inicio, _zonaPlanta));
         }
         return cambios;
     }
 
-    /// <summary>Turno de la hora de planta, como en detenciones y calidad. Null si no hay turno activo: el dato no se pierde.</summary>
-    private async Task<Turno?> TurnoAsync(DateTimeOffset instante, Dictionary<TimeOnly, Turno?> cache, CancellationToken ct)
+    /// <summary>Tipos de alerta que se cierran solos cuando llegan minutos de la cámara.</summary>
+    private static readonly TipoAlertaCamara[] AlertasDeFaltaDeDatos = [TipoAlertaCamara.SIN_DATOS, TipoAlertaCamara.SIN_CONFIGURACION];
+
+    private async Task<int> CerrarAlertasDeFaltaDeDatosAsync(
+        Camara camara, DateTimeOffset ahora, IngestaConteoCamaraRespuesta respuesta, CancellationToken ct)
     {
-        var hora = TimeOnly.FromDateTime(HoraPlanta.En(instante, _zonaPlanta)!.Value.DateTime);
-        hora = new TimeOnly(hora.Hour, hora.Minute);
-        if (!cache.TryGetValue(hora, out var turno))
-            cache[hora] = turno = await _unitOfWork.Turnos.GetTurnoPorHoraAsync(hora, ct);
-        return turno;
+        var abiertas = await _unitOfWork.AlertasCamara.GetAbiertasAsync(camara.CamaraId, AlertasDeFaltaDeDatos, ct);
+        foreach (var alerta in abiertas)
+        {
+            alerta.FechaHoraFin = ahora < alerta.FechaHoraInicio ? alerta.FechaHoraInicio : ahora;
+            alerta.FechaHoraActualizacion = ahora;
+            respuesta.AlertasCerradas++;
+            _logger.LogInformation("Alerta {Tipo} de la cámara {Camara} cerrada: llegaron minutos", alerta.Tipo, camara.Codigo);
+        }
+        return abiertas.Count;
+    }
+
+    // ===================== Vigilancia SIN_DATOS (job) =====================
+
+    public async Task<int> VigilarSinDatosAsync(DateTimeOffset ahora, int minutosSinDatos, CancellationToken cancellationToken = default)
+    {
+        var abiertos = (await _unitOfWork.TurnosProduccion.GetAbiertosAsync(cancellationToken))
+            .GroupBy(t => t.LineaId).ToDictionary(g => g.Key, g => g.First());
+        if (abiertos.Count == 0)
+            return 0;
+
+        var nuevas = 0;
+        foreach (var camara in (await _unitOfWork.Camaras.GetOficialesAsync(cancellationToken)).Where(c => c.Habilitada))
+        {
+            if (!abiertos.TryGetValue(camara.LineaId, out var turno))
+                continue;
+            var ultimoMinuto = await _unitOfWork.ConteosCamaraMinuto.GetUltimoMinutoAsync(camara.CamaraId, cancellationToken);
+            var inicioTurno = turno.InicioReal ?? turno.InicioProgramado;
+            // Lo último que se sabe: el fin del último minuto recibido o, si es posterior, el inicio del turno.
+            var referencia = ultimoMinuto is { } u && u.AddMinutes(1) > inicioTurno ? u.AddMinutes(1) : inicioTurno;
+            if (!DetencionCamaraReglas.CorrespondeAlertaSinDatos(referencia, ahora, minutosSinDatos))
+                continue;
+            if ((await _unitOfWork.AlertasCamara.GetAbiertasAsync(camara.CamaraId, [TipoAlertaCamara.SIN_DATOS], cancellationToken)).Count > 0)
+                continue;
+
+            var desde = HoraPlanta.En(referencia, _zonaPlanta)!.Value;
+            await _unitOfWork.AlertasCamara.AddAsync(new AlertaCamara
+            {
+                CamaraId = camara.CamaraId,
+                Tipo = TipoAlertaCamara.SIN_DATOS,
+                FechaHoraInicio = referencia,
+                // Clave con la hora de detección: una alerta cerrada y vuelta a abrir no choca con la anterior.
+                IdentificadorExterno = DetencionCamaraReglas.IdentificadorAlerta(camara.Codigo, TipoAlertaCamara.SIN_DATOS, ahora),
+                Detalle = $"Turno abierto y la cámara no manda minutos desde las {desde:HH:mm} (más de {Math.Max(1, minutosSinDatos)} min). Sin datos no es producción cero.",
+                FechaHoraCreacion = ahora,
+                FechaHoraActualizacion = ahora
+            }, cancellationToken);
+            nuevas++;
+            _logger.LogWarning("Alerta SIN_DATOS de la cámara {Camara}: sin minutos desde {Desde:HH:mm} con el turno abierto", camara.Codigo, desde);
+        }
+        if (nuevas > 0)
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return nuevas;
     }
 
     private static Result<IngestaConteoCamaraRespuesta> Fallo(string mensaje) =>
@@ -358,8 +459,8 @@ public class ConteoCamaraService : IConteoCamaraService
             InicioDelDia(desde), InicioDelDia(hasta.AddDays(1)), filtro.LineaId, cancellationToken);
         if (filtro.SegundosMinimos > 0)
             paradas = paradas.Where(p => p.DuracionSegundos >= filtro.SegundosMinimos).ToList();
-        if (filtro.PuntoControlCalidadId is { } puntoId)
-            paradas = paradas.Where(p => p.PuntoControlCalidadId == puntoId).ToList();
+        if (filtro.CamaraId is { } camaraId)
+            paradas = paradas.Where(p => p.CamaraId == camaraId).ToList();
         if (filtro.SuperaUmbral is { } supera)
             paradas = paradas.Where(p => DetencionCamaraReglas.SuperaUmbral(p) == supera).ToList();
 
@@ -373,19 +474,18 @@ public class ConteoCamaraService : IConteoCamaraService
         var items = new List<ParadaCamaraDto>();
         foreach (var p in paradas)
         {
-            // Fecha de producción de la parada: la del día de inicio del turno (el T3 después de medianoche es del día anterior).
-            var pared = HoraPlanta.En(p.FechaHoraInicio, _zonaPlanta)!.Value.DateTime;
-            var dia = p.Turno != null ? TurnoProduccionReglas.FechaProduccion(p.Turno, pared) : DateOnly.FromDateTime(pared);
-            var (cruce, codigos) = ConteoCamaraReglas.Cruzar(p, dia, detenciones);
+            var (cruce, codigos) = ConteoCamaraReglas.Cruzar(p, p.Camara.LineaId, detenciones);
             if (filtro.SoloSinDetencion && cruce != CruceDetencionCamara.SIN_DETENCION)
                 continue;
             items.Add(new ParadaCamaraDto
             {
                 ParadaCamaraId = p.ParadaCamaraId,
-                LineaId = p.LineaId,
-                LineaNombre = p.Linea?.Nombre ?? string.Empty,
-                PuntoControlCodigo = p.PuntoControl?.Codigo ?? string.Empty,
-                TurnoNombre = p.Turno?.Nombre,
+                LineaId = p.Camara.LineaId,
+                LineaNombre = p.Camara.Linea?.Nombre ?? string.Empty,
+                CamaraId = p.CamaraId,
+                CamaraCodigo = p.Camara.Codigo,
+                TurnoProduccionId = p.TurnoProduccionId,
+                TurnoNombre = p.TurnoProduccion?.Turno?.Nombre,
                 FechaHoraInicio = HoraPlanta.En(p.FechaHoraInicio, _zonaPlanta)!.Value,
                 FechaHoraFin = HoraPlanta.En(p.FechaHoraFin, _zonaPlanta)!.Value,
                 DuracionSegundos = p.DuracionSegundos,
@@ -394,7 +494,7 @@ public class ConteoCamaraService : IConteoCamaraService
                 InicioIncierto = p.InicioIncierto,
                 FinIncierto = p.FinIncierto,
                 SuperaUmbral = DetencionCamaraReglas.SuperaUmbral(p),
-                CreaDetencion = p.PuntoControl?.CreaDetenciones == true && DetencionCamaraReglas.SuperaUmbral(p),
+                CreaDetencion = p.Camara.CreaDetenciones && DetencionCamaraReglas.SuperaUmbral(p),
                 UmbralTexto = DetencionCamaraReglas.UmbralSegundos(p) is { } umbral ? DetencionCamaraReglas.TextoUmbral(umbral) : null,
                 Cruce = cruce.ToString(),
                 CodigosDetencion = codigos.ToList()
@@ -412,12 +512,14 @@ public class ConteoCamaraService : IConteoCamaraService
     }
 
     public async Task<Result<ProduccionCamaraDto>> ObtenerProduccionAsync(
-        DateOnly fecha, int? lineaId, int? puntoControlCalidadId = null, CancellationToken cancellationToken = default)
+        DateOnly fecha, int? lineaId, int? camaraId = null, CancellationToken cancellationToken = default)
     {
-        // Mismas ventanas de turno que la eficiencia: el nocturno es del día en que empieza.
-        var ventanas = (await _unitOfWork.Turnos.GetAllAsync(cancellationToken))
+        // Ventana del día de planta: del inicio del primer turno al fin del último (el nocturno es del día en que empieza).
+        var turnos = (await _unitOfWork.Turnos.GetAllAsync(cancellationToken))
             .Where(t => t.Activo)
             .OrderBy(t => t.Orden).ThenBy(t => t.HoraInicio)
+            .ToList();
+        var ventanas = turnos
             .Select(t =>
             {
                 var (inicioPared, finPared) = EficienciaCamaraCalculador.VentanaTurno(fecha, t);
@@ -428,10 +530,11 @@ public class ConteoCamaraService : IConteoCamaraService
         var finDia = ventanas.Count > 0 ? ventanas.Max(v => v.Fin) : InicioDelDia(fecha.AddDays(1));
 
         var minutos = await _unitOfWork.ConteosCamaraMinuto.GetRangoAsync(inicioDia, finDia, lineaId, cancellationToken);
-        if (puntoControlCalidadId is { } puntoId)
-            minutos = minutos.Where(m => m.PuntoControlCalidadId == puntoId).ToList();
-        var puntos = (await _unitOfWork.PuntosControlCalidad.GetListadoAsync(lineaId, incluirInactivos: true, cancellationToken))
-            .ToDictionary(p => p.PuntoControlCalidadId);
+        if (camaraId is { } id)
+            minutos = minutos.Where(m => m.CamaraId == id).ToList();
+        var camaras = (await _unitOfWork.Camaras.GetListadoAsync(lineaId, incluirInactivas: true, cancellationToken))
+            .ToDictionary(c => c.CamaraId);
+        var turnosPorId = turnos.ToDictionary(t => t.TurnoId);
 
         var resultado = new ProduccionCamaraDto
         {
@@ -441,37 +544,41 @@ public class ConteoCamaraService : IConteoCamaraService
             Fin = HoraPlanta.En(finDia, _zonaPlanta)!.Value
         };
 
-        // Una entrada por cámara: rollos (09) y mangas (10) no se suman, ni se mezcla el carril 1 de ambas.
-        foreach (var grupo in minutos.GroupBy(m => m.PuntoControlCalidadId))
+        // Una entrada por cámara: rollos (09), mangas (10) y bolsones (8) no se suman, ni se mezcla el carril 1 de ellas.
+        foreach (var grupo in minutos.GroupBy(m => m.CamaraId))
         {
-            var minutosPunto = grupo.ToList();
-            var punto = puntos.GetValueOrDefault(grupo.Key);
-            var carriles = minutosPunto.Select(m => (int)m.Carril).Distinct().OrderBy(c => c).ToList();
+            var minutosCamara = grupo.ToList();
+            var camara = camaras.GetValueOrDefault(grupo.Key);
+            var carriles = minutosCamara.Select(m => (int)m.Carril).Distinct().OrderBy(c => c).ToList();
 
-            var turnos = new List<ProduccionCamaraTurnoDto>();
-            var contados = new HashSet<ConteoCamaraMinuto>();
-            foreach (var (turno, inicio, fin) in ventanas)
+            // Por turno de producción del día (los minutos cuelgan del turno: no se recalcula).
+            var turnosCamara = new List<ProduccionCamaraTurnoDto>();
+            // Por id: sin seguimiento cada minuto trae su propia instancia del turno.
+            foreach (var delTurno in minutosCamara
+                         .Where(m => m.TurnoProduccion is { } tp && tp.FechaProduccion == fecha)
+                         .GroupBy(m => m.TurnoProduccionId!.Value)
+                         .OrderBy(g => turnosPorId.GetValueOrDefault(g.First().TurnoProduccion!.TurnoId)?.Orden ?? int.MaxValue)
+                         .ThenBy(g => g.First().TurnoProduccion!.InicioProgramado))
             {
-                // Turno materializado (no se recalcula): la ventana sólo elige de qué día es ese turno.
-                var delTurno = minutosPunto.Where(m => m.TurnoId == turno.TurnoId && m.Minuto >= inicio && m.Minuto < fin).ToList();
-                if (delTurno.Count == 0)
-                    continue;
-                contados.UnionWith(delTurno);
-                turnos.Add(TotalTurno(turno.TurnoId, turno.Nombre, HoraPlanta.En(inicio, _zonaPlanta), HoraPlanta.En(fin, _zonaPlanta), delTurno));
+                var tp = delTurno.First().TurnoProduccion!;
+                turnosCamara.Add(TotalTurno(tp.TurnoProduccionId, tp.TurnoId, turnosPorId.GetValueOrDefault(tp.TurnoId)?.Nombre ?? $"Turno {tp.TurnoId}",
+                    HoraPlanta.En(tp.InicioProgramado, _zonaPlanta), HoraPlanta.En(tp.FinProgramado, _zonaPlanta), delTurno.ToList()));
             }
-            var sinTurno = minutosPunto.Where(m => !contados.Contains(m)).ToList();
+            var sinTurno = minutosCamara.Where(m => m.TurnoProduccion is not { } tp || tp.FechaProduccion != fecha).ToList();
             if (sinTurno.Count > 0)
-                turnos.Add(TotalTurno(null, "Sin turno", null, null, sinTurno));
+                turnosCamara.Add(TotalTurno(null, null, "Sin turno", null, null, sinTurno));
 
             resultado.Camaras.Add(new ProduccionCamaraPuntoDto
             {
-                PuntoControlCalidadId = grupo.Key,
-                Codigo = punto?.Codigo ?? $"Cámara {grupo.Key}",
-                Nombre = punto?.Nombre ?? string.Empty,
-                LineaNombre = punto?.Linea?.Nombre ?? string.Empty,
-                Unidad = EficienciaCamaraCalculador.Unidad(punto?.MetodoConteo, carriles.Count),
+                CamaraId = grupo.Key,
+                Codigo = camara?.Codigo ?? $"Cámara {grupo.Key}",
+                Nombre = camara?.Nombre ?? string.Empty,
+                LineaNombre = camara?.Linea?.Nombre ?? string.Empty,
+                Magnitud = camara?.Magnitud,
+                CuentaProduccionOficial = camara?.CuentaProduccionOficial == true,
+                Unidad = EficienciaCamaraCalculador.Unidad(camara?.Magnitud),
                 Carriles = carriles,
-                Horas = minutosPunto
+                Horas = minutosCamara
                     .GroupBy(m =>
                     {
                         var local = HoraPlanta.En(m.Minuto, _zonaPlanta)!.Value;
@@ -481,36 +588,38 @@ public class ConteoCamaraService : IConteoCamaraService
                     .Select(g => new ProduccionCamaraHoraDto
                     {
                         Hora = g.Key,
-                        RollosPorCarril = g.GroupBy(m => (int)m.Carril).ToDictionary(c => c.Key, c => Math.Round(c.Sum(m => m.Rollos))),
-                        TotalRollos = Math.Round(g.Sum(m => m.Rollos)),
+                        CantidadPorCarril = g.GroupBy(m => (int)m.Carril).ToDictionary(c => c.Key, c => Math.Round(c.Sum(m => m.Cantidad))),
+                        Total = Math.Round(g.Sum(m => m.Cantidad)),
                         MinutosCarrilMarcha = g.Count(m => m.Estado == EstadoCarrilCamara.MARCHA),
                         MinutosCarrilConDatos = g.Count(m => m.Estado != EstadoCarrilCamara.SIN_SENAL)
                     })
                     .ToList(),
-                Total = Math.Round(minutosPunto.Sum(m => m.Rollos)),
-                MinutosConDatos = MinutosConDatos(minutosPunto),
-                MinutosMarcha = MinutosMarcha(minutosPunto),
-                Turnos = turnos
+                Total = Math.Round(minutosCamara.Sum(m => m.Cantidad)),
+                MinutosConDatos = MinutosConDatos(minutosCamara),
+                MinutosMarcha = MinutosMarcha(minutosCamara),
+                Turnos = turnosCamara
             });
         }
 
         resultado.Camaras = resultado.Camaras
-            .OrderBy(c => puntos.GetValueOrDefault(c.PuntoControlCalidadId)?.Linea?.Orden ?? 0)
+            .OrderBy(c => camaras.GetValueOrDefault(c.CamaraId)?.Linea?.Orden ?? 0)
             .ThenBy(c => c.LineaNombre)
-            .ThenBy(c => puntos.GetValueOrDefault(c.PuntoControlCalidadId)?.NumeroCamara ?? int.MaxValue)
+            .ThenBy(c => camaras.GetValueOrDefault(c.CamaraId)?.NumeroCanalGrabador ?? int.MaxValue)
             .ThenBy(c => c.Codigo)
             .ToList();
         return Result<ProduccionCamaraDto>.Success(resultado);
     }
 
     private static ProduccionCamaraTurnoDto TotalTurno(
-        int? turnoId, string nombre, DateTimeOffset? inicio, DateTimeOffset? fin, IReadOnlyCollection<ConteoCamaraMinuto> minutos) => new()
+        long? turnoProduccionId, int? turnoId, string nombre, DateTimeOffset? inicio, DateTimeOffset? fin,
+        IReadOnlyCollection<ConteoCamaraMinuto> minutos) => new()
     {
+        TurnoProduccionId = turnoProduccionId,
         TurnoId = turnoId,
         TurnoNombre = nombre,
         Inicio = inicio,
         Fin = fin,
-        Total = Math.Round(minutos.Sum(m => m.Rollos)),
+        Total = Math.Round(minutos.Sum(m => m.Cantidad)),
         MinutosConDatos = MinutosConDatos(minutos),
         MinutosMarcha = MinutosMarcha(minutos)
     };
@@ -523,7 +632,7 @@ public class ConteoCamaraService : IConteoCamaraService
     private static int MinutosMarcha(IEnumerable<ConteoCamaraMinuto> minutos) =>
         minutos.GroupBy(m => m.Minuto).Count(x => x.All(m => m.Estado == EstadoCarrilCamara.MARCHA));
 
-    // ===================== Eficiencia por turno =====================
+    // ===================== Conteos por turno (ex eficiencia por cámara) =====================
 
     public async Task<Result<EficienciaCamaraDiaDto>> ObtenerEficienciaAsync(
         DateOnly fecha, int? lineaId, DateTimeOffset? ahora = null, CancellationToken cancellationToken = default)
@@ -541,41 +650,37 @@ public class ConteoCamaraService : IConteoCamaraService
         var minutos = await _unitOfWork.ConteosCamaraMinuto.GetRangoAsync(desde, hasta, lineaId, cancellationToken);
         var paradas = await _unitOfWork.ParadasCamara.GetRangoAsync(InicioDelDia(fecha.AddDays(-1)), hasta, lineaId, cancellationToken);
 
-        // Cámaras que cuentan producción: las que tienen datos en el rango o ya tienen objetivo o método cargado.
-        // Los puntos de control de defectos de calidad, sin conteo, no aparecen.
-        var conDatos = minutos.Select(m => m.PuntoControlCalidadId).ToHashSet();
-        var puntos = (await _unitOfWork.PuntosControlCalidad.GetListadoAsync(lineaId, incluirInactivos: false, cancellationToken))
-            .Where(p => conDatos.Contains(p.PuntoControlCalidadId) || p.ObjetivoPorHora != null || p.MetodoConteo != null)
-            .OrderBy(p => p.Linea?.Orden ?? 0).ThenBy(p => p.Linea?.Nombre)
-            .ThenBy(p => p.NumeroCamara ?? int.MaxValue).ThenBy(p => p.Codigo)
+        // Cámaras de conteo: las que tienen datos en el rango o están habilitadas (las de calidad no cuentan).
+        var conDatos = minutos.Select(m => m.CamaraId).ToHashSet();
+        var camaras = (await _unitOfWork.Camaras.GetListadoAsync(lineaId, incluirInactivas: false, cancellationToken))
+            .Where(c => c.EsConteo && (conDatos.Contains(c.CamaraId) || c.Habilitada))
             .ToList();
 
+        var turnosProduccion = await _unitOfWork.TurnosProduccion.GetPorFechasAsync(
+            fecha, fecha, lineaId is { } l ? [l] : null, cancellationToken);
         var calendarios = (await _unitOfWork.CalendariosLinea.GetActivosAsync(lineaId, cancellationToken)).ToList();
         var excepciones = (await _unitOfWork.TiemposProgramadosDia.GetPorRangoAsync(fecha, fecha, lineaId, cancellationToken)).ToList();
 
         var resultado = new EficienciaCamaraDiaDto { Fecha = fecha };
-        foreach (var punto in puntos)
+        foreach (var camara in camaras)
         {
-            var minutosPunto = minutos.Where(m => m.PuntoControlCalidadId == punto.PuntoControlCalidadId).ToList();
-            var paradasPunto = paradas.Where(p => p.PuntoControlCalidadId == punto.PuntoControlCalidadId).ToList();
-            var calendariosLinea = calendarios.Where(c => c.LineaId == punto.LineaId).ToList();
-            var excepcionesLinea = excepciones.Where(e => e.LineaId == punto.LineaId).ToList();
-            var carriles = minutosPunto.Select(m => m.Carril).Distinct().Count();
-            var umbralSegundos = DetencionCamaraReglas.UmbralSegundos(punto);
+            var minutosCamara = minutos.Where(m => m.CamaraId == camara.CamaraId).ToList();
+            var paradasCamara = paradas.Where(p => p.CamaraId == camara.CamaraId).ToList();
+            var calendariosLinea = calendarios.Where(c => c.LineaId == camara.LineaId).ToList();
+            var excepcionesLinea = excepciones.Where(e => e.LineaId == camara.LineaId).ToList();
+            var umbralSegundos = DetencionCamaraReglas.UmbralSegundos(camara);
 
             var dto = new EficienciaCamaraPuntoDto
             {
-                PuntoControlCalidadId = punto.PuntoControlCalidadId,
-                Codigo = punto.Codigo,
-                Nombre = punto.Nombre,
-                LineaId = punto.LineaId,
-                LineaNombre = punto.Linea?.Nombre ?? string.Empty,
-                NumeroCamara = punto.NumeroCamara,
-                MetodoConteo = punto.MetodoConteo,
-                Unidad = EficienciaCamaraCalculador.Unidad(punto.MetodoConteo, carriles),
-                ObjetivoPorHora = punto.ObjetivoPorHora,
-                MinutosUmbralDetencion = DetencionCamaraReglas.UmbralValido(punto.MinutosUmbralDetencion),
-                SegundosUmbralDetencion = punto.SegundosUmbralDetencion,
+                CamaraId = camara.CamaraId,
+                Codigo = camara.Codigo,
+                Nombre = camara.Nombre,
+                LineaId = camara.LineaId,
+                LineaNombre = camara.Linea?.Nombre ?? string.Empty,
+                NumeroCanalGrabador = camara.NumeroCanalGrabador,
+                Magnitud = camara.Magnitud,
+                Unidad = EficienciaCamaraCalculador.Unidad(camara.Magnitud),
+                CuentaProduccionOficial = camara.CuentaProduccionOficial,
                 UmbralSegundos = umbralSegundos,
                 UmbralTexto = DetencionCamaraReglas.TextoUmbral(umbralSegundos)
             };
@@ -585,35 +690,31 @@ public class ConteoCamaraService : IConteoCamaraService
                 var (inicioPared, finPared) = EficienciaCamaraCalculador.VentanaTurno(fecha, turno);
                 var inicio = HoraPlanta.DesdeHoraDePared(inicioPared, _zonaPlanta);
                 var fin = HoraPlanta.DesdeHoraDePared(finPared, _zonaPlanta);
+                var tp = turnosProduccion.FirstOrDefault(t => t.LineaId == camara.LineaId && t.TurnoId == turno.TurnoId);
 
-                // Turno materializado (no se recalcula): la ventana sólo elige de qué día es ese turno.
-                var delTurno = minutosPunto
-                    .Where(m => m.TurnoId == turno.TurnoId && m.Minuto >= inicio && m.Minuto < fin)
+                // Los minutos cuelgan del turno de producción (no se recalcula el turno).
+                var delTurno = minutosCamara
+                    .Where(m => m.TurnoProduccion is { } t && t.TurnoId == turno.TurnoId && t.FechaProduccion == fecha)
                     .ToList();
-                var paradasVentana = paradasPunto.Where(p => p.FechaHoraFin > inicio && p.FechaHoraInicio < fin).ToList();
+                var paradasVentana = paradasCamara.Where(p => p.FechaHoraFin > inicio && p.FechaHoraInicio < fin).ToList();
                 var empezadas = paradasVentana.Where(p => p.FechaHoraInicio >= inicio).ToList();
                 // Marca guardada al ingresar cada parada (T-784): si cambió el umbral, el histórico no cambia.
                 var largas = empezadas.Count(DetencionCamaraReglas.SuperaUmbral);
-
-                var minutosProgramados = EficienciaCamaraCalculador.MinutosProgramadosTurno(
-                    fecha, turno, turnos, calendariosLinea, excepcionesLinea);
-                var contadas = Math.Round(delTurno.Sum(m => m.Rollos));
-                var objetivo = EficienciaCamaraCalculador.ObjetivoTurno(punto.ObjetivoPorHora, minutosProgramados);
 
                 dto.Turnos.Add(new EficienciaTurnoDto
                 {
                     TurnoId = turno.TurnoId,
                     TurnoCodigo = turno.Codigo,
                     TurnoNombre = turno.Nombre,
+                    TurnoProduccionId = tp?.TurnoProduccionId,
                     Inicio = inicio,
                     Fin = fin,
-                    MinutosProgramados = minutosProgramados,
-                    Contadas = contadas,
-                    Objetivo = objetivo,
-                    Porcentaje = EficienciaCamaraCalculador.Porcentaje(contadas, objetivo),
-                    Estado = EficienciaCamaraCalculador.Estado(punto.ObjetivoPorHora, minutosProgramados),
+                    // Snapshot del turno de producción si existe; si no, el plan.
+                    MinutosProgramados = tp?.MinutosProgramados ?? EficienciaCamaraCalculador.MinutosProgramadosTurno(
+                        fecha, turno, turnos, calendariosLinea, excepcionesLinea),
+                    Contadas = Math.Round(delTurno.Sum(m => m.Cantidad)),
+                    SinDatos = delTurno.Count == 0,
                     Momento = EficienciaCamaraCalculador.Momento(momento, inicio, fin),
-                    ObjetivoHastaAhora = EficienciaCamaraCalculador.ObjetivoHastaAhora(objetivo, momento, inicio, fin),
                     MinutosParada = EficienciaCamaraCalculador.MinutosParadaEnVentana(
                         paradasVentana.Select(p => (p.FechaHoraInicio, p.FechaHoraFin)), inicio, fin),
                     MinutosMicroparadas = EficienciaCamaraCalculador.MinutosParadaEnVentana(
@@ -638,12 +739,13 @@ public class ConteoCamaraService : IConteoCamaraService
         return alertas.Select(a => new AlertaCamaraDto
         {
             AlertaCamaraId = a.AlertaCamaraId,
-            PuntoControlCodigo = a.PuntoControl?.Codigo ?? string.Empty,
-            PuntoControlNombre = a.PuntoControl?.Nombre ?? string.Empty,
-            LineaId = a.LineaId,
-            LineaNombre = a.Linea?.Nombre ?? string.Empty,
+            CamaraId = a.CamaraId,
+            CamaraCodigo = a.Camara?.Codigo ?? string.Empty,
+            CamaraNombre = a.Camara?.Nombre ?? string.Empty,
+            LineaId = a.Camara?.LineaId ?? 0,
+            LineaNombre = a.Camara?.Linea?.Nombre ?? string.Empty,
             Tipo = a.Tipo.ToString(),
-            TipoDescripcion = a.Tipo == TipoAlertaCamara.CONGELADA ? "Cámara congelada" : "Pérdida de conexión de cámara",
+            TipoDescripcion = DetencionCamaraReglas.DescripcionAlerta(a.Tipo),
             FechaHoraInicio = HoraPlanta.En(a.FechaHoraInicio, _zonaPlanta)!.Value,
             FechaHoraFin = HoraPlanta.En(a.FechaHoraFin, _zonaPlanta),
             Activa = a.FechaHoraFin == null,

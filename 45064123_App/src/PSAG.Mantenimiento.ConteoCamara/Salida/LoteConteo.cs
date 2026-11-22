@@ -6,18 +6,20 @@ namespace PSAG.Mantenimiento.ConteoCamara.Salida;
 
 /// <summary>
 /// Cuerpo de POST api/conteo-camara/ingesta (contrato en docs/CONTEO_CAMARA.md). Lo mismo se guarda en disco
-/// mientras la API no responde. Fechas ISO 8601 con offset de la planta.
+/// mientras la API no responde. Fechas ISO 8601 con offset de la planta. T-798 etapa 4: "camara" y "cantidad" (los
+/// lotes viejos que quedaron en pendientes\ con "puntoControl" y "rollos" la API los sigue aceptando).
 /// </summary>
 public sealed class LoteConteo
 {
-    public string PuntoControl { get; set; } = string.Empty;
+    /// <summary>Código de la cámara (Maestros → Cámaras).</summary>
+    public string Camara { get; set; } = string.Empty;
     public List<MinutoLote> Minutos { get; set; } = [];
     public List<ParadaLote> Paradas { get; set; } = [];
 
     /// <summary>Paradas que siguen abiertas (la última vista de cada una): la API crea la detención al llegar al umbral.</summary>
     public List<ParadaEnCursoLote> ParadasEnCurso { get; set; } = [];
 
-    /// <summary>Alertas de cámara congelada o sin video (abiertas y cierres).</summary>
+    /// <summary>Alertas de cámara congelada, sin video o sin configuración (abiertas y cierres).</summary>
     public List<AlertaLote> Alertas { get; set; } = [];
 
     [JsonIgnore]
@@ -34,7 +36,20 @@ public sealed class MinutoLote
 {
     public DateTimeOffset Minuto { get; set; }
     public int Carril { get; set; }
-    public decimal Rollos { get; set; }
+
+    /// <summary>Unidades del minuto (rollos, mangas o bolsones: la magnitud la da la cámara en Maestros).</summary>
+    public decimal Cantidad { get; set; }
+
+    /// <summary>
+    /// Sólo lectura de archivos viejos (minuto-en-curso.json con "rollos"): pasa a <see cref="Cantidad"/>. No se escribe.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public decimal? Rollos
+    {
+        get => null;
+        set { if (value is { } v) Cantidad = v; }
+    }
+
     public int SegundosMarcha { get; set; }
     public int SegundosParada { get; set; }
     public int SegundosAcumulacion { get; set; }
@@ -45,7 +60,7 @@ public sealed class MinutoLote
     {
         Minuto = m.Minuto,
         Carril = m.Carril,
-        Rollos = (decimal)m.Rollos,
+        Cantidad = (decimal)m.Rollos,
         SegundosMarcha = m.SegundosMarcha,
         SegundosParada = m.SegundosParada,
         SegundosAcumulacion = m.SegundosAcumulacion,
@@ -56,7 +71,7 @@ public sealed class MinutoLote
 
 public sealed class ParadaLote
 {
-    /// <summary>Punto + hora de inicio: un reintento no duplica la parada.</summary>
+    /// <summary>Cámara + hora de inicio: un reintento no duplica la parada.</summary>
     public string IdentificadorExterno { get; set; } = string.Empty;
     public DateTimeOffset Inicio { get; set; }
     public DateTimeOffset Fin { get; set; }
@@ -65,9 +80,9 @@ public sealed class ParadaLote
     public bool InicioIncierto { get; set; }
     public bool FinIncierto { get; set; }
 
-    /// <summary>Punto + inicio en UTC. Lo comparten la parada en curso y la cerrada: es la clave de la detención.</summary>
-    public static string Identificador(string puntoControl, DateTimeOffset inicio) =>
-        $"{puntoControl}-{inicio.ToUniversalTime():yyyyMMdd'T'HHmmss'Z'}";
+    /// <summary>Cámara + inicio en UTC. Lo comparten la parada en curso y la cerrada: es la clave de la detención.</summary>
+    public static string Identificador(string camara, DateTimeOffset inicio) =>
+        $"{camara}-{inicio.ToUniversalTime():yyyyMMdd'T'HHmmss'Z'}";
 
     public static ParadaLote Desde(string puntoControl, ParadaDetectada p) => new()
     {

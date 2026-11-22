@@ -11,8 +11,9 @@
     <div class="alert alert-danger d-flex align-items-center gap-2" role="alert" data-testid="alerta-camara">
         <i class="bi bi-camera-video-off fs-5"></i>
         <div>
-            <strong>@alerta.TipoDescripcion</strong>: @alerta.PuntoControlNombre (@alerta.PuntoControlCodigo, @alerta.LineaNombre)
-            desde las @alerta.FechaHoraInicio.ToString("HH:mm"). Mientras dure, las paradas no se detectan solas: cargalas a mano.
+            <strong>@alerta.TipoDescripcion</strong>: @alerta.CamaraNombre (@alerta.CamaraCodigo, @alerta.LineaNombre)
+            desde las @alerta.FechaHoraInicio.ToString("HH:mm").
+            @(alerta.Tipo is "SIN_DATOS" or "SIN_CONFIGURACION" ? "La cámara no está contando: avisá a sistemas." : "Mientras dure, las paradas no se detectan solas: cargalas a mano.")
         </div>
     </div>
 }
@@ -76,7 +77,7 @@
 </div>
 <div class="alert alert-light border mt-3 mb-0 small">
     La cámara crea la detención cuando la máquina queda parada <strong>5 minutos o más</strong> (el umbral se cambia en
-    Maestros → Calidad → Cámaras). Ya vienen la línea, la fecha, el turno, el maquinista y la hora de parada; vos
+    Maestros → Cámaras). Ya vienen la línea, la fecha, el turno, el maquinista y la hora de parada; vos
     completás el equipo, el tipo y detalle de falla, la descripción y la hora de arranque. Las paradas más cortas
     (microcortes) no crean detención: quedan en <a href="paradas-camara">Paradas y producción (cámara)</a>.
 </div>

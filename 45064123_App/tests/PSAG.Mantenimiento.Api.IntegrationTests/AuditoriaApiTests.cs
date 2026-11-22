@@ -251,8 +251,8 @@ public class AuditoriaApiTests : CalidadTestBase
         Assert.Equal(22, tango.Turnos.Single(t => t.TurnoId == TurnoManana.TurnoId).Total);
         Assert.Equal(18, tango.Turnos.Single(t => t.TurnoId == noche.TurnoId).Total);
         Assert.DoesNotContain(tango.Turnos, t => t.TurnoId == null);
-        Assert.Equal(22, tango.Horas.Single(h => h.Hora == dia).RollosPorCarril[1]);   // el carril 1 de cada cámara, separado
-        Assert.Equal(166, futura.Horas.Single(h => h.Hora == dia).RollosPorCarril[1]);
+        Assert.Equal(22, tango.Horas.Single(h => h.Hora == dia).CantidadPorCarril[1]);   // el carril 1 de cada cámara, separado
+        Assert.Equal(166, futura.Horas.Single(h => h.Hora == dia).CantidadPorCarril[1]);
     }
 
     // ===================== B: quitar línea / eliminar usuario que es maquinista de una detención =====================

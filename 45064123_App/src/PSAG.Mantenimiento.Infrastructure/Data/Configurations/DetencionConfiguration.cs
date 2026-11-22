@@ -105,9 +105,9 @@ public class DetencionConfiguration : IEntityTypeConfiguration<Detencion>
         builder.Property(x => x.IdentificadorParadaCamara)
             .HasMaxLength(100);
 
-        builder.HasOne(x => x.PuntoControl)
+        builder.HasOne(x => x.Camara)
             .WithMany()
-            .HasForeignKey(x => x.PuntoControlCalidadId)
+            .HasForeignKey(x => x.CamaraId)
             .OnDelete(DeleteBehavior.Restrict);
 
         // Relaciones

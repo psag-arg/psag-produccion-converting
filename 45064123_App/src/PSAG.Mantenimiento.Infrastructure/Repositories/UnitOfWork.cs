@@ -40,6 +40,7 @@ public class UnitOfWork : IUnitOfWork
 
     // Control de calidad
     private IPuntoControlCalidadRepository? _puntosControlCalidad;
+    private ICamaraRepository? _camaras;
     private ITipoDefectoCalidadRepository? _tiposDefectoCalidad;
     private IRegistroCalidadRepository? _registrosCalidad;
 
@@ -84,6 +85,7 @@ public class UnitOfWork : IUnitOfWork
 
     // Control de calidad
     public IPuntoControlCalidadRepository PuntosControlCalidad => _puntosControlCalidad ??= new PuntoControlCalidadRepository(_context);
+    public ICamaraRepository Camaras => _camaras ??= new CamaraRepository(_context);
     public ITipoDefectoCalidadRepository TiposDefectoCalidad => _tiposDefectoCalidad ??= new TipoDefectoCalidadRepository(_context);
     public IRegistroCalidadRepository RegistrosCalidad => _registrosCalidad ??= new RegistroCalidadRepository(_context);
 

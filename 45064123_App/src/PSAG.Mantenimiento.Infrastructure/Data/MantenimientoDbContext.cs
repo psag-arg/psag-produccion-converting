@@ -62,6 +62,7 @@ public class MantenimientoDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<RegistroCalidadRevision> RegistrosCalidadRevisiones => Set<RegistroCalidadRevision>();
 
     // Conteo de producción y paradas por cámara (T-610)
+    public DbSet<Camara> Camaras => Set<Camara>();
     public DbSet<ConteoCamaraMinuto> ConteosCamaraMinuto => Set<ConteoCamaraMinuto>();
     public DbSet<ParadaCamara> ParadasCamara => Set<ParadaCamara>();
     public DbSet<AlertaCamara> AlertasCamara => Set<AlertaCamara>();

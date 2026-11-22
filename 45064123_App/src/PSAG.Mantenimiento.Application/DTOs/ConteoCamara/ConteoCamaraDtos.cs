@@ -7,8 +7,18 @@ namespace PSAG.Mantenimiento.Application.DTOs.ConteoCamara;
 /// </summary>
 public class IngestaConteoCamaraRequest
 {
-    /// <summary>Código del punto de control (Maestros → Calidad), ej.: T2-CAM09. Define la línea.</summary>
-    public string PuntoControl { get; set; } = string.Empty;
+    /// <summary>Código de la cámara (Maestros → Cámaras), ej.: T2-CAM09. Define la línea (T-798 etapa 4).</summary>
+    public string? Camara { get; set; }
+
+    /// <summary>
+    /// Formato viejo (transición): el código que antes era del punto de control. Si no viene <see cref="Camara"/>, la
+    /// cámara se busca por este código (la migración conservó los códigos).
+    /// </summary>
+    public string? PuntoControl { get; set; }
+
+    /// <summary>Código que vale: <see cref="Camara"/> o, si no viene, <see cref="PuntoControl"/>.</summary>
+    public string? CodigoCamara => string.IsNullOrWhiteSpace(Camara) ? PuntoControl : Camara;
+
     public List<MinutoCamaraIngesta> Minutos { get; set; } = [];
     public List<ParadaCamaraIngesta> Paradas { get; set; } = [];
 
@@ -37,7 +47,7 @@ public class ParadaEnCursoIngesta
 
 public class AlertaCamaraIngesta
 {
-    /// <summary>CONGELADA o SIN_VIDEO.</summary>
+    /// <summary>CONGELADA, SIN_VIDEO o SIN_CONFIGURACION (SIN_DATOS la abre la API, no el servicio).</summary>
     public string Tipo { get; set; } = string.Empty;
     public DateTimeOffset Inicio { get; set; }
     public DateTimeOffset? Fin { get; set; }
@@ -48,7 +58,16 @@ public class MinutoCamaraIngesta
 {
     public DateTimeOffset Minuto { get; set; }
     public int Carril { get; set; }
-    public decimal Rollos { get; set; }
+
+    /// <summary>Unidades del minuto en la magnitud de la cámara (T-798 etapa 4).</summary>
+    public decimal? Cantidad { get; set; }
+
+    /// <summary>Formato viejo (transición): se usa si no viene <see cref="Cantidad"/>.</summary>
+    public decimal? Rollos { get; set; }
+
+    /// <summary>La que vale: <see cref="Cantidad"/> o, si no viene, <see cref="Rollos"/>.</summary>
+    public decimal? CantidadEfectiva => Cantidad ?? Rollos;
+
     public int SegundosMarcha { get; set; }
     public int SegundosParada { get; set; }
     public int SegundosAcumulacion { get; set; }
@@ -83,6 +102,9 @@ public class IngestaConteoCamaraRespuesta
     /// <summary>Paradas que llegaron al umbral pero no se pudieron dar de alta (sin turno para la hora).</summary>
     public int DetencionesSinTurno { get; set; }
 
+    /// <summary>Minutos que quedaron sin turno de producción (ningún turno de planta cubre la hora). No se pierden.</summary>
+    public int MinutosSinTurno { get; set; }
+
     public int AlertasNuevas { get; set; }
     public int AlertasCerradas { get; set; }
 }
@@ -103,7 +125,7 @@ public class ParadasCamaraFiltroRequest
     public int SegundosMinimos { get; set; }
 
     /// <summary>Sólo las de esa cámara (la 09 y la 10 son de la misma línea).</summary>
-    public int? PuntoControlCalidadId { get; set; }
+    public int? CamaraId { get; set; }
 
     /// <summary>T-784: true = sólo las que llegaron al umbral; false = sólo las microparadas; null = todas.</summary>
     public bool? SuperaUmbral { get; set; }
@@ -114,7 +136,9 @@ public class ParadaCamaraDto
     public long ParadaCamaraId { get; set; }
     public int LineaId { get; set; }
     public string LineaNombre { get; set; } = string.Empty;
-    public string PuntoControlCodigo { get; set; } = string.Empty;
+    public int CamaraId { get; set; }
+    public string CamaraCodigo { get; set; } = string.Empty;
+    public long? TurnoProduccionId { get; set; }
     public string? TurnoNombre { get; set; }
     public DateTimeOffset FechaHoraInicio { get; set; }
     public DateTimeOffset FechaHoraFin { get; set; }
@@ -147,7 +171,8 @@ public class ParadasCamaraResultado
 }
 
 /// <summary>
-/// Producción de un día de planta según las cámaras, por cámara (nunca se suman rollos de la 09 con mangas de la 10).
+/// Producción de un día de planta según las cámaras, por cámara (nunca se suman rollos de la 09 con mangas de la 10;
+/// cada cámara cuenta en su magnitud).
 /// El día de planta va del inicio del primer turno al fin del último, con las mismas ventanas que la eficiencia:
 /// el nocturno es del día en que empieza (con turnos 05-13-21-05, de 05:00 del día a 05:00 del siguiente).
 /// </summary>
@@ -166,12 +191,18 @@ public class ProduccionCamaraDto
 /// <summary>Producción de una cámara: por hora y carril, y por turno.</summary>
 public class ProduccionCamaraPuntoDto
 {
-    public int PuntoControlCalidadId { get; set; }
+    public int CamaraId { get; set; }
     public string Codigo { get; set; } = string.Empty;
     public string Nombre { get; set; } = string.Empty;
     public string LineaNombre { get; set; } = string.Empty;
 
-    /// <summary>rollos (cámara de carriles), mangas o unidades.</summary>
+    /// <summary>MANGAS, ROLLOS, PAQUETES, BOLSONES o PALLETS (de la cámara).</summary>
+    public string? Magnitud { get; set; }
+
+    /// <summary>Cuenta la producción oficial de su línea y magnitud.</summary>
+    public bool CuentaProduccionOficial { get; set; }
+
+    /// <summary>mangas, rollos, bolsones... (de la magnitud).</summary>
     public string Unidad { get; set; } = string.Empty;
     public List<int> Carriles { get; set; } = [];
     public List<ProduccionCamaraHoraDto> Horas { get; set; } = [];
@@ -179,12 +210,13 @@ public class ProduccionCamaraPuntoDto
     public int MinutosConDatos { get; set; }
     public int MinutosMarcha { get; set; }
 
-    /// <summary>Total por turno materializado dentro de la ventana del turno de ese día (igual que la eficiencia).</summary>
+    /// <summary>Total por turno de producción del día (los minutos sin turno de producción van en "Sin turno").</summary>
     public List<ProduccionCamaraTurnoDto> Turnos { get; set; } = [];
 }
 
 public class ProduccionCamaraTurnoDto
 {
+    public long? TurnoProduccionId { get; set; }
     public int? TurnoId { get; set; }
     public string TurnoNombre { get; set; } = string.Empty;
     public DateTimeOffset? Inicio { get; set; }
@@ -194,12 +226,13 @@ public class ProduccionCamaraTurnoDto
     public int MinutosMarcha { get; set; }
 }
 
-/// <summary>Alerta de cámara congelada o sin video (abierta o cerrada hace poco).</summary>
+/// <summary>Alerta de cámara (congelada, sin video, sin datos, sin configuración), abierta o cerrada hace poco.</summary>
 public class AlertaCamaraDto
 {
     public long AlertaCamaraId { get; set; }
-    public string PuntoControlCodigo { get; set; } = string.Empty;
-    public string PuntoControlNombre { get; set; } = string.Empty;
+    public int CamaraId { get; set; }
+    public string CamaraCodigo { get; set; } = string.Empty;
+    public string CamaraNombre { get; set; } = string.Empty;
     public int LineaId { get; set; }
     public string LineaNombre { get; set; } = string.Empty;
     public string Tipo { get; set; } = string.Empty;
@@ -214,19 +247,20 @@ public class ProduccionCamaraHoraDto
 {
     /// <summary>Inicio de la hora, en hora de la planta.</summary>
     public DateTimeOffset Hora { get; set; }
-    public Dictionary<int, decimal> RollosPorCarril { get; set; } = [];
-    public decimal TotalRollos { get; set; }
+    public Dictionary<int, decimal> CantidadPorCarril { get; set; } = [];
+    public decimal Total { get; set; }
 
     /// <summary>Minutos-carril en marcha / con datos (4 carriles x 60 min = 240 en una hora completa).</summary>
     public int MinutosCarrilMarcha { get; set; }
     public int MinutosCarrilConDatos { get; set; }
 }
 
-// ===================== Eficiencia por turno (Dashboard, reunión 03/11) =====================
+// ===================== Conteos por turno (Dashboard; ex eficiencia por cámara) =====================
 
 /// <summary>
-/// Eficiencia de las cámaras que cuentan producción, para los turnos de un día de planta. Un turno nocturno es del
-/// día en que empieza (21:00 del día a 05:00 del siguiente).
+/// Conteos de las cámaras de conteo para los turnos de un día de planta. Un turno nocturno es del día en que empieza
+/// (21:00 del día a 05:00 del siguiente). T-798 etapa 4: SIN objetivo ni %: el objetivo sale del parámetro
+/// línea + producto en la etapa 5 (un solo cálculo de eficiencia). "Sin datos" (sin minutos) no es producción cero.
 /// </summary>
 public class EficienciaCamaraDiaDto
 {
@@ -236,26 +270,20 @@ public class EficienciaCamaraDiaDto
 
 public class EficienciaCamaraPuntoDto
 {
-    public int PuntoControlCalidadId { get; set; }
+    public int CamaraId { get; set; }
     public string Codigo { get; set; } = string.Empty;
     public string Nombre { get; set; } = string.Empty;
     public int LineaId { get; set; }
     public string LineaNombre { get; set; } = string.Empty;
-    public int? NumeroCamara { get; set; }
+    public int? NumeroCanalGrabador { get; set; }
 
-    /// <summary>CARRILES, MANGAS o null (sin cargar en Maestros: la unidad se dedujo de los datos).</summary>
-    public string? MetodoConteo { get; set; }
+    /// <summary>MANGAS, ROLLOS, PAQUETES, BOLSONES o PALLETS.</summary>
+    public string? Magnitud { get; set; }
 
-    /// <summary>rollos, mangas o unidades.</summary>
+    /// <summary>mangas, rollos, bolsones...</summary>
     public string Unidad { get; set; } = string.Empty;
 
-    public decimal? ObjetivoPorHora { get; set; }
-
-    /// <summary>Umbral de detención de la cámara en minutos (se usa si no hay umbral en segundos).</summary>
-    public int MinutosUmbralDetencion { get; set; }
-
-    /// <summary>Umbral en segundos cargado para pruebas, o null.</summary>
-    public int? SegundosUmbralDetencion { get; set; }
+    public bool CuentaProduccionOficial { get; set; }
 
     /// <summary>Umbral efectivo en segundos: las paradas más cortas son microcortes.</summary>
     public int UmbralSegundos { get; set; }
@@ -272,30 +300,24 @@ public class EficienciaTurnoDto
     public string TurnoCodigo { get; set; } = string.Empty;
     public string TurnoNombre { get; set; } = string.Empty;
 
+    /// <summary>Turno de producción de la línea para ese turno y día, si existe.</summary>
+    public long? TurnoProduccionId { get; set; }
+
     /// <summary>Inicio y fin del turno en hora de la planta.</summary>
     public DateTimeOffset Inicio { get; set; }
     public DateTimeOffset Fin { get; set; }
 
-    /// <summary>Horas programadas del turno (calendario de la línea y excepciones del día), en minutos.</summary>
+    /// <summary>Horas programadas del turno (programación de la línea y excepciones del día), en minutos.</summary>
     public int MinutosProgramados { get; set; }
 
-    /// <summary>Unidades contadas por la cámara en el turno (minutos con ese turno materializado, dentro de la ventana).</summary>
+    /// <summary>Unidades contadas por la cámara en el turno (minutos colgados de ese turno de producción).</summary>
     public decimal Contadas { get; set; }
 
-    /// <summary>ObjetivoPorHora x horas programadas. Null si la cámara no tiene objetivo cargado.</summary>
-    public decimal? Objetivo { get; set; }
-
-    /// <summary>Contadas / objetivo x 100. Null sin objetivo o con objetivo 0 (turno no programado).</summary>
-    public decimal? Porcentaje { get; set; }
-
-    /// <summary>OK, SIN_OBJETIVO o NO_PROGRAMADO.</summary>
-    public string Estado { get; set; } = string.Empty;
+    /// <summary>No hay ningún minuto de la cámara en el turno: "sin datos", nunca 0.</summary>
+    public bool SinDatos { get; set; }
 
     /// <summary>SIN_EMPEZAR, EN_CURSO o TERMINADO.</summary>
     public string Momento { get; set; } = string.Empty;
-
-    /// <summary>Turno en curso: parte del objetivo que corresponde al tiempo transcurrido.</summary>
-    public decimal? ObjetivoHastaAhora { get; set; }
 
     /// <summary>Minutos de parada detectados por la cámara dentro del turno (todas las paradas, recortadas al turno).</summary>
     public int MinutosParada { get; set; }

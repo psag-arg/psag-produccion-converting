@@ -44,10 +44,10 @@ public class DeclaracionDetencionService : IDeclaracionDetencionService
         if (d == null)
             return Result<DeclaracionDetencionDto>.Failure("NOT_FOUND", "Detención no encontrada.");
 
-        PuntoControlCalidad? punto = d.PuntoControlCalidadId is { } pid
-            ? await _unitOfWork.PuntosControlCalidad.GetByIdAsync(pid, cancellationToken)
+        Camara? camara = d.CamaraId is { } cid
+            ? await _unitOfWork.Camaras.GetByIdAsync(cid, cancellationToken)
             : null;
-        Equipo? cuerpo = punto?.EquipoId is { } eid ? await _unitOfWork.Equipos.GetByIdAsync(eid, cancellationToken) : null;
+        Equipo? cuerpo = camara?.EquipoId is { } eid ? await _unitOfWork.Equipos.GetByIdAsync(eid, cancellationToken) : null;
 
         return Result<DeclaracionDetencionDto>.Success(new DeclaracionDetencionDto
         {
@@ -60,8 +60,8 @@ public class DeclaracionDetencionService : IDeclaracionDetencionService
             FechaHoraParada = HoraPlanta.En(d.FechaHoraParada, _zonaPlanta),
             FechaHoraArranqueDetectada = HoraPlanta.En(d.FechaHoraArranqueDetectada, _zonaPlanta),
             OrigenRegistro = d.OrigenRegistro.ToString(),
-            PuntoControlCodigo = punto?.Codigo,
-            PuntoControlNombre = punto?.Nombre,
+            CamaraCodigo = camara?.Codigo,
+            CamaraNombre = camara?.Nombre,
             CuerpoCamaraNombre = cuerpo?.Nombre,
             CuerpoCamaraEquipoId = cuerpo?.EquipoId,
             MaquinistaUsuarioId = d.OperadorUsuarioId,

@@ -32,19 +32,19 @@ public class ConteoCamaraController : ApiControllerBase
         return resultado.IsFailure ? ErrorResult(resultado) : Ok(resultado.Value);
     }
 
-    /// <summary>Rollos por hora y carril de un día de planta.</summary>
+    /// <summary>Cantidad por hora, carril y turno de producción de un día de planta (en la magnitud de cada cámara).</summary>
     [HttpGet("produccion")]
     [ProducesResponseType(typeof(ProduccionCamaraDto), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetProduccion([FromQuery] DateOnly fecha, [FromQuery] int? lineaId, [FromQuery] int? puntoControlCalidadId)
+    public async Task<IActionResult> GetProduccion([FromQuery] DateOnly fecha, [FromQuery] int? lineaId, [FromQuery] int? camaraId)
     {
-        var resultado = await _servicio.ObtenerProduccionAsync(fecha, lineaId, puntoControlCalidadId);
+        var resultado = await _servicio.ObtenerProduccionAsync(fecha, lineaId, camaraId);
         return resultado.IsFailure ? ErrorResult(resultado) : Ok(resultado.Value);
     }
 
     /// <summary>
-    /// Eficiencia por turno de las cámaras que cuentan producción, en un día de planta (Dashboard): contadas,
-    /// objetivo (objetivo por hora x horas programadas del turno), %, minutos de parada y microcortes.
-    /// Sin objetivo cargado el % viene vacío (estado SIN_OBJETIVO), nunca 0.
+    /// Conteos por turno de las cámaras de conteo, en un día de planta (Dashboard): contadas, minutos con datos,
+    /// minutos de parada y microcortes. T-798 etapa 4: sin objetivo ni % (el objetivo sale del parámetro línea +
+    /// producto en la etapa 5). Un turno sin minutos viene con SinDatos = true, nunca como 0.
     /// </summary>
     [HttpGet("eficiencia")]
     [ProducesResponseType(typeof(EficienciaCamaraDiaDto), StatusCodes.Status200OK)]
@@ -54,7 +54,7 @@ public class ConteoCamaraController : ApiControllerBase
         return resultado.IsFailure ? ErrorResult(resultado) : Ok(resultado.Value);
     }
 
-    /// <summary>Alertas de cámara congelada o sin video: abiertas y las cerradas en las últimas <c>horas</c> (24 por defecto).</summary>
+    /// <summary>Alertas de cámara (congelada, sin video, sin datos, sin configuración): abiertas y las cerradas en las últimas <c>horas</c> (24 por defecto).</summary>
     [HttpGet("alertas")]
     [ProducesResponseType(typeof(IReadOnlyList<AlertaCamaraDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAlertas([FromQuery] int? lineaId, [FromQuery] int horas = 24) =>

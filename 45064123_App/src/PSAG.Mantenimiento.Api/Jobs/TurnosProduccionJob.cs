@@ -6,6 +6,8 @@ namespace PSAG.Mantenimiento.Api.Jobs;
 /// <summary>
 /// T-798 etapa 2 · Cada minuto (TurnosProduccion:JobIntervaloSegundos): cierra los turnos de producción vencidos
 /// (FinProgramado + tolerancia → CERRADO_AUTOMATICO) y marca SIN_APERTURA los programados que nadie abrió.
+/// T-798 etapa 4: también abre la alerta SIN_DATOS de la cámara oficial de cada línea con turno ABIERTO que no manda
+/// minutos hace más de TurnosProduccion:MinutosSinDatosCamara (5).
 /// Un error no detiene el job: se registra y se reintenta en la vuelta siguiente.
 /// </summary>
 public sealed class TurnosProduccionJob : BackgroundService
@@ -68,8 +70,11 @@ public sealed class TurnosProduccionJob : BackgroundService
             var ahora = DateTimeOffset.UtcNow;
             var cerrados = await servicio.CerrarVencidosAsync(ahora, stoppingToken);
             var sinApertura = await servicio.MarcarSinAperturaAsync(ahora, stoppingToken);
-            if (cerrados > 0 || sinApertura > 0)
-                _logger.LogInformation("Job de turnos de producción: {Cerrados} cerrados por vencimiento, {SinApertura} sin apertura", cerrados, sinApertura);
+            var camaras = scope.ServiceProvider.GetRequiredService<IConteoCamaraService>();
+            var sinDatos = await camaras.VigilarSinDatosAsync(ahora, _opciones.MinutosSinDatosCamara, stoppingToken);
+            if (cerrados > 0 || sinApertura > 0 || sinDatos > 0)
+                _logger.LogInformation("Job de turnos de producción: {Cerrados} cerrados por vencimiento, {SinApertura} sin apertura, {SinDatos} alertas de cámara sin datos",
+                    cerrados, sinApertura, sinDatos);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {

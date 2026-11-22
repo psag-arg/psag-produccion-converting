@@ -277,8 +277,8 @@ public class AnalisisService : IAnalisisService
             .ToDictionary(l => l.LineaId, l => l.Nombre);
         var nombresTurnos = (await _unitOfWork.Turnos.GetAllAsync(cancellationToken))
             .ToDictionary(t => t.TurnoId, t => t.Nombre);
-        var camaras = (await _unitOfWork.PuntosControlCalidad.GetAllAsync(cancellationToken))
-            .ToDictionary(p => p.PuntoControlCalidadId, p => p.Codigo);
+        var camaras = (await _unitOfWork.Camaras.GetAllAsync(cancellationToken))
+            .ToDictionary(c => c.CamaraId, c => c.Codigo);
 
         var pendientes = lineasIds == null
             ? await _unitOfWork.Detenciones.FindAsync(d => d.EstadoActual == EstadoDetencion.PENDIENTE_JUSTIFICACION, cancellationToken)
@@ -300,7 +300,7 @@ public class AnalisisService : IAnalisisService
                 FechaHoraArranque = d.FechaHoraArranque,
                 FechaHoraArranqueDetectada = d.FechaHoraArranqueDetectada,
                 OrigenRegistro = d.OrigenRegistro.ToString(),
-                CamaraCodigo = d.PuntoControlCalidadId is { } p ? camaras.GetValueOrDefault(p) : null,
+                CamaraCodigo = d.CamaraId is { } c ? camaras.GetValueOrDefault(c) : null,
                 MinutosEfectivos = d.MinutosEfectivos,
                 EstadoActualDescripcion = d.EstadoActual.ObtenerDescripcion()
             })

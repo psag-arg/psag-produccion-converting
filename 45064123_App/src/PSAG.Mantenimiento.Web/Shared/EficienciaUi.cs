@@ -4,46 +4,16 @@ using PSAG.Mantenimiento.Web.Models;
 namespace PSAG.Mantenimiento.Web.Shared;
 
 /// <summary>
-/// Textos y colores de la tarjeta "Eficiencia (cámara)" del Dashboard. Los números (objetivo, %) los calcula la
-/// API; acá sólo se muestran.
+/// Textos de la tarjeta "Producción por cámara" del Dashboard (ex "Eficiencia (cámara)"). Los números los calcula la
+/// API; acá sólo se muestran. T-798 etapa 4: sin objetivo ni % hasta la etapa 5 (objetivo desde el parámetro
+/// línea + producto); un turno sin minutos dice "Sin datos", nunca 0.
 /// </summary>
 public static class EficienciaUi
 {
-    /// <summary>Desde este % el turno se pinta verde; desde <see cref="UmbralAmarillo"/>, amarillo; abajo, rojo.</summary>
-    public const decimal UmbralVerde = 90m;
-    public const decimal UmbralAmarillo = 70m;
+    public const string TextoSinDatos = "Sin datos";
 
-    public const string TextoSinObjetivo = "Falta cargar el objetivo";
-    public const string TextoNoProgramado = "Turno no programado";
-
-    public static string ColorPorcentaje(decimal? porcentaje) => porcentaje switch
-    {
-        null => "text-muted",
-        >= UmbralVerde => "text-success",
-        >= UmbralAmarillo => "text-warning",
-        _ => "text-danger"
-    };
-
-    public static string ColorBarra(decimal? porcentaje) => porcentaje switch
-    {
-        null => "bg-secondary",
-        >= UmbralVerde => "bg-success",
-        >= UmbralAmarillo => "bg-warning",
-        _ => "bg-danger"
-    };
-
-    /// <summary>Ancho de la barra (0 a 100 %, aunque la eficiencia pase de 100).</summary>
-    public static string AnchoBarra(decimal? porcentaje) =>
-        Math.Clamp(porcentaje ?? 0m, 0m, 100m).ToString("0.#", CultureInfo.InvariantCulture) + "%";
-
-    /// <summary>"87,5 %"; sin objetivo o turno no programado, el texto que corresponde (nunca "0 %").</summary>
-    public static string TextoPorcentaje(EficienciaTurnoDto turno) => turno.Estado switch
-    {
-        "SIN_OBJETIVO" => TextoSinObjetivo,
-        "NO_PROGRAMADO" => TextoNoProgramado,
-        _ when turno.Porcentaje is { } p => p.ToString("0.#", CultureInfo.CurrentCulture) + " %",
-        _ => "-"
-    };
+    /// <summary>"9.300" o "Sin datos" si la cámara no mandó ningún minuto en el turno.</summary>
+    public static string TextoContadas(EficienciaTurnoDto turno) => turno.SinDatos ? TextoSinDatos : Numero(turno.Contadas);
 
     public static string? TextoMomento(string momento) => momento switch
     {
@@ -57,7 +27,7 @@ public static class EficienciaUi
     /// <summary>Ej.: "Tango 2 · Cámara 10 (mangas)".</summary>
     public static string Titulo(EficienciaCamaraPuntoDto camara)
     {
-        var nombre = camara.NumeroCamara is { } n ? $"Cámara {n:00}" : camara.Nombre;
+        var nombre = camara.NumeroCanalGrabador is { } n ? $"Cámara {n:00}" : camara.Nombre;
         return $"{camara.LineaNombre} · {nombre} ({camara.Unidad})";
     }
 
@@ -65,4 +35,36 @@ public static class EficienciaUi
 
     public static string Minutos(int minutos) =>
         minutos < 60 ? $"{minutos} min" : $"{minutos / 60} h {minutos % 60:00} min";
+}
+
+/// <summary>Maestros → Cámaras: color y texto del "último dato recibido" (el estado lo calcula la API).</summary>
+public static class CamarasUi
+{
+    public static string ClaseUltimoDato(string estado) => estado switch
+    {
+        "VERDE" => "bg-success",
+        "AMARILLO" => "bg-warning text-dark",
+        "ROJO" => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    /// <summary>"hace 3 min", "hace 2 h 05 min" o "nunca".</summary>
+    public static string TextoUltimoDato(int? minutos) => minutos switch
+    {
+        null => "nunca",
+        < 1 => "hace menos de 1 min",
+        < 60 => $"hace {minutos} min",
+        < 60 * 48 => $"hace {minutos / 60} h {minutos % 60:00} min",
+        _ => $"hace {minutos / (60 * 24)} días"
+    };
+
+    public static string Unidad(string? magnitud) => magnitud switch
+    {
+        "MANGAS" => "mangas",
+        "ROLLOS" => "rollos",
+        "PAQUETES" => "paquetes",
+        "BOLSONES" => "bolsones",
+        "PALLETS" => "pallets",
+        _ => "-"
+    };
 }

@@ -16,8 +16,8 @@ internal sealed class ApiFalsa : HttpMessageHandler
     {
         var cuerpo = await request.Content!.ReadAsStringAsync(ct);
         var lote = JsonSerializer.Deserialize<LoteConteo>(cuerpo, LoteConteo.Json)!;
-        Recibidos.Add(lote.PuntoControl);
-        var (status, respuesta) = Responder(lote.PuntoControl);
+        Recibidos.Add(lote.Camara);
+        var (status, respuesta) = Responder(lote.Camara);
         return new HttpResponseMessage(status) { Content = new StringContent(respuesta) };
     }
 }
@@ -36,18 +36,18 @@ public sealed class PublicadorApiTests : IDisposable
 
     private PublicadorApi Nuevo()
     {
-        var o = new OpcionesConteo { PuntoControl = "T2-CAM10" };
+        var o = new OpcionesConteo { Camara = "T2-CAM10" };
         o.Api.CarpetaPendientes = _carpeta;
         o.Api.ClaveIngesta = "clave";
         return new PublicadorApi(o, new HttpClient(_api) { BaseAddress = new Uri("http://api/") }, NullLogger.Instance, () => _ahora);
     }
 
-    /// <summary>Un lote en pendientes; el punto de control hace de nombre para que la API falsa lo reconozca.</summary>
+    /// <summary>Un lote en pendientes; la cámara hace de nombre para que la API falsa lo reconozca.</summary>
     private void Lote(int orden, string nombre)
     {
         Directory.CreateDirectory(_carpeta);
         File.WriteAllText(Path.Combine(_carpeta, $"lote-{orden:D17}-x.json"),
-            JsonSerializer.Serialize(new LoteConteo { PuntoControl = nombre }, LoteConteo.Json));
+            JsonSerializer.Serialize(new LoteConteo { Camara = nombre }, LoteConteo.Json));
     }
 
     private static (HttpStatusCode, string) Problema(HttpStatusCode status, string detalle) =>
@@ -152,7 +152,7 @@ public sealed class PublicadorApiTests : IDisposable
         var m = Assert.Single(minutos);
         Assert.Equal(40, m.SegundosMarcha);
         Assert.Equal(20, m.SegundosSinSenal);
-        Assert.Equal(15m, m.Rollos);
+        Assert.Equal(15m, m.Cantidad);
         Assert.False(File.Exists(Path.Combine(_carpeta, PublicadorApi.ArchivoMinutoEnCurso)));
     }
 

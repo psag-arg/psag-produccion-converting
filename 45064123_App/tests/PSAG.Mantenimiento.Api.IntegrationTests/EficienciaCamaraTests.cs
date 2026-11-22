@@ -1,16 +1,18 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
-using PSAG.Mantenimiento.Application.DTOs.Calidad;
+using PSAG.Mantenimiento.Application.DTOs.Camaras;
 using PSAG.Mantenimiento.Application.DTOs.ConteoCamara;
 using PSAG.Mantenimiento.Application.Services.Implementations;
 using PSAG.Mantenimiento.Domain.Entities;
+using PSAG.Mantenimiento.Domain.Enums;
 using PSAG.Mantenimiento.Infrastructure.Repositories;
 
 namespace PSAG.Mantenimiento.Api.IntegrationTests;
 
 /// <summary>
-/// Eficiencia por turno de la cámara en el Dashboard (reunión 03/11): contadas / (objetivo por hora x horas
-/// programadas del turno), con el turno de noche que cruza medianoche, objetivo vacío y turno no programado.
+/// Conteos por turno de la cámara en el Dashboard (ex eficiencia, reunión 03/11), con el turno de noche que cruza
+/// medianoche y turno no programado. T-798 etapa 4: sin objetivo ni % (vuelven en la etapa 5 desde el parámetro
+/// línea + producto); un turno sin minutos es "sin datos", no 0.
 /// </summary>
 public class EficienciaCamaraTests : CalidadTestBase
 {
@@ -32,6 +34,11 @@ public class EficienciaCamaraTests : CalidadTestBase
             CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin
         };
         Context.Add(_noche);
+        // En estos tests la cámara de la Tango cuenta mangas (como la 10).
+        var camara = Context.Camaras.Single(c => c.CamaraId == CamTango.CamaraId);
+        camara.Magnitud = MagnitudProduccion.Mangas;
+        camara.MetodoDeteccion = MetodoDeteccionCamara.Pasos;
+        camara.CantidadCarriles = 1;
         Context.SaveChanges();
         Context.ChangeTracker.Clear();
     }
@@ -70,11 +77,10 @@ public class EficienciaCamaraTests : CalidadTestBase
         Assert.True(r.IsSuccess, r.ErrorMessage);
     }
 
-    private async Task PonerObjetivoAsync(decimal? objetivo, string? metodo = "MANGAS")
+    private async Task PonerUmbralAsync(int? segundos)
     {
-        var punto = await Context.PuntosControlCalidad.SingleAsync(p => p.PuntoControlCalidadId == CamaraTango.PuntoControlCalidadId);
-        punto.ObjetivoPorHora = objetivo;
-        punto.MetodoConteo = metodo;
+        var camara = await Context.Camaras.SingleAsync(c => c.CamaraId == CamTango.CamaraId);
+        camara.UmbralDetencionSegundos = segundos;
         await Context.SaveChangesAsync();
         Context.ChangeTracker.Clear();
     }
@@ -87,38 +93,49 @@ public class EficienciaCamaraTests : CalidadTestBase
     }
 
     [Fact]
-    public async Task ConObjetivo_CalculaContadasObjetivoYPorcentajePorTurno()
+    public async Task ContadasPorTurno_SinObjetivoNiPorcentaje()
     {
         await CargarDatosAsync();
-        await PonerObjetivoAsync(10m);
 
         var camara = await EficienciaAsync();
 
         Assert.Equal("mangas", camara.Unidad);
+        Assert.Equal(MagnitudProduccion.Mangas, camara.Magnitud);
         Assert.Equal(["T1", "T2", "T3"], camara.Turnos.Select(t => t.TurnoCodigo));
         var manana = camara.Turnos[0];
         Assert.Equal(20, manana.Contadas);
+        Assert.False(manana.SinDatos);
         Assert.Equal(480, manana.MinutosProgramados);
-        Assert.Equal(80, manana.Objetivo);
-        Assert.Equal(25m, manana.Porcentaje);
-        Assert.Equal("OK", manana.Estado);
+        Assert.NotNull(manana.TurnoProduccionId);              // los minutos cuelgan del turno de producción
         Assert.Equal("TERMINADO", manana.Momento);
         Assert.Equal(new TimeSpan(6, 0, 0), manana.Inicio.TimeOfDay);
         Assert.Equal(TimeSpan.FromHours(-3), manana.Inicio.Offset);
+        // El DTO ya no tiene objetivo ni %: un solo cálculo de eficiencia (etapa 5).
+        Assert.Null(typeof(EficienciaTurnoDto).GetProperty("Objetivo"));
+        Assert.Null(typeof(EficienciaTurnoDto).GetProperty("Porcentaje"));
+    }
+
+    [Fact]
+    public async Task TurnoSinMinutos_EsSinDatos_NoCero()
+    {
+        await CargarDatosAsync();
+
+        var tarde = (await EficienciaAsync()).Turnos.Single(t => t.TurnoCodigo == "T2");
+
+        Assert.True(tarde.SinDatos);
+        Assert.Equal(0, tarde.Contadas);
+        Assert.Equal(0, tarde.MinutosConDatos);
     }
 
     [Fact]
     public async Task TurnoDeNoche_SumaAntesYDespuesDeMedianoche_YNoElDelDiaAnterior()
     {
         await CargarDatosAsync();
-        await PonerObjetivoAsync(10m);
 
         var noche = (await EficienciaAsync()).Turnos.Single(t => t.TurnoCodigo == "T3");
 
         Assert.Equal(15, noche.Contadas);           // 7 + 8; las 100 de las 03:00 son del turno de noche anterior
         Assert.Equal(480, noche.MinutosProgramados);
-        Assert.Equal(80, noche.Objetivo);
-        Assert.Equal(18.8m, noche.Porcentaje);
         Assert.Equal(_fecha.AddDays(1), DateOnly.FromDateTime(noche.Fin.DateTime));
         Assert.Equal(new TimeSpan(6, 0, 0), noche.Fin.TimeOfDay);
 
@@ -148,10 +165,7 @@ public class EficienciaCamaraTests : CalidadTestBase
     [Fact]
     public async Task Microcortes_UsanElUmbralEfectivoEnSegundos()
     {
-        var punto = await Context.PuntosControlCalidad.SingleAsync(p => p.PuntoControlCalidadId == CamaraTango.PuntoControlCalidadId);
-        punto.SegundosUmbralDetencion = 100;   // 90 s sigue siendo microcorte; 4 y 6 min son largas
-        await Context.SaveChangesAsync();
-        Context.ChangeTracker.Clear();
+        await PonerUmbralAsync(100);   // 90 s sigue siendo microcorte; 4 y 6 min son largas
         await CargarDatosAsync();
 
         var camara = await EficienciaAsync();
@@ -160,7 +174,6 @@ public class EficienciaCamaraTests : CalidadTestBase
         Assert.Equal(1, manana.Microcortes);
         Assert.Equal(2, manana.ParadasLargas);
         Assert.Equal(100, camara.UmbralSegundos);
-        Assert.Equal(100, camara.SegundosUmbralDetencion);
         Assert.Equal("100 s", camara.UmbralTexto);
     }
 
@@ -169,10 +182,7 @@ public class EficienciaCamaraTests : CalidadTestBase
     public async Task CambiarElUmbralDespues_NoCambiaLaMarcaDeLasParadasYaRegistradas()
     {
         await CargarDatosAsync();                                    // umbral 5 min
-        var punto = await Context.PuntosControlCalidad.SingleAsync(p => p.PuntoControlCalidadId == CamaraTango.PuntoControlCalidadId);
-        punto.SegundosUmbralDetencion = 30;                          // modo prueba, después
-        await Context.SaveChangesAsync();
-        Context.ChangeTracker.Clear();
+        await PonerUmbralAsync(30);                                  // modo prueba, después
 
         var manana = (await EficienciaAsync()).Turnos.Single(t => t.TurnoCodigo == "T1");
         var guardadas = await Context.ParadasCamara.AsNoTracking().OrderBy(p => p.FechaHoraInicio).ToListAsync();
@@ -190,10 +200,7 @@ public class EficienciaCamaraTests : CalidadTestBase
         await Context.ParadasCamara.ExecuteUpdateAsync(u => u
             .SetProperty(p => p.UmbralSegundos, (int?)null)
             .SetProperty(p => p.SuperaUmbral, (bool?)null));
-        var punto = await Context.PuntosControlCalidad.SingleAsync(p => p.PuntoControlCalidadId == CamaraTango.PuntoControlCalidadId);
-        punto.SegundosUmbralDetencion = 100;
-        await Context.SaveChangesAsync();
-        Context.ChangeTracker.Clear();
+        await PonerUmbralAsync(100);
 
         var manana = (await EficienciaAsync()).Turnos.Single(t => t.TurnoCodigo == "T1");
 
@@ -250,22 +257,22 @@ public class EficienciaCamaraTests : CalidadTestBase
         Assert.False(p.SuperaUmbral);
     }
 
-    /// <summary>T-785: la cámara 8 cuenta bolsones; la eficiencia muestra mangas (10) y bolsones (8), cada una con su objetivo.</summary>
+    /// <summary>T-785: la cámara 8 cuenta bolsones; mangas (10) y bolsones (8) van por separado, cada una con su unidad.</summary>
     [Fact]
     public async Task MangasYBolsones_DosCamarasDeLaLineaCadaUnaConSuUnidad()
     {
-        await PonerObjetivoAsync(600);   // TEST-CAM-T2 = cámara 10, mangas
-        var alta = await Maestros.CrearPuntoControlAsync(new GuardarPuntoControlCalidadRequest
+        var alta = await Camaras.CrearAsync(new GuardarCamaraRequest
         {
-            LineaId = Tango2.LineaId, Codigo = "TEST-CAM-08", Nombre = "Cámara 8 bolsones", Activo = true,
-            NumeroCamara = 8, MetodoConteo = "bolsones", ObjetivoPorHora = 60
+            LineaId = Tango2.LineaId, Codigo = "test-cam-08", Nombre = "Cámara 8 bolsones", NumeroCanalGrabador = 8,
+            Funcion = "conteo", Magnitud = "bolsones", MetodoDeteccion = "pasos", CantidadCarriles = 1, Habilitada = true
         }, Admin, [Domain.Common.RolesSistema.Administrador]);
         Assert.True(alta.IsSuccess, alta.ErrorMessage);
-        Assert.Equal("BOLSONES", alta.Value!.MetodoConteo);
+        Assert.Equal("TEST-CAM-08", alta.Value!.Codigo);
+        Assert.Equal("BOLSONES", alta.Value.Magnitud);
 
         var r = await _conteo.IngestarAsync(new IngestaConteoCamaraRequest
         {
-            PuntoControl = "TEST-CAM-08",
+            Camara = "TEST-CAM-08",
             Minutos = [Minuto(_inicioDia.AddHours(10), 1), Minuto(_inicioDia.AddHours(10).AddMinutes(1), 2)]
         });
         Assert.True(r.IsSuccess, r.ErrorMessage);
@@ -277,111 +284,67 @@ public class EficienciaCamaraTests : CalidadTestBase
         var bolsones = camaras.Single(c => c.Codigo == "TEST-CAM-08");
         Assert.Equal("bolsones", bolsones.Unidad);
         Assert.Equal(3, bolsones.Turnos.Single(t => t.TurnoCodigo == "T1").Contadas);
-        Assert.Equal(480, bolsones.Turnos.Single(t => t.TurnoCodigo == "T1").Objetivo);   // 60/h x 8 h
         Assert.Equal("mangas", camaras.Single(c => c.Codigo == "TEST-CAM-T2").Unidad);
     }
 
     [Fact]
-    public async Task SinUmbralEnSegundos_LaEficienciaInformaLosMinutos()
+    public async Task SinUmbralCargado_Es5Minutos()
     {
         await CargarDatosAsync();
 
         var camara = await EficienciaAsync();
 
-        Assert.Null(camara.SegundosUmbralDetencion);
-        Assert.Equal(camara.MinutosUmbralDetencion * 60, camara.UmbralSegundos);
-        Assert.Equal($"{camara.MinutosUmbralDetencion} min", camara.UmbralTexto);
+        Assert.Equal(300, camara.UmbralSegundos);
+        Assert.Equal("5 min", camara.UmbralTexto);
     }
 
     [Fact]
-    public async Task SinObjetivo_NoDaCeroPorCiento()
+    public async Task DiaConExcepcionDeCeroHoras_TurnoNoProgramado()
     {
-        await CargarDatosAsync();
-
-        var camara = await EficienciaAsync();
-
-        Assert.Null(camara.ObjetivoPorHora);
-        Assert.All(camara.Turnos, t =>
-        {
-            Assert.Equal("SIN_OBJETIVO", t.Estado);
-            Assert.Null(t.Objetivo);
-            Assert.Null(t.Porcentaje);
-        });
-        Assert.Equal(20, camara.Turnos[0].Contadas);
-        Assert.Equal("mangas", camara.Unidad); // sin método: 1 carril = mangas
-    }
-
-    [Fact]
-    public async Task DiaConExcepcionDeCeroHoras_TurnoNoProgramado_SinDividirPorCero()
-    {
-        await CargarDatosAsync();
-        await PonerObjetivoAsync(10m);
+        // La excepción existe antes del primer dato: el turno de producción se crea con 0 minutos programados (snapshot).
         Context.Add(new TiempoProgramadoDia
         {
             LineaId = Tango2.LineaId, Fecha = _fecha, Horas = 0, Origen = "EXCEPCION", Motivo = "Parada de planta",
             CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin
         });
         await Context.SaveChangesAsync();
+        await CargarDatosAsync();
 
         var manana = (await EficienciaAsync()).Turnos[0];
 
-        Assert.Equal("NO_PROGRAMADO", manana.Estado);
-        Assert.Equal(0, manana.Objetivo);
-        Assert.Null(manana.Porcentaje);
+        Assert.Equal(0, manana.MinutosProgramados);
         Assert.Equal(20, manana.Contadas);
     }
 
     [Fact]
-    public async Task CamarasSinConteoNiObjetivo_NoAparecen()
+    public async Task SoloCamarasDeConteoConDatosOHabilitadas()
     {
         await CargarDatosAsync();
+        var futura = await Context.Camaras.SingleAsync(c => c.CamaraId == CamFutura.CamaraId);
+        futura.Habilitada = false;   // sin datos y deshabilitada: no aparece
+        Context.Add(new Camara
+        {
+            LineaId = Tango2.LineaId, Codigo = "TEST-CAM-CAL", Nombre = "Cámara de calidad", Funcion = FuncionCamara.Calidad,
+            Habilitada = true, CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin
+        });
+        await Context.SaveChangesAsync();
+        Context.ChangeTracker.Clear();
 
         var r = await _conteo.ObtenerEficienciaAsync(_fecha, null);
 
-        Assert.Equal([CamaraTango.PuntoControlCalidadId], r.Value!.Camaras.Select(c => c.PuntoControlCalidadId));
+        Assert.Equal([CamTango.CamaraId], r.Value!.Camaras.Select(c => c.CamaraId));
     }
 
     [Fact]
-    public async Task TurnoEnCurso_ObjetivoHastaAhora()
+    public async Task TurnoEnCurso_Momento()
     {
-        await PonerObjetivoAsync(10m);
         var ahora = _inicioDia.AddHours(10); // 10:00: van 4 de las 8 h de la mañana
 
         var r = await _conteo.ObtenerEficienciaAsync(_fecha, Tango2.LineaId, ahora);
         var turnos = r.Value!.Camaras.Single().Turnos;
 
         Assert.Equal("EN_CURSO", turnos[0].Momento);
-        Assert.Equal(40, turnos[0].ObjetivoHastaAhora);
         Assert.Equal("SIN_EMPEZAR", turnos[1].Momento);
-        Assert.Null(turnos[1].ObjetivoHastaAhora);
-    }
-
-    [Fact]
-    public async Task Maestros_GuardaObjetivoYMetodo_YRechazaObjetivoCero()
-    {
-        var request = new GuardarPuntoControlCalidadRequest
-        {
-            LineaId = Tango2.LineaId, Codigo = "TEST-CAM-T2", Nombre = "Cámara 10", ObjetivoPorHora = 1320.5m, MetodoConteo = "mangas"
-        };
-
-        var ok = await Maestros.ActualizarPuntoControlAsync(CamaraTango.PuntoControlCalidadId, request, Admin, ["ADMINISTRADOR"]);
-        Assert.True(ok.IsSuccess, ok.ErrorMessage);
-        Assert.Equal(1320.5m, ok.Value!.ObjetivoPorHora);
-        Assert.Equal("MANGAS", ok.Value.MetodoConteo);
-
-        request.ObjetivoPorHora = 0;
-        var cero = await Maestros.ActualizarPuntoControlAsync(CamaraTango.PuntoControlCalidadId, request, Admin, ["ADMINISTRADOR"]);
-        Assert.True(cero.IsFailure);
-
-        request.ObjetivoPorHora = null;
-        request.MetodoConteo = "OTRO";
-        var metodo = await Maestros.ActualizarPuntoControlAsync(CamaraTango.PuntoControlCalidadId, request, Admin, ["ADMINISTRADOR"]);
-        Assert.True(metodo.IsFailure);
-
-        request.MetodoConteo = "";
-        var vacio = await Maestros.ActualizarPuntoControlAsync(CamaraTango.PuntoControlCalidadId, request, Admin, ["ADMINISTRADOR"]);
-        Assert.True(vacio.IsSuccess, vacio.ErrorMessage);
-        Assert.Null(vacio.Value!.ObjetivoPorHora);
-        Assert.Null(vacio.Value.MetodoConteo);
+        Assert.All(turnos, t => Assert.True(t.SinDatos));
     }
 }
