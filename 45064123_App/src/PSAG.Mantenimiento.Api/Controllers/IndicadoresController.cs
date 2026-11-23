@@ -1,3 +1,5 @@
+using PSAG.Mantenimiento.Api.Autorizacion;
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PSAG.Mantenimiento.Application.DTOs.Produccion;
@@ -23,6 +25,7 @@ public class IndicadoresController : ApiControllerBase
     [HttpGet("turno/{turnoProduccionId:long}")]
     [ProducesResponseType(typeof(IndicadoresTurnoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(AccionPermiso.Ver, Opciones.ProduccionPresupuestoReal, Opciones.ProduccionTurnos, Opciones.ProduccionOperacionTurno)]
     public async Task<IActionResult> GetTurno(long turnoProduccionId)
     {
         var resultado = await _servicio.ObtenerTurnoAsync(turnoProduccionId);
@@ -36,6 +39,7 @@ public class IndicadoresController : ApiControllerBase
     [HttpGet("produccion")]
     [ProducesResponseType(typeof(PresupuestoRealDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.ProduccionPresupuestoReal, AccionPermiso.Ver)]
     public async Task<IActionResult> GetProduccion(
         [FromQuery] DateOnly desde, [FromQuery] DateOnly hasta, [FromQuery] int? lineaId, [FromQuery] int? productoMaestroId,
         [FromQuery] string? agrupar)

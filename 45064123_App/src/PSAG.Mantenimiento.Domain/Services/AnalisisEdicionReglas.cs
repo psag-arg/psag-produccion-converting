@@ -24,10 +24,19 @@ public static class AnalisisEdicionReglas
     public static bool PuedeAdjuntar(Detencion detencion, string usuarioId, IEnumerable<string> roles)
     {
         var rolesUsuario = roles.ToList();
-        if (AnalisisFallaReglas.EstaAbierto(detencion))
-            return AnalisisFallaReglas.PuedeEditar(detencion, usuarioId, rolesUsuario);
+        return PuedeAdjuntar(detencion, usuarioId, rolesUsuario, PuedeEditarCerrado(rolesUsuario));
+    }
 
-        return detencion.EstadoActual == EstadoDetencion.CERRADA && PuedeEditarCerrado(rolesUsuario);
+    /// <summary>
+    /// Igual, con el permiso configurable "Corregir análisis cerrado" ya resuelto (T-802). Quién completa un análisis
+    /// abierto sigue siendo regla de negocio (responsable por rol / usuario), no permiso de menú.
+    /// </summary>
+    public static bool PuedeAdjuntar(Detencion detencion, string usuarioId, IEnumerable<string> roles, bool puedeEditarCerrado)
+    {
+        if (AnalisisFallaReglas.EstaAbierto(detencion))
+            return AnalisisFallaReglas.PuedeEditar(detencion, usuarioId, roles.ToList());
+
+        return detencion.EstadoActual == EstadoDetencion.CERRADA && puedeEditarCerrado;
     }
 
     /// <summary>

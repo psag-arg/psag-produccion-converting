@@ -1,3 +1,4 @@
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.Extensions.Logging;
 using PSAG.Mantenimiento.Application.Common;
 using PSAG.Mantenimiento.Application.DTOs.Produccion;
@@ -37,11 +38,23 @@ public class TurnoProduccionService : ITurnoProduccionService
     private readonly ILogger<TurnoProduccionService> _logger;
     private readonly Func<DateTimeOffset> _ahora;
 
+    /// <summary>Permisos configurables del usuario de la request (T-802); null fuera de una request (tests, jobs): regla por rol.</summary>
+    private IPermisosUsuarioActual? _permisos;
+
     public TurnoProduccionService(IUnitOfWork unitOfWork, TimeZoneInfo zonaPlanta, TurnosProduccionOpciones opciones,
-        ILogger<TurnoProduccionService> logger)
+        ILogger<TurnoProduccionService> logger, IPermisosUsuarioActual? permisos = null)
         : this(unitOfWork, zonaPlanta, opciones, logger, () => DateTimeOffset.UtcNow)
     {
+        _permisos = permisos;
     }
+
+    /// <summary>
+    /// T-793 / T-802: "quién corrige un turno" es el permiso MODIFICACION de "Turnos de producción". El alcance por línea
+    /// sigue en <see cref="TurnoProduccionReglas.PuedeCorregir(bool, IEnumerable{string}, IReadOnlyCollection{int}, int)"/>.
+    /// </summary>
+    private Task<bool> PermisoCorregirAsync(IReadOnlyCollection<string> roles, CancellationToken cancellationToken) =>
+        _permisos.PermiteAsync(Opciones.ProduccionTurnos, AccionPermiso.Modificar,
+            () => TurnoProduccionReglas.TienePermisoCorregirPorRol(roles), cancellationToken);
 
     /// <summary>Con reloj inyectable, para los tests.</summary>
     public TurnoProduccionService(IUnitOfWork unitOfWork, TimeZoneInfo zonaPlanta, TurnosProduccionOpciones opciones,
@@ -127,7 +140,7 @@ public class TurnoProduccionService : ITurnoProduccionService
                 return Result<AperturaTurnoProduccionDto>.Failure("FORBIDDEN",
                     $"No estás habilitado en {linea.Nombre}: no podés tomar su turno. Pedile al administrador que te habilite.");
         }
-        else if (!TurnoProduccionReglas.PuedeCorregir(roles, lineasAsignadas, lineaId))
+        else if (!TurnoProduccionReglas.PuedeCorregir(await PermisoCorregirAsync(roles, cancellationToken), roles, lineasAsignadas, lineaId))
         {
             return Result<AperturaTurnoProduccionDto>.Failure("FORBIDDEN", $"No podés abrir el turno de {linea.Nombre}.");
         }
@@ -294,7 +307,7 @@ public class TurnoProduccionService : ITurnoProduccionService
         var tp = await _unitOfWork.TurnosProduccion.GetConDetalleAsync(turnoProduccionId, cancellationToken);
         if (tp == null)
             return NoEncontrado();
-        if (!TurnoProduccionReglas.PuedeOperar(roles, lineasAsignadas, tp.LineaId))
+        if (!TurnoProduccionReglas.PuedeOperar(await PermisoCorregirAsync(roles, cancellationToken), roles, lineasAsignadas, tp.LineaId))
             return Result<TurnoProduccionDto>.Failure("FORBIDDEN", $"No podés operar el turno de {tp.Linea.Nombre}.");
         if (!tp.EstaAbierto)
             return Result<TurnoProduccionDto>.Failure("VALIDATION",
@@ -367,7 +380,7 @@ public class TurnoProduccionService : ITurnoProduccionService
         var tp = await _unitOfWork.TurnosProduccion.GetConDetalleAsync(turnoProduccionId, cancellationToken);
         if (tp == null)
             return NoEncontrado();
-        if (!TurnoProduccionReglas.PuedeOperar(roles, lineasAsignadas, tp.LineaId))
+        if (!TurnoProduccionReglas.PuedeOperar(await PermisoCorregirAsync(roles, cancellationToken), roles, lineasAsignadas, tp.LineaId))
             return Result<TurnoProduccionDto>.Failure("FORBIDDEN", $"No podés cerrar el turno de {tp.Linea.Nombre}.");
         if (!tp.EstaAbierto)
             return Result<TurnoProduccionDto>.Failure("VALIDATION", "El turno no está abierto.");
@@ -392,7 +405,7 @@ public class TurnoProduccionService : ITurnoProduccionService
         var tp = await _unitOfWork.TurnosProduccion.GetConDetalleAsync(turnoProduccionId, cancellationToken);
         if (tp == null)
             return NoEncontrado();
-        if (!TurnoProduccionReglas.PuedeCorregir(roles, lineasAsignadas, tp.LineaId))
+        if (!TurnoProduccionReglas.PuedeCorregir(await PermisoCorregirAsync(roles, cancellationToken), roles, lineasAsignadas, tp.LineaId))
             return Result<TurnoProduccionDto>.Failure("FORBIDDEN", $"No podés corregir el turno de {tp.Linea.Nombre}.");
         if (string.IsNullOrWhiteSpace(request.OperadorUsuarioId)
             || await _unitOfWork.OperadoresLinea.GetByUsuarioYLineaAsync(request.OperadorUsuarioId, tp.LineaId, cancellationToken) == null)
@@ -459,7 +472,7 @@ public class TurnoProduccionService : ITurnoProduccionService
         var tp = await _unitOfWork.TurnosProduccion.GetConDetalleAsync(turnoProduccionId, cancellationToken);
         if (tp == null)
             return NoEncontrado();
-        if (!TurnoProduccionReglas.PuedeCorregir(roles, lineasAsignadas, tp.LineaId))
+        if (!TurnoProduccionReglas.PuedeCorregir(await PermisoCorregirAsync(roles, cancellationToken), roles, lineasAsignadas, tp.LineaId))
             return Result<TurnoProduccionDto>.Failure("FORBIDDEN", $"No podés corregir el turno de {tp.Linea.Nombre}.");
 
         var parametro = await ParametroHabilitadoAsync(tp.LineaId, request.ProductoMaestroId, tp.FechaProduccion, cancellationToken);
@@ -530,7 +543,7 @@ public class TurnoProduccionService : ITurnoProduccionService
         var tp = await _unitOfWork.TurnosProduccion.GetConDetalleAsync(turnoProduccionId, cancellationToken);
         if (tp == null)
             return Result<ProduccionTurnoDto>.Failure("NOT_FOUND", "El turno de producción no existe.");
-        if (!TurnoProduccionReglas.PuedeCorregir(roles, lineasAsignadas, tp.LineaId))
+        if (!TurnoProduccionReglas.PuedeCorregir(await PermisoCorregirAsync(roles, cancellationToken), roles, lineasAsignadas, tp.LineaId))
             return Result<ProduccionTurnoDto>.Failure("FORBIDDEN", $"No podés registrar la producción del turno de {tp.Linea.Nombre}.");
 
         var magnitud = request.Magnitud?.Trim().ToUpperInvariant() ?? string.Empty;
@@ -768,8 +781,11 @@ public class TurnoProduccionService : ITurnoProduccionService
         CancellationToken cancellationToken = default)
     {
         var ahora = _ahora();
+        // Líneas del listado: quien ve "Turnos de producción" (T-802), con el mismo alcance por línea que la corrección.
+        var permisoVer = await _permisos.PermiteAsync(Opciones.ProduccionTurnos, AccionPermiso.Ver,
+            () => TurnoProduccionReglas.TienePermisoCorregirPorRol(roles), cancellationToken);
         var lineas = (await _unitOfWork.Lineas.GetActivasAsync(cancellationToken))
-            .Where(l => (lineaId == null || l.LineaId == lineaId) && TurnoProduccionReglas.PuedeCorregir(roles, lineasAsignadas, l.LineaId))
+            .Where(l => (lineaId == null || l.LineaId == lineaId) && TurnoProduccionReglas.PuedeCorregir(permisoVer, roles, lineasAsignadas, l.LineaId))
             .OrderBy(l => l.Orden).ThenBy(l => l.Nombre)
             .ToList();
         var turnos = (await _unitOfWork.Turnos.GetActivosAsync(cancellationToken)).OrderBy(t => t.Orden).ThenBy(t => t.HoraInicio).ToList();

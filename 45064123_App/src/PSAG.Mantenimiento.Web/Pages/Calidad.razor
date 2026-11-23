@@ -8,6 +8,7 @@
 @inject ICalidadService CalidadService
 @inject ICatalogosService CatalogosService
 @inject AuthenticationStateProvider AuthStateProvider
+@inject IPermisosService PermisosService
 
 <PageTitle>Calidad - PSAG Produccion</PageTitle>
 
@@ -499,9 +500,10 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var user = (await AuthStateProvider.GetAuthenticationStateAsync()).User;
-        puedeRevisar = CalidadOpciones.PuedeRevisar(user.IsInRole);
-        puedeCargarManual = CalidadOpciones.PuedeCargarManual(user.IsInRole);
+        // T-802: revisar = MODIFICACION y carga manual = ALTA de "Registro de defectos"
+        var permisos = await PermisosService.ObtenerAsync();
+        puedeRevisar = permisos.Tiene(Opciones.CalidadRegistro, AccionPermiso.Modificar);
+        puedeCargarManual = permisos.Tiene(Opciones.CalidadRegistro, AccionPermiso.Alta);
 
         // Por defecto, los últimos 7 días.
         fechaHasta = DateTime.Today;

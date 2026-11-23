@@ -163,10 +163,8 @@ public class CalidadIngestaTests : CalidadTestBase
     [InlineData(nameof(CalidadController.CrearManual), "Carga")]
     public void Controller_RolesDeCadaAccion_CoincidenConLasReglas(string accion, string tipo)
     {
-        var atributo = typeof(CalidadController).GetMethod(accion)!
-            .GetCustomAttributes<AuthorizeAttribute>()
-            .Single(a => a.Roles != null);
-        var roles = atributo.Roles!.Split(',').OrderBy(r => r);
+        // T-802: el atributo es [Permiso(opción, acción)] y los roles salen de la matriz migrada.
+        var roles = MatrizMigrada.RolesConPermiso(typeof(CalidadController).GetMethod(accion)!).OrderBy(r => r);
         var esperados = (tipo == "Carga" ? CalidadReglas.RolesCargaManual : CalidadReglas.RolesRevision).OrderBy(r => r);
 
         Assert.Equal(esperados, roles);

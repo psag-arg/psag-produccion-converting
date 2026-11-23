@@ -6,6 +6,7 @@
 @inject IIndicadoresService IndicadoresService
 @inject IConteoCamaraService ConteoCamaraService
 @inject ICatalogosService CatalogosService
+@inject IPermisosService PermisosService
 
 <PageTitle>Presupuesto vs. real - PSAG Produccion</PageTitle>
 
@@ -127,9 +128,10 @@
                                         @if (f.IncluyeAbiertos) { <span class="badge bg-primary ms-1">En curso</span> }
                                         @if (f.TurnoProduccionId is { } tid && f.FechaProduccion is { } fp)
                                         {
-                                            <AuthorizeView Roles="ADMINISTRADOR,MANTENIMIENTO,SUPERVISOR" Context="sup">
+                                            @if (veTurnos)
+                                            {
                                                 <a class="small ms-1" href="@($"produccion/turnos?fecha={fp:yyyy-MM-dd}&turno={tid}")" title="Ver el turno, validar o corregir la producción">detalle</a>
-                                            </AuthorizeView>
+                                            }
                                         }
                                     }
                                 </td>
@@ -173,8 +175,11 @@
     private bool cargando = true;
     private string? error;
 
+    private bool veTurnos;   // T-802: VER de "Turnos de producción"
+
     protected override async Task OnInitializedAsync()
     {
+        veTurnos = (await PermisosService.ObtenerAsync()).Ve(Opciones.ProduccionTurnos);
         lineaId = LineaIdQuery ?? 0;
         try
         {

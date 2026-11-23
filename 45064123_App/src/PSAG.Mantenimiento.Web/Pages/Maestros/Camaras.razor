@@ -2,7 +2,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
-@attribute [Authorize(Roles = "ADMINISTRADOR")]
+@attribute [Authorize]
 @inject ICamarasService CamarasService
 @inject ICatalogosService CatalogosService
 
@@ -31,7 +31,9 @@
             <strong>Cámaras</strong>
             <div class="d-flex gap-2">
                 <button class="btn btn-outline-secondary btn-sm" @onclick="@(async () => await Cargar())" title="Actualizar el último dato"><i class="bi bi-arrow-clockwise"></i></button>
+                <SiPermiso Opcion="@Opciones.MaestrosCamaras" Accion="AccionPermiso.Alta">
                 <button class="btn btn-primary btn-sm" @onclick="Nueva"><i class="bi bi-plus-circle me-1"></i>Nueva cámara</button>
+                </SiPermiso>
             </div>
         </div>
         <div class="card-body p-0 table-responsive">
@@ -96,10 +98,14 @@
                                     }
                                 </td>
                                 <td class="text-end text-nowrap">
+                                    <SiPermiso Opcion="@Opciones.MaestrosCamaras" Accion="AccionPermiso.Modificar">
                                     <button class="btn btn-sm btn-outline-primary" title="Editar" @onclick="() => Editar(c)"><i class="bi bi-pencil"></i></button>
+                                    </SiPermiso>
                                     @if (c.Activo)
                                     {
+                                        <SiPermiso Opcion="@Opciones.MaestrosCamaras" Accion="AccionPermiso.Baja">
                                         <button class="btn btn-sm btn-outline-danger ms-1" title="Desactivar" disabled="@guardando" @onclick="@(async () => await Desactivar(c))"><i class="bi bi-slash-circle"></i></button>
+                                        </SiPermiso>
                                     }
                                 </td>
                             </tr>

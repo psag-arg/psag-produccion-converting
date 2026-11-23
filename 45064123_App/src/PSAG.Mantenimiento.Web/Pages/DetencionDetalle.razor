@@ -11,6 +11,7 @@
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IJSRuntime JS
+@inject IPermisosService PermisosService
 
 <PageTitle>Detención @(detencion?.Codigo ?? "") - PSAG Produccion</PageTitle>
 
@@ -596,6 +597,7 @@
     private bool puedeCerrarDetencion;
     private bool puedeEditar;
     private bool esAdministrador;
+    private PermisosUsuario permisos = PermisosUsuario.Ninguno;
     private ClaimsPrincipal? usuario;
 
     private bool AnalisisCerrado => detencion?.EstadoActual == "CERRADA";
@@ -628,8 +630,9 @@
     {
         usuario = (await AuthStateProvider.GetAuthenticationStateAsync()).User;
         esAdministrador = usuario.IsInRole("ADMINISTRADOR");
-        // Misma política que la API (CanCloseDetenciones).
-        puedeCerrarDetencion = esAdministrador || usuario.IsInRole("MANTENIMIENTO");
+        // T-802: seguimiento y cierre es un permiso configurable (MODIFICACION de "Seguimiento y cierre de detenciones").
+        permisos = await PermisosService.ObtenerAsync();
+        puedeCerrarDetencion = permisos.Tiene(Opciones.DetencionesSeguimiento, AccionPermiso.Modificar);
         await CargarDetencion();
     }
 
@@ -802,7 +805,7 @@
         var lineas = RolesCarga.SoloOperario(usuario.IsInRole)
             ? (await CatalogosService.GetMisAsignacionesAsync()).Select(a => a.LineaId)
             : [];
-        return RolesCarga.PuedeEditar(det, usuario.IsInRole, lineas);
+        return RolesCarga.PuedeEditar(det, permisos.Tiene(Opciones.DetencionesListado, AccionPermiso.Modificar), RolesCarga.SoloOperario(usuario.IsInRole), lineas);
     }
 
     private void EditarDetencion() => Navigation.NavigateTo($"/detenciones?editar={Id}");

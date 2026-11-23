@@ -9,6 +9,7 @@
 @inject ICatalogosService CatalogosService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
+@inject IPermisosService PermisosService
 
 <PageTitle>Tareas de mantenimiento - PSAG Produccion</PageTitle>
 
@@ -404,8 +405,10 @@
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
-        puedeCargar = TareaMantenimientoOpciones.PuedeCargar(user.IsInRole);
-        puedeGestionar = TareaMantenimientoOpciones.PuedeGestionar(user.IsInRole);
+        // T-802: cargar = ALTA y programar/cerrar = MODIFICACION de "Pendientes y programadas"
+        var permisos = await PermisosService.ObtenerAsync();
+        puedeCargar = permisos.Tiene(Opciones.TareasPendientes, AccionPermiso.Alta);
+        puedeGestionar = permisos.Tiene(Opciones.TareasPendientes, AccionPermiso.Modificar);
         var esSoloOperario = RolesCarga.SoloOperario(user.IsInRole);
 
         // Catálogos y tareas no dependen entre sí: se piden juntos.

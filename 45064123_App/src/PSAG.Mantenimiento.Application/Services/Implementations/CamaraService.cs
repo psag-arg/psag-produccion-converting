@@ -1,3 +1,4 @@
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.Extensions.Logging;
 using PSAG.Mantenimiento.Application.Common;
 using PSAG.Mantenimiento.Application.DTOs.Camaras;
@@ -20,9 +21,13 @@ public class CamaraService : ICamaraService
     private readonly ILogger<CamaraService> _logger;
     private readonly Func<DateTimeOffset> _ahora;
 
-    public CamaraService(IUnitOfWork unitOfWork, TimeZoneInfo zonaPlanta, ILogger<CamaraService> logger)
+    /// <summary>Permisos configurables del usuario de la request (T-802); null fuera de una request (tests, jobs): regla por rol.</summary>
+    private readonly IPermisosUsuarioActual? _permisos;
+
+    public CamaraService(IUnitOfWork unitOfWork, TimeZoneInfo zonaPlanta, ILogger<CamaraService> logger, IPermisosUsuarioActual? permisos = null)
         : this(unitOfWork, zonaPlanta, logger, () => DateTimeOffset.UtcNow)
     {
+        _permisos = permisos;
     }
 
     /// <summary>Con reloj inyectable, para los tests.</summary>
@@ -51,7 +56,7 @@ public class CamaraService : ICamaraService
     public async Task<Result<CamaraDto>> CrearAsync(
         GuardarCamaraRequest request, string usuarioId, IReadOnlyCollection<string> roles, CancellationToken cancellationToken = default)
     {
-        if (!CalidadReglas.PuedeAdministrarMaestros(roles))
+        if (!await _permisos.PermiteAsync(Opciones.MaestrosCamaras, AccionPermiso.Alta, () => CalidadReglas.PuedeAdministrarMaestros(roles), cancellationToken))
             return Result<CamaraDto>.Failure("FORBIDDEN", CalidadReglas.MensajeSinPermisoMaestros);
 
         var camara = new Camara { CreadoPorUsuarioId = usuarioId };
@@ -69,7 +74,7 @@ public class CamaraService : ICamaraService
     public async Task<Result<CamaraDto>> ActualizarAsync(
         int camaraId, GuardarCamaraRequest request, string usuarioId, IReadOnlyCollection<string> roles, CancellationToken cancellationToken = default)
     {
-        if (!CalidadReglas.PuedeAdministrarMaestros(roles))
+        if (!await _permisos.PermiteAsync(Opciones.MaestrosCamaras, AccionPermiso.Modificar, () => CalidadReglas.PuedeAdministrarMaestros(roles), cancellationToken))
             return Result<CamaraDto>.Failure("FORBIDDEN", CalidadReglas.MensajeSinPermisoMaestros);
 
         var camara = await _unitOfWork.Camaras.GetByIdAsync(camaraId, cancellationToken);
@@ -94,7 +99,7 @@ public class CamaraService : ICamaraService
     public async Task<Result<CamaraDto>> DesactivarAsync(
         int camaraId, string usuarioId, IReadOnlyCollection<string> roles, CancellationToken cancellationToken = default)
     {
-        if (!CalidadReglas.PuedeAdministrarMaestros(roles))
+        if (!await _permisos.PermiteAsync(Opciones.MaestrosCamaras, AccionPermiso.Baja, () => CalidadReglas.PuedeAdministrarMaestros(roles), cancellationToken))
             return Result<CamaraDto>.Failure("FORBIDDEN", CalidadReglas.MensajeSinPermisoMaestros);
 
         var camara = await _unitOfWork.Camaras.GetByIdAsync(camaraId, cancellationToken);

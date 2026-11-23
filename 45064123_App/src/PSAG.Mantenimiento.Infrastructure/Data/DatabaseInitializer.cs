@@ -63,6 +63,8 @@ public static class DatabaseInitializer
             await SeedRolesAsync(roleManager, logger);
             await SeedAdminUserAsync(userManager, roleManager, logger);
             await SeedCatalogsAsync(context, logger);
+            // Roles y permisos configurables (T-802): catálogo de opciones y matriz migrada (en SQL Server también la carga el script 39).
+            await SemillaPermisos.SembrarAsync(context);
 
             logger.LogInformation("Inicializacion de base de datos completada.");
         }

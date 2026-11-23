@@ -2,7 +2,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
-@attribute [Authorize(Roles = "ADMINISTRADOR")]
+@attribute [Authorize]
 @inject ICatalogosService CatalogosService
 @inject IUsuariosService UsuariosService
 @inject IJSRuntime JS
@@ -27,9 +27,11 @@
                     </ItemTemplate>
                 </AutocompleteSelect>
             </div>
+            <SiPermiso Opcion="@Opciones.ConfigMaquinistas" Accion="AccionPermiso.Alta">
             <button class="btn btn-primary" @onclick="NuevoMaquinista">
                 <i class="bi bi-plus-circle me-2"></i>Nuevo Maquinista
             </button>
+            </SiPermiso>
         </div>
     </div>
 

@@ -2,7 +2,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
-@attribute [Authorize(Roles = "ADMINISTRADOR,SUPERVISOR")]
+@attribute [Authorize]
 @inject ICalendarioLineaService CalendarioService
 @inject ICatalogosService CatalogosService
 @inject IJSRuntime JS

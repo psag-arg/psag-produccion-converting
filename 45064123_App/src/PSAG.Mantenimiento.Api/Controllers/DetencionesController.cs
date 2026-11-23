@@ -1,3 +1,5 @@
+using PSAG.Mantenimiento.Api.Autorizacion;
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -53,6 +55,7 @@ public class DetencionesController : ApiControllerBase
     /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<DetencionDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.DetencionesListado, AccionPermiso.Ver)]
     public async Task<IActionResult> GetDetenciones([FromQuery] DetencionFiltroRequest filtro)
     {
         var (detenciones, total) = await BuscarDetencionesAsync(filtro, filtro.Page, filtro.PageSize);
@@ -109,6 +112,7 @@ public class DetencionesController : ApiControllerBase
     [HttpGet("{id:long}")]
     [ProducesResponseType(typeof(DetencionDetalleDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.DetencionesListado, AccionPermiso.Ver)]
     public async Task<IActionResult> GetDetencion(long id)
     {
         var detencion = await _unitOfWork.Detenciones.GetByIdWithDetailsAsync(id);
@@ -197,9 +201,9 @@ public class DetencionesController : ApiControllerBase
     /// Crear una nueva detención.
     /// </summary>
     [HttpPost]
-    [Authorize(Policy = "CanCreateDetenciones")]
     [ProducesResponseType(typeof(CrearDetencionResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.DetencionesListado, AccionPermiso.Alta)]
     public async Task<IActionResult> CreateDetencion([FromBody] CrearDetencionRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -334,10 +338,10 @@ public class DetencionesController : ApiControllerBase
     /// Cerrar una detención (opcional).
     /// </summary>
     [HttpPost("{id:long}/cerrar")]
-    [Authorize(Policy = "CanCloseDetenciones")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.DetencionesSeguimiento, AccionPermiso.Modificar)]
     public async Task<IActionResult> CerrarDetencion(long id, [FromBody] CerrarDetencionRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -415,6 +419,7 @@ public class DetencionesController : ApiControllerBase
     [HttpPost("{id:long}/notas")]
     [ProducesResponseType(typeof(DetencionNotaDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.DetencionesNotas, AccionPermiso.Alta)]
     public async Task<IActionResult> AgregarNota(long id, [FromBody] AgregarNotaDetencionRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -463,6 +468,7 @@ public class DetencionesController : ApiControllerBase
     /// </summary>
     [HttpGet("abiertas")]
     [ProducesResponseType(typeof(IEnumerable<DetencionListaDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.DetencionesListado, AccionPermiso.Ver)]
     public async Task<IActionResult> GetDetencionesAbiertas([FromQuery] int? lineaId = null)
     {
         var detenciones = await _unitOfWork.Detenciones.GetDetencionesAbiertasAsync();
@@ -493,11 +499,11 @@ public class DetencionesController : ApiControllerBase
     /// Actualizar una detención existente.
     /// </summary>
     [HttpPut("{id:long}")]
-    [Authorize(Policy = "CanCreateDetenciones")]
     [ProducesResponseType(typeof(DetencionDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [Permiso(Opciones.DetencionesListado, AccionPermiso.Modificar)]
     public async Task<IActionResult> UpdateDetencion(long id, [FromBody] ActualizarDetencionRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -682,11 +688,11 @@ public class DetencionesController : ApiControllerBase
     /// Estado: REGISTRADA → EN_SEGUIMIENTO.
     /// </summary>
     [HttpPost("{id:long}/iniciar-seguimiento")]
-    [Authorize(Policy = "CanCloseDetenciones")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [Permiso(Opciones.DetencionesSeguimiento, AccionPermiso.Modificar)]
     public async Task<IActionResult> IniciarSeguimiento(long id, [FromBody] IniciarSeguimientoRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -747,6 +753,7 @@ public class DetencionesController : ApiControllerBase
     /// </summary>
     [HttpGet("resumen-turno")]
     [ProducesResponseType(typeof(ResumenTurnoResponse), StatusCodes.Status200OK)]
+    [Permiso(Opciones.DetencionesListado, AccionPermiso.Ver)]
     public async Task<IActionResult> GetResumenTurno([FromQuery] int? lineaId = null)
     {
         // T-798 etapa 3: el acumulado es del TURNO DE PRODUCCIÓN (el abierto de la línea o el de la hora actual), no de
@@ -829,6 +836,7 @@ public class DetencionesController : ApiControllerBase
     /// </summary>
     [HttpGet("export/xlsx")]
     [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
+    [Permiso(Opciones.DetencionesListado, AccionPermiso.Ver)]
     public async Task<IActionResult> ExportarXlsx([FromQuery] DetencionFiltroRequest filtro)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -851,8 +859,8 @@ public class DetencionesController : ApiControllerBase
     /// Indica si una detención con estos datos va a requerir análisis. No guarda nada.
     /// </summary>
     [HttpPost("previsualizar-analisis")]
-    [Authorize(Policy = "CanCreateDetenciones")]
     [ProducesResponseType(typeof(PrevisualizacionAnalisisResponse), StatusCodes.Status200OK)]
+    [Permiso(Opciones.DetencionesListado, AccionPermiso.Alta)]
     public async Task<IActionResult> PrevisualizarAnalisis([FromBody] CrearDetencionRequest request)
     {
         var tiempo = TiempoDetencionCalculador.Calcular(TiempoDeSolicitud(request), _zonaPlanta);
@@ -873,10 +881,10 @@ public class DetencionesController : ApiControllerBase
     /// Eliminar una detención (borrado lógico). Sólo administrador. Requiere motivo.
     /// </summary>
     [HttpPost("{id:long}/eliminar")]
-    [Authorize(Policy = "RequireAdministrador")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.DetencionesListado, AccionPermiso.Baja)]
     public async Task<IActionResult> EliminarDetencion(long id, [FromBody] EliminarDetencionRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -928,10 +936,10 @@ public class DetencionesController : ApiControllerBase
     /// Restaurar una detención eliminada. Sólo administrador.
     /// </summary>
     [HttpPost("{id:long}/restaurar")]
-    [Authorize(Policy = "RequireAdministrador")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.DetencionesListado, AccionPermiso.Baja)]
     public async Task<IActionResult> RestaurarDetencion(long id)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -983,6 +991,7 @@ public class DetencionesController : ApiControllerBase
     /// </summary>
     [HttpGet("export/csv")]
     [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
+    [Permiso(Opciones.DetencionesListado, AccionPermiso.Ver)]
     public async Task<IActionResult> ExportarCsv([FromQuery] DetencionFiltroRequest filtro)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -1025,9 +1034,9 @@ public class DetencionesController : ApiControllerBase
     /// para avisar antes de guardar. No bloquea: quien declara decide.
     /// </summary>
     [HttpGet("superpuestas")]
-    [Authorize(Policy = "CanCreateDetenciones")]
     [ProducesResponseType(typeof(List<DetencionSuperpuestaDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.DetencionesListado, AccionPermiso.Alta)]
     public async Task<IActionResult> GetSuperpuestas([FromQuery] int lineaId, [FromQuery] DateOnly fecha, [FromQuery] TimeOnly horaInicio, [FromQuery] TimeOnly horaFin)
     {
         if (CalcularTiempoManual(fecha, horaInicio, horaFin) is not { } tiempo)
@@ -1053,7 +1062,7 @@ public class DetencionesController : ApiControllerBase
         return Ok(superpuestas);
     }
 
-    private Task<(IEnumerable<Detencion> Items, int TotalCount)> BuscarDetencionesAsync(
+    private async Task<(IEnumerable<Detencion> Items, int TotalCount)> BuscarDetencionesAsync(
         DetencionFiltroRequest filtro,
         int page,
         int pageSize)
@@ -1064,14 +1073,16 @@ public class DetencionesController : ApiControllerBase
             estadoFiltro = estado;
         }
 
-        // Sólo el administrador ve las eliminadas; para el resto el filtro global de EF las oculta.
-        var verEliminadas = filtro.VerEliminadas && User.IsInRole("ADMINISTRADOR");
+        // Ve las eliminadas quien puede eliminarlas (BAJA de "Ver detenciones"; antes, sólo el administrador);
+        // para el resto el filtro global de EF las oculta.
+        var verEliminadas = filtro.VerEliminadas
+            && await TienePermisoAsync(Opciones.DetencionesListado, AccionPermiso.Baja, () => User.IsInRole(Domain.Common.RolesSistema.Administrador));
 
         OrigenRegistroDetencion? origen = Enum.TryParse<OrigenRegistroDetencion>(filtro.OrigenRegistro, true, out var o) && Enum.IsDefined(o)
             ? o
             : null;
 
-        return _unitOfWork.Detenciones.GetPaginadoAsync(
+        return await _unitOfWork.Detenciones.GetPaginadoAsync(
             page,
             pageSize,
             lineaId: filtro.LineaId,

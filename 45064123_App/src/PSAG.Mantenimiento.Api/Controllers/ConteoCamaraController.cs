@@ -1,3 +1,5 @@
+using PSAG.Mantenimiento.Api.Autorizacion;
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PSAG.Mantenimiento.Application.Common;
@@ -26,6 +28,7 @@ public class ConteoCamaraController : ApiControllerBase
     [HttpGet("paradas")]
     [ProducesResponseType(typeof(ParadasCamaraResultado), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(AccionPermiso.Ver, Opciones.CalidadParadasCamara, Opciones.ProduccionTurnos, Opciones.ProduccionPresupuestoReal, Opciones.DetencionesListado)]
     public async Task<IActionResult> GetParadas([FromQuery] ParadasCamaraFiltroRequest filtro)
     {
         var resultado = await _servicio.ObtenerParadasAsync(filtro);
@@ -35,6 +38,7 @@ public class ConteoCamaraController : ApiControllerBase
     /// <summary>Cantidad por hora, carril y turno de producción de un día de planta (en la magnitud de cada cámara).</summary>
     [HttpGet("produccion")]
     [ProducesResponseType(typeof(ProduccionCamaraDto), StatusCodes.Status200OK)]
+    [Permiso(AccionPermiso.Ver, Opciones.CalidadParadasCamara, Opciones.ProduccionTurnos, Opciones.ProduccionPresupuestoReal, Opciones.DetencionesListado)]
     public async Task<IActionResult> GetProduccion([FromQuery] DateOnly fecha, [FromQuery] int? lineaId, [FromQuery] int? camaraId)
     {
         var resultado = await _servicio.ObtenerProduccionAsync(fecha, lineaId, camaraId);
@@ -44,6 +48,7 @@ public class ConteoCamaraController : ApiControllerBase
     /// <summary>Alertas de cámara (congelada, sin video, sin datos, sin configuración): abiertas y las cerradas en las últimas <c>horas</c> (24 por defecto).</summary>
     [HttpGet("alertas")]
     [ProducesResponseType(typeof(IReadOnlyList<AlertaCamaraDto>), StatusCodes.Status200OK)]
+    [Permiso(AccionPermiso.Ver, Opciones.CalidadParadasCamara, Opciones.ProduccionTurnos, Opciones.ProduccionPresupuestoReal, Opciones.DetencionesListado)]
     public async Task<IActionResult> GetAlertas([FromQuery] int? lineaId, [FromQuery] int horas = 24) =>
         Ok(await _servicio.ObtenerAlertasAsync(lineaId, horas));
 

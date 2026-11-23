@@ -1,0 +1,19 @@
+@* T-802: muestra el contenido sólo si el usuario tiene la acción en la opción (botones de alta, editar y dar de baja). *@
+@using PSAG.Mantenimiento.Web.Models
+@inject PSAG.Mantenimiento.Web.Services.IPermisosService PermisosService
+
+@if (permitido)
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter, EditorRequired] public string Opcion { get; set; } = string.Empty;
+    [Parameter] public AccionPermiso Accion { get; set; } = AccionPermiso.Ver;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private bool permitido;
+
+    protected override async Task OnParametersSetAsync() =>
+        permitido = (await PermisosService.ObtenerAsync()).Tiene(Opcion, Accion);
+}

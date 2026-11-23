@@ -1,3 +1,4 @@
+using PSAG.Mantenimiento.Domain.Permisos;
 using System.Globalization;
 using Microsoft.Extensions.Logging;
 using PSAG.Mantenimiento.Application.Common;
@@ -21,6 +22,9 @@ public class RegistroCalidadService : IRegistroCalidadService
     private readonly ILogger<RegistroCalidadService> _logger;
     private readonly ITurnoProduccionService? _turnosProduccion;
 
+    /// <summary>Permisos configurables del usuario de la request (T-802); null fuera de una request (tests, jobs): regla por rol.</summary>
+    private readonly IPermisosUsuarioActual? _permisos;
+
     public RegistroCalidadService(
         IUnitOfWork unitOfWork,
         IAlmacenImagenesCalidad almacen,
@@ -36,8 +40,10 @@ public class RegistroCalidadService : IRegistroCalidadService
         IAlmacenImagenesCalidad almacen,
         TimeZoneInfo zonaPlanta,
         ILogger<RegistroCalidadService> logger,
-        ITurnoProduccionService? turnosProduccion)
+        ITurnoProduccionService? turnosProduccion,
+        IPermisosUsuarioActual? permisos = null)
     {
+        _permisos = permisos;
         _unitOfWork = unitOfWork;
         _almacen = almacen;
         _zonaPlanta = zonaPlanta;
@@ -115,7 +121,7 @@ public class RegistroCalidadService : IRegistroCalidadService
         IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken = default)
     {
-        if (!CalidadReglas.PuedeCargarManual(roles))
+        if (!await _permisos.PermiteAsync(Opciones.CalidadRegistro, AccionPermiso.Alta, () => CalidadReglas.PuedeCargarManual(roles), cancellationToken))
             return Result<RegistroCalidadDto>.Failure("FORBIDDEN", CalidadReglas.MensajeSinPermisoCargaManual);
 
         var faltan = new List<string>();
@@ -376,7 +382,7 @@ public class RegistroCalidadService : IRegistroCalidadService
         IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken = default)
     {
-        if (!CalidadReglas.PuedeRevisar(roles))
+        if (!await _permisos.PermiteAsync(Opciones.CalidadRegistro, AccionPermiso.Modificar, () => CalidadReglas.PuedeRevisar(roles), cancellationToken))
             return Result<RegistroCalidadDto>.Failure("FORBIDDEN", CalidadReglas.MensajeSinPermisoRevision);
 
         if (!Enum.TryParse<EstadoRevisionCalidad>(request.Estado, ignoreCase: true, out var nuevo)
@@ -414,7 +420,7 @@ public class RegistroCalidadService : IRegistroCalidadService
         IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken = default)
     {
-        if (!CalidadReglas.PuedeRevisar(roles))
+        if (!await _permisos.PermiteAsync(Opciones.CalidadRegistro, AccionPermiso.Modificar, () => CalidadReglas.PuedeRevisar(roles), cancellationToken))
             return Result<RegistroCalidadDto>.Failure("FORBIDDEN", CalidadReglas.MensajeSinPermisoRevision);
 
         var registro = await _unitOfWork.RegistrosCalidad.GetByIdConDetalleAsync(registroCalidadId, cancellationToken);

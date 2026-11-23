@@ -57,6 +57,8 @@ builder.Services.AddScoped<IDeclaracionDetencionService, DeclaracionDetencionSer
 builder.Services.AddScoped<ITurnosProduccionService, TurnosProduccionService>();
 builder.Services.AddScoped<IIndicadoresService, IndicadoresService>();
 builder.Services.AddScoped<IMaestrosProduccionService, MaestrosProduccionService>();
+// Roles y permisos configurables (T-802): menú, páginas y botones según GET api/permisos/mios
+builder.Services.AddScoped<IPermisosService, PermisosService>();
 
 // Servicio de temas
 builder.Services.AddScoped<IThemeService, ThemeService>();

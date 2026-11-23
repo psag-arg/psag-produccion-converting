@@ -19,6 +19,18 @@ public abstract class ApiControllerBase : ControllerBase
     protected IReadOnlyCollection<string> Roles => User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
 
     /// <summary>
+    /// Permiso configurable (T-802) del usuario actual. Sin contenedor de servicios en la request (controllers armados a mano
+    /// en tests) usa la regla por rol anterior, equivalente a la matriz migrada.
+    /// </summary>
+    protected async Task<bool> TienePermisoAsync(string codigoOpcion, Domain.Permisos.AccionPermiso accion, Func<bool> reglaPorRol)
+    {
+        if (HttpContext?.RequestServices?.GetService(typeof(Application.Services.Interfaces.IPermisosService)) == null)
+            return reglaPorRol();
+        var permisos = await Autorizacion.PermisosDeRequest.ObtenerAsync(HttpContext, User);
+        return permisos.Tiene(codigoOpcion, accion);
+    }
+
+    /// <summary>
     /// Traduce el ErrorCode de un Result de Application a ProblemDetails: NOT_FOUND 404, FORBIDDEN 403,
     /// CONCURRENCY 409 y el resto (VALIDATION) 400. Cada controller pasa sus títulos; un código sin título
     /// propio usa <paramref name="titulo"/>.
@@ -59,8 +71,14 @@ public abstract class ApiControllerBase : ControllerBase
     /// Calendario base y excepciones de horas programadas: el administrador edita todas las líneas,
     /// el supervisor sólo las suyas (CalendarioLineaReglas.PuedeEditar).
     /// </summary>
+    /// T-802: el permiso es configurable (ALTA de "Horas programadas"; la baja ya la exige el endpoint) y el alcance por
+    /// línea sigue en el código.
     protected async Task<bool> PuedeEditarCalendarioAsync(IOperadorLineaRepository usuariosLineas, int lineaId) =>
-        CalendarioLineaReglas.PuedeEditar(Roles, await LineasAsignadasAsync(usuariosLineas), lineaId);
+        CalendarioLineaReglas.PuedeEditar(await PermisoCalendarioAsync(), Roles, await LineasAsignadasAsync(usuariosLineas), lineaId);
+
+    protected Task<bool> PermisoCalendarioAsync() =>
+        TienePermisoAsync(Domain.Permisos.Opciones.DashboardHorasProgramadas, Domain.Permisos.AccionPermiso.Alta,
+            () => Roles.Contains(Domain.Common.RolesSistema.Administrador) || Roles.Contains(Domain.Common.RolesSistema.Supervisor));
 
     protected IActionResult HandleResult<T>(Result<T> result)
     {

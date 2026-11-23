@@ -1,3 +1,4 @@
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.Extensions.Logging;
 using PSAG.Mantenimiento.Application.Common;
 using PSAG.Mantenimiento.Application.DTOs.Calidad;
@@ -22,8 +23,12 @@ public class CalidadMaestrosService : ICalidadMaestrosService
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<CalidadMaestrosService> _logger;
 
-    public CalidadMaestrosService(IUnitOfWork unitOfWork, ILogger<CalidadMaestrosService> logger)
+    /// <summary>Permisos configurables del usuario de la request (T-802); null fuera de una request (tests, jobs): regla por rol.</summary>
+    private readonly IPermisosUsuarioActual? _permisos;
+
+    public CalidadMaestrosService(IUnitOfWork unitOfWork, ILogger<CalidadMaestrosService> logger, IPermisosUsuarioActual? permisos = null)
     {
+        _permisos = permisos;
         _unitOfWork = unitOfWork;
         _logger = logger;
     }
@@ -41,7 +46,7 @@ public class CalidadMaestrosService : ICalidadMaestrosService
         GuardarPuntoControlCalidadRequest request, string usuarioId, IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken = default)
     {
-        if (!CalidadReglas.PuedeAdministrarMaestros(roles))
+        if (!await _permisos.PermiteAsync(Opciones.MaestrosCalidad, AccionPermiso.Alta, () => CalidadReglas.PuedeAdministrarMaestros(roles), cancellationToken))
             return Result<PuntoControlCalidadDto>.Failure("FORBIDDEN", CalidadReglas.MensajeSinPermisoMaestros);
 
         var validacion = await ValidarPuntoAsync(request, null, cancellationToken);
@@ -73,7 +78,7 @@ public class CalidadMaestrosService : ICalidadMaestrosService
         int puntoControlCalidadId, GuardarPuntoControlCalidadRequest request, string usuarioId, IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken = default)
     {
-        if (!CalidadReglas.PuedeAdministrarMaestros(roles))
+        if (!await _permisos.PermiteAsync(Opciones.MaestrosCalidad, AccionPermiso.Modificar, () => CalidadReglas.PuedeAdministrarMaestros(roles), cancellationToken))
             return Result<PuntoControlCalidadDto>.Failure("FORBIDDEN", CalidadReglas.MensajeSinPermisoMaestros);
 
         var punto = await _unitOfWork.PuntosControlCalidad.GetByIdAsync(puntoControlCalidadId, cancellationToken);
@@ -151,7 +156,7 @@ public class CalidadMaestrosService : ICalidadMaestrosService
         GuardarTipoDefectoCalidadRequest request, string usuarioId, IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken = default)
     {
-        if (!CalidadReglas.PuedeAdministrarMaestros(roles))
+        if (!await _permisos.PermiteAsync(Opciones.MaestrosCalidad, AccionPermiso.Alta, () => CalidadReglas.PuedeAdministrarMaestros(roles), cancellationToken))
             return Result<TipoDefectoCalidadDto>.Failure("FORBIDDEN", CalidadReglas.MensajeSinPermisoMaestros);
 
         var motivo = await MotivoTipoInvalidoAsync(request, null, cancellationToken);
@@ -179,7 +184,7 @@ public class CalidadMaestrosService : ICalidadMaestrosService
         int tipoDefectoCalidadId, GuardarTipoDefectoCalidadRequest request, string usuarioId, IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken = default)
     {
-        if (!CalidadReglas.PuedeAdministrarMaestros(roles))
+        if (!await _permisos.PermiteAsync(Opciones.MaestrosCalidad, AccionPermiso.Modificar, () => CalidadReglas.PuedeAdministrarMaestros(roles), cancellationToken))
             return Result<TipoDefectoCalidadDto>.Failure("FORBIDDEN", CalidadReglas.MensajeSinPermisoMaestros);
 
         var tipo = await _unitOfWork.TiposDefectoCalidad.GetByIdAsync(tipoDefectoCalidadId, cancellationToken);

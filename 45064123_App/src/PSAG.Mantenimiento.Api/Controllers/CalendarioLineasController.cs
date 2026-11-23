@@ -1,3 +1,5 @@
+using PSAG.Mantenimiento.Api.Autorizacion;
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -39,9 +41,11 @@ public class CalendarioLineasController : ApiControllerBase
     /// </summary>
     [HttpGet("lineas")]
     [ProducesResponseType(typeof(IEnumerable<LineaCalendarioDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.DashboardHorasProgramadas, AccionPermiso.Ver)]
     public async Task<IActionResult> GetLineas()
     {
         var asignadas = await LineasAsignadasAsync(_unitOfWork.OperadoresLinea);
+        var permiso = await PermisoCalendarioAsync();
         var lineas = (await _unitOfWork.Lineas.GetAllAsync())
             .Where(l => l.Activo)
             .OrderBy(l => l.Orden)
@@ -50,7 +54,7 @@ public class CalendarioLineasController : ApiControllerBase
             {
                 LineaId = l.LineaId,
                 Nombre = l.Nombre,
-                PuedeEditar = CalendarioLineaReglas.PuedeEditar(Roles, asignadas, l.LineaId)
+                PuedeEditar = CalendarioLineaReglas.PuedeEditar(permiso, Roles, asignadas, l.LineaId)
             });
 
         return Ok(lineas);
@@ -59,6 +63,7 @@ public class CalendarioLineasController : ApiControllerBase
     [HttpGet("{lineaId:int}")]
     [ProducesResponseType(typeof(CalendarioLineaDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.DashboardHorasProgramadas, AccionPermiso.Ver)]
     public async Task<IActionResult> GetCalendario(int lineaId)
     {
         var linea = await _unitOfWork.Lineas.GetByIdAsync(lineaId);
@@ -119,10 +124,10 @@ public class CalendarioLineasController : ApiControllerBase
     /// esa fecha, queda inactiva (no se borra) y la reemplaza la nueva.
     /// </summary>
     [HttpPost("{lineaId:int}")]
-    [Authorize(Roles = RolesSistema.Administrador + "," + RolesSistema.Supervisor)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [Permiso(Opciones.DashboardHorasProgramadas, AccionPermiso.Alta)]
     public async Task<IActionResult> GuardarCalendario(int lineaId, [FromBody] GuardarCalendarioLineaRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -190,10 +195,10 @@ public class CalendarioLineasController : ApiControllerBase
     /// Quita una versión sin borrarla: desde su fecha rige la versión anterior (o el estándar de planta).
     /// </summary>
     [HttpPost("versiones/{id:int}/desactivar")]
-    [Authorize(Roles = RolesSistema.Administrador + "," + RolesSistema.Supervisor)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.DashboardHorasProgramadas, AccionPermiso.Baja)]
     public async Task<IActionResult> DesactivarVersion(int id)
     {
         if (string.IsNullOrEmpty(CurrentUserId))

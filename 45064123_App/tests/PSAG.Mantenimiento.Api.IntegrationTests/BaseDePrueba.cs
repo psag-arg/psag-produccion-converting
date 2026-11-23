@@ -68,6 +68,18 @@ public sealed class BaseDePrueba : IDisposable
         return new BaseDePrueba(conexion, context);
     }
 
+    /// <summary>
+    /// Apunta otro contexto a esta misma base (la API levantada con WebApplicationFactory en los tests de permisos, T-802):
+    /// en SQLite, la misma conexión en memoria abierta; en SQL Server, la base de TEST.
+    /// </summary>
+    public void ConfigurarOpciones(DbContextOptionsBuilder opciones)
+    {
+        if (_sqlite != null)
+            opciones.UseSqlite(_sqlite);
+        else
+            opciones.UseSqlServer(ConexionSqlServer);
+    }
+
     private static DbContextOptions<MantenimientoDbContext> OpcionesSqlServer() =>
         new DbContextOptionsBuilder<MantenimientoDbContext>().UseSqlServer(ConexionSqlServer).Options;
 

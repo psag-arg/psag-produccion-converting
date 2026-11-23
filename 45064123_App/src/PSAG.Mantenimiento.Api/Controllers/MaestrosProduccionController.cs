@@ -1,3 +1,5 @@
+using PSAG.Mantenimiento.Api.Autorizacion;
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PSAG.Mantenimiento.Application.Common;
@@ -21,19 +23,21 @@ public class ProductosMaestroController : ApiControllerBase
 
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<ProductoMaestroDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> Get([FromQuery] bool incluirInactivos = false) =>
         Ok(await _servicio.ObtenerProductosAsync(incluirInactivos));
 
     [HttpGet("{id:int}")]
     [ProducesResponseType(typeof(ProductoMaestroDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetPorId(int id) =>
         await _servicio.ObtenerProductoAsync(id) is { } p ? Ok(p) : NotFound();
 
     [HttpPost]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(ProductoMaestroDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.MaestrosProductos, AccionPermiso.Alta)]
     public async Task<IActionResult> Crear([FromBody] GuardarProductoMaestroRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -43,10 +47,10 @@ public class ProductosMaestroController : ApiControllerBase
     }
 
     [HttpPut("{id:int}")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(ProductoMaestroDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.MaestrosProductos, AccionPermiso.Modificar)]
     public async Task<IActionResult> Actualizar(int id, [FromBody] GuardarProductoMaestroRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -56,9 +60,9 @@ public class ProductosMaestroController : ApiControllerBase
     }
 
     [HttpPost("skus")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(ProductoSkuDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.MaestrosProductos, AccionPermiso.Alta)]
     public async Task<IActionResult> CrearSku([FromBody] GuardarProductoSkuRequest request)
     {
         var r = await _servicio.CrearSkuAsync(request, Roles);
@@ -66,10 +70,10 @@ public class ProductosMaestroController : ApiControllerBase
     }
 
     [HttpPut("skus/{skuId:int}")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(ProductoSkuDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.MaestrosProductos, AccionPermiso.Modificar)]
     public async Task<IActionResult> ActualizarSku(int skuId, [FromBody] GuardarProductoSkuRequest request)
     {
         var r = await _servicio.ActualizarSkuAsync(skuId, request, Roles);
@@ -95,12 +99,13 @@ public class ParametrosLineaProductoController : ApiControllerBase
 
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<ParametroLineaProductoDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.MaestrosParametros, AccionPermiso.Ver)]
     public async Task<IActionResult> Get([FromQuery] int? lineaId = null) => Ok(await _servicio.ObtenerParametrosAsync(lineaId));
 
     [HttpPost]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(ParametroLineaProductoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.MaestrosParametros, AccionPermiso.Alta)]
     public async Task<IActionResult> Crear([FromBody] GuardarParametroLineaProductoRequest request)
     {
         var r = await _servicio.CrearParametroAsync(request, Roles);
@@ -108,10 +113,10 @@ public class ParametrosLineaProductoController : ApiControllerBase
     }
 
     [HttpPut("{id:int}")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(ParametroLineaProductoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.MaestrosParametros, AccionPermiso.Modificar)]
     public async Task<IActionResult> Actualizar(int id, [FromBody] GuardarParametroLineaProductoRequest request)
     {
         var r = await _servicio.ActualizarParametroAsync(id, request, Roles);

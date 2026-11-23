@@ -1,3 +1,5 @@
+using PSAG.Mantenimiento.Api.Autorizacion;
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PSAG.Mantenimiento.Application.DTOs.Dashboard;
@@ -26,6 +28,7 @@ public class DashboardController : ApiControllerBase
     /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(DashboardCompletoDto), StatusCodes.Status200OK)]
+    [Permiso(AccionPermiso.Ver, Opciones.DashboardInicio, Opciones.DashboardReportes)]
     public async Task<IActionResult> GetDashboard([FromQuery] DashboardFiltroRequest filtro)
     {
         // TODO: En produccion, obtener lineas permitidas del usuario actual
@@ -43,6 +46,7 @@ public class DashboardController : ApiControllerBase
     /// </summary>
     [HttpGet("resumen")]
     [ProducesResponseType(typeof(DashboardResumenDto), StatusCodes.Status200OK)]
+    [Permiso(AccionPermiso.Ver, Opciones.DashboardInicio, Opciones.DashboardReportes)]
     public async Task<IActionResult> GetResumen([FromQuery] DashboardFiltroRequest filtro)
     {
         IEnumerable<int>? lineasPermitidas = null;
@@ -59,6 +63,7 @@ public class DashboardController : ApiControllerBase
     /// </summary>
     [HttpGet("detenciones-por-linea")]
     [ProducesResponseType(typeof(IReadOnlyList<DetencionesPorLineaDto>), StatusCodes.Status200OK)]
+    [Permiso(AccionPermiso.Ver, Opciones.DashboardInicio, Opciones.DashboardReportes)]
     public async Task<IActionResult> GetDetencionesPorLinea([FromQuery] DashboardFiltroRequest filtro)
     {
         IEnumerable<int>? lineasPermitidas = null;
@@ -75,6 +80,7 @@ public class DashboardController : ApiControllerBase
     /// </summary>
     [HttpGet("detenciones-por-tipo-falla")]
     [ProducesResponseType(typeof(IReadOnlyList<DetencionesPorTipoFallaDto>), StatusCodes.Status200OK)]
+    [Permiso(AccionPermiso.Ver, Opciones.DashboardInicio, Opciones.DashboardReportes)]
     public async Task<IActionResult> GetDetencionesPorTipoFalla([FromQuery] DashboardFiltroRequest filtro)
     {
         IEnumerable<int>? lineasPermitidas = null;
@@ -91,6 +97,7 @@ public class DashboardController : ApiControllerBase
     /// </summary>
     [HttpGet("top-detalles-falla")]
     [ProducesResponseType(typeof(IReadOnlyList<DetencionesPorDetalleFallaDto>), StatusCodes.Status200OK)]
+    [Permiso(AccionPermiso.Ver, Opciones.DashboardInicio, Opciones.DashboardReportes)]
     public async Task<IActionResult> GetTopDetallesFalla(
         [FromQuery] DashboardFiltroRequest filtro,
         [FromQuery] int top = 10)
@@ -110,6 +117,7 @@ public class DashboardController : ApiControllerBase
     /// </summary>
     [HttpGet("tendencia")]
     [ProducesResponseType(typeof(IReadOnlyList<TendenciaDetencionesDto>), StatusCodes.Status200OK)]
+    [Permiso(AccionPermiso.Ver, Opciones.DashboardInicio, Opciones.DashboardReportes)]
     public async Task<IActionResult> GetTendencia([FromQuery] DashboardFiltroRequest filtro)
     {
         IEnumerable<int>? lineasPermitidas = null;
@@ -128,6 +136,7 @@ public class DashboardController : ApiControllerBase
     /// </summary>
     [HttpGet("indisponibilidad")]
     [ProducesResponseType(typeof(IndisponibilidadReporteDto), StatusCodes.Status200OK)]
+    [Permiso(AccionPermiso.Ver, Opciones.DashboardInicio, Opciones.DashboardReportes)]
     public async Task<IActionResult> GetIndisponibilidad([FromQuery] ReporteFiltroRequest filtro)
     {
         var result = await _dashboardService.ObtenerIndisponibilidadAsync(filtro);
@@ -139,6 +148,7 @@ public class DashboardController : ApiControllerBase
     /// </summary>
     [HttpGet("fallos-mayores")]
     [ProducesResponseType(typeof(FallosMayoresReporteDto), StatusCodes.Status200OK)]
+    [Permiso(AccionPermiso.Ver, Opciones.DashboardInicio, Opciones.DashboardReportes)]
     public async Task<IActionResult> GetFallosMayores(
         [FromQuery] ReporteFiltroRequest filtro,
         [FromQuery] int umbralMinutos = 60)
@@ -152,6 +162,7 @@ public class DashboardController : ApiControllerBase
     /// </summary>
     [HttpGet("pareto")]
     [ProducesResponseType(typeof(ParetoDetencionesReporteDto), StatusCodes.Status200OK)]
+    [Permiso(AccionPermiso.Ver, Opciones.DashboardInicio, Opciones.DashboardReportes)]
     public async Task<IActionResult> GetPareto([FromQuery] DashboardFiltroRequest filtro)
     {
         var result = await _dashboardService.ObtenerParetoDetencionesAsync(filtro);
@@ -164,6 +175,7 @@ public class DashboardController : ApiControllerBase
     /// </summary>
     [HttpGet("tiempo-programado")]
     [ProducesResponseType(typeof(IReadOnlyList<TiempoProgramadoDiaDto>), StatusCodes.Status200OK)]
+    [Permiso(AccionPermiso.Ver, Opciones.DashboardInicio, Opciones.DashboardReportes)]
     public async Task<IActionResult> GetTiempoProgramado(
         [FromQuery] int? lineaId,
         [FromQuery] int anio,

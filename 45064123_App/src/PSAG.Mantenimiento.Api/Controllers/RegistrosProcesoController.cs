@@ -1,3 +1,5 @@
+using PSAG.Mantenimiento.Api.Autorizacion;
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PSAG.Mantenimiento.Application.Common;
@@ -30,9 +32,9 @@ public class RegistrosProcesoController : ApiControllerBase
     /// Si ya existe uno para el turno actual, lo retoma.
     /// </summary>
     [HttpPost("iniciar")]
-    [Authorize(Policy = "CanCreateDetenciones")]
     [ProducesResponseType(typeof(IniciarRegistroProcesoResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.ControlProcesoRegistros, AccionPermiso.Alta)]
     public async Task<IActionResult> IniciarRegistro([FromBody] IniciarRegistroProcesoRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -57,6 +59,7 @@ public class RegistrosProcesoController : ApiControllerBase
     [HttpGet("{id:long}")]
     [ProducesResponseType(typeof(RegistroProcesoCompletoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.ControlProcesoRegistros, AccionPermiso.Ver)]
     public async Task<IActionResult> GetRegistro(long id)
     {
         var result = await _registroProcesoService.ObtenerCompletoAsync(id);
@@ -76,10 +79,10 @@ public class RegistrosProcesoController : ApiControllerBase
     /// Guarda valores de parámetros. Calcula desvíos automáticamente.
     /// </summary>
     [HttpPost("guardar-valores")]
-    [Authorize(Policy = "CanCreateDetenciones")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [Permiso(Opciones.ControlProcesoRegistros, AccionPermiso.Alta)]
     public async Task<IActionResult> GuardarValores([FromBody] GuardarValoresRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -112,9 +115,9 @@ public class RegistrosProcesoController : ApiControllerBase
     /// Cierra un registro (no editable después).
     /// </summary>
     [HttpPost("{id:long}/cerrar")]
-    [Authorize(Policy = "CanCloseDetenciones")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.ControlProcesoRegistros, AccionPermiso.Modificar)]
     public async Task<IActionResult> CerrarRegistro(long id, [FromBody] CerrarRegistroProcesoRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -139,6 +142,7 @@ public class RegistrosProcesoController : ApiControllerBase
     /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<RegistroProcesoDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.ControlProcesoRegistros, AccionPermiso.Ver)]
     public async Task<IActionResult> GetRegistros([FromQuery] RegistroProcesoFiltroRequest filtro)
     {
         var result = await _registroProcesoService.ObtenerPaginadoAsync(filtro);
@@ -161,6 +165,7 @@ public class RegistrosProcesoController : ApiControllerBase
     [HttpGet("grupos/{lineaId:int}")]
     [HttpGet("grupos/{lineaId:int}/{productoId:int}")]
     [ProducesResponseType(typeof(IReadOnlyList<GrupoParametroDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.ControlProcesoRegistros, AccionPermiso.Ver)]
     public async Task<IActionResult> GetGruposConEstandares(int lineaId, int? productoId = null)
     {
         var result = await _registroProcesoService.ObtenerGruposConEstandaresAsync(lineaId, productoId);

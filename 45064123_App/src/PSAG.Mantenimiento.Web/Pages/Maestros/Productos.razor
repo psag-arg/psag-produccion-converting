@@ -2,7 +2,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
-@attribute [Authorize(Roles = "ADMINISTRADOR")]
+@attribute [Authorize]
 @inject IMaestrosProduccionService MaestrosService
 @inject IJSRuntime JS
 
@@ -13,7 +13,9 @@
 <div class="container-fluid">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
         <h3 class="mb-0">Productos</h3>
+        <SiPermiso Opcion="@Opciones.MaestrosProductos" Accion="AccionPermiso.Alta">
         <button class="btn btn-primary" @onclick="NuevoProducto"><i class="bi bi-plus-circle me-2"></i>Nuevo producto</button>
+        </SiPermiso>
     </div>
     <p class="text-muted">
         El producto maestro es lo que se fabrica en la línea; los SKU son cómo se empaca (bolsón y pallet).
@@ -75,10 +77,14 @@
                                     <span class="badge @(p.Activo ? "bg-success" : "bg-secondary")">@(p.Activo ? "Activo" : "Inactivo")</span>
                                 </td>
                                 <td class="text-end text-nowrap">
+                                    <SiPermiso Opcion="@Opciones.MaestrosProductos" Accion="AccionPermiso.Modificar">
                                     <button class="btn btn-sm btn-outline-primary me-1" title="Editar" @onclick="() => EditarProducto(p)"><i class="bi bi-pencil"></i></button>
+                                    </SiPermiso>
                                     @if (p.Activo)
                                     {
+                                        <SiPermiso Opcion="@Opciones.MaestrosProductos" Accion="AccionPermiso.Modificar">
                                         <button class="btn btn-sm btn-outline-danger" title="Desactivar" @onclick="@(async () => await DesactivarProducto(p))"><i class="bi bi-pause-circle"></i></button>
+                                        </SiPermiso>
                                     }
                                 </td>
                             </tr>
@@ -107,7 +113,9 @@
                                                             <td>@Contenido(s)</td>
                                                             <td>@s.Descripcion</td>
                                                             <td class="text-center"><span class="badge @(s.Activo ? "bg-success" : "bg-secondary")">@(s.Activo ? "Activo" : "Inactivo")</span></td>
+                                                            <SiPermiso Opcion="@Opciones.MaestrosProductos" Accion="AccionPermiso.Modificar">
                                                             <td class="text-end"><button class="btn btn-sm btn-outline-primary" title="Editar" @onclick="() => EditarSku(p, s)"><i class="bi bi-pencil"></i></button></td>
+                                                            </SiPermiso>
                                                         </tr>
                                                     }
                                                 </tbody>

@@ -267,10 +267,8 @@ public class TareaMantenimientoServiceTests : IDisposable
     [InlineData(nameof(TareasMantenimientoController.Cerrar), "Gestion")]
     public void Controller_RolesDeCadaAccion_CoincidenConLasReglas(string accion, string tipo)
     {
-        var atributo = typeof(TareasMantenimientoController).GetMethod(accion)!
-            .GetCustomAttributes<AuthorizeAttribute>()
-            .Single(a => a.Roles != null);
-        var roles = atributo.Roles!.Split(',').OrderBy(r => r);
+        // T-802: el atributo es [Permiso(opción, acción)] y los roles salen de la matriz migrada.
+        var roles = MatrizMigrada.RolesConPermiso(typeof(TareasMantenimientoController).GetMethod(accion)!).OrderBy(r => r);
         var esperados = (tipo == "Carga" ? TareaMantenimientoReglas.RolesCarga : TareaMantenimientoReglas.RolesGestion).OrderBy(r => r);
 
         Assert.Equal(esperados, roles);

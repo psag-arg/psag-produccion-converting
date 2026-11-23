@@ -2,7 +2,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
-@attribute [Authorize(Roles = "ADMINISTRADOR")]
+@attribute [Authorize]
 @inject ICalidadService CalidadService
 @inject ICatalogosService CatalogosService
 @inject ICamarasService CamarasService
@@ -31,7 +31,9 @@
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <strong>Puntos de control</strong>
+                    <SiPermiso Opcion="@Opciones.MaestrosCalidad" Accion="AccionPermiso.Alta">
                     <button class="btn btn-primary btn-sm" @onclick="NuevoPunto"><i class="bi bi-plus-circle me-1"></i>Nuevo punto</button>
+                    </SiPermiso>
                 </div>
                 <div class="card-body p-0 table-responsive">
                     <table class="table table-hover mb-0 align-middle">
@@ -83,7 +85,9 @@
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <strong>Tipos de defecto</strong>
+                    <SiPermiso Opcion="@Opciones.MaestrosCalidad" Accion="AccionPermiso.Alta">
                     <button class="btn btn-primary btn-sm" @onclick="NuevoTipo"><i class="bi bi-plus-circle me-1"></i>Nuevo defecto</button>
+                    </SiPermiso>
                 </div>
                 <div class="card-body p-0 table-responsive">
                     <table class="table table-hover mb-0 align-middle">

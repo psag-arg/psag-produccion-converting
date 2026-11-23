@@ -8,7 +8,7 @@ namespace PSAG.Mantenimiento.Api.IntegrationTests;
 /// <summary>
 /// Fixture de la colección <see cref="ColeccionBaseDeDatos"/>: en modo SQL Server arma el esquema de la base de TEST
 /// UNA vez por corrida con los mismos scripts y en el mismo orden que producción (ver database/README.md, Desarrollo):
-/// <c>dev/limpiar_base_dev.sql</c>, 02–08, <c>dev/seed_previo_t798_maestros.sql</c>, 17, 18, 11, 12, 19–30 y T-798 31–38.
+/// <c>dev/limpiar_base_dev.sql</c>, 02–08, <c>dev/seed_previo_t798_maestros.sql</c>, 17, 18, 11, 12, 19–30, T-798 31–38 y T-802 39.
 /// Cada script corre en su propia conexión, por lotes separados por <c>GO</c> (como <c>sqlcmd -I -b -f 65001</c>:
 /// QUOTED_IDENTIFIER ON, se corta en el primer error, UTF-8), con <c>USE [PSAG_Mantenimiento]</c> cambiado por la base de TEST.
 /// Con <c>PSAG_TEST_ESQUEMA=REUSAR</c> no se rearma si la base ya tiene el esquema (para iterar rápido; para entregar, rearmar).
@@ -30,7 +30,8 @@ public sealed class EsquemaSqlServer
         "28_eficiencia_objetivo_camara.sql", "29_snapshot_rango_control_proceso.sql", "30_umbral_detencion_segundos.sql",
         "31_t798_renombre_por_modulo.sql", "32_t798_maestros_productos.sql", "33_t798_datos_tango2.sql",
         "34_t798_turnos_produccion.sql", "35_t798_detenciones_turno.sql", "36_t798_camaras.sql",
-        "37_t798_indicadores.sql", "38_t798_conversion_turnos.sql"
+        "37_t798_indicadores.sql", "38_t798_conversion_turnos.sql",
+        "39_t802_roles_permisos.sql"
     ];
 
     private static readonly Lazy<bool> Armado = new(Armar, LazyThreadSafetyMode.ExecutionAndPublication);
@@ -73,6 +74,13 @@ public sealed class EsquemaSqlServer
         using var cmd = new SqlCommand(
             "SELECT CASE WHEN OBJECT_ID(N'mnt.CAM_Camaras') IS NOT NULL AND COL_LENGTH(N'mnt.PRD_ProduccionesTurno', N'Motivo') IS NOT NULL THEN 1 ELSE 0 END", c);
         return (int)cmd.ExecuteScalar()! == 1;
+    }
+
+    /// <summary>Corre un script de database/ contra la base de TEST (sólo SQL Server), como lo hace el armado del esquema.</summary>
+    internal static void CorrerScript(string script)
+    {
+        var conexion = BaseDePrueba.ConexionSqlServer;
+        Correr(conexion, new SqlConnectionStringBuilder(conexion).InitialCatalog, script);
     }
 
     private static void Correr(string conexion, string baseDatos, string script)

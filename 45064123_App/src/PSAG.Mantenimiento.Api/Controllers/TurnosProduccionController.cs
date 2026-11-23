@@ -1,3 +1,5 @@
+using PSAG.Mantenimiento.Api.Autorizacion;
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -40,6 +42,7 @@ public class TurnosProduccionController : ApiControllerBase
     /// <summary>Qué preguntarle al operario que acaba de entrar: sus líneas, el turno en curso, operador y producto actuales.</summary>
     [HttpGet("propuesta")]
     [ProducesResponseType(typeof(PropuestaTurnoProduccionDto), StatusCodes.Status200OK)]
+    [Permiso(Opciones.ProduccionOperacionTurno, AccionPermiso.Ver)]
     public async Task<IActionResult> GetPropuesta()
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -57,10 +60,10 @@ public class TurnosProduccionController : ApiControllerBase
     /// Supervisor / mantenimiento / administrador sin habilitación en la línea: lo abre como SUPERVISOR.
     /// </summary>
     [HttpPost("abrir")]
-    [Authorize(Policy = "RequireOperario")]
     [ProducesResponseType(typeof(AperturaTurnoProduccionDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [Permiso(Opciones.ProduccionOperacionTurno, AccionPermiso.Alta)]
     public async Task<IActionResult> Abrir([FromBody] AbrirTurnoProduccionRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -83,8 +86,8 @@ public class TurnosProduccionController : ApiControllerBase
 
     /// <summary>Cambio de producto de un turno abierto (cierra el tramo vigente y abre otro con snapshot del objetivo).</summary>
     [HttpPost("{id:long}/cambiar-producto")]
-    [Authorize(Policy = "RequireOperario")]
     [ProducesResponseType(typeof(TurnoProduccionDto), StatusCodes.Status200OK)]
+    [Permiso(Opciones.ProduccionOperacionTurno, AccionPermiso.Modificar)]
     public async Task<IActionResult> CambiarProducto(long id, [FromBody] CambiarProductoTurnoRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -95,8 +98,8 @@ public class TurnosProduccionController : ApiControllerBase
 
     /// <summary>El usuario (habilitado en la línea) releva al operador vigente.</summary>
     [HttpPost("{id:long}/relevar")]
-    [Authorize(Policy = "RequireOperario")]
     [ProducesResponseType(typeof(TurnoProduccionDto), StatusCodes.Status200OK)]
+    [Permiso(Opciones.ProduccionOperacionTurno, AccionPermiso.Modificar)]
     public async Task<IActionResult> Relevar(long id)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -107,8 +110,8 @@ public class TurnosProduccionController : ApiControllerBase
 
     /// <summary>Cierre manual del turno (operador de la línea o supervisor).</summary>
     [HttpPost("{id:long}/cerrar")]
-    [Authorize(Policy = "RequireOperario")]
     [ProducesResponseType(typeof(TurnoProduccionDto), StatusCodes.Status200OK)]
+    [Permiso(Opciones.ProduccionOperacionTurno, AccionPermiso.Modificar)]
     public async Task<IActionResult> Cerrar(long id, [FromBody] CerrarTurnoProduccionRequest? request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -122,6 +125,7 @@ public class TurnosProduccionController : ApiControllerBase
     [ProducesResponseType(typeof(TurnoProduccionDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [Permiso(Opciones.ProduccionOperacionTurno, AccionPermiso.Ver)]
     public async Task<IActionResult> GetActual([FromQuery] int lineaId)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -145,8 +149,8 @@ public class TurnosProduccionController : ApiControllerBase
 
     /// <summary>Listado del supervisor: cada línea × turno del día (por defecto hoy), con operadores, tramos y estado.</summary>
     [HttpGet]
-    [Authorize(Policy = "RequireSupervisor")]
     [ProducesResponseType(typeof(TurnosProduccionDiaDto), StatusCodes.Status200OK)]
+    [Permiso(Opciones.ProduccionTurnos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetDia([FromQuery] DateOnly? fecha, [FromQuery] int? lineaId)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -168,8 +172,8 @@ public class TurnosProduccionController : ApiControllerBase
 
     /// <summary>Corrección del operador (supervisor, con motivo; el tramo nuevo anula al anterior).</summary>
     [HttpPost("{id:long}/corregir-operador")]
-    [Authorize(Policy = "RequireSupervisor")]
     [ProducesResponseType(typeof(TurnoProduccionDto), StatusCodes.Status200OK)]
+    [Permiso(Opciones.ProduccionTurnos, AccionPermiso.Modificar)]
     public async Task<IActionResult> CorregirOperador(long id, [FromBody] CorregirOperadorTurnoRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -180,8 +184,8 @@ public class TurnosProduccionController : ApiControllerBase
 
     /// <summary>Corrección del producto (supervisor, con motivo; el tramo nuevo anula al anterior).</summary>
     [HttpPost("{id:long}/corregir-producto")]
-    [Authorize(Policy = "RequireSupervisor")]
     [ProducesResponseType(typeof(TurnoProduccionDto), StatusCodes.Status200OK)]
+    [Permiso(Opciones.ProduccionTurnos, AccionPermiso.Modificar)]
     public async Task<IActionResult> CorregirProducto(long id, [FromBody] CorregirProductoTurnoRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -195,10 +199,10 @@ public class TurnosProduccionController : ApiControllerBase
     /// a MANO (p. ej. bolsones sin cámara). Insert-only: la fila nueva anula a la vigente.
     /// </summary>
     [HttpPost("{id:long}/produccion")]
-    [Authorize(Policy = "RequireSupervisor")]
     [ProducesResponseType(typeof(ProduccionTurnoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [Permiso(Opciones.ProduccionTurnos, AccionPermiso.Modificar)]
     public async Task<IActionResult> RegistrarProduccion(long id, [FromBody] RegistrarProduccionTurnoRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))

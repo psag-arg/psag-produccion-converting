@@ -67,6 +67,11 @@ public class MantenimientoDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ParadaCamara> ParadasCamara => Set<ParadaCamara>();
     public DbSet<AlertaCamara> AlertasCamara => Set<AlertaCamara>();
 
+    // Roles y permisos configurables (T-802)
+    public DbSet<PSAG.Mantenimiento.Domain.Permisos.OpcionSistema> OpcionesSistema => Set<PSAG.Mantenimiento.Domain.Permisos.OpcionSistema>();
+    public DbSet<PSAG.Mantenimiento.Domain.Permisos.PermisoRol> PermisosRol => Set<PSAG.Mantenimiento.Domain.Permisos.PermisoRol>();
+    public DbSet<PSAG.Mantenimiento.Domain.Permisos.RolConfiguracion> RolesConfiguracion => Set<PSAG.Mantenimiento.Domain.Permisos.RolConfiguracion>();
+
     private bool EsSqlite => Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true;
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)

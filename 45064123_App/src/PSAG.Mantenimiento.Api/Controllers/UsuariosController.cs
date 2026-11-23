@@ -1,3 +1,5 @@
+using PSAG.Mantenimiento.Api.Autorizacion;
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -11,7 +13,7 @@ namespace PSAG.Mantenimiento.Api.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
-[Authorize(Roles = "ADMINISTRADOR")]
+[Authorize]
 public class UsuariosController : ApiControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;
@@ -33,6 +35,7 @@ public class UsuariosController : ApiControllerBase
 
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<UsuarioDto>), StatusCodes.Status200OK)]
+    [Permiso(AccionPermiso.Ver, Opciones.ConfigUsuarios, Opciones.ConfigMaquinistas, Opciones.MaestrosReglasAnalisis)]
     public async Task<IActionResult> GetUsuarios()
     {
         var users = await _userManager.Users.ToListAsync();
@@ -77,6 +80,7 @@ public class UsuariosController : ApiControllerBase
     [HttpGet("{id}")]
     [ProducesResponseType(typeof(UsuarioDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.ConfigUsuarios, AccionPermiso.Ver)]
     public async Task<IActionResult> GetUsuario(string id)
     {
         var user = await _userManager.FindByIdAsync(id);
@@ -117,6 +121,7 @@ public class UsuariosController : ApiControllerBase
     [HttpPost]
     [ProducesResponseType(typeof(UsuarioDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.ConfigUsuarios, AccionPermiso.Alta)]
     public async Task<IActionResult> CreateUsuario([FromBody] CrearUsuarioRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -228,6 +233,7 @@ public class UsuariosController : ApiControllerBase
     [ProducesResponseType(typeof(UsuarioDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.ConfigUsuarios, AccionPermiso.Modificar)]
     public async Task<IActionResult> UpdateUsuario(string id, [FromBody] ActualizarUsuarioRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -336,6 +342,7 @@ public class UsuariosController : ApiControllerBase
 
     [HttpGet("roles")]
     [ProducesResponseType(typeof(IEnumerable<string>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.ConfigUsuarios, AccionPermiso.Ver)]
     public async Task<IActionResult> GetRoles()
     {
         var roles = await _roleManager.Roles.Select(r => r.Name).ToListAsync();
@@ -349,6 +356,7 @@ public class UsuariosController : ApiControllerBase
     [ProducesResponseType(typeof(EliminarUsuarioResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.ConfigUsuarios, AccionPermiso.Baja)]
     public async Task<IActionResult> DeleteUsuario(string id)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -442,6 +450,7 @@ public class UsuariosController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.ConfigUsuarios, AccionPermiso.Modificar)]
     public async Task<IActionResult> ResetPassword(string id, [FromBody] ResetPasswordRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))

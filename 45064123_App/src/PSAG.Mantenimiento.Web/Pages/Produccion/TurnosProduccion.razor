@@ -2,7 +2,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
-@attribute [Authorize(Roles = "ADMINISTRADOR,MANTENIMIENTO,SUPERVISOR")]
+@attribute [Authorize]
 @inject ITurnosProduccionService TurnosProduccionService
 @inject IIndicadoresService IndicadoresService
 @inject IConteoCamaraService ConteoCamaraService

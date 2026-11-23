@@ -1,3 +1,4 @@
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.Extensions.Logging;
 using PSAG.Mantenimiento.Application.Common;
 using PSAG.Mantenimiento.Application.DTOs.Analisis;
@@ -28,8 +29,12 @@ public class AnalisisService : IAnalisisService
     {
     }
 
-    public AnalisisService(IUnitOfWork unitOfWork, TimeZoneInfo zonaPlanta, ILogger<AnalisisService> logger)
+    /// <summary>Permisos configurables del usuario de la request (T-802); null fuera de una request (tests, jobs): regla por rol.</summary>
+    private readonly IPermisosUsuarioActual? _permisos;
+
+    public AnalisisService(IUnitOfWork unitOfWork, TimeZoneInfo zonaPlanta, ILogger<AnalisisService> logger, IPermisosUsuarioActual? permisos = null)
     {
+        _permisos = permisos;
         _unitOfWork = unitOfWork;
         _zonaPlanta = zonaPlanta;
         _logger = logger;
@@ -45,7 +50,7 @@ public class AnalisisService : IAnalisisService
         if (detencion == null)
             return Result<AnalisisDetencionDto>.Failure("NOT_FOUND", "Detención no encontrada.");
 
-        return Result<AnalisisDetencionDto>.Success(await ArmarDtoAsync(_unitOfWork, detencion, usuarioId, roles, cancellationToken));
+        return Result<AnalisisDetencionDto>.Success(await ArmarDtoAsync(_unitOfWork, detencion, usuarioId, roles, cancellationToken, await EditaCerradoAsync(roles, cancellationToken)));
     }
 
     public async Task<Result<AnalisisDetencionDto>> GuardarBorradorAsync(
@@ -75,7 +80,7 @@ public class AnalisisService : IAnalisisService
         _logger.LogInformation("Análisis de la detención {DetencionId} guardado como borrador por usuario {UsuarioId}",
             detencionId, usuarioId);
 
-        return Result<AnalisisDetencionDto>.Success(await ArmarDtoAsync(_unitOfWork, detencion, usuarioId, roles, cancellationToken));
+        return Result<AnalisisDetencionDto>.Success(await ArmarDtoAsync(_unitOfWork, detencion, usuarioId, roles, cancellationToken, await EditaCerradoAsync(roles, cancellationToken)));
     }
 
     public async Task<Result<AnalisisDetencionDto>> CerrarAsync(
@@ -109,7 +114,7 @@ public class AnalisisService : IAnalisisService
         _logger.LogInformation("Análisis de la detención {DetencionId} cerrado por usuario {UsuarioId}",
             detencionId, usuarioId);
 
-        return Result<AnalisisDetencionDto>.Success(await ArmarDtoAsync(_unitOfWork, detencion, usuarioId, roles, cancellationToken));
+        return Result<AnalisisDetencionDto>.Success(await ArmarDtoAsync(_unitOfWork, detencion, usuarioId, roles, cancellationToken, await EditaCerradoAsync(roles, cancellationToken)));
     }
 
     public async Task<Result<MisPendientesDto>> ObtenerMisPendientesAsync(
@@ -217,7 +222,7 @@ public class AnalisisService : IAnalisisService
             Total = total,
             Limite = LimiteSoluciones,
             Items = items,
-            PuedeEditar = AnalisisEdicionReglas.PuedeEditarCerrado(roles)
+            PuedeEditar = await EditaCerradoAsync(roles, cancellationToken)
         });
     }
 
@@ -321,13 +326,20 @@ public class AnalisisService : IAnalisisService
     /// DTO del análisis a partir de una detención ya cargada con GetByIdConAnalisisAsync.
     /// AnalisisEdicionService lo usa después de guardar, sin volver a leer la detención.
     /// </summary>
+    /// <summary>"Corregir análisis cerrado" (T-802): permiso configurable; sin request, la regla por rol (administrador y supervisor).</summary>
+    private Task<bool> EditaCerradoAsync(IReadOnlyCollection<string> roles, CancellationToken cancellationToken) =>
+        _permisos.PermiteAsync(Opciones.DetencionesAnalisisCerrado, AccionPermiso.Modificar,
+            () => AnalisisEdicionReglas.PuedeEditarCerrado(roles), cancellationToken);
+
     internal static async Task<AnalisisDetencionDto> ArmarDtoAsync(
         IUnitOfWork unitOfWork,
         Detencion detencion,
         string usuarioId,
         IReadOnlyCollection<string> roles,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool? puedeEditarCerrado = null)
     {
+        var editaCerrado = puedeEditarCerrado ?? AnalisisEdicionReglas.PuedeEditarCerrado(roles);
         var dto = new AnalisisDetencionDto
         {
             DetencionId = detencion.DetencionId,
@@ -348,8 +360,8 @@ public class AnalisisService : IAnalisisService
                 && (detencion.EstadoActual == EstadoDetencion.REGISTRADA || detencion.EstadoActual == EstadoDetencion.EN_SEGUIMIENTO)
                 && AnalisisFallaReglas.PuedeEditar(detencion, usuarioId, roles),
             PuedeEditarCerrado = detencion.EstadoActual == EstadoDetencion.CERRADA
-                && AnalisisEdicionReglas.PuedeEditarCerrado(roles),
-            PuedeAdjuntar = AnalisisEdicionReglas.PuedeAdjuntar(detencion, usuarioId, roles),
+                && editaCerrado,
+            PuedeAdjuntar = AnalisisEdicionReglas.PuedeAdjuntar(detencion, usuarioId, roles, editaCerrado),
             Adjuntos = detencion.AdjuntosAnalisis
                 .OrderBy(a => a.AnalisisAdjuntoId)
                 .Select(MapearAdjunto)

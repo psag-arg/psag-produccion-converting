@@ -2,7 +2,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
-@attribute [Authorize(Roles = "ADMINISTRADOR")]
+@attribute [Authorize]
 @inject ICatalogosService CatalogosService
 @inject IUsuariosService UsuariosService
 @inject IJSRuntime JS
@@ -12,9 +12,11 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h3>Reglas de análisis</h3>
+        <SiPermiso Opcion="@Opciones.MaestrosReglasAnalisis" Accion="AccionPermiso.Alta">
         <button class="btn btn-primary" @onclick="NuevaRegla">
             <i class="bi bi-plus-circle me-2"></i>Nueva regla
         </button>
+        </SiPermiso>
     </div>
 
     <div class="alert alert-info d-flex gap-2">
@@ -99,14 +101,18 @@
                                         }
                                     </td>
                                     <td class="text-end">
+                                        <SiPermiso Opcion="@Opciones.MaestrosReglasAnalisis" Accion="AccionPermiso.Modificar">
                                         <button class="btn btn-sm btn-outline-primary me-1" title="Editar" @onclick="() => EditarRegla(regla)">
                                             <i class="bi bi-pencil"></i>
                                         </button>
+                                        </SiPermiso>
                                         @if (regla.Activo)
                                         {
+                                            <SiPermiso Opcion="@Opciones.MaestrosReglasAnalisis" Accion="AccionPermiso.Modificar">
                                             <button class="btn btn-sm btn-outline-secondary" title="Desactivar" @onclick="() => CambiarActiva(regla)">
                                                 <i class="bi bi-pause-circle"></i>
                                             </button>
+                                            </SiPermiso>
                                         }
                                         else
                                         {

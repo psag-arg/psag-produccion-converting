@@ -1,3 +1,5 @@
+using PSAG.Mantenimiento.Api.Autorizacion;
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -34,6 +36,7 @@ public class DeclaracionDetencionesController : ApiControllerBase
     [HttpGet("{id:long}/declaracion")]
     [ProducesResponseType(typeof(DeclaracionDetencionDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.DetencionesListado, AccionPermiso.Ver)]
     public async Task<IActionResult> GetDeclaracion(long id)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -53,11 +56,11 @@ public class DeclaracionDetencionesController : ApiControllerBase
 
     /// <summary>El operador completa la detención automática: pasa a REGISTRADA (flujo normal).</summary>
     [HttpPost("{id:long}/declarar")]
-    [Authorize(Policy = "CanCreateDetenciones")]
     [ProducesResponseType(typeof(DeclararDetencionResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [Permiso(Opciones.DetencionesListado, AccionPermiso.Alta)]
     public async Task<IActionResult> Declarar(long id, [FromBody] DeclararDetencionRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -83,6 +86,7 @@ public class DeclaracionDetencionesController : ApiControllerBase
     /// </summary>
     [HttpGet("aviso-fin-turno")]
     [ProducesResponseType(typeof(AvisoFinTurnoDto), StatusCodes.Status200OK)]
+    [Permiso(Opciones.DetencionesListado, AccionPermiso.Ver)]
     public async Task<IActionResult> GetAvisoFinTurno([FromQuery] int minutosAviso = DetencionCamaraReglas.MinutosAvisoFinTurnoPorDefecto)
     {
         // Gerencia (sólo lectura) y quien no declara no reciben el aviso.

@@ -2,7 +2,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
-@attribute [Authorize(Roles = "ADMINISTRADOR")]
+@attribute [Authorize]
 @inject IMaestrosProduccionService MaestrosService
 @inject ICatalogosService CatalogosService
 
@@ -15,7 +15,9 @@
 <div class="container-fluid">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
         <h3 class="mb-0">Parámetros línea + producto</h3>
+        <SiPermiso Opcion="@Opciones.MaestrosParametros" Accion="AccionPermiso.Alta">
         <button class="btn btn-primary" @onclick="Nuevo"><i class="bi bi-plus-circle me-2"></i>Nuevo parámetro</button>
+        </SiPermiso>
     </div>
     <p class="text-muted">
         Es el <strong>presupuesto</strong>: objetivo de mangas y bolsones por turno de cada producto en cada línea.

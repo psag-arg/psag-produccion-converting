@@ -13,6 +13,7 @@
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IJSRuntime JS
+@inject IPermisosService PermisosService
 
 <PageTitle>Detenciones - PSAG Produccion</PageTitle>
 
@@ -115,7 +116,7 @@
                     </select>
                 </div>
                 <div class="col-md-6 d-flex justify-content-end align-items-center gap-3">
-                    @if (esAdministrador)
+                    @if (puedeDarDeBaja)
                     {
                         <div class="form-check form-switch mb-0">
                             <input class="form-check-input" type="checkbox" role="switch" id="verEliminadas"
@@ -238,7 +239,7 @@
                                 <td class="text-end text-nowrap" @onclick:stopPropagation="true">
                                     @if (det.Eliminada)
                                     {
-                                        @if (esAdministrador)
+                                        @if (puedeDarDeBaja)
                                         {
                                             <button class="btn btn-sm btn-outline-success" title="Restaurar" @onclick="() => RestaurarDetencion(det.DetencionId)">
                                                 <i class="bi bi-arrow-counterclockwise me-1"></i>Restaurar
@@ -270,7 +271,7 @@
                                                 Declarar
                                             </a>
                                         }
-                                        @if (esAdministrador)
+                                        @if (puedeDarDeBaja)
                                         {
                                             <button class="btn btn-sm btn-outline-danger" title="Eliminar" @onclick="() => AbrirEliminar(det)">
                                                 <i class="bi bi-trash3"></i>
@@ -735,9 +736,11 @@
     private string? turnoAsignado;
     private int selectedMaquinistaId;
     private bool puedeSeleccionarMaquinista;  // True si es Admin/Supervisor
-    private bool puedeCargar;                 // Mismos roles que la política CanCreateDetenciones
+    private bool puedeCargar;                 // T-802: ALTA de "Ver detenciones"
     private bool esSoloOperario;
-    private bool esAdministrador;
+    private bool esAdministrador;            // regla del análisis (lo completa el responsable o un administrador)
+    private bool puedeDarDeBaja;             // T-802: BAJA de "Ver detenciones" (eliminar, restaurar, ver eliminadas)
+    private PermisosUsuario permisos = PermisosUsuario.Ninguno;
     private ClaimsPrincipal? usuario;
     private string? maquinistaGuardado;
     private List<EquipoDto> equipos = new();
@@ -826,7 +829,9 @@
         puedeSeleccionarMaquinista = user.IsInRole("ADMINISTRADOR") ||
                                       user.IsInRole("SUPERVISOR");
         esAdministrador = user.IsInRole("ADMINISTRADOR");
-        puedeCargar = RolesCarga.PuedeCargar(user.IsInRole);
+        permisos = await PermisosService.ObtenerAsync();
+        puedeCargar = permisos.Tiene(Opciones.DetencionesListado, AccionPermiso.Alta);
+        puedeDarDeBaja = permisos.Tiene(Opciones.DetencionesListado, AccionPermiso.Baja);
         esSoloOperario = RolesCarga.SoloOperario(user.IsInRole);
 
         await CargarLineas();
@@ -868,10 +873,10 @@
     }
 
     private bool PuedeEditar(DetencionDto det) =>
-        usuario != null && RolesCarga.PuedeEditar(det, usuario.IsInRole, misAsignaciones.Select(a => a.LineaId));
+        usuario != null && RolesCarga.PuedeEditar(det, permisos.Tiene(Opciones.DetencionesListado, AccionPermiso.Modificar), esSoloOperario, misAsignaciones.Select(a => a.LineaId));
 
     private bool PuedeDeclarar(DetencionDto det) =>
-        usuario != null && RolesCarga.PuedeDeclarar(det, usuario.IsInRole, misAsignaciones.Select(a => a.LineaId));
+        usuario != null && RolesCarga.PuedeDeclarar(det, permisos.Tiene(Opciones.DetencionesListado, AccionPermiso.Alta), esSoloOperario, misAsignaciones.Select(a => a.LineaId));
 
     private void VolverAlDetalleSiCorresponde()
     {
@@ -935,7 +940,7 @@
             "SIN" => false,
             _ => null
         },
-        VerEliminadas = esAdministrador && verEliminadas,
+        VerEliminadas = puedeDarDeBaja && verEliminadas,
         OrigenRegistro = string.IsNullOrEmpty(filtroOrigen) ? null : filtroOrigen
     };
 

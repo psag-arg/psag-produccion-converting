@@ -1,5 +1,8 @@
 @inject NavigationManager Navigation
 @inject PSAG.Mantenimiento.Web.Services.IAnalisisService AnalisisService
+@inject PSAG.Mantenimiento.Web.Services.IPermisosService PermisosService
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Shared
 @implements IDisposable
 
 <div class="sidebar-wrapper @(sidebarCollapsed ? "collapsed" : "")">
@@ -19,279 +22,37 @@
 </div>
 
 <div class="nav-scrollable">
+    @* T-802: el menú sale de los permisos del usuario (GET api/permisos/mios), no de roles fijos. *@
     <nav class="nav flex-column">
-        @* DASHBOARD *@
-        <div class="nav-section">
-            <div class="nav-section-header" @onclick="() => ToggleSection(0)">
-                <span class="bi bi-speedometer2 me-2"></span>
-                @if (!sidebarCollapsed)
-                {
-                    <span>Dashboard</span>
-                    <span class="bi @(IsExpanded(0) ? "bi-chevron-up" : "bi-chevron-down") ms-auto"></span>
-                }
-            </div>
-            @if (IsExpanded(0) && !sidebarCollapsed)
-            {
-                <div class="nav-section-items">
-                    <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                        <span class="bi bi-house me-2"></span> Inicio
-                    </NavLink>
-                    <NavLink class="nav-link" href="dashboard/reportes">
-                        <span class="bi bi-bar-chart me-2"></span> Reportes
-                    </NavLink>
-                    <AuthorizeView Roles="ADMINISTRADOR,SUPERVISOR" Context="horas">
-                        <NavLink class="nav-link" href="configuracion/horas-programadas">
-                            <span class="bi bi-calendar-week me-2"></span> Horas programadas
-                        </NavLink>
-                    </AuthorizeView>
+        @foreach (var seccion in permisos.Secciones)
+        {
+            var indice = IndiceDe(seccion.Codigo);
+            <div class="nav-section">
+                <div class="nav-section-header" @onclick="() => ToggleSection(indice, seccion.Codigo)">
+                    <span class="bi @IconoSeccion(seccion.Codigo) me-2"></span>
+                    @if (!sidebarCollapsed)
+                    {
+                        <span>@seccion.Nombre</span>
+                        <span class="bi @(IsExpanded(indice) ? "bi-chevron-up" : "bi-chevron-down") ms-auto"></span>
+                    }
                 </div>
-            }
-        </div>
-
-        @* MAESTROS: sólo administrador (las páginas lo exigen) *@
-        <AuthorizeView Roles="ADMINISTRADOR">
-        <div class="nav-section">
-            <div class="nav-section-header" @onclick="() => ToggleSection(1)">
-                <span class="bi bi-gear me-2"></span>
-                @if (!sidebarCollapsed)
+                @if (IsExpanded(indice) && !sidebarCollapsed)
                 {
-                    <span>Maestros</span>
-                    <span class="bi @(IsExpanded(1) ? "bi-chevron-up" : "bi-chevron-down") ms-auto"></span>
-                }
-            </div>
-            @if (IsExpanded(1) && !sidebarCollapsed)
-            {
-                <div class="nav-section-items">
-                    <NavLink class="nav-link" href="maestros/lineas">
-                        <span class="bi bi-building me-2"></span> Líneas
-                    </NavLink>
-                    <NavLink class="nav-link" href="maestros/equipos">
-                        <span class="bi bi-cpu me-2"></span> Equipos
-                    </NavLink>
-                    <NavLink class="nav-link" href="maestros/tipos-falla">
-                        <span class="bi bi-exclamation-triangle me-2"></span> Tipos de falla
-                    </NavLink>
-                    <NavLink class="nav-link" href="maestros/fallas">
-                        <span class="bi bi-x-circle me-2"></span> Fallas
-                    </NavLink>
-                    <NavLink class="nav-link" href="maestros/reglas-analisis">
-                        <span class="bi bi-sliders me-2"></span> Reglas de análisis
-                    </NavLink>
-                    <NavLink class="nav-link" href="maestros/control-proceso">
-                        <span class="bi bi-ui-checks me-2"></span> Puntos de control de proceso
-                    </NavLink>
-                    <NavLink class="nav-link" href="maestros/inspecciones">
-                        <span class="bi bi-clipboard-check me-2"></span> Planes de inspección
-                    </NavLink>
-                    <NavLink class="nav-link" href="maestros/productos">
-                        <span class="bi bi-box-seam me-2"></span> Productos
-                    </NavLink>
-                    <NavLink class="nav-link" href="maestros/parametros-linea-producto">
-                        <span class="bi bi-bullseye me-2"></span> Parámetros línea + producto
-                    </NavLink>
-                    <NavLink class="nav-link" href="maestros/camaras">
-                        <span class="bi bi-camera-video me-2"></span> Cámaras
-                    </NavLink>
-                    <NavLink class="nav-link" href="maestros/calidad">
-                        <span class="bi bi-camera me-2"></span> Calidad (puntos y defectos)
-                    </NavLink>
-                </div>
-            }
-        </div>
-        </AuthorizeView>
-
-        @* DETENCIONES *@
-        <div class="nav-section">
-            <div class="nav-section-header" @onclick="() => ToggleSection(2)">
-                <span class="bi bi-pause-circle me-2"></span>
-                @if (!sidebarCollapsed)
-                {
-                    <span>Detenciones</span>
-                    <span class="bi @(IsExpanded(2) ? "bi-chevron-up" : "bi-chevron-down") ms-auto"></span>
-                }
-            </div>
-            @if (IsExpanded(2) && !sidebarCollapsed)
-            {
-                <div class="nav-section-items">
-                    <NavLink class="nav-link" href="detenciones" Match="NavLinkMatch.All">
-                        <span class="bi bi-list-ul me-2"></span> Ver detenciones
-                    </NavLink>
-                    <NavLink class="nav-link" href="detenciones/pendientes">
-                        <span class="bi bi-inbox me-2"></span> Mis pendientes
-                        @if (pendientesCount > 0)
+                    <div class="nav-section-items">
+                        @foreach (var item in ItemsDe(seccion.Codigo))
                         {
-                            <span class="badge bg-danger ms-2">@pendientesCount</span>
+                            <NavLink class="nav-link" href="@item.Ruta" Match="@(item.Exacta ? NavLinkMatch.All : NavLinkMatch.Prefix)">
+                                <span class="bi @item.Icono me-2"></span> @item.Texto
+                                @if (item.Codigo == Opciones.DetencionesPendientes && pendientesCount > 0)
+                                {
+                                    <span class="badge bg-danger ms-2">@pendientesCount</span>
+                                }
+                            </NavLink>
                         }
-                    </NavLink>
-                    <NavLink class="nav-link" href="detenciones/soluciones">
-                        <span class="bi bi-book me-2"></span> Base de soluciones
-                    </NavLink>
-                    <AuthorizeView Roles="ADMINISTRADOR,MANTENIMIENTO,SUPERVISOR" Context="manual">
-                        <NavLink class="nav-link" href="detenciones/declarar-manual">
-                            <span class="bi bi-lightning-charge me-2"></span> Declarar detención manual
-                        </NavLink>
-                    </AuthorizeView>
-                </div>
-            }
-        </div>
-
-        @* PRODUCCIÓN (T-798): inicio de turno del operario, turnos de producción del supervisor y presupuesto vs. real (todos) *@
-        <AuthorizeView Roles="ADMINISTRADOR,MANTENIMIENTO,SUPERVISOR,OPERARIO,GERENCIA" Context="produccion">
-        <div class="nav-section">
-            <div class="nav-section-header" @onclick="() => ToggleSection(8)">
-                <span class="bi bi-gear-wide-connected me-2"></span>
-                @if (!sidebarCollapsed)
-                {
-                    <span>Producción</span>
-                    <span class="bi @(IsExpanded(8) ? "bi-chevron-up" : "bi-chevron-down") ms-auto"></span>
+                    </div>
                 }
             </div>
-            @if (IsExpanded(8) && !sidebarCollapsed)
-            {
-                <div class="nav-section-items">
-                    <AuthorizeView Roles="OPERARIO" Context="inicioTurno">
-                        <NavLink class="nav-link" href="produccion/inicio-turno">
-                            <span class="bi bi-play-circle me-2"></span> Inicio de turno
-                        </NavLink>
-                    </AuthorizeView>
-                    <AuthorizeView Roles="ADMINISTRADOR,MANTENIMIENTO,SUPERVISOR" Context="turnosProduccion">
-                        <NavLink class="nav-link" href="produccion/turnos">
-                            <span class="bi bi-calendar3 me-2"></span> Turnos de producción
-                        </NavLink>
-                    </AuthorizeView>
-                    <NavLink class="nav-link" href="dashboard/produccion">
-                        <span class="bi bi-graph-up-arrow me-2"></span> Presupuesto vs. real
-                    </NavLink>
-                </div>
-            }
-        </div>
-        </AuthorizeView>
-
-        @* TAREAS DE MANTENIMIENTO: módulo propio, al mismo nivel que Control de Proceso (reunión 03/11) *@
-        <div class="nav-section">
-            <div class="nav-section-header" @onclick="() => ToggleSection(7)">
-                <span class="bi bi-wrench-adjustable me-2"></span>
-                @if (!sidebarCollapsed)
-                {
-                    <span>Tareas de mantenimiento</span>
-                    <span class="bi @(IsExpanded(7) ? "bi-chevron-up" : "bi-chevron-down") ms-auto"></span>
-                }
-            </div>
-            @if (IsExpanded(7) && !sidebarCollapsed)
-            {
-                <div class="nav-section-items">
-                    <NavLink class="nav-link" href="tareas-mantenimiento?nueva=1">
-                        <span class="bi bi-plus-circle me-2"></span> Nueva tarea
-                    </NavLink>
-                    <NavLink class="nav-link" href="tareas-mantenimiento" Match="NavLinkMatch.All">
-                        <span class="bi bi-list-ul me-2"></span> Pendientes y programadas
-                    </NavLink>
-                    <NavLink class="nav-link" href="tareas-mantenimiento/historial">
-                        <span class="bi bi-clock-history me-2"></span> Historial
-                    </NavLink>
-                </div>
-            }
-        </div>
-
-        @* CONTROL DE PROCESO (ex "Registros", T-545) *@
-        <div class="nav-section">
-            <div class="nav-section-header" @onclick="() => ToggleSection(3)">
-                <span class="bi bi-clipboard-data me-2"></span>
-                @if (!sidebarCollapsed)
-                {
-                    <span>Control de Proceso</span>
-                    <span class="bi @(IsExpanded(3) ? "bi-chevron-up" : "bi-chevron-down") ms-auto"></span>
-                }
-            </div>
-            @if (IsExpanded(3) && !sidebarCollapsed)
-            {
-                <div class="nav-section-items">
-                    <NavLink class="nav-link" href="control-proceso" Match="NavLinkMatch.All">
-                        <span class="bi bi-list-ul me-2"></span> Ver controles
-                    </NavLink>
-                    <NavLink class="nav-link" href="control-proceso/nuevo">
-                        <span class="bi bi-plus-circle me-2"></span> Nuevo control
-                    </NavLink>
-                </div>
-            }
-        </div>
-
-        @* INSPECCIONES *@
-        <div class="nav-section">
-            <div class="nav-section-header" @onclick="() => ToggleSection(4)">
-                <span class="bi bi-clipboard-check me-2"></span>
-                @if (!sidebarCollapsed)
-                {
-                    <span>Inspecciones</span>
-                    <span class="bi @(IsExpanded(4) ? "bi-chevron-up" : "bi-chevron-down") ms-auto"></span>
-                }
-            </div>
-            @if (IsExpanded(4) && !sidebarCollapsed)
-            {
-                <div class="nav-section-items">
-                    <NavLink class="nav-link" href="inspecciones" Match="NavLinkMatch.All">
-                        <span class="bi bi-list-check me-2"></span> Ver inspecciones
-                    </NavLink>
-                    <NavLink class="nav-link" href="inspecciones/nueva">
-                        <span class="bi bi-plus-circle me-2"></span> Nueva inspección
-                    </NavLink>
-                    <NavLink class="nav-link" href="inspecciones/hallazgos">
-                        <span class="bi bi-exclamation-triangle me-2"></span> Panel NO OK
-                    </NavLink>
-                </div>
-            }
-        </div>
-
-        @* CALIDAD (T-611): registro de defectos de las cámaras *@
-        <div class="nav-section">
-            <div class="nav-section-header" @onclick="() => ToggleSection(6)">
-                <span class="bi bi-camera me-2"></span>
-                @if (!sidebarCollapsed)
-                {
-                    <span>Calidad</span>
-                    <span class="bi @(IsExpanded(6) ? "bi-chevron-up" : "bi-chevron-down") ms-auto"></span>
-                }
-            </div>
-            @if (IsExpanded(6) && !sidebarCollapsed)
-            {
-                <div class="nav-section-items">
-                    <NavLink class="nav-link" href="calidad" Match="NavLinkMatch.All">
-                        <span class="bi bi-list-ul me-2"></span> Registro de defectos
-                    </NavLink>
-                    <NavLink class="nav-link" href="paradas-camara">
-                        <span class="bi bi-stopwatch me-2"></span> Paradas y producción (cámara)
-                    </NavLink>
-                </div>
-            }
-        </div>
-
-        @* CONFIGURACION: sólo administrador *@
-        <AuthorizeView Roles="ADMINISTRADOR">
-        <div class="nav-section">
-            <div class="nav-section-header" @onclick="() => ToggleSection(5)">
-                <span class="bi bi-gear-fill me-2"></span>
-                @if (!sidebarCollapsed)
-                {
-                    <span>Configuración</span>
-                    <span class="bi @(IsExpanded(5) ? "bi-chevron-up" : "bi-chevron-down") ms-auto"></span>
-                }
-            </div>
-            @if (IsExpanded(5) && !sidebarCollapsed)
-            {
-                <div class="nav-section-items">
-                    <NavLink class="nav-link" href="configuracion/turnos">
-                        <span class="bi bi-clock me-2"></span> Turnos
-                    </NavLink>
-                    <NavLink class="nav-link" href="configuracion/maquinistas">
-                        <span class="bi bi-people me-2"></span> Maquinistas
-                    </NavLink>
-                    <NavLink class="nav-link" href="configuracion/usuarios">
-                        <span class="bi bi-person-gear me-2"></span> Usuarios
-                    </NavLink>
-                </div>
-            }
-        </div>
-        </AuthorizeView>
+        }
     </nav>
 </div>
 
@@ -305,13 +66,100 @@
     private HashSet<int> expandedSections = new() { 0 }; // Dashboard expanded by default
     private int pendientesCount;
     private DateTime ultimoConteo = DateTime.MinValue;
+    private PermisosUsuario permisos = PermisosUsuario.Ninguno;
 
     protected override async Task OnInitializedAsync()
     {
         Navigation.LocationChanged += OnLocationChanged;
         AnalisisService.PendientesCambiaron += OnPendientesCambiaron;
+        PermisosService.Cambiaron += OnPermisosCambiaron;
+        permisos = await PermisosService.ObtenerAsync();
         await CargarPendientes();
     }
+
+    private async void OnPermisosCambiaron()
+    {
+        permisos = await PermisosService.ObtenerAsync();
+        await CargarPendientes(forzar: true);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private sealed record ItemMenu(string Codigo, string Ruta, string Texto, string Icono, bool Exacta);
+
+    // Presentación (íconos y textos cortos); qué se muestra lo deciden los permisos.
+    private static readonly Dictionary<string, (string Texto, string Icono, bool Exacta)> Presentacion = new()
+    {
+        [Opciones.DashboardInicio] = ("Inicio", "bi-house", true),
+        [Opciones.DashboardReportes] = ("Reportes", "bi-bar-chart", false),
+        [Opciones.DashboardHorasProgramadas] = ("Horas programadas", "bi-calendar-week", false),
+        [Opciones.MaestrosLineas] = ("Líneas", "bi-building", false),
+        [Opciones.MaestrosEquipos] = ("Equipos", "bi-cpu", false),
+        [Opciones.MaestrosTiposFalla] = ("Tipos de falla", "bi-exclamation-triangle", false),
+        [Opciones.MaestrosFallas] = ("Fallas", "bi-x-circle", false),
+        [Opciones.MaestrosReglasAnalisis] = ("Reglas de análisis", "bi-sliders", false),
+        [Opciones.MaestrosControlProceso] = ("Puntos de control de proceso", "bi-ui-checks", false),
+        [Opciones.MaestrosInspecciones] = ("Planes de inspección", "bi-clipboard-check", false),
+        [Opciones.MaestrosProductos] = ("Productos", "bi-box-seam", false),
+        [Opciones.MaestrosParametros] = ("Parámetros línea + producto", "bi-bullseye", false),
+        [Opciones.MaestrosCamaras] = ("Cámaras", "bi-camera-video", false),
+        [Opciones.MaestrosCalidad] = ("Calidad (puntos y defectos)", "bi-camera", false),
+        [Opciones.DetencionesListado] = ("Ver detenciones", "bi-list-ul", true),
+        [Opciones.DetencionesPendientes] = ("Mis pendientes", "bi-inbox", false),
+        [Opciones.DetencionesSoluciones] = ("Base de soluciones", "bi-book", false),
+        [Opciones.DetencionesDeclararManual] = ("Declarar detención manual", "bi-lightning-charge", false),
+        [Opciones.ProduccionInicioTurno] = ("Inicio de turno", "bi-play-circle", false),
+        [Opciones.ProduccionTurnos] = ("Turnos de producción", "bi-calendar3", false),
+        [Opciones.ProduccionPresupuestoReal] = ("Presupuesto vs. real", "bi-graph-up-arrow", false),
+        [Opciones.TareasPendientes] = ("Pendientes y programadas", "bi-list-ul", true),
+        [Opciones.TareasHistorial] = ("Historial", "bi-clock-history", false),
+        [Opciones.ControlProcesoRegistros] = ("Ver controles", "bi-list-ul", true),
+        [Opciones.InspeccionesEjecuciones] = ("Ver inspecciones", "bi-list-check", true),
+        [Opciones.InspeccionesNoOk] = ("Panel NO OK", "bi-exclamation-triangle", false),
+        [Opciones.CalidadRegistro] = ("Registro de defectos", "bi-list-ul", true),
+        [Opciones.CalidadParadasCamara] = ("Paradas y producción (cámara)", "bi-stopwatch", false),
+        [Opciones.ConfigTurnos] = ("Turnos", "bi-clock", false),
+        [Opciones.ConfigMaquinistas] = ("Maquinistas", "bi-people", false),
+        [Opciones.ConfigUsuarios] = ("Usuarios", "bi-person-gear", false),
+        [Opciones.ConfigRoles] = ("Roles y permisos", "bi-shield-lock", false),
+    };
+
+    private IEnumerable<ItemMenu> ItemsDe(string seccion)
+    {
+        foreach (var o in permisos.MenuDe(seccion))
+        {
+            var (texto, icono, exacta) = Presentacion.TryGetValue(o.Codigo, out var p) ? p : (o.Nombre, "bi-dot", false);
+            // Accesos de alta (se muestran si el usuario puede dar de alta)
+            if (o.Codigo == Opciones.TareasPendientes && o.Alta)
+                yield return new ItemMenu(o.Codigo + ".NUEVA", "tareas-mantenimiento?nueva=1", "Nueva tarea", "bi-plus-circle", false);
+            yield return new ItemMenu(o.Codigo, o.Ruta!, texto, icono, exacta);
+            if (o.Codigo == Opciones.ControlProcesoRegistros && o.Alta)
+                yield return new ItemMenu(o.Codigo + ".NUEVO", "control-proceso/nuevo", "Nuevo control", "bi-plus-circle", false);
+            if (o.Codigo == Opciones.InspeccionesEjecuciones && o.Alta)
+                yield return new ItemMenu(o.Codigo + ".NUEVA", "inspecciones/nueva", "Nueva inspección", "bi-plus-circle", false);
+        }
+    }
+
+    private static readonly string[] OrdenSecciones =
+    [
+        Opciones.Dashboard, Opciones.Maestros, Opciones.Detenciones, Opciones.ControlProceso, Opciones.Inspecciones,
+        Opciones.Configuracion, Opciones.Calidad, Opciones.Tareas, Opciones.Produccion
+    ];
+
+    private static int IndiceDe(string seccion) => Array.IndexOf(OrdenSecciones, seccion) is var i and >= 0 ? i : 100 + seccion.Length;
+
+    private static string IconoSeccion(string seccion) => seccion switch
+    {
+        Opciones.Dashboard => "bi-speedometer2",
+        Opciones.Maestros => "bi-gear",
+        Opciones.Detenciones => "bi-pause-circle",
+        Opciones.Produccion => "bi-gear-wide-connected",
+        Opciones.Tareas => "bi-wrench-adjustable",
+        Opciones.ControlProceso => "bi-clipboard-data",
+        Opciones.Inspecciones => "bi-clipboard-check",
+        Opciones.Calidad => "bi-camera",
+        Opciones.Configuracion => "bi-gear-fill",
+        _ => "bi-folder"
+    };
 
     private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
@@ -333,6 +181,12 @@
         }
 
         ultimoConteo = DateTime.UtcNow;
+        if (!permisos.Ve(Opciones.DetencionesPendientes))
+        {
+            pendientesCount = 0;
+            return;
+        }
+
         try
         {
             pendientesCount = await AnalisisService.GetConteoPendientesAsync();
@@ -347,6 +201,7 @@
     {
         Navigation.LocationChanged -= OnLocationChanged;
         AnalisisService.PendientesCambiaron -= OnPendientesCambiaron;
+        PermisosService.Cambiaron -= OnPermisosCambiaron;
     }
 
     private void ToggleSidebar()
@@ -358,13 +213,14 @@
         }
     }
 
-    private void ToggleSection(int index)
+    private void ToggleSection(int index, string seccion)
     {
         if (sidebarCollapsed)
         {
-            // Si está colapsado, navegar directamente a la primera opción de la sección
-            var routes = new[] { "", "maestros/lineas", "detenciones", "control-proceso", "inspecciones", "configuracion/turnos", "calidad", "tareas-mantenimiento", "dashboard/produccion" };
-            Navigation.NavigateTo(routes[index]);
+            // Si está colapsado, navegar directamente a la primera opción de la sección que el usuario ve
+            var primera = ItemsDe(seccion).FirstOrDefault(i => !i.Codigo.Contains(".NUEV"));
+            if (primera != null)
+                Navigation.NavigateTo(primera.Ruta);
             return;
         }
 

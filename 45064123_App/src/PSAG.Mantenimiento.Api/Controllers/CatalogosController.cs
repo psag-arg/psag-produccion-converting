@@ -1,3 +1,5 @@
+using PSAG.Mantenimiento.Api.Autorizacion;
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -50,6 +52,7 @@ public class CatalogosController : ApiControllerBase
 
     [HttpGet("lineas")]
     [ProducesResponseType(typeof(IEnumerable<LineaDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetLineas([FromQuery] bool? soloActivas = true)
     {
         var lineas = soloActivas == true
@@ -71,6 +74,7 @@ public class CatalogosController : ApiControllerBase
     [HttpGet("lineas/{id:int}")]
     [ProducesResponseType(typeof(LineaDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetLinea(int id)
     {
         var linea = await _unitOfWork.Lineas.GetByIdAsync(id);
@@ -88,8 +92,8 @@ public class CatalogosController : ApiControllerBase
     }
 
     [HttpPost("lineas")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(LineaDto), StatusCodes.Status201Created)]
+    [Permiso(Opciones.MaestrosLineas, AccionPermiso.Alta)]
     public async Task<IActionResult> CreateLinea([FromBody] CrearLineaRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -121,10 +125,10 @@ public class CatalogosController : ApiControllerBase
     }
 
     [HttpPut("lineas/{id:int}")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(LineaDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.MaestrosLineas, AccionPermiso.Modificar)]
     public async Task<IActionResult> UpdateLinea(int id, [FromBody] ActualizarLineaRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -177,6 +181,7 @@ public class CatalogosController : ApiControllerBase
 
     [HttpGet("equipos")]
     [ProducesResponseType(typeof(IEnumerable<EquipoDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetEquipos([FromQuery] int? lineaId = null, [FromQuery] bool? soloActivos = true)
     {
         IEnumerable<Domain.Entities.Equipo> equipos;
@@ -211,6 +216,7 @@ public class CatalogosController : ApiControllerBase
     [HttpGet("equipos/{id:int}")]
     [ProducesResponseType(typeof(EquipoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetEquipo(int id)
     {
         var equipo = await _unitOfWork.Equipos.GetByIdAsync(id);
@@ -231,8 +237,8 @@ public class CatalogosController : ApiControllerBase
     }
 
     [HttpPost("equipos")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(EquipoDto), StatusCodes.Status201Created)]
+    [Permiso(Opciones.MaestrosEquipos, AccionPermiso.Alta)]
     public async Task<IActionResult> CreateEquipo([FromBody] CrearEquipoRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -270,10 +276,10 @@ public class CatalogosController : ApiControllerBase
     }
 
     [HttpPut("equipos/{id:int}")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(EquipoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.MaestrosEquipos, AccionPermiso.Modificar)]
     public async Task<IActionResult> UpdateEquipo(int id, [FromBody] ActualizarEquipoRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -332,6 +338,7 @@ public class CatalogosController : ApiControllerBase
 
     [HttpGet("tipos-falla")]
     [ProducesResponseType(typeof(IEnumerable<TipoFallaDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetTiposFalla([FromQuery] bool? soloActivos = true)
     {
         var tipos = soloActivos == true
@@ -356,6 +363,7 @@ public class CatalogosController : ApiControllerBase
     [HttpGet("tipos-falla/{id:int}")]
     [ProducesResponseType(typeof(TipoFallaDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetTipoFalla(int id)
     {
         var tipo = await _unitOfWork.TiposFalla.GetByIdAsync(id);
@@ -376,8 +384,8 @@ public class CatalogosController : ApiControllerBase
     }
 
     [HttpPost("tipos-falla")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(TipoFallaDto), StatusCodes.Status201Created)]
+    [Permiso(Opciones.MaestrosTiposFalla, AccionPermiso.Alta)]
     public async Task<IActionResult> CreateTipoFalla([FromBody] CrearTipoFallaRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -423,10 +431,10 @@ public class CatalogosController : ApiControllerBase
     }
 
     [HttpPut("tipos-falla/{id:int}")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(TipoFallaDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.MaestrosTiposFalla, AccionPermiso.Modificar)]
     public async Task<IActionResult> UpdateTipoFalla(int id, [FromBody] ActualizarTipoFallaRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -494,6 +502,7 @@ public class CatalogosController : ApiControllerBase
 
     [HttpGet("detalles-falla")]
     [ProducesResponseType(typeof(IEnumerable<DetalleFallaDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetDetallesFalla(
         [FromQuery] int? tipoFallaId = null,
         [FromQuery] int? equipoId = null,
@@ -533,6 +542,7 @@ public class CatalogosController : ApiControllerBase
     [HttpGet("detalles-falla/{id:int}")]
     [ProducesResponseType(typeof(DetalleFallaDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetDetalleFalla(int id)
     {
         var detalle = await _unitOfWork.DetallesFalla.GetByIdAsync(id);
@@ -554,8 +564,8 @@ public class CatalogosController : ApiControllerBase
     }
 
     [HttpPost("detalles-falla")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(DetalleFallaDto), StatusCodes.Status201Created)]
+    [Permiso(Opciones.MaestrosFallas, AccionPermiso.Alta)]
     public async Task<IActionResult> CreateDetalleFalla([FromBody] CrearDetalleFallaRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -595,9 +605,9 @@ public class CatalogosController : ApiControllerBase
     }
 
     [HttpPut("detalles-falla/{id:int}")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(DetalleFallaDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.MaestrosFallas, AccionPermiso.Modificar)]
     public async Task<IActionResult> UpdateDetalleFalla(int id, [FromBody] ActualizarDetalleFallaRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -643,6 +653,7 @@ public class CatalogosController : ApiControllerBase
 
     [HttpGet("turnos")]
     [ProducesResponseType(typeof(IEnumerable<TurnoDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetTurnos([FromQuery] bool? soloActivos = true)
     {
         var turnos = soloActivos == true
@@ -667,6 +678,7 @@ public class CatalogosController : ApiControllerBase
     [HttpGet("turnos/{id:int}")]
     [ProducesResponseType(typeof(TurnoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetTurno(int id)
     {
         var turno = await _unitOfWork.Turnos.GetByIdAsync(id);
@@ -689,6 +701,7 @@ public class CatalogosController : ApiControllerBase
     [HttpGet("turnos/actual")]
     [ProducesResponseType(typeof(TurnoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetTurnoActual()
     {
         var turno = await _unitOfWork.Turnos.GetTurnoActualAsync(_zonaPlanta);
@@ -714,8 +727,8 @@ public class CatalogosController : ApiControllerBase
     }
 
     [HttpPost("turnos")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(TurnoDto), StatusCodes.Status201Created)]
+    [Permiso(Opciones.ConfigTurnos, AccionPermiso.Alta)]
     public async Task<IActionResult> CreateTurno([FromBody] CrearTurnoRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -756,9 +769,9 @@ public class CatalogosController : ApiControllerBase
     }
 
     [HttpPut("turnos/{id:int}")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(TurnoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.ConfigTurnos, AccionPermiso.Modificar)]
     public async Task<IActionResult> UpdateTurno(int id, [FromBody] ActualizarTurnoRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -833,6 +846,7 @@ public class CatalogosController : ApiControllerBase
 
     [HttpGet("reglas-analisis")]
     [ProducesResponseType(typeof(IEnumerable<ReglaAnalisisDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.MaestrosReglasAnalisis, AccionPermiso.Ver)]
     public async Task<IActionResult> GetReglasAnalisis()
     {
         var reglas = await _unitOfWork.ReglasAnalisis.GetAllAsync();
@@ -842,6 +856,7 @@ public class CatalogosController : ApiControllerBase
     [HttpGet("reglas-analisis/{id:int}")]
     [ProducesResponseType(typeof(ReglaAnalisisDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.MaestrosReglasAnalisis, AccionPermiso.Ver)]
     public async Task<IActionResult> GetReglaAnalisis(int id)
     {
         var regla = await _unitOfWork.ReglasAnalisis.GetByIdAsync(id);
@@ -852,9 +867,9 @@ public class CatalogosController : ApiControllerBase
     }
 
     [HttpPost("reglas-analisis")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(ReglaAnalisisDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.MaestrosReglasAnalisis, AccionPermiso.Alta)]
     public async Task<IActionResult> CreateReglaAnalisis([FromBody] CrearReglaAnalisisRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -887,10 +902,10 @@ public class CatalogosController : ApiControllerBase
     }
 
     [HttpPut("reglas-analisis/{id:int}")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(ReglaAnalisisDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.MaestrosReglasAnalisis, AccionPermiso.Modificar)]
     public async Task<IActionResult> UpdateReglaAnalisis(int id, [FromBody] ActualizarReglaAnalisisRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -1071,6 +1086,7 @@ public class CatalogosController : ApiControllerBase
     [ProducesResponseType(typeof(IEnumerable<DiaProgramadoDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.DashboardHorasProgramadas, AccionPermiso.Ver)]
     public async Task<IActionResult> GetTiemposProgramados([FromQuery] int lineaId, [FromQuery] DateOnly desde, [FromQuery] DateOnly hasta)
     {
         if (desde > hasta || hasta.DayNumber - desde.DayNumber > 366)
@@ -1108,9 +1124,9 @@ public class CatalogosController : ApiControllerBase
     /// Una fila histórica pasa a EXCEPCION al editarla.
     /// </summary>
     [HttpPost("tiempos-programados")]
-    [Authorize(Roles = RolesSistema.Administrador + "," + RolesSistema.Supervisor)]
     [ProducesResponseType(typeof(DiaProgramadoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.DashboardHorasProgramadas, AccionPermiso.Alta)]
     public async Task<IActionResult> GuardarTiempoProgramado([FromBody] GuardarTiempoProgramadoDiaRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -1204,9 +1220,9 @@ public class CatalogosController : ApiControllerBase
     /// Quita una excepción sin borrarla: el día vuelve a regirse por los turnos activos.
     /// </summary>
     [HttpPost("tiempos-programados/{id:int}/desactivar")]
-    [Authorize(Roles = RolesSistema.Administrador + "," + RolesSistema.Supervisor)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.DashboardHorasProgramadas, AccionPermiso.Baja)]
     public async Task<IActionResult> DesactivarTiempoProgramado(int id)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -1234,6 +1250,7 @@ public class CatalogosController : ApiControllerBase
 
     [HttpGet("maquinistas")]
     [ProducesResponseType(typeof(IEnumerable<MaquinistaDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetMaquinistas([FromQuery] int? lineaId = null)
     {
         IEnumerable<Domain.Entities.OperadorLinea> maquinistas;
@@ -1271,6 +1288,7 @@ public class CatalogosController : ApiControllerBase
     [HttpGet("maquinistas/{id:int}")]
     [ProducesResponseType(typeof(MaquinistaDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetMaquinista(int id)
     {
         var maquinista = await _unitOfWork.OperadoresLinea.GetByIdAsync(id);
@@ -1296,6 +1314,7 @@ public class CatalogosController : ApiControllerBase
     [HttpGet("maquinistas/por-usuario/{usuarioId}")]
     [ProducesResponseType(typeof(MaquinistaDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetMaquinistaPorUsuario(string usuarioId)
     {
         var maquinista = await _unitOfWork.OperadoresLinea.GetByUsuarioIdAsync(usuarioId);
@@ -1323,6 +1342,7 @@ public class CatalogosController : ApiControllerBase
     /// </summary>
     [HttpGet("maquinistas/mis-asignaciones")]
     [ProducesResponseType(typeof(IEnumerable<MaquinistaDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetMisAsignaciones()
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -1350,9 +1370,9 @@ public class CatalogosController : ApiControllerBase
     }
 
     [HttpPost("maquinistas")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(MaquinistaDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.ConfigMaquinistas, AccionPermiso.Alta)]
     public async Task<IActionResult> CreateMaquinista([FromBody] CrearMaquinistaRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -1415,9 +1435,9 @@ public class CatalogosController : ApiControllerBase
     }
 
     [HttpPut("maquinistas/{id:int}")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(MaquinistaDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.ConfigMaquinistas, AccionPermiso.Modificar)]
     public async Task<IActionResult> UpdateMaquinista(int id, [FromBody] ActualizarMaquinistaRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -1469,10 +1489,10 @@ public class CatalogosController : ApiControllerBase
     }
 
     [HttpDelete("maquinistas/{id:int}")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.ConfigMaquinistas, AccionPermiso.Baja)]
     public async Task<IActionResult> DeleteMaquinista(int id)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -1500,6 +1520,7 @@ public class CatalogosController : ApiControllerBase
 
     [HttpGet("productos")]
     [ProducesResponseType(typeof(IEnumerable<Application.DTOs.Proceso.ProductoDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetProductos([FromQuery] int? lineaId = null, [FromQuery] bool? soloActivos = true)
     {
         IEnumerable<Domain.Entities.ProductoMaestro> productos;
@@ -1531,6 +1552,7 @@ public class CatalogosController : ApiControllerBase
     [HttpGet("productos/{id:int}")]
     [ProducesResponseType(typeof(Application.DTOs.Proceso.ProductoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetProducto(int id)
     {
         var producto = await _unitOfWork.ProductosMaestro.GetByIdAsync(id);

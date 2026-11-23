@@ -1,3 +1,5 @@
+using PSAG.Mantenimiento.Api.Autorizacion;
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PSAG.Mantenimiento.Application.DTOs.Inspeccion;
@@ -11,7 +13,7 @@ namespace PSAG.Mantenimiento.Api.Controllers;
 /// </summary>
 [Route("api/inspecciones/maestro")]
 [ApiController]
-[Authorize(Policy = "CanManageCatalogs")]
+[Authorize]
 public class InspeccionPlantillaController : ApiControllerBase
 {
     private readonly IInspeccionPlantillaService _plantillaService;
@@ -24,6 +26,7 @@ public class InspeccionPlantillaController : ApiControllerBase
     /// <summary>Planes de la línea con todos sus puntos (activos o no).</summary>
     [HttpGet("plantilla/{lineaId:int}")]
     [ProducesResponseType(typeof(IReadOnlyList<PlanInspeccionConItemsDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.MaestrosInspecciones, AccionPermiso.Ver)]
     public async Task<IActionResult> GetPlantilla(int lineaId)
     {
         var result = await _plantillaService.ObtenerPlantillaAsync(lineaId);
@@ -31,6 +34,7 @@ public class InspeccionPlantillaController : ApiControllerBase
     }
 
     [HttpPost("planes")]
+    [Permiso(Opciones.MaestrosInspecciones, AccionPermiso.Alta)]
     public async Task<IActionResult> CrearPlan([FromBody] GuardarPlanInspeccionRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -41,6 +45,7 @@ public class InspeccionPlantillaController : ApiControllerBase
     }
 
     [HttpPut("planes/{id:int}")]
+    [Permiso(Opciones.MaestrosInspecciones, AccionPermiso.Modificar)]
     public async Task<IActionResult> ActualizarPlan(int id, [FromBody] GuardarPlanInspeccionRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -51,6 +56,7 @@ public class InspeccionPlantillaController : ApiControllerBase
     }
 
     [HttpPost("puntos")]
+    [Permiso(Opciones.MaestrosInspecciones, AccionPermiso.Alta)]
     public async Task<IActionResult> CrearItem([FromBody] GuardarItemInspeccionRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -61,6 +67,7 @@ public class InspeccionPlantillaController : ApiControllerBase
     }
 
     [HttpPut("puntos/{id:int}")]
+    [Permiso(Opciones.MaestrosInspecciones, AccionPermiso.Modificar)]
     public async Task<IActionResult> ActualizarItem(int id, [FromBody] GuardarItemInspeccionRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))

@@ -55,6 +55,10 @@ public static class DependencyInjection
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IAuditoriaService, AuditoriaService>();
 
+        // Roles y permisos configurables (T-802): matriz con caché corta en memoria
+        services.AddMemoryCache();
+        services.AddScoped<IPermisosService, PermisosService>();
+
         return services;
     }
 }

@@ -2,7 +2,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
-@attribute [Authorize(Roles = "ADMINISTRADOR")]
+@attribute [Authorize]
 @inject ICatalogosService CatalogosService
 @inject IUsuariosService UsuariosService
 @inject IJSRuntime JS
@@ -12,9 +12,11 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h3>Usuarios del Sistema</h3>
+        <SiPermiso Opcion="@Opciones.ConfigUsuarios" Accion="AccionPermiso.Alta">
         <button class="btn btn-primary" @onclick="NuevoUsuario">
             <i class="bi bi-plus-circle me-2"></i>Nuevo Usuario
         </button>
+        </SiPermiso>
     </div>
 
     @if (isLoading)

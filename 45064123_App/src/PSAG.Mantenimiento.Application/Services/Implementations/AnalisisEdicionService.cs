@@ -1,3 +1,4 @@
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.Extensions.Logging;
 using PSAG.Mantenimiento.Application.Common;
 using PSAG.Mantenimiento.Application.DTOs.Analisis;
@@ -15,11 +16,16 @@ public class AnalisisEdicionService : IAnalisisEdicionService
     private readonly IAlmacenAdjuntos _almacen;
     private readonly ILogger<AnalisisEdicionService> _logger;
 
+    /// <summary>Permisos configurables del usuario de la request (T-802); null fuera de una request (tests, jobs): regla por rol.</summary>
+    private readonly IPermisosUsuarioActual? _permisos;
+
     public AnalisisEdicionService(
         IUnitOfWork unitOfWork,
         IAlmacenAdjuntos almacen,
-        ILogger<AnalisisEdicionService> logger)
+        ILogger<AnalisisEdicionService> logger,
+        IPermisosUsuarioActual? permisos = null)
     {
+        _permisos = permisos;
         _unitOfWork = unitOfWork;
         _almacen = almacen;
         _logger = logger;
@@ -36,7 +42,7 @@ public class AnalisisEdicionService : IAnalisisEdicionService
         if (detencion == null)
             return Result<AnalisisDetencionDto>.Failure("NOT_FOUND", "Detención no encontrada.");
 
-        if (!AnalisisEdicionReglas.PuedeEditarCerrado(roles))
+        if (!await _permisos.PermiteAsync(Opciones.DetencionesAnalisisCerrado, AccionPermiso.Modificar, () => AnalisisEdicionReglas.PuedeEditarCerrado(roles), cancellationToken))
             return Result<AnalisisDetencionDto>.Failure("FORBIDDEN", "Solo administración o supervisión pueden editar un análisis cerrado.");
 
         if (detencion.EstadoActual != EstadoDetencion.CERRADA)
@@ -73,7 +79,8 @@ public class AnalisisEdicionService : IAnalisisEdicionService
         }
 
         return Result<AnalisisDetencionDto>.Success(
-            await AnalisisService.ArmarDtoAsync(_unitOfWork, detencion, usuarioId, roles, cancellationToken));
+            await AnalisisService.ArmarDtoAsync(_unitOfWork, detencion, usuarioId, roles, cancellationToken,
+                await _permisos.PermiteAsync(Opciones.DetencionesAnalisisCerrado, AccionPermiso.Modificar, () => AnalisisEdicionReglas.PuedeEditarCerrado(roles), cancellationToken)));
     }
 
     public async Task<Result<AdjuntoAnalisisDto>> AgregarAdjuntoAsync(
@@ -89,7 +96,9 @@ public class AnalisisEdicionService : IAnalisisEdicionService
         if (detencion == null)
             return Result<AdjuntoAnalisisDto>.Failure("NOT_FOUND", "Detención no encontrada.");
 
-        if (!AnalisisEdicionReglas.PuedeAdjuntar(detencion, usuarioId, roles))
+        var editaCerrado = await _permisos.PermiteAsync(Opciones.DetencionesAnalisisCerrado, AccionPermiso.Modificar,
+            () => AnalisisEdicionReglas.PuedeEditarCerrado(roles), cancellationToken);
+        if (!AnalisisEdicionReglas.PuedeAdjuntar(detencion, usuarioId, roles, editaCerrado))
         {
             var mensaje = detencion.EstadoActual == EstadoDetencion.CERRADA
                 ? "Solo administración o supervisión pueden agregar fotos a un análisis cerrado."

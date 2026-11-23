@@ -3,7 +3,7 @@
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
 @using PSAG.Mantenimiento.Web.Shared
-@attribute [Authorize(Roles = "ADMINISTRADOR,MANTENIMIENTO,SUPERVISOR")]
+@attribute [Authorize]
 @inject IDetencionesService DetencionesService
 @inject ICatalogosService CatalogosService
 

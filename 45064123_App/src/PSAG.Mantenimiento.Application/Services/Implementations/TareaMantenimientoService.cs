@@ -1,3 +1,4 @@
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.Extensions.Logging;
 using PSAG.Mantenimiento.Application.Common;
 using PSAG.Mantenimiento.Application.DTOs.TareasMantenimiento;
@@ -18,8 +19,12 @@ public class TareaMantenimientoService : ITareaMantenimientoService
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<TareaMantenimientoService> _logger;
 
-    public TareaMantenimientoService(IUnitOfWork unitOfWork, ILogger<TareaMantenimientoService> logger)
+    /// <summary>Permisos configurables del usuario de la request (T-802); null fuera de una request (tests, jobs): regla por rol.</summary>
+    private readonly IPermisosUsuarioActual? _permisos;
+
+    public TareaMantenimientoService(IUnitOfWork unitOfWork, ILogger<TareaMantenimientoService> logger, IPermisosUsuarioActual? permisos = null)
     {
+        _permisos = permisos;
         _unitOfWork = unitOfWork;
         _logger = logger;
     }
@@ -30,7 +35,7 @@ public class TareaMantenimientoService : ITareaMantenimientoService
         IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken = default)
     {
-        if (!TareaMantenimientoReglas.PuedeCargar(roles))
+        if (!await _permisos.PermiteAsync(Opciones.TareasPendientes, AccionPermiso.Alta, () => TareaMantenimientoReglas.PuedeCargar(roles), cancellationToken))
             return Result<TareaMantenimientoDto>.Failure("FORBIDDEN", TareaMantenimientoReglas.MensajeSinPermisoCarga);
 
         var faltan = new List<string>();
@@ -135,7 +140,7 @@ public class TareaMantenimientoService : ITareaMantenimientoService
         IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken = default)
     {
-        if (!TareaMantenimientoReglas.PuedeProgramarYCerrar(roles))
+        if (!await _permisos.PermiteAsync(Opciones.TareasPendientes, AccionPermiso.Modificar, () => TareaMantenimientoReglas.PuedeProgramarYCerrar(roles), cancellationToken))
             return Result<IReadOnlyList<TareaMantenimientoDto>>.Failure("FORBIDDEN", TareaMantenimientoReglas.MensajeSinPermisoGestion);
 
         var ids = request.TareaMantenimientoIds.Distinct().ToList();
@@ -172,7 +177,7 @@ public class TareaMantenimientoService : ITareaMantenimientoService
         IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken = default)
     {
-        if (!TareaMantenimientoReglas.PuedeProgramarYCerrar(roles))
+        if (!await _permisos.PermiteAsync(Opciones.TareasPendientes, AccionPermiso.Modificar, () => TareaMantenimientoReglas.PuedeProgramarYCerrar(roles), cancellationToken))
             return Result<TareaMantenimientoDto>.Failure("FORBIDDEN", TareaMantenimientoReglas.MensajeSinPermisoGestion);
 
         var tarea = await _unitOfWork.TareasMantenimiento.GetByIdAsync(tareaMantenimientoId, cancellationToken);

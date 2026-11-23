@@ -1,3 +1,4 @@
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.Extensions.Logging;
 using PSAG.Mantenimiento.Application.Common;
 using PSAG.Mantenimiento.Application.DTOs.Produccion;
@@ -20,8 +21,12 @@ public class MaestrosProduccionService : IMaestrosProduccionService
     private readonly TimeZoneInfo _zonaPlanta;
     private readonly ILogger<MaestrosProduccionService> _logger;
 
-    public MaestrosProduccionService(IUnitOfWork unitOfWork, TimeZoneInfo zonaPlanta, ILogger<MaestrosProduccionService> logger)
+    /// <summary>Permisos configurables del usuario de la request (T-802); null fuera de una request (tests, jobs): regla por rol.</summary>
+    private readonly IPermisosUsuarioActual? _permisos;
+
+    public MaestrosProduccionService(IUnitOfWork unitOfWork, TimeZoneInfo zonaPlanta, ILogger<MaestrosProduccionService> logger, IPermisosUsuarioActual? permisos = null)
     {
+        _permisos = permisos;
         _unitOfWork = unitOfWork;
         _zonaPlanta = zonaPlanta;
         _logger = logger;
@@ -50,7 +55,7 @@ public class MaestrosProduccionService : IMaestrosProduccionService
     public async Task<Result<ProductoMaestroDto>> CrearProductoAsync(
         GuardarProductoMaestroRequest request, string usuarioId, IReadOnlyCollection<string> roles, CancellationToken cancellationToken = default)
     {
-        if (!CalidadReglas.PuedeAdministrarMaestros(roles))
+        if (!await _permisos.PermiteAsync(Opciones.MaestrosProductos, AccionPermiso.Alta, () => CalidadReglas.PuedeAdministrarMaestros(roles), cancellationToken))
             return Result<ProductoMaestroDto>.Failure("FORBIDDEN", MensajeSinPermiso);
         var motivo = await MotivoProductoInvalidoAsync(request, null, cancellationToken);
         if (motivo != null)
@@ -67,7 +72,7 @@ public class MaestrosProduccionService : IMaestrosProduccionService
     public async Task<Result<ProductoMaestroDto>> ActualizarProductoAsync(
         int productoMaestroId, GuardarProductoMaestroRequest request, string usuarioId, IReadOnlyCollection<string> roles, CancellationToken cancellationToken = default)
     {
-        if (!CalidadReglas.PuedeAdministrarMaestros(roles))
+        if (!await _permisos.PermiteAsync(Opciones.MaestrosProductos, AccionPermiso.Modificar, () => CalidadReglas.PuedeAdministrarMaestros(roles), cancellationToken))
             return Result<ProductoMaestroDto>.Failure("FORBIDDEN", MensajeSinPermiso);
         var producto = await _unitOfWork.ProductosMaestro.GetByIdAsync(productoMaestroId, cancellationToken);
         if (producto == null)
@@ -134,7 +139,7 @@ public class MaestrosProduccionService : IMaestrosProduccionService
 
     public async Task<Result<ProductoSkuDto>> CrearSkuAsync(GuardarProductoSkuRequest request, IReadOnlyCollection<string> roles, CancellationToken cancellationToken = default)
     {
-        if (!CalidadReglas.PuedeAdministrarMaestros(roles))
+        if (!await _permisos.PermiteAsync(Opciones.MaestrosProductos, AccionPermiso.Alta, () => CalidadReglas.PuedeAdministrarMaestros(roles), cancellationToken))
             return Result<ProductoSkuDto>.Failure("FORBIDDEN", MensajeSinPermiso);
         var motivo = await MotivoSkuInvalidoAsync(request, null, cancellationToken);
         if (motivo != null)
@@ -149,7 +154,7 @@ public class MaestrosProduccionService : IMaestrosProduccionService
 
     public async Task<Result<ProductoSkuDto>> ActualizarSkuAsync(int productoSkuId, GuardarProductoSkuRequest request, IReadOnlyCollection<string> roles, CancellationToken cancellationToken = default)
     {
-        if (!CalidadReglas.PuedeAdministrarMaestros(roles))
+        if (!await _permisos.PermiteAsync(Opciones.MaestrosProductos, AccionPermiso.Modificar, () => CalidadReglas.PuedeAdministrarMaestros(roles), cancellationToken))
             return Result<ProductoSkuDto>.Failure("FORBIDDEN", MensajeSinPermiso);
         var sku = await _unitOfWork.ProductosSku.GetByIdAsync(productoSkuId, cancellationToken);
         if (sku == null)
@@ -265,7 +270,7 @@ public class MaestrosProduccionService : IMaestrosProduccionService
 
     public async Task<Result<ParametroLineaProductoDto>> CrearParametroAsync(GuardarParametroLineaProductoRequest request, IReadOnlyCollection<string> roles, CancellationToken cancellationToken = default)
     {
-        if (!CalidadReglas.PuedeAdministrarMaestros(roles))
+        if (!await _permisos.PermiteAsync(Opciones.MaestrosParametros, AccionPermiso.Alta, () => CalidadReglas.PuedeAdministrarMaestros(roles), cancellationToken))
             return Result<ParametroLineaProductoDto>.Failure("FORBIDDEN", MensajeSinPermiso);
         var motivo = await MotivoParametroInvalidoAsync(request, null, cancellationToken);
         if (motivo != null)
@@ -280,7 +285,7 @@ public class MaestrosProduccionService : IMaestrosProduccionService
 
     public async Task<Result<ParametroLineaProductoDto>> ActualizarParametroAsync(int parametroLineaProductoId, GuardarParametroLineaProductoRequest request, IReadOnlyCollection<string> roles, CancellationToken cancellationToken = default)
     {
-        if (!CalidadReglas.PuedeAdministrarMaestros(roles))
+        if (!await _permisos.PermiteAsync(Opciones.MaestrosParametros, AccionPermiso.Modificar, () => CalidadReglas.PuedeAdministrarMaestros(roles), cancellationToken))
             return Result<ParametroLineaProductoDto>.Failure("FORBIDDEN", MensajeSinPermiso);
         var parametro = await _unitOfWork.ParametrosLineaProducto.GetByIdAsync(parametroLineaProductoId, cancellationToken);
         if (parametro == null)

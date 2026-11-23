@@ -2,7 +2,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
-@attribute [Authorize(Roles = "ADMINISTRADOR")]
+@attribute [Authorize]
 @inject ICatalogosService CatalogosService
 @inject IJSRuntime JS
 
@@ -11,9 +11,11 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h3>Tipos de Falla</h3>
+        <SiPermiso Opcion="@Opciones.MaestrosTiposFalla" Accion="AccionPermiso.Alta">
         <button class="btn btn-primary" @onclick="NuevoTipoFalla">
             <i class="bi bi-plus-circle me-2"></i>Nuevo Tipo de Falla
         </button>
+        </SiPermiso>
     </div>
 
     <AvisoDescartable @bind-Mensaje="mensajeLista" />
@@ -92,9 +94,11 @@
                                         </button>
                                         @if (tipo.Activo)
                                         {
+                                            <SiPermiso Opcion="@Opciones.MaestrosTiposFalla" Accion="AccionPermiso.Modificar">
                                             <button class="btn btn-sm btn-outline-danger" title="Desactivar" @onclick="() => ConfirmarDesactivar(tipo)">
                                                 <i class="bi bi-pause-circle"></i>
                                             </button>
+                                            </SiPermiso>
                                         }
                                     </td>
                                 </tr>

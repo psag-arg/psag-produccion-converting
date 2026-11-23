@@ -109,24 +109,13 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-// Configurar Authorization con políticas
-builder.Services.AddAuthorizationBuilder()
-    .AddPolicy("RequireAdministrador", policy => policy.RequireRole("ADMINISTRADOR"))
-    .AddPolicy("RequireGerencia", policy => policy.RequireRole("ADMINISTRADOR", "GERENCIA"))
-    .AddPolicy("RequireMantenimiento", policy => policy.RequireRole("ADMINISTRADOR", "MANTENIMIENTO"))
-    .AddPolicy("RequireSupervisor", policy => policy.RequireRole("ADMINISTRADOR", "MANTENIMIENTO", "SUPERVISOR"))
-    .AddPolicy("RequireOperario", policy => policy.RequireRole("ADMINISTRADOR", "MANTENIMIENTO", "SUPERVISOR", "OPERARIO"))
-    // Políticas para Detenciones (nuevo nombre)
-    .AddPolicy("CanCreateDetenciones", policy => policy.RequireRole("ADMINISTRADOR", "MANTENIMIENTO", "SUPERVISOR", "OPERARIO"))
-    .AddPolicy("CanEditDetenciones", policy => policy.RequireRole("ADMINISTRADOR", "MANTENIMIENTO"))
-    .AddPolicy("CanCloseDetenciones", policy => policy.RequireRole("ADMINISTRADOR", "MANTENIMIENTO"))
-    // Políticas legacy (compatibilidad)
-    .AddPolicy("CanCreateEventos", policy => policy.RequireRole("ADMINISTRADOR", "MANTENIMIENTO", "SUPERVISOR", "OPERARIO"))
-    .AddPolicy("CanEditEventos", policy => policy.RequireRole("ADMINISTRADOR", "MANTENIMIENTO"))
-    .AddPolicy("CanCloseEventos", policy => policy.RequireRole("ADMINISTRADOR", "MANTENIMIENTO"))
-    .AddPolicy("CanManageCatalogs", policy => policy.RequireRole("ADMINISTRADOR"))
-    .AddPolicy("CanManageUsers", policy => policy.RequireRole("ADMINISTRADOR"))
-    .AddPolicy("CanExport", policy => policy.RequireRole("ADMINISTRADOR", "GERENCIA", "MANTENIMIENTO"));
+// Autorización (T-802): roles y permisos configurables. Cada acción de los controllers lleva [Permiso("OPCION", Accion)]
+// (ver Autorizacion/ y docs/PERMISOS.md); las políticas fijas por rol de antes se reemplazaron por la matriz CFG_PermisosRol.
+builder.Services.AddAuthorization();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, PSAG.Mantenimiento.Api.Autorizacion.PermisoHandler>();
+builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationMiddlewareResultHandler, PSAG.Mantenimiento.Api.Autorizacion.PermisoResultHandler>();
+builder.Services.AddScoped<PSAG.Mantenimiento.Application.Services.Interfaces.IPermisosUsuarioActual, PSAG.Mantenimiento.Api.Autorizacion.PermisosUsuarioActualHttp>();
 
 // Configurar CORS
 builder.Services.AddCors(options =>
@@ -275,3 +264,6 @@ finally
 {
     Log.CloseAndFlush();
 }
+
+/// <summary>Visible para los tests de integración (WebApplicationFactory).</summary>
+public partial class Program;

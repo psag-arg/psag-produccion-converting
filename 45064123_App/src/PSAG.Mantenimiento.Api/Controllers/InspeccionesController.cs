@@ -1,3 +1,5 @@
+using PSAG.Mantenimiento.Api.Autorizacion;
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -35,6 +37,7 @@ public class InspeccionesController : ApiControllerBase
     /// </summary>
     [HttpGet("planes-linea/{lineaId:int}")]
     [ProducesResponseType(typeof(IReadOnlyList<PlanInspeccionConItemsDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.InspeccionesEjecuciones, AccionPermiso.Ver)]
     public async Task<IActionResult> GetPlanesLinea(int lineaId)
     {
         var result = await _inspeccionService.ObtenerPlanesLineaAsync(lineaId);
@@ -46,10 +49,10 @@ public class InspeccionesController : ApiControllerBase
     /// (al pie de la planilla firma el Op. Packaging), por eso alcanza con poder cargar.
     /// </summary>
     [HttpPost("ejecuciones/{id:long}/cerrar")]
-    [Authorize(Policy = "CanCreateDetenciones")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [Permiso(Opciones.InspeccionesEjecuciones, AccionPermiso.Modificar)]
     public async Task<IActionResult> CerrarEjecucion(long id, [FromBody] CerrarEjecucionRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -65,6 +68,7 @@ public class InspeccionesController : ApiControllerBase
     /// </summary>
     [HttpGet("planes")]
     [ProducesResponseType(typeof(IReadOnlyList<PlanInspeccionDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.InspeccionesEjecuciones, AccionPermiso.Ver)]
     public async Task<IActionResult> GetPlanes([FromQuery] int lineaId, [FromQuery] string puesto)
     {
         var result = await _inspeccionService.ObtenerPlanesAsync(lineaId, puesto);
@@ -86,6 +90,7 @@ public class InspeccionesController : ApiControllerBase
     /// </summary>
     [HttpGet("pendientes")]
     [ProducesResponseType(typeof(IReadOnlyList<PlanInspeccionConItemsDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.InspeccionesEjecuciones, AccionPermiso.Ver)]
     public async Task<IActionResult> GetPendientes([FromQuery] int lineaId, [FromQuery] string puesto)
     {
         var result = await _inspeccionService.ObtenerPendientesHoyAsync(lineaId, puesto);
@@ -107,6 +112,7 @@ public class InspeccionesController : ApiControllerBase
     [HttpGet("planes/{planId:int}")]
     [ProducesResponseType(typeof(PlanInspeccionConItemsDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.InspeccionesEjecuciones, AccionPermiso.Ver)]
     public async Task<IActionResult> GetPlan(int planId)
     {
         var result = await _inspeccionService.ObtenerPlanConItemsAsync(planId);
@@ -126,9 +132,9 @@ public class InspeccionesController : ApiControllerBase
     /// Inicia una nueva ejecución de inspección.
     /// </summary>
     [HttpPost("ejecuciones")]
-    [Authorize(Policy = "CanCreateDetenciones")]
     [ProducesResponseType(typeof(IniciarEjecucionResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.InspeccionesEjecuciones, AccionPermiso.Alta)]
     public async Task<IActionResult> IniciarEjecucion([FromBody] IniciarEjecucionRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -153,6 +159,7 @@ public class InspeccionesController : ApiControllerBase
     [HttpGet("ejecuciones/{id:long}")]
     [ProducesResponseType(typeof(EjecucionInspeccionCompletoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.InspeccionesEjecuciones, AccionPermiso.Ver)]
     public async Task<IActionResult> GetEjecucion(long id)
     {
         var result = await _inspeccionService.ObtenerEjecucionAsync(id);
@@ -174,10 +181,10 @@ public class InspeccionesController : ApiControllerBase
     /// R16: Si resultado es NO_OK, la observación es obligatoria.
     /// </summary>
     [HttpPost("ejecuciones/guardar")]
-    [Authorize(Policy = "CanCreateDetenciones")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [Permiso(Opciones.InspeccionesEjecuciones, AccionPermiso.Alta)]
     public async Task<IActionResult> GuardarResultados([FromBody] GuardarResultadosInspeccionRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -211,6 +218,7 @@ public class InspeccionesController : ApiControllerBase
     /// </summary>
     [HttpGet("ejecuciones")]
     [ProducesResponseType(typeof(PagedResult<EjecucionInspeccionDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.InspeccionesEjecuciones, AccionPermiso.Ver)]
     public async Task<IActionResult> GetEjecuciones([FromQuery] EjecucionInspeccionFiltroRequest filtro)
     {
         var result = await _inspeccionService.ObtenerEjecucionesPaginadoAsync(filtro);
@@ -233,6 +241,7 @@ public class InspeccionesController : ApiControllerBase
     /// </summary>
     [HttpGet("no-ok")]
     [ProducesResponseType(typeof(IReadOnlyList<HallazgoNoOkDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.InspeccionesNoOk, AccionPermiso.Ver)]
     public async Task<IActionResult> GetHallazgosPendientes([FromQuery] int? lineaId = null)
     {
         var result = await _inspeccionService.ObtenerHallazgosPendientesAsync(lineaId);
@@ -253,6 +262,7 @@ public class InspeccionesController : ApiControllerBase
     /// </summary>
     [HttpGet("no-ok/paginado")]
     [ProducesResponseType(typeof(PagedResult<HallazgoNoOkDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.InspeccionesNoOk, AccionPermiso.Ver)]
     public async Task<IActionResult> GetHallazgosPaginado([FromQuery] HallazgoNoOkFiltroRequest filtro)
     {
         var result = await _inspeccionService.ObtenerHallazgosPaginadoAsync(filtro);
@@ -273,10 +283,10 @@ public class InspeccionesController : ApiControllerBase
     /// R17: No se borra, se marca como resuelto.
     /// </summary>
     [HttpPost("no-ok/{id:long}/resolver")]
-    [Authorize(Policy = "CanCloseDetenciones")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.InspeccionesNoOk, AccionPermiso.Modificar)]
     public async Task<IActionResult> ResolverHallazgo(long id, [FromBody] ResolverHallazgoRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))

@@ -1,3 +1,5 @@
+using PSAG.Mantenimiento.Api.Autorizacion;
+using PSAG.Mantenimiento.Domain.Permisos;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -45,6 +47,7 @@ public class AnalisisController : ApiControllerBase
     [HttpGet("{id:long}")]
     [ProducesResponseType(typeof(AnalisisDetencionDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(AccionPermiso.Ver, Opciones.DetencionesListado, Opciones.DetencionesPendientes)]
     public async Task<IActionResult> GetAnalisis(long id)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -68,6 +71,7 @@ public class AnalisisController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [Permiso(Opciones.DetencionesPendientes, AccionPermiso.Modificar)]
     public async Task<IActionResult> GuardarBorrador(long id, [FromBody] GuardarAnalisisRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -91,6 +95,7 @@ public class AnalisisController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [Permiso(Opciones.DetencionesPendientes, AccionPermiso.Modificar)]
     public async Task<IActionResult> CerrarAnalisis(long id, [FromBody] GuardarAnalisisRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -115,6 +120,7 @@ public class AnalisisController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [Permiso(Opciones.DetencionesAnalisisCerrado, AccionPermiso.Modificar)]
     public async Task<IActionResult> EditarCerrado(long id, [FromBody] GuardarAnalisisRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -140,6 +146,7 @@ public class AnalisisController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.DetencionesPendientes, AccionPermiso.Modificar)]
     public async Task<IActionResult> AgregarAdjunto(long id, IFormFile? archivo)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -167,6 +174,7 @@ public class AnalisisController : ApiControllerBase
     [HttpGet("{id:long}/adjuntos/{adjuntoId:long}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(AccionPermiso.Ver, Opciones.DetencionesListado, Opciones.DetencionesPendientes)]
     public async Task<IActionResult> GetAdjunto(long id, long adjuntoId)
     {
         var resultado = await _edicionService.AbrirAdjuntoAsync(id, adjuntoId);
@@ -185,6 +193,7 @@ public class AnalisisController : ApiControllerBase
     /// </summary>
     [HttpGet("pendientes")]
     [ProducesResponseType(typeof(MisPendientesDto), StatusCodes.Status200OK)]
+    [Permiso(Opciones.DetencionesPendientes, AccionPermiso.Ver)]
     public async Task<IActionResult> GetMisPendientes(
         [FromQuery] string? responsableRol = null,
         [FromQuery] string? responsableUsuarioId = null)
@@ -225,6 +234,7 @@ public class AnalisisController : ApiControllerBase
     /// </summary>
     [HttpGet("pendientes/conteo")]
     [ProducesResponseType(StatusCodes.Status200OK)]
+    [Permiso(Opciones.DetencionesPendientes, AccionPermiso.Ver)]
     public async Task<IActionResult> GetConteoPendientes()
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -239,6 +249,7 @@ public class AnalisisController : ApiControllerBase
     /// </summary>
     [HttpGet("soluciones")]
     [ProducesResponseType(typeof(SolucionesResultadoDto), StatusCodes.Status200OK)]
+    [Permiso(Opciones.DetencionesSoluciones, AccionPermiso.Ver)]
     public async Task<IActionResult> BuscarSoluciones([FromQuery] BuscarSolucionesRequest filtro)
     {
         var resultado = await _analisisService.BuscarSolucionesAsync(filtro, Roles);

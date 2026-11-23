@@ -161,16 +161,38 @@ public static class TurnoProduccionReglas
     public static bool PuedeCorregir(IEnumerable<string> roles, IReadOnlyCollection<int> lineasAsignadas, int lineaId)
     {
         var lista = roles.ToList();
+        return PuedeCorregir(TienePermisoCorregirPorRol(lista), lista, lineasAsignadas, lineaId);
+    }
+
+    /// <summary>Regla por rol anterior a T-802 (= matriz migrada de "Turnos de producción", MODIFICACION).</summary>
+    public static bool TienePermisoCorregirPorRol(IEnumerable<string> roles) =>
+        roles.Any(r => r is RolesSistema.Administrador or RolesSistema.Mantenimiento or RolesSistema.Supervisor);
+
+    /// <summary>
+    /// T-802: quién corrige es un permiso configurable (opción "Turnos de producción", MODIFICACION). Lo que queda en el
+    /// código es el alcance por línea: administrador y mantenimiento, todas; el resto, sus líneas (sin líneas asignadas, todas).
+    /// </summary>
+    public static bool PuedeCorregir(bool permisoCorregir, IEnumerable<string> roles, IReadOnlyCollection<int> lineasAsignadas, int lineaId)
+    {
+        if (!permisoCorregir)
+            return false;
+        var lista = roles.ToList();
         if (lista.Contains(RolesSistema.Administrador) || lista.Contains(RolesSistema.Mantenimiento))
             return true;
-        return lista.Contains(RolesSistema.Supervisor) && (lineasAsignadas.Count == 0 || lineasAsignadas.Contains(lineaId));
+        return lineasAsignadas.Count == 0 || lineasAsignadas.Contains(lineaId);
     }
 
     /// <summary>Quién opera el turno de una línea (tomar, cambiar producto, cerrar): el operario habilitado en la línea o quien puede corregir.</summary>
     public static bool PuedeOperar(IEnumerable<string> roles, IReadOnlyCollection<int> lineasAsignadas, int lineaId)
     {
         var lista = roles.ToList();
-        if (PuedeCorregir(lista, lineasAsignadas, lineaId))
+        return PuedeOperar(TienePermisoCorregirPorRol(lista), lista, lineasAsignadas, lineaId);
+    }
+
+    public static bool PuedeOperar(bool permisoCorregir, IEnumerable<string> roles, IReadOnlyCollection<int> lineasAsignadas, int lineaId)
+    {
+        var lista = roles.ToList();
+        if (PuedeCorregir(permisoCorregir, lista, lineasAsignadas, lineaId))
             return true;
         return lista.Contains(RolesSistema.Operario) && lineasAsignadas.Contains(lineaId);
     }

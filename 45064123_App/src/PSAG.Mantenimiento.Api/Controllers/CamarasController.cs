@@ -1,3 +1,5 @@
+using PSAG.Mantenimiento.Api.Autorizacion;
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PSAG.Mantenimiento.Application.Common;
@@ -22,19 +24,21 @@ public class CamarasController : ApiControllerBase
 
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<CamaraDto>), StatusCodes.Status200OK)]
+    [Permiso(AccionPermiso.Ver, Opciones.MaestrosCamaras, Opciones.CalidadParadasCamara, Opciones.MaestrosCalidad)]
     public async Task<IActionResult> Get([FromQuery] int? lineaId = null, [FromQuery] bool incluirInactivas = false) =>
         Ok(await _servicio.ObtenerAsync(lineaId, incluirInactivas));
 
     [HttpGet("{id:int}")]
     [ProducesResponseType(typeof(CamaraDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(AccionPermiso.Ver, Opciones.MaestrosCamaras, Opciones.CalidadParadasCamara, Opciones.MaestrosCalidad)]
     public async Task<IActionResult> GetPorId(int id) =>
         await _servicio.ObtenerPorIdAsync(id) is { } camara ? Ok(camara) : NotFound();
 
     [HttpPost]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(CamaraDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.MaestrosCamaras, AccionPermiso.Alta)]
     public async Task<IActionResult> Crear([FromBody] GuardarCamaraRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -44,10 +48,10 @@ public class CamarasController : ApiControllerBase
     }
 
     [HttpPut("{id:int}")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(CamaraDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.MaestrosCamaras, AccionPermiso.Modificar)]
     public async Task<IActionResult> Actualizar(int id, [FromBody] GuardarCamaraRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -58,10 +62,10 @@ public class CamarasController : ApiControllerBase
 
     /// <summary>Borrado lógico: la cámara queda inactiva, deshabilitada y sin producción oficial. Sus datos no se tocan.</summary>
     [HttpPost("{id:int}/desactivar")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(CamaraDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.MaestrosCamaras, AccionPermiso.Baja)]
     public async Task<IActionResult> Desactivar(int id)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
