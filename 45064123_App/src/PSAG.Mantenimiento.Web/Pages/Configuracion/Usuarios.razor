@@ -38,7 +38,7 @@
                             <th>Nombre Completo</th>
                             <th>Email</th>
                             <th>Roles</th>
-                            <th>Líneas</th>
+                            <th>Líneas habilitadas</th>
                             <th class="text-center">Activo</th>
                             <th class="text-end">Acciones</th>
                         </tr>
@@ -153,7 +153,7 @@
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Líneas asignadas @(SoloOperario ? "*" : "")</label>
+                        <label class="form-label">Líneas habilitadas @(LineasObligatorias ? "*" : "")</label>
                         <div class="d-flex flex-wrap gap-2">
                             @foreach (var linea in lineas)
                             {
@@ -166,9 +166,11 @@
                             }
                         </div>
                         <div class="form-text">
-                            @(SoloOperario
-                                ? OperarioSinLinea
-                                : "El operario sólo carga detenciones en sus líneas. Para elegir su turno, usá Configuración → Maquinistas.")
+                            @(ObligadoATurno
+                                ? ObligadoSinLinea
+                                : SoloOperario
+                                    ? OperarioSinLinea
+                                    : "El operario sólo carga detenciones en sus líneas habilitadas y sólo puede abrir turno en ellas. El turno no se asigna: lo declara al abrirlo.")
                         </div>
                     </div>
                     @if (editando)
@@ -248,7 +250,15 @@
 
     private const string OperarioSinLinea = "Un operario necesita al menos una línea asignada para poder cargar detenciones.";
 
+    private const string ObligadoSinLinea =
+        "Alguno de los roles elegidos está obligado a turno: elegí al menos una línea habilitada (sólo puede abrir turno en esas líneas).";
+
     private bool SoloOperario => RolesCarga.SoloOperario(rolesSeleccionados.Contains);
+
+    // T-802: roles con "Obligado a declarar turno" (Configuración → Roles y permisos).
+    private HashSet<string> rolesObligados = new(StringComparer.OrdinalIgnoreCase);
+    private bool ObligadoATurno => rolesSeleccionados.Any(rolesObligados.Contains);
+    private bool LineasObligatorias => ObligadoATurno || SoloOperario;
     private string password = string.Empty;
     private bool isLoading = true;
     private bool showModal = false;
@@ -268,7 +278,8 @@
         await Task.WhenAll(
             CargarUsuarios(),
             CargarLineas(),
-            CargarRoles()
+            CargarRoles(),
+            CargarRolesObligados()
         );
     }
 
@@ -312,6 +323,9 @@
             Console.WriteLine($"Error cargando roles: {ex.Message}");
         }
     }
+
+    private async Task CargarRolesObligados() =>
+        rolesObligados = new HashSet<string>(await UsuariosService.GetRolesObligadosATurnoAsync(), StringComparer.OrdinalIgnoreCase);
 
     private void NuevoUsuario()
     {
@@ -391,9 +405,9 @@
             errorMessage = "Elegí al menos un rol.";
             return;
         }
-        if (SoloOperario && !lineasSeleccionadas.Any() && (!editando || usuarioActual.Activo))
+        if (LineasObligatorias && !lineasSeleccionadas.Any() && (!editando || usuarioActual.Activo))
         {
-            errorMessage = OperarioSinLinea;
+            errorMessage = ObligadoATurno ? ObligadoSinLinea : OperarioSinLinea;
             return;
         }
 

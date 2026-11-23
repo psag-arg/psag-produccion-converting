@@ -15,7 +15,7 @@ public static class DetencionCargaReglas
     public const string MensajeSinTurnoALaHora =
         "No hay un turno de planta para la hora de la parada. Revisá los horarios en Configuración → Turnos.";
     public const string MensajeOperadorNoHabilitado =
-        "El maquinista elegido no está habilitado en la línea de la detención (Configuración → Maquinistas).";
+        "El maquinista elegido no está habilitado en la línea de la detención (Configuración → Usuarios).";
 
     /// <summary>
     /// Instante que decide el turno de producción de una detención manual (T-798 etapa 3): la hora desde (con su

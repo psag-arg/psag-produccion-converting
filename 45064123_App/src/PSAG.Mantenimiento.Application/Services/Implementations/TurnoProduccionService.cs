@@ -70,16 +70,33 @@ public class TurnoProduccionService : ITurnoProduccionService
     // ===================== Login del operario =====================
 
     public async Task<PropuestaTurnoProduccionDto> ObtenerPropuestaAsync(
-        string usuarioId, IReadOnlyCollection<string> roles, CancellationToken cancellationToken = default)
+        string usuarioId, IReadOnlyCollection<string> roles, CancellationToken cancellationToken = default) =>
+        await ObtenerPropuestaAsync(usuarioId, roles, false, cancellationToken);
+
+    public async Task<PropuestaTurnoProduccionDto> ObtenerPropuestaAsync(
+        string usuarioId, IReadOnlyCollection<string> roles, bool obligadoATurno, CancellationToken cancellationToken = default)
     {
-        var propuesta = new PropuestaTurnoProduccionDto();
-        if (!roles.Contains(RolesSistema.Operario))
+        var propuesta = new PropuestaTurnoProduccionDto { ObligadoATurno = obligadoATurno };
+        if (!roles.Contains(RolesSistema.Operario) && !obligadoATurno)
             return propuesta;
+
+        // T-802: un solo turno abierto por operario a la vez.
+        var miTurno = await OtroTurnoAbiertoAsync(usuarioId, null, cancellationToken);
+        propuesta.MiTurnoProduccionId = miTurno?.TurnoProduccionId;
+        propuesta.MiLineaNombre = miTurno?.Linea?.Nombre;
 
         var turnos = (await _unitOfWork.Turnos.GetActivosAsync(cancellationToken)).ToList();
         var actual = TurnoProduccionReglas.TurnoQueContiene(turnos, HoraPlanta.Ahora(_zonaPlanta, _ahora()).DateTime);
         if (actual is not var (turno, fecha))
-            return propuesta;   // sin turno de planta a esta hora no hay nada que tomar
+        {
+            // Sin turno de planta a esta hora no hay nada que tomar (el obligado a turno se queda con el aviso).
+            if (obligadoATurno && miTurno == null)
+            {
+                propuesta.Aviso = TurnoProduccionReglas.MensajeSinTurno;
+                propuesta.Preguntar = true;
+            }
+            return propuesta;
+        }
         propuesta.TurnoId = turno.TurnoId;
         propuesta.TurnoCodigo = turno.Codigo;
         propuesta.TurnoNombre = turno.Nombre;
@@ -101,13 +118,17 @@ public class TurnoProduccionService : ITurnoProduccionService
             var tp = await _unitOfWork.TurnosProduccion.GetPorClaveAsync(linea.LineaId, turno.TurnoId, fecha, cancellationToken);
             var operador = tp == null ? null : TurnoProduccionReglas.OperadorVigente(tp.Operadores);
             var producto = tp == null ? null : TurnoProduccionReglas.ProductoVigente(tp.Productos);
+            var ocupado = miTurno != null && miTurno.LineaId != linea.LineaId;
             propuesta.Lineas.Add(new OpcionTurnoProduccionDto
             {
                 LineaId = linea.LineaId,
                 LineaNombre = linea.Nombre,
                 TurnoProduccionId = tp?.TurnoProduccionId,
                 Estado = tp?.Estado.ToString(),
-                PuedeTomar = tp == null || !tp.EstaCerrado,
+                PuedeTomar = (tp == null || !tp.EstaCerrado) && !ocupado,
+                MotivoNoPuedeTomar = ocupado
+                    ? TurnoProduccionReglas.MensajeOtroTurnoAbierto(miTurno!.Linea?.Nombre ?? "otra línea", miTurno.Turno?.Nombre ?? "turno")
+                    : null,
                 SoyOperadorActual = operador?.OperadorUsuarioId == usuarioId,
                 OperadorActualUsuarioId = operador?.OperadorUsuarioId,
                 OperadorActualDesde = HoraPlanta.En(operador?.Desde, _zonaPlanta),
@@ -120,6 +141,12 @@ public class TurnoProduccionService : ITurnoProduccionService
         // Se pregunta si hay una línea para tomar, o si ya es el operador pero falta elegir el producto.
         propuesta.Preguntar = propuesta.Lineas.Any(o =>
             o.PuedeTomar && (!o.SoyOperadorActual || (o.ProductoActualId == null && o.Productos.Count > 0)));
+        // El obligado a turno sin turno propio no sigue de largo: se queda en la pantalla (aunque no tenga nada para tomar).
+        if (obligadoATurno && miTurno == null)
+            propuesta.Preguntar = true;
+        // Con turno propio en una línea no se le ofrece tomar otra: sólo se pregunta si falta el producto del suyo.
+        if (miTurno != null)
+            propuesta.Preguntar = propuesta.Lineas.Any(o => o.SoyOperadorActual && o.PuedeTomar && o.ProductoActualId == null && o.Productos.Count > 0);
         return propuesta;
     }
 
@@ -149,6 +176,14 @@ public class TurnoProduccionService : ITurnoProduccionService
         var turnos = (await _unitOfWork.Turnos.GetActivosAsync(cancellationToken)).ToList();
         if (TurnoProduccionReglas.TurnoQueContiene(turnos, HoraPlanta.Ahora(_zonaPlanta, ahora).DateTime) is not var (turno, fecha))
             return Result<AperturaTurnoProduccionDto>.Failure("VALIDATION", TurnoProduccionReglas.MensajeSinTurno);
+
+        // T-802: el turno lo declara el operario al abrirlo (es el turno en curso por hora) y no puede tener dos abiertos.
+        if (origen == OrigenAperturaTurno.LOGIN)
+        {
+            if (await OtroTurnoAbiertoAsync(usuarioId, lineaId, cancellationToken) is { } otroAbierto)
+                return Result<AperturaTurnoProduccionDto>.Failure("CONFLICT",
+                    TurnoProduccionReglas.MensajeOtroTurnoAbierto(otroAbierto.Linea?.Nombre ?? "otra línea", otroAbierto.Turno?.Nombre ?? "turno"));
+        }
 
         ParametroLineaProducto? parametro = null;
         if (productoMaestroId is { } productoId)
@@ -214,6 +249,9 @@ public class TurnoProduccionService : ITurnoProduccionService
                         resultado.ReemplazadoUsuarioId = vigente.OperadorUsuarioId;
                     }
                     tp.Operadores.Add(NuevoTramoOperador(usuarioId, ahora, OrigenTramoOperador.LOGIN, usuarioId, ahora, null));
+                    // T-802: se toca el turno para que dos relevos simultáneos choquen por RowVersion (además del índice
+                    // único de un solo operador vigente por turno, script 40).
+                    tp.ModificadoPorUsuarioId = usuarioId;
                 }
             }
 
@@ -245,6 +283,23 @@ public class TurnoProduccionService : ITurnoProduccionService
 
         resultado.Turno = Mapear((await _unitOfWork.TurnosProduccion.GetConDetalleAsync(tp.TurnoProduccionId, cancellationToken))!);
         return Result<AperturaTurnoProduccionDto>.Success(resultado);
+    }
+
+    /// <summary>
+    /// T-802: turno ABIERTO de otra línea (no <paramref name="exceptoLineaId"/>) en el que el usuario es el operador
+    /// vigente, o null. Los de la misma línea no cuentan: abrir el turno en curso cierra el anterior de la línea.
+    /// </summary>
+    private async Task<TurnoProduccion?> OtroTurnoAbiertoAsync(string usuarioId, int? exceptoLineaId, CancellationToken cancellationToken) =>
+        (await _unitOfWork.TurnosProduccion.GetAbiertosDeOperadorAsync(usuarioId, cancellationToken))
+            .FirstOrDefault(t => t.LineaId != exceptoLineaId);
+
+    public async Task<TurnoProduccionDto?> ObtenerMioAsync(string usuarioId, CancellationToken cancellationToken = default)
+    {
+        var mio = (await _unitOfWork.TurnosProduccion.GetAbiertosDeOperadorAsync(usuarioId, cancellationToken)).FirstOrDefault();
+        if (mio == null)
+            return null;
+        var detalle = await _unitOfWork.TurnosProduccion.GetConDetalleAsync(mio.TurnoProduccionId, cancellationToken);
+        return detalle == null ? null : Mapear(detalle);
     }
 
     // ===================== Turno pedido por un dato (ingesta, detenciones) =====================
@@ -361,6 +416,9 @@ public class TurnoProduccionService : ITurnoProduccionService
         var vigente = TurnoProduccionReglas.OperadorVigente(tp.Operadores);
         if (vigente?.OperadorUsuarioId == usuarioId)
             return Result<TurnoProduccionDto>.Failure("VALIDATION", "Ya sos el operador de este turno.");
+        if (await OtroTurnoAbiertoAsync(usuarioId, tp.LineaId, cancellationToken) is { } otro)
+            return Result<TurnoProduccionDto>.Failure("CONFLICT",
+                TurnoProduccionReglas.MensajeOtroTurnoAbierto(otro.Linea?.Nombre ?? "otra línea", otro.Turno?.Nombre ?? "turno"));
 
         var ahora = _ahora();
         if (vigente != null)
@@ -410,7 +468,12 @@ public class TurnoProduccionService : ITurnoProduccionService
         if (string.IsNullOrWhiteSpace(request.OperadorUsuarioId)
             || await _unitOfWork.OperadoresLinea.GetByUsuarioYLineaAsync(request.OperadorUsuarioId, tp.LineaId, cancellationToken) == null)
             return Result<TurnoProduccionDto>.Failure("VALIDATION",
-                $"El operador elegido no está habilitado en {tp.Linea.Nombre} (Configuración → Maquinistas).");
+                $"El operador elegido no está habilitado en {tp.Linea.Nombre} (Configuración → Usuarios).");
+        // T-802: si el tramo queda vigente (sin "hasta") en un turno abierto, el operador no puede estar vigente en otro.
+        if (tp.EstaAbierto && request.Hasta == null
+            && await OtroTurnoAbiertoAsync(request.OperadorUsuarioId, tp.LineaId, cancellationToken) is { } otroAbierto)
+            return Result<TurnoProduccionDto>.Failure("CONFLICT",
+                TurnoProduccionReglas.MensajeOperadorConOtroTurno(otroAbierto.Linea?.Nombre ?? "otra línea", otroAbierto.Turno?.Nombre ?? "turno"));
 
         var ahora = _ahora();
         var motivo = TurnoProduccionReglas.MotivoTramoInvalido(tp, request.Desde, request.Hasta, ahora,
@@ -442,6 +505,10 @@ public class TurnoProduccionService : ITurnoProduccionService
         {
             if (cerrarVigente)
                 vigente!.Hasta = request.Desde;
+            // Índice único de un solo operador vigente por turno (T-802): mientras se inserta el reemplazo, el tramo anulado
+            // se marca anulado por sí mismo (misma transacción); enseguida queda anulado por el nuevo.
+            if (anulado != null)
+                anulado.AnuladoPorId = anulado.TurnoProduccionOperadorId;
             var nuevo = NuevoTramoOperador(request.OperadorUsuarioId, request.Desde, OrigenTramoOperador.SUPERVISOR, usuarioId, ahora, request.Motivo!.Trim());
             nuevo.Hasta = request.Hasta;
             tp.Operadores.Add(nuevo);

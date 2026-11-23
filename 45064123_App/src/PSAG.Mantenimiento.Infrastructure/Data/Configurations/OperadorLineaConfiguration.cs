@@ -25,11 +25,6 @@ public class UsuarioLineaConfiguration : IEntityTypeConfiguration<OperadorLinea>
             .HasForeignKey(x => x.LineaId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasOne(x => x.TurnoHabitual)
-            .WithMany()
-            .HasForeignKey(x => x.TurnoHabitualId)
-            .OnDelete(DeleteBehavior.Restrict);
-
         builder.HasIndex(x => x.UsuarioId);
         builder.HasIndex(x => new { x.UsuarioId, x.LineaId }).IsUnique();
     }

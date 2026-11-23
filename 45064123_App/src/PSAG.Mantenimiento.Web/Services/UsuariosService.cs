@@ -10,6 +10,9 @@ public interface IUsuariosService
     Task CreateUsuarioAsync(CrearUsuarioRequest request);
     Task UpdateUsuarioAsync(string id, ActualizarUsuarioRequest request);
     Task<List<string>> GetRolesAsync();
+
+    /// <summary>T-802: roles con ObligadoATurno (piden líneas habilitadas en el alta). Vacío si la API falla.</summary>
+    Task<List<string>> GetRolesObligadosATurnoAsync();
     Task ResetPasswordAsync(string userId, string nuevaPassword);
     Task<EliminarUsuarioResponse> DeleteUsuarioAsync(string id);
 }
@@ -51,6 +54,18 @@ public class UsuariosService : IUsuariosService
     {
         var result = await _httpClient.GetFromJsonAsync<List<string>>("api/usuarios/roles");
         return result ?? new List<string>();
+    }
+
+    public async Task<List<string>> GetRolesObligadosATurnoAsync()
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<List<string>>("api/usuarios/roles-obligados-turno") ?? new List<string>();
+        }
+        catch (Exception)
+        {
+            return new List<string>();   // la API igual valida al guardar
+        }
     }
 
     public async Task ResetPasswordAsync(string userId, string nuevaPassword)

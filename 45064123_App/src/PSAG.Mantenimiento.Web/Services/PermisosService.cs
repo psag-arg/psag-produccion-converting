@@ -7,6 +7,8 @@ namespace PSAG.Mantenimiento.Web.Services;
 /// <summary>
 /// Permisos del usuario logueado (T-802), cacheados en la sesión de la Web: se piden una vez a GET api/permisos/mios y se
 /// vuelven a pedir al loguear / desloguear (cambio de estado de autenticación) o con <see cref="RefrescarAsync"/>.
+/// T-802: también cada <see cref="Intervalo"/> y cuando la API responde 403 (SesionVencidaHandler), así si el
+/// administrador cambia los permisos de un usuario logueado, su menú se alinea sin volver a entrar.
 /// </summary>
 public interface IPermisosService
 {
@@ -23,6 +25,9 @@ public sealed class PermisosService : IPermisosService, IDisposable
     private readonly HttpClient _httpClient;
     private readonly AuthenticationStateProvider _auth;
     private Task<PermisosUsuario>? _carga;
+    private readonly Timer _timer;
+
+    public static readonly TimeSpan Intervalo = TimeSpan.FromMinutes(5);
 
     public event Action? Cambiaron;
 
@@ -31,6 +36,22 @@ public sealed class PermisosService : IPermisosService, IDisposable
         _httpClient = httpClient;
         _auth = auth;
         _auth.AuthenticationStateChanged += AlCambiarSesion;
+        _timer = new Timer(async _ => await RefrescoPeriodicoAsync(), null, Intervalo, Intervalo);
+    }
+
+    private async Task RefrescoPeriodicoAsync()
+    {
+        try
+        {
+            var estado = await _auth.GetAuthenticationStateAsync();
+            if (estado.User.Identity?.IsAuthenticated != true)
+                return;
+            await RefrescarAsync();   // avisa (Cambiaron): el menú y las pantallas se vuelven a evaluar
+        }
+        catch
+        {
+            // sin conexión: se reintenta en el próximo intervalo
+        }
     }
 
     private void AlCambiarSesion(Task<AuthenticationState> _)
@@ -84,5 +105,9 @@ public sealed class PermisosService : IPermisosService, IDisposable
         return (dto, null);
     }
 
-    public void Dispose() => _auth.AuthenticationStateChanged -= AlCambiarSesion;
+    public void Dispose()
+    {
+        _timer.Dispose();
+        _auth.AuthenticationStateChanged -= AlCambiarSesion;
+    }
 }

@@ -443,20 +443,16 @@
                                                                 @bind-SelectedValue="selectedMaquinistaId"
                                                                 OnValueChanged="OnMaquinistaChanged"
                                                                 ValueSelector="@(m => m.UsuarioLineaId)"
-                                                                TextSelector="@(m => $"{m.NombreUsuario} · {(string.IsNullOrEmpty(m.TurnoNombre) ? "sin turno" : m.TurnoNombre)}")"
+                                                                TextSelector="@(m => m.NombreUsuario)"
                                                                 EmptyText="Esta línea no tiene maquinistas asignados."
                                                                 Placeholder="Buscar maquinista...">
                                                 <ItemTemplate Context="maq">
-                                                    @maq.NombreUsuario <small class="text-muted">· @(string.IsNullOrEmpty(maq.TurnoNombre) ? "sin turno" : maq.TurnoNombre)</small>
+                                                    @maq.NombreUsuario
                                                 </ItemTemplate>
                                             </AutocompleteSelect>
                                             @if (!maquinistasLinea.Any())
                                             {
-                                                <div class="form-text text-danger">Esta línea no tiene maquinistas asignados. Pedile al administrador que los cargue en Configuración → Maquinistas.</div>
-                                            }
-                                            else if (MaquinistaElegido is { TurnoId: null } && !HorasCargadas)
-                                            {
-                                                <div class="form-text text-warning-emphasis">Este maquinista no tiene turno. Cargá la hora de inicio y fin, o asignale un turno en Configuración → Maquinistas.</div>
+                                                <div class="form-text text-danger">Esta línea no tiene maquinistas habilitados. Pedile al administrador que los habilite en Configuración → Usuarios.</div>
                                             }
                                         }
                                         else if (maquinistaActual != null)
@@ -491,12 +487,6 @@
                                         {
                                             <div class="form-control bg-light">
                                                 <i class="bi bi-clock-fill me-2 text-success"></i>@turnoAsignado
-                                            </div>
-                                        }
-                                        else if (MaquinistaElegido is { TurnoId: null })
-                                        {
-                                            <div class="form-control bg-warning-subtle text-warning-emphasis">
-                                                <i class="bi bi-exclamation-triangle me-2"></i>Cargá hora de inicio y fin
                                             </div>
                                         }
                                         else
@@ -1142,10 +1132,6 @@
                 if (asignacion != null)
                 {
                     maquinistaActual = asignacion;
-                    if (asignacion.TurnoId.HasValue)
-                    {
-                        turnoAsignado = asignacion.TurnoNombre;
-                    }
                 }
             }
 
@@ -1165,14 +1151,7 @@
         errorMessage = null;
         turnoAsignado = null;
 
-        if (selectedMaquinistaId > 0)
-        {
-            var maquinista = maquinistasLinea.FirstOrDefault(m => m.UsuarioLineaId == selectedMaquinistaId);
-            if (maquinista != null)
-            {
-                turnoAsignado = maquinista.TurnoNombre;
-            }
-        }
+        // T-802: ya no hay turno habitual: el turno sale de la hora de inicio (o es el de ahora).
         await Task.CompletedTask;
     }
 
@@ -1272,11 +1251,6 @@
         if (inicio.HasValue && MinutosManuales == 0)
         {
             errorMessage = "La hora de inicio y la de fin no pueden ser iguales.";
-            return;
-        }
-        if (!editando && MaquinistaElegido is { TurnoId: null } && !inicio.HasValue)
-        {
-            errorMessage = "Este maquinista no tiene turno. Asignáselo en Configuración → Maquinistas o cargá la hora de inicio y fin.";
             return;
         }
 

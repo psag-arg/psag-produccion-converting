@@ -138,6 +138,16 @@ public class PropuestaTurnoProduccionDto
     public string? TurnoNombre { get; set; }
     public DateOnly? FechaProduccion { get; set; }
     public List<OpcionTurnoProduccionDto> Lineas { get; set; } = [];
+
+    /// <summary>
+    /// T-802: el usuario está obligado a turno (algún rol con ObligadoATurno): no puede hacer nada hasta abrir o tomar
+    /// un turno, y la pantalla no ofrece seguir sin tomar.
+    /// </summary>
+    public bool ObligadoATurno { get; set; }
+
+    /// <summary>T-802: turno abierto en el que el usuario ya es el operador vigente (a lo sumo uno), o null.</summary>
+    public long? MiTurnoProduccionId { get; set; }
+    public string? MiLineaNombre { get; set; }
 }
 
 public class OpcionTurnoProduccionDto
@@ -156,6 +166,9 @@ public class OpcionTurnoProduccionDto
 
     /// <summary>El usuario ya es el operador vigente.</summary>
     public bool SoyOperadorActual { get; set; }
+
+    /// <summary>T-802: por qué no se puede tomar (p. ej., ya tiene abierto el turno de otra línea).</summary>
+    public string? MotivoNoPuedeTomar { get; set; }
 
     public string? OperadorActualUsuarioId { get; set; }
     public string? OperadorActualNombre { get; set; }

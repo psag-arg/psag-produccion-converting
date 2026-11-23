@@ -113,6 +113,7 @@ public class DetencionesController : ApiControllerBase
     [ProducesResponseType(typeof(DetencionDetalleDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [Permiso(Opciones.DetencionesListado, AccionPermiso.Ver)]
+    [DelTurno(RecursoDelTurno.Detencion, "id")]
     public async Task<IActionResult> GetDetencion(long id)
     {
         var detencion = await _unitOfWork.Detenciones.GetByIdWithDetailsAsync(id);
@@ -263,6 +264,24 @@ public class DetencionesController : ApiControllerBase
         // T-798 etapa 3: la detención cuelga del turno de producción de la hora desde (o de ahora, sin horas). Si no
         // había, lo crea el SISTEMA: una detención sin turno abierto no se pierde.
         var instante = DetencionCargaReglas.InstanteTurno(tiempo.FechaHoraParada, DateTimeOffset.UtcNow);
+
+        // T-802: el obligado a turno sólo carga detenciones de su turno (línea, turno y fecha de producción fijos). Se
+        // controla antes de asegurar el turno de la hora, para no crear turnos de otra hora.
+        if (TurnoObligado is { } turnoObligado)
+        {
+            var turnosPlanta = await _unitOfWork.Turnos.GetActivosAsync();
+            var delInstante = TurnoProduccionReglas.TurnoQueContiene(turnosPlanta, HoraPlanta.Ahora(_zonaPlanta, instante).DateTime);
+            if (request.LineaId != turnoObligado.LineaId || delInstante is not var (turnoHora, fechaHora)
+                || turnoHora.TurnoId != turnoObligado.TurnoId || fechaHora != turnoObligado.FechaProduccion)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new ProblemDetails
+                {
+                    Title = Autorizacion.TurnoObligatorio.TituloFueraDelTurno,
+                    Detail = $"La detención cae fuera de tu turno ({turnoObligado.Descripcion}). Revisá las horas: sólo podés cargar detenciones de tu turno.",
+                    Status = StatusCodes.Status403Forbidden
+                });
+            }
+        }
         var turnoProduccion = await _turnosProduccion.AsegurarTurnoAsync(request.LineaId, instante);
         if (turnoProduccion == null)
         {
@@ -342,6 +361,7 @@ public class DetencionesController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [Permiso(Opciones.DetencionesSeguimiento, AccionPermiso.Modificar)]
+    [DelTurno(RecursoDelTurno.Detencion, "id")]
     public async Task<IActionResult> CerrarDetencion(long id, [FromBody] CerrarDetencionRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -420,6 +440,7 @@ public class DetencionesController : ApiControllerBase
     [ProducesResponseType(typeof(DetencionNotaDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [Permiso(Opciones.DetencionesNotas, AccionPermiso.Alta)]
+    [DelTurno(RecursoDelTurno.Detencion, "id")]
     public async Task<IActionResult> AgregarNota(long id, [FromBody] AgregarNotaDetencionRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -504,6 +525,7 @@ public class DetencionesController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [Permiso(Opciones.DetencionesListado, AccionPermiso.Modificar)]
+    [DelTurno(RecursoDelTurno.Detencion, "id")]
     public async Task<IActionResult> UpdateDetencion(long id, [FromBody] ActualizarDetencionRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -693,6 +715,7 @@ public class DetencionesController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [Permiso(Opciones.DetencionesSeguimiento, AccionPermiso.Modificar)]
+    [DelTurno(RecursoDelTurno.Detencion, "id")]
     public async Task<IActionResult> IniciarSeguimiento(long id, [FromBody] IniciarSeguimientoRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -885,6 +908,7 @@ public class DetencionesController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [Permiso(Opciones.DetencionesListado, AccionPermiso.Baja)]
+    [DelTurno(RecursoDelTurno.Detencion, "id")]
     public async Task<IActionResult> EliminarDetencion(long id, [FromBody] EliminarDetencionRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -940,6 +964,7 @@ public class DetencionesController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [Permiso(Opciones.DetencionesListado, AccionPermiso.Baja)]
+    [DelTurno(RecursoDelTurno.Detencion, "id")]
     public async Task<IActionResult> RestaurarDetencion(long id)
     {
         if (string.IsNullOrEmpty(CurrentUserId))

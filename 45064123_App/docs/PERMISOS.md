@@ -14,7 +14,7 @@ nada cambia de comportamiento hasta que se edite. Está abajo para revisarla.
 |---|---|
 | `CFG_Opciones` | Catálogo de opciones: `Codigo` único, `Nombre`, `PadreId` (secciones del menú), `Ruta` de la Web, `Orden`, `AccionesAplicables` (qué de VER/ALTA/MODIFICACION/BAJA tiene sentido), `Activo`. No se edita desde la app: lo cargan el script 39 y la semilla desde `Domain/Permisos/CatalogoPermisos.cs` (única fuente). |
 | `CFG_PermisosRol` | `RoleId` (AspNetRoles) + `OpcionId` + `PuedeVer`, `PuedeAlta`, `PuedeModificar`, `PuedeBaja`. Único (rol, opción). El configurador guarda **todas** las filas del rol (también las que quedan en 0). |
-| `CFG_RolesConfiguracion` | `RoleId` (PK/FK) + `ObligadoATurno` + `Descripcion`. `ObligadoATurno` = 1 sólo OPERARIO; en la parte 1 sólo se guarda y se expone (`GET api/permisos/mios`); la parte 2 lo aplica. |
+| `CFG_RolesConfiguracion` | `RoleId` (PK/FK) + `ObligadoATurno` + `Descripcion`. `ObligadoATurno` = 1 sólo OPERARIO (matriz migrada). Se aplica en la API y en la Web: ver **Obligado a turno**. |
 
 Los cambios del configurador se auditan en `mnt.Auditoria` (`Accion` = CambioRol, `Entidad` = `CFG_PermisosRol`,
 valores anterior y nuevo de cada opción que cambió). Las tablas de Identity no se tocan.
@@ -75,6 +75,54 @@ Lecturas que antes eran de cualquier usuario logueado y ahora piden el VER de la
 servicio sólo aceptaba ADMINISTRADOR y SUPERVISOR: ahora lo corta el permiso. Los accesos "Nueva tarea", "Nuevo control" y
 "Nueva inspección" del menú se muestran sólo a quien tiene ALTA (antes los veía también Gerencia, que no podía guardar).
 
+## Obligado a turno (T-802 parte 2)
+
+Un usuario con **algún rol con `ObligadoATurno`** (tilde "Obligado a declarar turno" en Configuración → Roles y permisos;
+en la matriz migrada, sólo OPERARIO) trabaja siempre dentro de un turno de producción:
+
+1. **Después del login no puede hacer nada hasta abrir o tomar (relevo) un turno.** La Web le muestra sólo
+   *Producción → Inicio de turno* (sin menú, sin barra y **sin "seguir sin tomar"**; sólo "Cerrar sesión"). El turno es el
+   **en curso por hora**: lo declara él al tomarlo (ya no hay turno habitual) y sólo puede elegir **sus líneas habilitadas**.
+2. **En la API** (no sólo en la Web), mientras no sea el operador vigente de un turno ABIERTO, toda acción de negocio responde
+   **409** (`Title` "Turno requerido", `Detail` "Abrí o tomá un turno para empezar…", extensión `codigo` = `TURNO_REQUERIDO`).
+   Quedan permitidas (`[SinTurnoObligatorio]`): `api/auth/*`, `GET api/permisos/mios`, `api/turnos-produccion/propuesta`,
+   `abrir`, `{id}/relevar`, `actual` y `mio`, y las listas que usa esa pantalla (`api/catalogos/lineas`, `turnos`,
+   `turnos/actual`, `maquinistas/mis-asignaciones`). Sin permiso sigue siendo 403 "Sin permiso" (la autorización va antes).
+3. **Con el turno abierto, todo se ajusta a ese turno** (filtro `TurnoObligatorioFilter`, `Api/Autorizacion/TurnoObligatorio.cs`):
+   - lecturas (GET): `lineaId`, `turnoId`, `turnoProduccionId` y los rangos `fechaDesde`/`fechaHasta` (`desde`/`hasta` de tipo
+     fecha) —sueltos o dentro del objeto de filtro— se fijan a la línea, el turno y la fecha de producción del turno: listado
+     de detenciones, dashboard/acumulado, control de proceso, inspecciones, calidad, tareas, cámaras…;
+   - escrituras: una `lineaId` o `turnoProduccionId` distinta de la del turno → **403 "Fuera de tu turno"**;
+   - alta de detención: además la hora (o ahora, sin horas) tiene que caer en su turno (línea, turno y fecha fijos);
+   - recursos por id (`[DelTurno]`): detención / análisis / declaración de otro turno, y cerrar / cambiar producto / indicadores
+     de otro turno de producción → 403;
+   - *Mis pendientes* (y su contador) muestra sólo las detenciones de su turno; `api/catalogos/lineas` y `turnos` devuelven
+     sólo la línea y el turno del turno (los combos de la Web quedan fijos).
+4. **Al cerrar el turno** (o si lo relevan, o vence y lo cierra el sistema) vuelve a quedar bloqueado: la Web vuelve a
+   *Inicio de turno* (al cerrar desde la barra, o con el 409 de la siguiente llamada).
+
+Reglas de turno (para todos, no sólo obligados; en `TurnoProduccionService`):
+
+- **Un solo operador vigente por turno**: el relevo cierra el tramo del anterior a la misma hora en que empieza el nuevo
+  (sin superposición) y el índice único filtrado `UX_PRD_TurnosProduccionOperadores_Vigente` (script 40) lo garantiza en la
+  base aunque dos relevos lleguen a la vez.
+- **Un operario no tiene dos turnos abiertos**: si es el operador vigente del turno abierto de la línea A, no puede abrir ni
+  tomar (ni el supervisor dejarlo vigente en) el de la línea B hasta cerrar A o ser relevado (409 "Ya tenés abierto…").
+  Abrir el turno en curso de la **misma** línea sí puede: cierra el anterior de esa línea.
+
+Configuración:
+
+- Un rol obligado a turno necesita *Operar el turno* con VER, ALTA y MODIFICACIÓN (el configurador lo exige al guardar).
+- **Alta de usuario en un solo circuito** (Configuración → Usuarios): roles + **líneas habilitadas**. Si algún rol elegido es
+  obligado a turno, hace falta al menos una línea (la API lo valida; `GET api/usuarios/roles-obligados-turno` le dice a la
+  pantalla cuáles son). La habilitación (`ABM_OperadoresLinea`, sin turno desde el script 40) también restringe al que es
+  sólo operario a cargar detenciones en sus líneas.
+- *Configuración → Maquinistas* queda **sólo como consulta** (quién está habilitado en qué línea): se sacaron el alta, la
+  edición y la baja (API y pantalla) porque permitían cargar cosas imposibles (un operario con turno fijo distinto por línea,
+  o líneas que no salen del usuario). Se dejó en el menú porque es la única vista "por línea" de las habilitaciones.
+- Si a un usuario logueado le cambian los permisos, la Web vuelve a pedir `api/permisos/mios` al recibir un 403 y cada 5
+  minutos: el menú se alinea sin volver a entrar.
+
 ## Matriz migrada
 
 V = Ver, A = Alta, M = Modificación, B = Baja; — = nada. "(sin menú)" = función sin pantalla propia.
@@ -125,13 +173,13 @@ V = Ver, A = Alta, M = Modificación, B = Baja; — = nada. "(sin menú)" = func
 | Paradas y producción (cámara) <br><sub>aplica: VER</sub> | `CALIDAD.PARADAS_CAMARA` | `/paradas-camara` | V | V | V | V | V |
 | **Configuración** | `CONFIG` | | | | | | |
 | Turnos <br><sub>aplica: VER,ALTA,MOD</sub> | `CONFIG.TURNOS` | `/configuracion/turnos` | V A M | — | — | — | — |
-| Maquinistas <br><sub>aplica: VER,ALTA,MOD,BAJA</sub> | `CONFIG.MAQUINISTAS` | `/configuracion/maquinistas` | V A M B | — | — | — | — |
+| Maquinistas (consulta) <br><sub>aplica: VER</sub> | `CONFIG.MAQUINISTAS` | `/configuracion/maquinistas` | V | — | — | — | — |
 | Usuarios <br><sub>aplica: VER,ALTA,MOD,BAJA</sub> | `CONFIG.USUARIOS` | `/configuracion/usuarios` | V A M B | — | — | — | — |
 | Roles y permisos <br><sub>aplica: VER,MOD</sub> | `CONFIG.ROLES` | `/configuracion/roles` | V M | — | — | — | — |
 
 ## Mapa endpoint → (opción, acción)
 
-Todas las acciones de los controllers (161 con permiso; 10 sin opción a propósito). Lo verifica
+Todas las acciones de los controllers (160 con permiso; 10 sin opción a propósito). Lo verifica
 `PermisosCatalogoTests` (ninguna acción sin `[Permiso]` salvo esas, y los roles que habilita la matriz migrada son los de
 antes, con los cambios deliberados de arriba).
 
@@ -207,9 +255,6 @@ antes, con los cambios deliberados de arriba).
 | GET | `api/catalogos/maquinistas/{id:int}` | `GENERAL.CATALOGOS` · VER |
 | GET | `api/catalogos/maquinistas/por-usuario/{usuarioId}` | `GENERAL.CATALOGOS` · VER |
 | GET | `api/catalogos/maquinistas/mis-asignaciones` | `GENERAL.CATALOGOS` · VER |
-| POST | `api/catalogos/maquinistas` | `CONFIG.MAQUINISTAS` · ALTA |
-| PUT | `api/catalogos/maquinistas/{id:int}` | `CONFIG.MAQUINISTAS` · MODIFICACION |
-| DELETE | `api/catalogos/maquinistas/{id:int}` | `CONFIG.MAQUINISTAS` · BAJA |
 | GET | `api/catalogos/productos` | `GENERAL.CATALOGOS` · VER |
 | GET | `api/catalogos/productos/{id:int}` | `GENERAL.CATALOGOS` · VER |
 | GET | `api/conteo-camara/paradas` | `CALIDAD.PARADAS_CAMARA` o `PRODUCCION.TURNOS` o `PRODUCCION.PRESUPUESTO_REAL` o `DETENCIONES.LISTADO` · VER |
@@ -297,6 +342,7 @@ antes, con los cambios deliberados de arriba).
 | POST | `api/turnos-produccion/{id:long}/relevar` | `PRODUCCION.OPERACION_TURNO` · MODIFICACION |
 | POST | `api/turnos-produccion/{id:long}/cerrar` | `PRODUCCION.OPERACION_TURNO` · MODIFICACION |
 | GET | `api/turnos-produccion/actual` | `PRODUCCION.OPERACION_TURNO` · VER |
+| GET | `api/turnos-produccion/mio` | `PRODUCCION.OPERACION_TURNO` · VER |
 | GET | `api/turnos-produccion` | `PRODUCCION.TURNOS` · VER |
 | POST | `api/turnos-produccion/{id:long}/corregir-operador` | `PRODUCCION.TURNOS` · MODIFICACION |
 | POST | `api/turnos-produccion/{id:long}/corregir-producto` | `PRODUCCION.TURNOS` · MODIFICACION |
@@ -306,6 +352,7 @@ antes, con los cambios deliberados de arriba).
 | POST | `api/usuarios` | `CONFIG.USUARIOS` · ALTA |
 | PUT | `api/usuarios/{id}` | `CONFIG.USUARIOS` · MODIFICACION |
 | GET | `api/usuarios/roles` | `CONFIG.USUARIOS` · VER |
+| GET | `api/usuarios/roles-obligados-turno` | `CONFIG.USUARIOS` · VER |
 | DELETE | `api/usuarios/{id}` | `CONFIG.USUARIOS` · BAJA |
 | POST | `api/usuarios/{id}/reset-password` | `CONFIG.USUARIOS` · MODIFICACION |
 

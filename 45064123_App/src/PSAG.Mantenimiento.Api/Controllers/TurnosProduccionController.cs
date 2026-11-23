@@ -43,12 +43,13 @@ public class TurnosProduccionController : ApiControllerBase
     [HttpGet("propuesta")]
     [ProducesResponseType(typeof(PropuestaTurnoProduccionDto), StatusCodes.Status200OK)]
     [Permiso(Opciones.ProduccionOperacionTurno, AccionPermiso.Ver)]
+    [SinTurnoObligatorio]
     public async Task<IActionResult> GetPropuesta()
     {
         if (string.IsNullOrEmpty(CurrentUserId))
             return Unauthorized();
 
-        var propuesta = await _servicio.ObtenerPropuestaAsync(CurrentUserId, Roles);
+        var propuesta = await _servicio.ObtenerPropuestaAsync(CurrentUserId, Roles, await ObligadoATurnoAsync());
         var nombres = await _userManager.NombresVisiblesAsync(propuesta.Lineas.Select(o => o.OperadorActualUsuarioId));
         foreach (var o in propuesta.Lineas)
             o.OperadorActualNombre = nombres.NombreDe(o.OperadorActualUsuarioId);
@@ -64,13 +65,23 @@ public class TurnosProduccionController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [Permiso(Opciones.ProduccionOperacionTurno, AccionPermiso.Alta)]
+    [SinTurnoObligatorio]
     public async Task<IActionResult> Abrir([FromBody] AbrirTurnoProduccionRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
             return Unauthorized();
 
         var lineas = await LineasAsignadasAsync(_unitOfWork.OperadoresLinea);
-        var origen = Roles.Contains(RolesSistema.Operario) && lineas.Contains(request.LineaId)
+        // T-802: el obligado a turno siempre lo toma como operador (LOGIN): sólo en sus líneas habilitadas y uno a la vez.
+        var obligado = await ObligadoATurnoAsync();
+        if (obligado && !lineas.Contains(request.LineaId))
+            return StatusCode(StatusCodes.Status403Forbidden, new ProblemDetails
+            {
+                Title = "Línea no habilitada",
+                Detail = "No estás habilitado en esa línea: sólo podés abrir el turno de tus líneas habilitadas (Configuración → Usuarios).",
+                Status = StatusCodes.Status403Forbidden
+            });
+        var origen = (Roles.Contains(RolesSistema.Operario) || obligado) && lineas.Contains(request.LineaId)
             ? OrigenAperturaTurno.LOGIN
             : OrigenAperturaTurno.SUPERVISOR;
         var resultado = await _servicio.AbrirAsync(request.LineaId, CurrentUserId, origen, request.ProductoMaestroId, request.Relevar, Roles, lineas);
@@ -88,6 +99,7 @@ public class TurnosProduccionController : ApiControllerBase
     [HttpPost("{id:long}/cambiar-producto")]
     [ProducesResponseType(typeof(TurnoProduccionDto), StatusCodes.Status200OK)]
     [Permiso(Opciones.ProduccionOperacionTurno, AccionPermiso.Modificar)]
+    [DelTurno(RecursoDelTurno.TurnoProduccion, "id")]
     public async Task<IActionResult> CambiarProducto(long id, [FromBody] CambiarProductoTurnoRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -100,6 +112,7 @@ public class TurnosProduccionController : ApiControllerBase
     [HttpPost("{id:long}/relevar")]
     [ProducesResponseType(typeof(TurnoProduccionDto), StatusCodes.Status200OK)]
     [Permiso(Opciones.ProduccionOperacionTurno, AccionPermiso.Modificar)]
+    [SinTurnoObligatorio]
     public async Task<IActionResult> Relevar(long id)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -112,6 +125,7 @@ public class TurnosProduccionController : ApiControllerBase
     [HttpPost("{id:long}/cerrar")]
     [ProducesResponseType(typeof(TurnoProduccionDto), StatusCodes.Status200OK)]
     [Permiso(Opciones.ProduccionOperacionTurno, AccionPermiso.Modificar)]
+    [DelTurno(RecursoDelTurno.TurnoProduccion, "id")]
     public async Task<IActionResult> Cerrar(long id, [FromBody] CerrarTurnoProduccionRequest? request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -126,6 +140,7 @@ public class TurnosProduccionController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [Permiso(Opciones.ProduccionOperacionTurno, AccionPermiso.Ver)]
+    [SinTurnoObligatorio]
     public async Task<IActionResult> GetActual([FromQuery] int lineaId)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -146,6 +161,29 @@ public class TurnosProduccionController : ApiControllerBase
         CompletarNombres(dto, await _userManager.NombresVisiblesAsync(IdsDe(dto)));
         return Ok(dto);
     }
+
+    /// <summary>
+    /// T-802: el turno abierto en el que el usuario es el operador vigente (a lo sumo uno). 204 si no tiene. La Web lo usa
+    /// para saber si el obligado a turno puede trabajar y para fijar la línea, el turno y la fecha.
+    /// </summary>
+    [HttpGet("mio")]
+    [ProducesResponseType(typeof(TurnoProduccionDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [Permiso(Opciones.ProduccionOperacionTurno, AccionPermiso.Ver)]
+    [SinTurnoObligatorio]
+    public async Task<IActionResult> GetMio()
+    {
+        if (string.IsNullOrEmpty(CurrentUserId))
+            return Unauthorized();
+        var dto = await _servicio.ObtenerMioAsync(CurrentUserId);
+        if (dto == null)
+            return NoContent();
+        CompletarNombres(dto, await _userManager.NombresVisiblesAsync(IdsDe(dto)));
+        return Ok(dto);
+    }
+
+    private async Task<bool> ObligadoATurnoAsync() =>
+        (await PermisosDeRequest.ObtenerAsync(HttpContext, User)).ObligadoATurno;
 
     /// <summary>Listado del supervisor: cada línea × turno del día (por defecto hoy), con operadores, tramos y estado.</summary>
     [HttpGet]

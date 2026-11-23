@@ -8,7 +8,7 @@
 {
     <div class="text-muted small p-3">Cargando permisos…</div>
 }
-else if (opcion != null && !permisos.Ve(opcion))
+else if (opcion != null && !permisos.Ve(opcion) && !(permisos.ObligadoATurno && opcion == Opciones.ProduccionInicioTurno))
 {
     <div class="alert alert-warning mt-3" role="alert">
         <h5 class="alert-heading"><i class="bi bi-shield-lock me-2"></i>No tenés permiso</h5>

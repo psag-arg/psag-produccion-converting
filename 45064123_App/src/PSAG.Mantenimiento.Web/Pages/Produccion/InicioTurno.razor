@@ -4,13 +4,18 @@
 @using PSAG.Mantenimiento.Web.Services
 @attribute [Authorize]
 @inject ITurnosProduccionService TurnosProduccionService
+@inject ITurnoPropioService TurnoPropio
+@inject IAuthService AuthService
 @inject NavigationManager Navigation
 
 <PageTitle>Inicio de turno - PSAG Produccion</PageTitle>
 
 @* T-798 etapa 2 (rehace ConfirmarMaquinista de T-783): después del login, el operario toma el turno en curso de
    cada línea en la que está habilitado y elige el producto (con su objetivo vigente). Si hay otro operador, se le
-   avisa y tiene que confirmar el relevo. Si no hay nada que preguntar, o la API falla, sigue de largo. *@
+   avisa y tiene que confirmar el relevo. Si no hay nada que preguntar, o la API falla, sigue de largo.
+   T-802: el obligado a turno (rol con ObligadoATurno) no puede seguir sin tomar un turno: no hay "seguir sin tomar",
+   toma UNA línea (un solo turno abierto a la vez) y sigue; sin líneas o sin turno sólo puede cerrar sesión. El turno es
+   el en curso por hora: lo declara al tomarlo. *@
 
 <div class="container" style="max-width: 680px;">
     @if (cargando)
@@ -46,6 +51,10 @@
                         {
                             <div class="small text-muted">Relevaste a @(t.ReemplazadoNombre ?? "otro operador").</div>
                         }
+                    }
+                    else if (!o.PuedeTomar && o.MotivoNoPuedeTomar != null)
+                    {
+                        <div class="text-muted">@o.MotivoNoPuedeTomar</div>
                     }
                     else if (!o.PuedeTomar)
                     {
@@ -102,11 +111,21 @@
             <div class="alert alert-danger">@error</div>
         }
 
-        <div class="d-flex justify-content-end mt-2 mb-4">
-            <button class="btn btn-outline-secondary" @onclick="Seguir">
-                @(tomadas.Count > 0 || propuesta.Lineas.Count == 0 ? "Continuar" : "No, seguir sin tomar")
-                <i class="bi bi-arrow-right ms-1"></i>
-            </button>
+        <div class="d-flex justify-content-end gap-2 mt-2 mb-4">
+            @if (propuesta.ObligadoATurno && !TieneTurno)
+            {
+                <span class="small text-muted align-self-center me-auto">Para empezar, tomá el turno de una de tus líneas.</span>
+                <button class="btn btn-outline-secondary" @onclick="@(async () => await CerrarSesion())">
+                    <i class="bi bi-box-arrow-right me-1"></i>Cerrar sesión
+                </button>
+            }
+            else
+            {
+                <button class="btn btn-outline-secondary" @onclick="Seguir">
+                    @(tomadas.Count > 0 || propuesta.Lineas.Count == 0 || TieneTurno ? "Continuar" : "No, seguir sin tomar")
+                    <i class="bi bi-arrow-right ms-1"></i>
+                </button>
+            }
         </div>
     }
 </div>
@@ -122,11 +141,21 @@
     private bool enviando;
     private string? error;
 
+    /// <summary>T-802: ya es el operador vigente de un turno abierto (o lo acaba de tomar).</summary>
+    private bool TieneTurno => tomadas.Count > 0 || propuesta?.MiTurnoProduccionId != null;
+
     protected override async Task OnInitializedAsync()
     {
         propuesta = await TurnosProduccionService.GetPropuestaAsync();
         if (propuesta is not { Preguntar: true })
         {
+            // El obligado a turno sin turno no sigue de largo (si la API falló, el layout lo vuelve a traer acá).
+            if ((await TurnoPropio.RefrescarAsync()).Bloqueado)
+            {
+                propuesta ??= new PropuestaTurnoProduccionDto { ObligadoATurno = true, Aviso = ApiErrores.SinConexion };
+                cargando = false;
+                return;
+            }
             Seguir();
             return;
         }
@@ -174,7 +203,9 @@
                 return;
             }
             tomadas[opcion.LineaId] = resultado;
-            if (propuesta!.Lineas.Count == 1 && resultado.ReemplazadoUsuarioId == null)
+            await TurnoPropio.RefrescarAsync();
+            // El obligado a turno toma una sola línea (un turno abierto a la vez) y sigue.
+            if (propuesta!.ObligadoATurno || (propuesta.Lineas.Count == 1 && resultado.ReemplazadoUsuarioId == null))
                 Seguir();
         }
         catch (Exception)
@@ -188,4 +219,10 @@
     }
 
     private void Seguir() => Navigation.NavigateTo(RutasLogin.DestinoSeguro(Volver));
+
+    private async Task CerrarSesion()
+    {
+        await AuthService.LogoutAsync();
+        Navigation.NavigateTo("/login", true);
+    }
 }

@@ -6,11 +6,16 @@ namespace PSAG.Mantenimiento.Web.Services;
 /// <summary>
 /// Si la API responde 401 (token vencido o inválido), cierra la sesión y lleva al login
 /// avisando que venció, con la pantalla actual para volver después de entrar.
+/// T-802: un 403 vuelve a pedir los permisos (si se los cambiaron, el menú se alinea sin volver a entrar) y un 409
+/// TURNO_REQUERIDO (obligado a turno sin turno: lo cerró, lo relevaron o venció) lleva a "Inicio de turno".
 /// Los servicios resuelven el resto de la respuesta como siempre.
 /// </summary>
 public class SesionVencidaHandler : DelegatingHandler
 {
     private readonly IServiceProvider _servicios;
+
+    private static readonly TimeSpan EsperaEntreRefrescos = TimeSpan.FromSeconds(15);
+    private DateTime _ultimoRefrescoPermisos = DateTime.MinValue;
 
     // Se resuelven al usarse: el proveedor de autenticación depende del mismo HttpClient.
     public SesionVencidaHandler(IServiceProvider servicios)
@@ -31,6 +36,27 @@ public class SesionVencidaHandler : DelegatingHandler
             if (!actual.StartsWith("/login", StringComparison.OrdinalIgnoreCase))
             {
                 navegacion.NavigateTo(RutasLogin.SesionVencida(actual));
+            }
+        }
+
+        else if (response.StatusCode == HttpStatusCode.Forbidden && !esLogin
+                 && request.RequestUri?.AbsolutePath.Contains("/api/permisos/", StringComparison.OrdinalIgnoreCase) != true
+                 && DateTime.UtcNow - _ultimoRefrescoPermisos > EsperaEntreRefrescos)
+        {
+            _ultimoRefrescoPermisos = DateTime.UtcNow;
+            _ = _servicios.GetRequiredService<IPermisosService>().RefrescarAsync();
+        }
+        else if (response.StatusCode == HttpStatusCode.Conflict && !esLogin)
+        {
+            await response.Content.LoadIntoBufferAsync();
+            var texto = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (texto.Contains("TURNO_REQUERIDO", StringComparison.Ordinal))
+            {
+                _servicios.GetRequiredService<ITurnoPropioService>().Invalidar();
+                var navegacion = _servicios.GetRequiredService<NavigationManager>();
+                var actual = "/" + navegacion.ToBaseRelativePath(navegacion.Uri);
+                if (!TurnoPropioService.EsInicioTurno(actual))
+                    navegacion.NavigateTo($"/{TurnoPropioService.RutaInicioTurno}?volver={Uri.EscapeDataString(actual)}");
             }
         }
 

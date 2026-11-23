@@ -48,6 +48,7 @@ public class AnalisisController : ApiControllerBase
     [ProducesResponseType(typeof(AnalisisDetencionDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [Permiso(AccionPermiso.Ver, Opciones.DetencionesListado, Opciones.DetencionesPendientes)]
+    [DelTurno(RecursoDelTurno.Detencion, "id")]
     public async Task<IActionResult> GetAnalisis(long id)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -72,6 +73,7 @@ public class AnalisisController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [Permiso(Opciones.DetencionesPendientes, AccionPermiso.Modificar)]
+    [DelTurno(RecursoDelTurno.Detencion, "id")]
     public async Task<IActionResult> GuardarBorrador(long id, [FromBody] GuardarAnalisisRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -96,6 +98,7 @@ public class AnalisisController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [Permiso(Opciones.DetencionesPendientes, AccionPermiso.Modificar)]
+    [DelTurno(RecursoDelTurno.Detencion, "id")]
     public async Task<IActionResult> CerrarAnalisis(long id, [FromBody] GuardarAnalisisRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -121,6 +124,7 @@ public class AnalisisController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [Permiso(Opciones.DetencionesAnalisisCerrado, AccionPermiso.Modificar)]
+    [DelTurno(RecursoDelTurno.Detencion, "id")]
     public async Task<IActionResult> EditarCerrado(long id, [FromBody] GuardarAnalisisRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -147,6 +151,7 @@ public class AnalisisController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [Permiso(Opciones.DetencionesPendientes, AccionPermiso.Modificar)]
+    [DelTurno(RecursoDelTurno.Detencion, "id")]
     public async Task<IActionResult> AgregarAdjunto(long id, IFormFile? archivo)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -175,6 +180,7 @@ public class AnalisisController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [Permiso(AccionPermiso.Ver, Opciones.DetencionesListado, Opciones.DetencionesPendientes)]
+    [DelTurno(RecursoDelTurno.Detencion, "id")]
     public async Task<IActionResult> GetAdjunto(long id, long adjuntoId)
     {
         var resultado = await _edicionService.AbrirAdjuntoAsync(id, adjuntoId);
@@ -207,6 +213,7 @@ public class AnalisisController : ApiControllerBase
             return ErrorResult(resultado);
 
         var dto = resultado.Value!;
+        await FiltrarAlTurnoAsync(dto);
         var usuarios = dto.ParaAnalizar.Concat(dto.EnAnalisis).Concat(dto.CerradasPorMi)
             .SelectMany(p => new[] { p.ResponsableUsuarioId, p.AnalisisPorUsuarioId })
             .Concat(dto.Responsables.Select(r => r.UsuarioId))
@@ -240,8 +247,32 @@ public class AnalisisController : ApiControllerBase
         if (string.IsNullOrEmpty(CurrentUserId))
             return Unauthorized();
 
+        if (TurnoObligado != null)
+        {
+            // T-802: el obligado a turno cuenta sólo los pendientes de su turno.
+            var pendientes = await _analisisService.ObtenerMisPendientesAsync(CurrentUserId, Roles, null, null);
+            if (pendientes.IsFailure)
+                return ErrorResult(pendientes);
+            await FiltrarAlTurnoAsync(pendientes.Value!);
+            return Ok(new { total = pendientes.Value!.ParaAnalizar.Count + pendientes.Value.EnAnalisis.Count + pendientes.Value.ParaDeclarar.Count });
+        }
+
         var total = await _analisisService.ContarPendientesAsync(CurrentUserId, Roles);
         return Ok(new { total });
+    }
+
+    /// <summary>T-802: con turno abierto, el obligado a turno ve en "Mis pendientes" sólo las detenciones de ese turno.</summary>
+    private async Task FiltrarAlTurnoAsync(MisPendientesDto dto)
+    {
+        if (TurnoObligado is not { } turno)
+            return;
+        var unitOfWork = HttpContext.RequestServices.GetRequiredService<Domain.Interfaces.IUnitOfWork>();
+        var ids = (await unitOfWork.Detenciones.FindAsync(d => d.TurnoProduccionId == turno.TurnoProduccionId))
+            .Select(d => d.DetencionId).ToHashSet();
+        dto.ParaAnalizar = dto.ParaAnalizar.Where(p => ids.Contains(p.DetencionId)).ToList();
+        dto.EnAnalisis = dto.EnAnalisis.Where(p => ids.Contains(p.DetencionId)).ToList();
+        dto.CerradasPorMi = dto.CerradasPorMi.Where(p => ids.Contains(p.DetencionId)).ToList();
+        dto.ParaDeclarar = dto.ParaDeclarar.Where(p => ids.Contains(p.DetencionId)).ToList();
     }
 
     /// <summary>

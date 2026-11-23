@@ -15,7 +15,6 @@ public class OperadorLineaRepository : RepositoryBase<OperadorLinea>, IOperadorL
     {
         return await _dbSet
             .Include(ul => ul.Linea)
-            .Include(ul => ul.TurnoHabitual)
             .FirstOrDefaultAsync(ul => ul.UsuarioId == usuarioId, cancellationToken);
     }
 
@@ -23,7 +22,6 @@ public class OperadorLineaRepository : RepositoryBase<OperadorLinea>, IOperadorL
     {
         return await _dbSet
             .Include(ul => ul.Linea)
-            .Include(ul => ul.TurnoHabitual)
             .FirstOrDefaultAsync(ul => ul.UsuarioId == usuarioId && ul.LineaId == lineaId, cancellationToken);
     }
 
@@ -31,7 +29,6 @@ public class OperadorLineaRepository : RepositoryBase<OperadorLinea>, IOperadorL
     {
         return await _dbSet
             .Include(ul => ul.Linea)
-            .Include(ul => ul.TurnoHabitual)
             .OrderBy(ul => ul.Linea.Nombre)
             .ThenBy(ul => ul.UsuarioId)
             .ToListAsync(cancellationToken);
@@ -40,7 +37,7 @@ public class OperadorLineaRepository : RepositoryBase<OperadorLinea>, IOperadorL
     public async Task<IEnumerable<OperadorLinea>> GetByLineaIdAsync(int lineaId, CancellationToken cancellationToken = default)
     {
         return await _dbSet
-            .Include(ul => ul.TurnoHabitual)
+            .Include(ul => ul.Linea)
             .Where(ul => ul.LineaId == lineaId)
             .OrderBy(ul => ul.UsuarioId)
             .ToListAsync(cancellationToken);

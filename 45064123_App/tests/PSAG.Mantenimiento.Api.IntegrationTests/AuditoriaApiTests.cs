@@ -41,7 +41,7 @@ public class AuditoriaApiTests : CalidadTestBase
         var hoy = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ZonaPlanta).Date;
         _parada = new DateTimeOffset(hoy.AddDays(-2).AddHours(10), TimeSpan.FromHours(-3));
 
-        _operarioTango = new OperadorLinea { UsuarioId = Operario, LineaId = Tango2.LineaId, TurnoHabitualId = TurnoManana.TurnoId, FechaAsignacion = DateTimeOffset.UtcNow, AsignadoPorUsuarioId = Admin };
+        _operarioTango = new OperadorLinea { UsuarioId = Operario, LineaId = Tango2.LineaId, FechaAsignacion = DateTimeOffset.UtcNow, AsignadoPorUsuarioId = Admin };
         Context.Add(_operarioTango);
         Context.SaveChanges();
         Context.ChangeTracker.Clear();
@@ -273,7 +273,7 @@ public class AuditoriaApiTests : CalidadTestBase
     private async Task<(OperadorLinea Tango, OperadorLinea Futura)> MaquinistaConDetencionAsync(string usuarioId)
     {
         Context.Users.Add(new ApplicationUser { Id = usuarioId, UserName = usuarioId, Email = $"{usuarioId}@psag.test", NombreCompleto = "Maquinista", Activo = true });
-        var tango = new OperadorLinea { UsuarioId = usuarioId, LineaId = Tango2.LineaId, TurnoHabitualId = TurnoManana.TurnoId, FechaAsignacion = DateTimeOffset.UtcNow, AsignadoPorUsuarioId = Admin };
+        var tango = new OperadorLinea { UsuarioId = usuarioId, LineaId = Tango2.LineaId, FechaAsignacion = DateTimeOffset.UtcNow, AsignadoPorUsuarioId = Admin };
         var futura = new OperadorLinea { UsuarioId = usuarioId, LineaId = Futura2.LineaId, FechaAsignacion = DateTimeOffset.UtcNow, AsignadoPorUsuarioId = Admin };
         Context.AddRange(tango, futura);
         await Context.SaveChangesAsync();

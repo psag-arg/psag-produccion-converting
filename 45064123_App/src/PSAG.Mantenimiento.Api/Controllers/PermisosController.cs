@@ -22,6 +22,7 @@ public class PermisosController : ApiControllerBase
 
     /// <summary>Opciones que ve el usuario (unión de sus roles) con sus acciones y si está obligado a declarar turno.</summary>
     [HttpGet("mios")]
+    [SinTurnoObligatorio]
     [ProducesResponseType(typeof(PermisosMiosDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetMios(CancellationToken cancellationToken) =>
         Ok(await _permisos.ObtenerMiosAsync(Roles, cancellationToken));

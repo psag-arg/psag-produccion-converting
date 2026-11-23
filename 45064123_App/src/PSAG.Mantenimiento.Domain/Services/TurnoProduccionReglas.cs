@@ -15,7 +15,18 @@ public static class TurnoProduccionReglas
 
     public const string MensajeSinLineas =
         "No estás habilitado en ninguna línea, así que no podés tomar un turno. " +
-        "Pedile al administrador que te habilite en Configuración → Maquinistas (o a tu supervisor que te cargue en el turno).";
+        "Pedile al administrador que te habilite en Configuración → Usuarios (o a tu supervisor que te cargue en el turno).";
+
+    /// <summary>
+    /// T-802: un operario no puede tener dos turnos abiertos a la vez (operador vigente en el turno abierto de otra
+    /// línea): tiene que cerrarlo o que lo releven antes de abrir o tomar otro.
+    /// </summary>
+    public static string MensajeOtroTurnoAbierto(string lineaNombre, string turnoNombre) =>
+        $"Ya tenés abierto el {turnoNombre} de {lineaNombre}. Cerralo (o que te releven) antes de abrir o tomar otro turno.";
+
+    /// <summary>Lo mismo, cuando el supervisor quiere dejar como operador vigente a alguien que ya lo es en otra línea.</summary>
+    public static string MensajeOperadorConOtroTurno(string lineaNombre, string turnoNombre) =>
+        $"Ese operador ya está en el {turnoNombre} de {lineaNombre}, que sigue abierto. Cerralo o relevalo antes, o poné la hora \"hasta\".";
 
     /// <summary>Turno de planta que contiene la hora de pared (al minuto) y su fecha de producción, o null si ninguno la cubre.</summary>
     public static (Turno Turno, DateOnly FechaProduccion)? TurnoQueContiene(IEnumerable<Turno> turnos, DateTime horaPared)

@@ -196,8 +196,8 @@ public static class CatalogoPermisos
 
         Seccion(Opciones.Configuracion, "Configuración", 90);
         Opcion(Opciones.ConfigTurnos, "Turnos", Opciones.Configuracion, "configuracion/turnos", 1, (V, Admin), (Al, Admin), (Mo, Admin));
-        Opcion(Opciones.ConfigMaquinistas, "Maquinistas", Opciones.Configuracion, "configuracion/maquinistas", 2,
-            (V, Admin), (Al, Admin), (Mo, Admin), (Ba, Admin));
+        // T-802: sólo consulta (las líneas habilitadas se cargan desde Usuarios).
+        Opcion(Opciones.ConfigMaquinistas, "Maquinistas (consulta)", Opciones.Configuracion, "configuracion/maquinistas", 2, (V, Admin));
         Opcion(Opciones.ConfigUsuarios, "Usuarios", Opciones.Configuracion, "configuracion/usuarios", 3,
             (V, Admin), (Al, Admin), (Mo, Admin), (Ba, Admin));
         Opcion(Opciones.ConfigRoles, "Roles y permisos", Opciones.Configuracion, "configuracion/roles", 4, (V, Admin), (Mo, Admin));

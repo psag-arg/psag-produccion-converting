@@ -19,6 +19,12 @@ public abstract class ApiControllerBase : ControllerBase
     protected IReadOnlyCollection<string> Roles => User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
 
     /// <summary>
+    /// T-802: turno abierto del usuario obligado a turno (lo resuelve <see cref="Autorizacion.TurnoObligatorioFilter"/>);
+    /// null si el usuario no está obligado o la acción no pasó por el filtro.
+    /// </summary>
+    protected Autorizacion.TurnoDelUsuario? TurnoObligado => Autorizacion.TurnoObligatorio.De(HttpContext);
+
+    /// <summary>
     /// Permiso configurable (T-802) del usuario actual. Sin contenedor de servicios en la request (controllers armados a mano
     /// en tests) usa la regla por rol anterior, equivalente a la matriz migrada.
     /// </summary>
@@ -32,7 +38,7 @@ public abstract class ApiControllerBase : ControllerBase
 
     /// <summary>
     /// Traduce el ErrorCode de un Result de Application a ProblemDetails: NOT_FOUND 404, FORBIDDEN 403,
-    /// CONCURRENCY 409 y el resto (VALIDATION) 400. Cada controller pasa sus títulos; un código sin título
+    /// CONCURRENCY y CONFLICT 409 y el resto (VALIDATION) 400. Cada controller pasa sus títulos; un código sin título
     /// propio usa <paramref name="titulo"/>.
     /// </summary>
     protected IActionResult ProblemaDe(
@@ -47,6 +53,7 @@ public abstract class ApiControllerBase : ControllerBase
             "NOT_FOUND" => (StatusCodes.Status404NotFound, tituloNoEncontrado ?? titulo),
             "FORBIDDEN" => (StatusCodes.Status403Forbidden, tituloSinPermiso ?? titulo),
             "CONCURRENCY" => (StatusCodes.Status409Conflict, tituloConcurrencia ?? titulo),
+            "CONFLICT" => (StatusCodes.Status409Conflict, titulo),
             _ => (StatusCodes.Status400BadRequest, titulo)
         };
 

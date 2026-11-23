@@ -26,6 +26,7 @@ public class IndicadoresController : ApiControllerBase
     [ProducesResponseType(typeof(IndicadoresTurnoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [Permiso(AccionPermiso.Ver, Opciones.ProduccionPresupuestoReal, Opciones.ProduccionTurnos, Opciones.ProduccionOperacionTurno)]
+    [DelTurno(RecursoDelTurno.TurnoProduccion, "turnoProduccionId")]
     public async Task<IActionResult> GetTurno(long turnoProduccionId)
     {
         var resultado = await _servicio.ObtenerTurnoAsync(turnoProduccionId);

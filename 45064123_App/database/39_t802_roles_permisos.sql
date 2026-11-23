@@ -150,7 +150,7 @@ INSERT INTO #Opciones (Codigo, Nombre, PadreCodigo, Ruta, Orden, AccionesAplicab
     (N'CALIDAD.PARADAS_CAMARA', N'Paradas y producci' + NCHAR(243) + N'n (c' + NCHAR(225) + N'mara)', N'CALIDAD', N'paradas-camara', 2, N'VER'),
     (N'CONFIG', N'Configuraci' + NCHAR(243) + N'n', NULL, NULL, 90, N''),
     (N'CONFIG.TURNOS', N'Turnos', N'CONFIG', N'configuracion/turnos', 1, N'VER,ALTA,MODIFICACION'),
-    (N'CONFIG.MAQUINISTAS', N'Maquinistas', N'CONFIG', N'configuracion/maquinistas', 2, N'VER,ALTA,MODIFICACION,BAJA'),
+    (N'CONFIG.MAQUINISTAS', N'Maquinistas (consulta)', N'CONFIG', N'configuracion/maquinistas', 2, N'VER'),
     (N'CONFIG.USUARIOS', N'Usuarios', N'CONFIG', N'configuracion/usuarios', 3, N'VER,ALTA,MODIFICACION,BAJA'),
     (N'CONFIG.ROLES', N'Roles y permisos', N'CONFIG', N'configuracion/roles', 4, N'VER,MODIFICACION');
 
@@ -260,7 +260,7 @@ INSERT INTO #Matriz (Rol, Codigo, PuedeVer, PuedeAlta, PuedeModificar, PuedeBaja
     (N'OPERARIO', N'CALIDAD.PARADAS_CAMARA', 1, 0, 0, 0),
     (N'GERENCIA', N'CALIDAD.PARADAS_CAMARA', 1, 0, 0, 0),
     (N'ADMINISTRADOR', N'CONFIG.TURNOS', 1, 1, 1, 0),
-    (N'ADMINISTRADOR', N'CONFIG.MAQUINISTAS', 1, 1, 1, 1),
+    (N'ADMINISTRADOR', N'CONFIG.MAQUINISTAS', 1, 0, 0, 0),
     (N'ADMINISTRADOR', N'CONFIG.USUARIOS', 1, 1, 1, 1),
     (N'ADMINISTRADOR', N'CONFIG.ROLES', 1, 0, 1, 0);
 

@@ -101,6 +101,13 @@ public class PropuestaTurnoProduccionDto
     /// <summary>Aviso (p. ej., no está habilitado en ninguna línea).</summary>
     public string? Aviso { get; set; }
 
+    /// <summary>T-802: obligado a turno (no puede seguir sin tomar uno).</summary>
+    public bool ObligadoATurno { get; set; }
+
+    /// <summary>T-802: turno abierto en el que ya es el operador vigente (a lo sumo uno).</summary>
+    public long? MiTurnoProduccionId { get; set; }
+    public string? MiLineaNombre { get; set; }
+
     public int? TurnoId { get; set; }
     public string? TurnoCodigo { get; set; }
     public string? TurnoNombre { get; set; }
@@ -112,6 +119,9 @@ public class OpcionTurnoProduccionDto
 {
     public int LineaId { get; set; }
     public string LineaNombre { get; set; } = string.Empty;
+
+    /// <summary>T-802: por qué no se puede tomar (p. ej., ya tiene abierto el turno de otra línea).</summary>
+    public string? MotivoNoPuedeTomar { get; set; }
 
     /// <summary>Null si el turno todavía no tiene registro (nadie lo abrió).</summary>
     public long? TurnoProduccionId { get; set; }

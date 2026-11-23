@@ -179,6 +179,13 @@ public class PermisosService : IPermisosService
         if (configRoles != null && !ReglasPermisos.AdminConservaRoles(nombreRol, nuevas[configRoles.OpcionId]))
             return Result<RolPermisosDto>.Failure("VALIDATION", ReglasPermisos.MensajeAdminSinRoles);
 
+        // T-802: el obligado a turno no puede hacer nada sin abrir o tomar un turno: tiene que poder operarlo.
+        var operarTurno = opciones.FirstOrDefault(o => o.Codigo == Opciones.ProduccionOperacionTurno);
+        const AccionPermiso necesarias = AccionPermiso.Ver | AccionPermiso.Alta | AccionPermiso.Modificar;
+        if (request.ObligadoATurno && operarTurno != null && (nuevas[operarTurno.OpcionId] & necesarias) != necesarias)
+            return Result<RolPermisosDto>.Failure("VALIDATION",
+                "Un rol obligado a turno necesita \"Operar el turno\" con Ver, Alta y Modificación (si no, no podría abrir su turno ni trabajar).");
+
         var ahora = DateTimeOffset.UtcNow;
         var actuales = await _context.PermisosRol.Where(p => p.RoleId == roleId).ToDictionaryAsync(p => p.OpcionId, cancellationToken);
         var antes = new Dictionary<string, string>();

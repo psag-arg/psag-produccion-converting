@@ -95,7 +95,8 @@ public sealed class PermisosApiTests : IDisposable
     [Fact]
     public async Task Detenciones_VerAltaModificarBaja()
     {
-        Assert.Equal(HttpStatusCode.OK, (await Como(RolesSistema.Operario).GetAsync("api/detenciones")).StatusCode);
+        // El operario tiene VER, pero está obligado a turno (T-802): sin turno abierto, 409 (ver TurnoObligadoApiTests).
+        Assert.Equal(HttpStatusCode.Conflict, (await Como(RolesSistema.Operario).GetAsync("api/detenciones")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await Como(RolesSistema.Gerencia).GetAsync("api/detenciones")).StatusCode);
 
         // Gerencia: VER sin ALTA ni MODIFICACION

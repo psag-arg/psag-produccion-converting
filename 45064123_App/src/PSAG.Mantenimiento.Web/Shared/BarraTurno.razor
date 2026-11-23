@@ -11,6 +11,7 @@
 @inject ICatalogosService CatalogosService
 @inject ILocalStorageService LocalStorage
 @inject NavigationManager Navigation
+@inject ITurnoPropioService TurnoPropio
 @implements IDisposable
 
 @if (visible)
@@ -139,6 +140,7 @@
 
     private bool visible;
     private bool eligeLinea;
+    private bool obligado;
     private List<string> roles = [];
     private List<int> lineasHabilitadas = [];
     private List<(int Id, string Nombre)> lineas = [];
@@ -166,9 +168,17 @@
             if (roles.Count == 0)
                 return;   // gerencia (sólo lectura) no tiene barra
 
+            // T-802: el obligado a turno ve sólo la línea de SU turno (sin turno no llega acá: el layout lo bloquea).
+            var propio = await TurnoPropio.ObtenerAsync();
+            obligado = propio.Obligado;
             var asignaciones = await CatalogosService.GetMisAsignacionesAsync();
             lineasHabilitadas = asignaciones.Select(a => a.LineaId).Distinct().ToList();
-            if (lineasHabilitadas.Count > 0)
+            if (propio.Obligado)
+            {
+                if (propio.Turno is { } t)
+                    lineas = [(t.LineaId, t.LineaNombre)];
+            }
+            else if (lineasHabilitadas.Count > 0)
             {
                 lineas = asignaciones.GroupBy(a => a.LineaId).Select(g => (g.Key, g.First().LineaNombre)).ToList();
             }
@@ -321,8 +331,16 @@
                 errorDialogo = r.Error;
                 return;
             }
+            var cerro = dialogo == Dialogo.Cierre;
             mensaje = dialogo == Dialogo.Cambio ? "Listo: producto cambiado." : "Listo: turno cerrado.";
             CerrarDialogo();
+            if (cerro && obligado)
+            {
+                // T-802: al cerrar su turno, el obligado vuelve a "Inicio de turno".
+                TurnoPropio.Invalidar();
+                Navigation.NavigateTo($"/{TurnoPropioService.RutaInicioTurno}");
+                return;
+            }
             await CargarAsync();
         }
         catch (Exception)

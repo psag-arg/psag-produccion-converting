@@ -16,6 +16,15 @@ public interface ITurnoProduccionService
     Task<PropuestaTurnoProduccionDto> ObtenerPropuestaAsync(string usuarioId, IReadOnlyCollection<string> roles, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// T-802: igual, para quien está obligado a turno (algún rol con ObligadoATurno) aunque no sea OPERARIO; si no tiene
+    /// turno propio, Preguntar queda en true (no sigue de largo).
+    /// </summary>
+    Task<PropuestaTurnoProduccionDto> ObtenerPropuestaAsync(string usuarioId, IReadOnlyCollection<string> roles, bool obligadoATurno, CancellationToken cancellationToken = default);
+
+    /// <summary>T-802: el turno abierto en el que el usuario es el operador vigente (a lo sumo uno), o null.</summary>
+    Task<TurnoProduccionDto?> ObtenerMioAsync(string usuarioId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Abre (o toma) el turno de la hora actual de la línea. Cierra como CERRADO_AUTOMATICO el ABIERTO anterior de la
     /// línea. Si ya está abierto, no duplica: con LOGIN agrega al usuario como operador (relevo si hay otro y
     /// <paramref name="relevar"/>; si no, devuelve RequiereConfirmarRelevo sin cambiar nada). El producto, si viene,

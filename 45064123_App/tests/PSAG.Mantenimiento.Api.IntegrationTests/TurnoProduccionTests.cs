@@ -386,6 +386,71 @@ public class TurnoProduccionTests : IDisposable
         Assert.Equal("FORBIDDEN", operario.ErrorCode);
     }
 
+    // ===================== T-802: un turno abierto por operario, un operador vigente por turno =====================
+
+    [Fact]
+    public async Task OperarioConTurnoAbierto_NoAbreNiReleva_NiLoCarganEnOtraLinea()
+    {
+        _context.OperadoresLinea.Add(new OperadorLinea { UsuarioId = Oper1, LineaId = _futura2.LineaId, FechaAsignacion = H(1, 0), AsignadoPorUsuarioId = Admin });
+        await _context.SaveChangesAsync();
+        _context.ChangeTracker.Clear();
+
+        _reloj = H(19, 6);
+        await AbrirComoOperario(Oper1, _tango2.LineaId);
+        var futura = await AbrirComoOperario(OperFutura, _futura2.LineaId);
+
+        var abrir = await _servicio.AbrirAsync(_futura2.LineaId, Oper1, OrigenAperturaTurno.LOGIN, null, true, RolOperario, [_tango2.LineaId, _futura2.LineaId]);
+        Assert.Equal("CONFLICT", abrir.ErrorCode);
+        Assert.Contains("Ya tenés abierto", abrir.ErrorMessage);
+        var relevar = await _servicio.RelevarAsync(futura.Turno!.TurnoProduccionId, Oper1, RolOperario, [_tango2.LineaId, _futura2.LineaId]);
+        Assert.Equal("CONFLICT", relevar.ErrorCode);
+
+        // El supervisor tampoco lo deja vigente en Futura 2 mientras siga en Tango 2
+        _reloj = H(19, 7);
+        var corregir = await _servicio.CorregirOperadorAsync(futura.Turno.TurnoProduccionId, new CorregirOperadorTurnoRequest
+        {
+            OperadorUsuarioId = Oper1, Desde = H(19, 6, 30), Motivo = "prueba"
+        }, Supervisor, RolSupervisor, SinLineas);
+        Assert.Equal("CONFLICT", corregir.ErrorCode);
+
+        var propuesta = await _servicio.ObtenerPropuestaAsync(Oper1, RolOperario, true);
+        Assert.NotNull(propuesta.MiTurnoProduccionId);
+        Assert.False(propuesta.Lineas.Single(l => l.LineaId == _futura2.LineaId).PuedeTomar);
+        // Sólo se le pregunta por su turno (le falta el producto), no por otra línea.
+        Assert.True(propuesta.Lineas.Single(l => l.LineaId == _tango2.LineaId).SoyOperadorActual);
+
+        // Cerrado el de Tango 2, ya puede tomar el de Futura 2 (relevando)
+        var tango = (await Turnos()).Single(t => t.LineaId == _tango2.LineaId);
+        Assert.True((await _servicio.CerrarAsync(tango.TurnoProduccionId, null, Oper1, RolOperario, [_tango2.LineaId])).IsSuccess);
+        Assert.True((await _servicio.RelevarAsync(futura.Turno.TurnoProduccionId, Oper1, RolOperario, [_futura2.LineaId])).IsSuccess);
+    }
+
+    [Fact]
+    public async Task IndiceUnico_UnSoloOperadorVigentePorTurno()
+    {
+        _reloj = H(19, 6);
+        var abierto = await AbrirComoOperario(Oper1, _tango2.LineaId);
+        _context.ChangeTracker.Clear();
+        _context.Add(new TurnoProduccionOperador
+        {
+            TurnoProduccionId = abierto.Turno!.TurnoProduccionId, OperadorUsuarioId = Oper2, Desde = H(19, 6, 30),
+            Origen = OrigenTramoOperador.LOGIN, RegistradoPorUsuarioId = Oper2, FechaHoraRegistro = H(19, 6, 30)
+        });
+        await Assert.ThrowsAsync<DbUpdateException>(() => _context.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task Propuesta_ObligadoSinTurno_SiemprePregunta()
+    {
+        _reloj = H(19, 6);
+        var sinLineas = await _servicio.ObtenerPropuestaAsync("sin-lineas", RolSupervisor, true);
+        Assert.True(sinLineas.Preguntar);
+        Assert.True(sinLineas.ObligadoATurno);
+        Assert.Equal(TurnoProduccionReglas.MensajeSinLineas, sinLineas.Aviso);
+        // No obligado y no operario: nada que preguntar (como antes)
+        Assert.False((await _servicio.ObtenerPropuestaAsync("sin-lineas", RolSupervisor, false)).Preguntar);
+    }
+
     // ===================== Cierre automático =====================
 
     [Fact]

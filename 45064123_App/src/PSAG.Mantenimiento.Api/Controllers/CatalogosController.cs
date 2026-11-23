@@ -53,11 +53,15 @@ public class CatalogosController : ApiControllerBase
     [HttpGet("lineas")]
     [ProducesResponseType(typeof(IEnumerable<LineaDto>), StatusCodes.Status200OK)]
     [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
+    [SinTurnoObligatorio]
     public async Task<IActionResult> GetLineas([FromQuery] bool? soloActivas = true)
     {
         var lineas = soloActivas == true
             ? await _unitOfWork.Lineas.GetActivasAsync()
             : await _unitOfWork.Lineas.GetAllAsync();
+        // T-802: el obligado a turno, con turno abierto, sólo ve la línea de su turno (los combos quedan fijos).
+        if (TurnoObligado is { } turno)
+            lineas = lineas.Where(l => l.LineaId == turno.LineaId);
 
         var items = lineas.Select(l => new LineaDto
         {
@@ -654,11 +658,15 @@ public class CatalogosController : ApiControllerBase
     [HttpGet("turnos")]
     [ProducesResponseType(typeof(IEnumerable<TurnoDto>), StatusCodes.Status200OK)]
     [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
+    [SinTurnoObligatorio]
     public async Task<IActionResult> GetTurnos([FromQuery] bool? soloActivos = true)
     {
         var turnos = soloActivos == true
             ? await _unitOfWork.Turnos.GetActivosAsync()
             : await _unitOfWork.Turnos.GetAllAsync();
+        // T-802: con turno abierto, el obligado a turno sólo ve el turno que declaró.
+        if (TurnoObligado is { } turnoAbierto)
+            turnos = turnos.Where(t => t.TurnoId == turnoAbierto.TurnoId);
 
         var items = turnos.Select(t => new TurnoDto
         {
@@ -702,6 +710,7 @@ public class CatalogosController : ApiControllerBase
     [ProducesResponseType(typeof(TurnoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
+    [SinTurnoObligatorio]
     public async Task<IActionResult> GetTurnoActual()
     {
         var turno = await _unitOfWork.Turnos.GetTurnoActualAsync(_zonaPlanta);
@@ -1248,39 +1257,21 @@ public class CatalogosController : ApiControllerBase
 
     #region Maquinistas
 
+    // T-802: las habilitaciones usuario–línea (ABM_OperadoresLinea) se cargan sólo desde el alta / edición del usuario
+    // (UsuariosController). Acá quedan las consultas; no hay alta, edición ni baja, y ya no hay turno habitual.
+
     [HttpGet("maquinistas")]
     [ProducesResponseType(typeof(IEnumerable<MaquinistaDto>), StatusCodes.Status200OK)]
     [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetMaquinistas([FromQuery] int? lineaId = null)
     {
-        IEnumerable<Domain.Entities.OperadorLinea> maquinistas;
-
-        if (lineaId.HasValue)
-        {
-            maquinistas = await _unitOfWork.OperadoresLinea.GetByLineaIdAsync(lineaId.Value);
-        }
-        else
-        {
-            maquinistas = await _unitOfWork.OperadoresLinea.GetAllWithRelationsAsync();
-        }
+        var maquinistas = lineaId.HasValue
+            ? await _unitOfWork.OperadoresLinea.GetByLineaIdAsync(lineaId.Value)
+            : await _unitOfWork.OperadoresLinea.GetAllWithRelationsAsync();
 
         var items = new List<MaquinistaDto>();
         foreach (var m in maquinistas)
-        {
-            var user = await _userManager.FindByIdAsync(m.UsuarioId);
-            items.Add(new MaquinistaDto
-            {
-                UsuarioLineaId = m.UsuarioLineaId,
-                UsuarioId = m.UsuarioId,
-                NombreUsuario = user?.NombreCompleto ?? user?.UserName ?? "Usuario desconocido",
-                EmailUsuario = user?.Email ?? string.Empty,
-                LineaId = m.LineaId,
-                LineaNombre = m.Linea?.Nombre ?? string.Empty,
-                TurnoId = m.TurnoHabitualId,
-                TurnoNombre = m.TurnoHabitual?.Nombre,
-                FechaAsignacion = m.FechaAsignacion
-            });
-        }
+            items.Add(Maquinista(m, await _userManager.FindByIdAsync(m.UsuarioId)));
 
         return Ok(items.OrderBy(m => m.LineaNombre).ThenBy(m => m.NombreUsuario));
     }
@@ -1294,21 +1285,8 @@ public class CatalogosController : ApiControllerBase
         var maquinista = await _unitOfWork.OperadoresLinea.GetByIdAsync(id);
         if (maquinista == null)
             return NotFound();
-
-        var user = await _userManager.FindByIdAsync(maquinista.UsuarioId);
-
-        return Ok(new MaquinistaDto
-        {
-            UsuarioLineaId = maquinista.UsuarioLineaId,
-            UsuarioId = maquinista.UsuarioId,
-            NombreUsuario = user?.NombreCompleto ?? user?.UserName ?? "Usuario desconocido",
-            EmailUsuario = user?.Email ?? string.Empty,
-            LineaId = maquinista.LineaId,
-            LineaNombre = maquinista.Linea?.Nombre ?? string.Empty,
-            TurnoId = maquinista.TurnoHabitualId,
-            TurnoNombre = maquinista.TurnoHabitual?.Nombre,
-            FechaAsignacion = maquinista.FechaAsignacion
-        });
+        maquinista.Linea ??= (await _unitOfWork.Lineas.GetByIdAsync(maquinista.LineaId))!;
+        return Ok(Maquinista(maquinista, await _userManager.FindByIdAsync(maquinista.UsuarioId)));
     }
 
     [HttpGet("maquinistas/por-usuario/{usuarioId}")]
@@ -1320,199 +1298,41 @@ public class CatalogosController : ApiControllerBase
         var maquinista = await _unitOfWork.OperadoresLinea.GetByUsuarioIdAsync(usuarioId);
         if (maquinista == null)
             return NotFound();
-
-        var user = await _userManager.FindByIdAsync(maquinista.UsuarioId);
-
-        return Ok(new MaquinistaDto
-        {
-            UsuarioLineaId = maquinista.UsuarioLineaId,
-            UsuarioId = maquinista.UsuarioId,
-            NombreUsuario = user?.NombreCompleto ?? user?.UserName ?? "Usuario desconocido",
-            EmailUsuario = user?.Email ?? string.Empty,
-            LineaId = maquinista.LineaId,
-            LineaNombre = maquinista.Linea?.Nombre ?? string.Empty,
-            TurnoId = maquinista.TurnoHabitualId,
-            TurnoNombre = maquinista.TurnoHabitual?.Nombre,
-            FechaAsignacion = maquinista.FechaAsignacion
-        });
+        return Ok(Maquinista(maquinista, await _userManager.FindByIdAsync(maquinista.UsuarioId)));
     }
 
     /// <summary>
-    /// Obtiene todas las asignaciones del usuario actual (mis lineas y turnos).
+    /// Líneas en las que está habilitado el usuario actual. T-802: la usa la pantalla de inicio de turno y la barra
+    /// de turno, así que se puede consultar sin turno abierto.
     /// </summary>
     [HttpGet("maquinistas/mis-asignaciones")]
     [ProducesResponseType(typeof(IEnumerable<MaquinistaDto>), StatusCodes.Status200OK)]
     [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
+    [SinTurnoObligatorio]
     public async Task<IActionResult> GetMisAsignaciones()
     {
         if (string.IsNullOrEmpty(CurrentUserId))
             return Unauthorized();
 
         var asignaciones = await _unitOfWork.OperadoresLinea.GetAllWithRelationsAsync();
-        var misAsignaciones = asignaciones.Where(a => a.UsuarioId == CurrentUserId);
-
         var user = await _userManager.FindByIdAsync(CurrentUserId);
-
-        var items = misAsignaciones.Select(m => new MaquinistaDto
-        {
-            UsuarioLineaId = m.UsuarioLineaId,
-            UsuarioId = m.UsuarioId,
-            NombreUsuario = user?.NombreCompleto ?? user?.UserName ?? "Usuario desconocido",
-            EmailUsuario = user?.Email ?? string.Empty,
-            LineaId = m.LineaId,
-            LineaNombre = m.Linea?.Nombre ?? string.Empty,
-            TurnoId = m.TurnoHabitualId,
-            TurnoNombre = m.TurnoHabitual?.Nombre,
-            FechaAsignacion = m.FechaAsignacion
-        }).OrderBy(m => m.LineaNombre).ToList();
-
+        var items = asignaciones.Where(a => a.UsuarioId == CurrentUserId)
+            .Select(m => Maquinista(m, user))
+            .OrderBy(m => m.LineaNombre)
+            .ToList();
         return Ok(items);
     }
 
-    [HttpPost("maquinistas")]
-    [ProducesResponseType(typeof(MaquinistaDto), StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [Permiso(Opciones.ConfigMaquinistas, AccionPermiso.Alta)]
-    public async Task<IActionResult> CreateMaquinista([FromBody] CrearMaquinistaRequest request)
+    private static MaquinistaDto Maquinista(Domain.Entities.OperadorLinea m, ApplicationUser? user) => new()
     {
-        if (string.IsNullOrEmpty(CurrentUserId))
-            return Unauthorized();
-
-        // Validar que el usuario existe
-        var user = await _userManager.FindByIdAsync(request.UsuarioId);
-        if (user == null)
-        {
-            return BadRequest(new ProblemDetails
-            {
-                Title = "Usuario no encontrado",
-                Detail = "El usuario especificado no existe en el sistema.",
-                Status = StatusCodes.Status400BadRequest
-            });
-        }
-
-        // Validar que no exista ya una asignacion para ese usuario y linea
-        var existente = await _unitOfWork.OperadoresLinea.GetByUsuarioYLineaAsync(request.UsuarioId, request.LineaId);
-        if (existente != null)
-        {
-            return BadRequest(new ProblemDetails
-            {
-                Title = "Asignacion duplicada",
-                Detail = "El usuario ya está asignado a esta línea.",
-                Status = StatusCodes.Status400BadRequest
-            });
-        }
-
-        var maquinista = new Domain.Entities.OperadorLinea
-        {
-            UsuarioId = request.UsuarioId,
-            LineaId = request.LineaId,
-            TurnoHabitualId = request.TurnoId,
-            FechaAsignacion = DateTimeOffset.UtcNow,
-            AsignadoPorUsuarioId = CurrentUserId
-        };
-
-        await _unitOfWork.OperadoresLinea.AddAsync(maquinista);
-        await _unitOfWork.SaveChangesAsync();
-
-        _logger.LogInformation("Maquinista {UsuarioId} asignado a linea {LineaId} por usuario {UserId}",
-            maquinista.UsuarioId, maquinista.LineaId, CurrentUserId);
-
-        // Recargar con relaciones
-        var creado = await _unitOfWork.OperadoresLinea.GetByUsuarioYLineaAsync(maquinista.UsuarioId, maquinista.LineaId);
-
-        return CreatedAtAction(nameof(GetMaquinista), new { id = maquinista.UsuarioLineaId }, new MaquinistaDto
-        {
-            UsuarioLineaId = maquinista.UsuarioLineaId,
-            UsuarioId = maquinista.UsuarioId,
-            NombreUsuario = user.NombreCompleto ?? user.UserName ?? "Usuario desconocido",
-            EmailUsuario = user.Email ?? string.Empty,
-            LineaId = maquinista.LineaId,
-            LineaNombre = creado?.Linea?.Nombre ?? string.Empty,
-            TurnoId = maquinista.TurnoHabitualId,
-            TurnoNombre = creado?.TurnoHabitual?.Nombre,
-            FechaAsignacion = maquinista.FechaAsignacion
-        });
-    }
-
-    [HttpPut("maquinistas/{id:int}")]
-    [ProducesResponseType(typeof(MaquinistaDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [Permiso(Opciones.ConfigMaquinistas, AccionPermiso.Modificar)]
-    public async Task<IActionResult> UpdateMaquinista(int id, [FromBody] ActualizarMaquinistaRequest request)
-    {
-        if (string.IsNullOrEmpty(CurrentUserId))
-            return Unauthorized();
-
-        var maquinista = await _unitOfWork.OperadoresLinea.GetByIdAsync(id);
-        if (maquinista == null)
-            return NotFound();
-
-        // Si cambia la linea, validar que no exista otra asignacion
-        if (maquinista.LineaId != request.LineaId)
-        {
-            var existente = await _unitOfWork.OperadoresLinea.GetByUsuarioYLineaAsync(maquinista.UsuarioId, request.LineaId);
-            if (existente != null && existente.UsuarioLineaId != id)
-            {
-                return BadRequest(new ProblemDetails
-                {
-                    Title = "Asignacion duplicada",
-                    Detail = "El usuario ya está asignado a esta línea.",
-                    Status = StatusCodes.Status400BadRequest
-                });
-            }
-        }
-
-        maquinista.LineaId = request.LineaId;
-        maquinista.TurnoHabitualId = request.TurnoId;
-
-        await _unitOfWork.OperadoresLinea.UpdateAsync(maquinista);
-        await _unitOfWork.SaveChangesAsync();
-
-        _logger.LogInformation("Maquinista {UsuarioLineaId} actualizado por usuario {UserId}", id, CurrentUserId);
-
-        // Recargar con relaciones
-        var actualizado = await _unitOfWork.OperadoresLinea.GetByUsuarioYLineaAsync(maquinista.UsuarioId, maquinista.LineaId);
-        var user = await _userManager.FindByIdAsync(maquinista.UsuarioId);
-
-        return Ok(new MaquinistaDto
-        {
-            UsuarioLineaId = maquinista.UsuarioLineaId,
-            UsuarioId = maquinista.UsuarioId,
-            NombreUsuario = user?.NombreCompleto ?? user?.UserName ?? "Usuario desconocido",
-            EmailUsuario = user?.Email ?? string.Empty,
-            LineaId = maquinista.LineaId,
-            LineaNombre = actualizado?.Linea?.Nombre ?? string.Empty,
-            TurnoId = maquinista.TurnoHabitualId,
-            TurnoNombre = actualizado?.TurnoHabitual?.Nombre,
-            FechaAsignacion = maquinista.FechaAsignacion
-        });
-    }
-
-    [HttpDelete("maquinistas/{id:int}")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [Permiso(Opciones.ConfigMaquinistas, AccionPermiso.Baja)]
-    public async Task<IActionResult> DeleteMaquinista(int id)
-    {
-        if (string.IsNullOrEmpty(CurrentUserId))
-            return Unauthorized();
-
-        var maquinista = await _unitOfWork.OperadoresLinea.GetByIdAsync(id);
-        if (maquinista == null)
-            return NotFound();
-
-        // T-798 etapa 3: las detenciones guardan el usuario (OperadorUsuarioId), no la habilitación: quitarla no
-        // borra el operador de las detenciones históricas.
-        // Para OperadorLinea usamos delete real ya que no tiene Activo
-        // Esto es una excepcion al patron de soft delete porque es una tabla de relacion
-        _unitOfWork.OperadoresLinea.DeleteAsync(maquinista);
-        await _unitOfWork.SaveChangesAsync();
-
-        _logger.LogInformation("Maquinista {UsuarioLineaId} eliminado por usuario {UserId}", id, CurrentUserId);
-
-        return NoContent();
-    }
+        UsuarioLineaId = m.UsuarioLineaId,
+        UsuarioId = m.UsuarioId,
+        NombreUsuario = user?.NombreCompleto ?? user?.UserName ?? "Usuario desconocido",
+        EmailUsuario = user?.Email ?? string.Empty,
+        LineaId = m.LineaId,
+        LineaNombre = m.Linea?.Nombre ?? string.Empty,
+        FechaAsignacion = m.FechaAsignacion
+    };
 
     #endregion
 

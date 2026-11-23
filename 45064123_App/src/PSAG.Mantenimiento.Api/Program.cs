@@ -131,7 +131,8 @@ builder.Services.AddCors(options =>
 });
 
 // Configurar Controllers
-builder.Services.AddControllers()
+// T-802: obligado a turno (sin turno abierto, 409 en lo de negocio; con turno, todo ajustado a ese turno). Ver Autorizacion/TurnoObligatorio.cs.
+builder.Services.AddControllers(options => options.Filters.Add<PSAG.Mantenimiento.Api.Autorizacion.TurnoObligatorioFilter>())
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;

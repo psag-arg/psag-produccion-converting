@@ -40,8 +40,8 @@ public class DetencionAutomaticaTests : CalidadTestBase
         camara.CreaDetenciones = true;
         camara.UmbralDetencionSegundos = 300;
         CamTango = camara;
-        _maquinistaManana = new OperadorLinea { UsuarioId = Operario, LineaId = Tango2.LineaId, TurnoHabitualId = TurnoManana.TurnoId, FechaAsignacion = DateTimeOffset.UtcNow.AddDays(-30), AsignadoPorUsuarioId = Admin };
-        _operarioFutura = new OperadorLinea { UsuarioId = "oper-futura", LineaId = Futura2.LineaId, TurnoHabitualId = TurnoManana.TurnoId, FechaAsignacion = DateTimeOffset.UtcNow.AddDays(-30), AsignadoPorUsuarioId = Admin };
+        _maquinistaManana = new OperadorLinea { UsuarioId = Operario, LineaId = Tango2.LineaId, FechaAsignacion = DateTimeOffset.UtcNow.AddDays(-30), AsignadoPorUsuarioId = Admin };
+        _operarioFutura = new OperadorLinea { UsuarioId = "oper-futura", LineaId = Futura2.LineaId, FechaAsignacion = DateTimeOffset.UtcNow.AddDays(-30), AsignadoPorUsuarioId = Admin };
         Context.AddRange(_maquinistaManana, _operarioFutura);
         Context.SaveChanges();
         Context.ChangeTracker.Clear();

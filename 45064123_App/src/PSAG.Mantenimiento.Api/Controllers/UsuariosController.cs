@@ -139,9 +139,10 @@ public class UsuariosController : ApiControllerBase
             });
         }
 
-        if (DetencionCargaReglas.OperarioSinLineas(request.Roles, request.LineasAsignadas.Count))
+        request.LineasAsignadas = request.LineasAsignadas.Distinct().ToList();
+        if (await LineasInvalidasAsync(request.Roles, request.LineasAsignadas, true) is { } errorLineas)
         {
-            return OperarioSinLinea();
+            return errorLineas;
         }
 
         var user = new ApplicationUser
@@ -244,9 +245,10 @@ public class UsuariosController : ApiControllerBase
             return NotFound();
 
         // Un usuario inactivo se puede guardar igual (por ejemplo, para darlo de baja).
-        if (request.Activo && DetencionCargaReglas.OperarioSinLineas(request.Roles, request.LineasAsignadas.Count))
+        request.LineasAsignadas = request.LineasAsignadas.Distinct().ToList();
+        if (await LineasInvalidasAsync(request.Roles, request.LineasAsignadas, request.Activo) is { } errorLineas)
         {
-            return OperarioSinLinea();
+            return errorLineas;
         }
 
         // T-798 etapa 3: la detención guarda el usuario (OperadorUsuarioId), no la habilitación: quitar una línea ya no
@@ -481,12 +483,68 @@ public class UsuariosController : ApiControllerBase
         return NoContent();
     }
 
-    private BadRequestObjectResult OperarioSinLinea() => BadRequest(new ProblemDetails
+    /// <summary>
+    /// Roles obligados a turno (CFG_RolesConfiguracion.ObligadoATurno, T-802): la pantalla de Usuarios pide las líneas
+    /// habilitadas cuando se elige alguno.
+    /// </summary>
+    [HttpGet("roles-obligados-turno")]
+    [ProducesResponseType(typeof(IEnumerable<string>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.ConfigUsuarios, AccionPermiso.Ver)]
+    public async Task<IActionResult> GetRolesObligadosATurno()
     {
-        Title = "Operario sin línea",
-        Detail = DetencionCargaReglas.MensajeOperarioSinLinea,
-        Status = StatusCodes.Status400BadRequest
-    });
+        var roles = await _roleManager.Roles.Select(r => r.Name).ToListAsync();
+        var obligados = new List<string>();
+        foreach (var rol in roles.Where(r => r != null).Select(r => r!))
+            if (await ObligadoATurnoAsync([rol]))
+                obligados.Add(rol);
+        return Ok(obligados.OrderBy(r => r));
+    }
+
+    /// <summary>
+    /// T-802 · Alta de usuario en un solo circuito: las líneas habilitadas se cargan con el usuario. Tienen que existir;
+    /// si algún rol elegido está obligado a turno (y el usuario queda activo), hace falta al menos una. El que es sólo
+    /// operario también necesita líneas para cargar detenciones (regla de antes).
+    /// </summary>
+    private async Task<IActionResult?> LineasInvalidasAsync(IList<string> roles, IList<int> lineas, bool activo)
+    {
+        foreach (var lineaId in lineas)
+        {
+            if (await _unitOfWork.Lineas.GetByIdAsync(lineaId) == null)
+                return BadRequest(new ProblemDetails
+                {
+                    Title = "Línea inexistente",
+                    Detail = $"La línea {lineaId} no existe.",
+                    Status = StatusCodes.Status400BadRequest
+                });
+        }
+        if (!activo || lineas.Count > 0)
+            return null;
+        if (await ObligadoATurnoAsync(roles))
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Faltan las líneas habilitadas",
+                Detail = TurnoObligatorioReglas.MensajeObligadoSinLineas,
+                Status = StatusCodes.Status400BadRequest
+            });
+        if (DetencionCargaReglas.OperarioSinLineas(roles, 0))
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Operario sin línea",
+                Detail = DetencionCargaReglas.MensajeOperarioSinLinea,
+                Status = StatusCodes.Status400BadRequest
+            });
+        return null;
+    }
+
+    /// <summary>Alguno de los roles está obligado a turno (configurable; fuera de una request, la regla migrada: OPERARIO).</summary>
+    private async Task<bool> ObligadoATurnoAsync(IEnumerable<string> roles)
+    {
+        var servicio = HttpContext?.RequestServices?.GetService(typeof(Application.Services.Interfaces.IPermisosService))
+            as Application.Services.Interfaces.IPermisosService;
+        if (servicio == null)
+            return roles.Any(r => CatalogoPermisos.RolesObligadosATurno.Contains(r.ToUpperInvariant()));
+        return (await servicio.ObtenerDeRolesAsync(roles)).ObligadoATurno;
+    }
 }
 
 public class ResetPasswordRequest

@@ -29,6 +29,16 @@ public class TurnoProduccionRepository : RepositoryBase<TurnoProduccion>, ITurno
     public Task<TurnoProduccion?> GetAbiertoAsync(int lineaId, CancellationToken cancellationToken = default) =>
         ConDetalle().FirstOrDefaultAsync(t => t.LineaId == lineaId && t.Estado == EstadoTurnoProduccion.ABIERTO, cancellationToken);
 
+    public async Task<IReadOnlyList<TurnoProduccion>> GetAbiertosDeOperadorAsync(string usuarioId, CancellationToken cancellationToken = default) =>
+        await _dbSet
+            .AsNoTracking()
+            .Include(t => t.Linea)
+            .Include(t => t.Turno)
+            .Where(t => t.Estado == EstadoTurnoProduccion.ABIERTO
+                        && t.Operadores.Any(o => o.OperadorUsuarioId == usuarioId && o.Hasta == null && o.AnuladoPorId == null))
+            .OrderByDescending(t => t.InicioProgramado)
+            .ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyList<TurnoProduccion>> GetAbiertosAsync(CancellationToken cancellationToken = default) =>
         await _dbSet
             .Include(t => t.Operadores)

@@ -99,7 +99,7 @@ En modo SQL Server:
   se niegan a correr): **la base se vacía entera**. El login necesita ser `db_owner` de esa base.
 - Una vez por corrida (fixture de la colección `BaseDeDatos`, `EsquemaSqlServer.cs`) se arma el esquema con los
   **scripts de `database/`** en el orden de producción: `dev/limpiar_base_dev.sql`, 02–08,
-  `dev/seed_previo_t798_maestros.sql`, 17, 18, 11, 12, 19–30, 31–38 y 39 (no `EnsureCreated`). Se corren por lotes `GO`
+  `dev/seed_previo_t798_maestros.sql`, 17, 18, 11, 12, 19–30, 31–38, 39 y 40 (no `EnsureCreated`). Se corren por lotes `GO`
   como `sqlcmd -I -b` (no hace falta sqlcmd instalado) con el `USE` cambiado por la base de TEST. Tarda unos 6 s.
   `PSAG_TEST_ESQUEMA=REUSAR` lo saltea si la base ya tiene el esquema de T-798 (para iterar; para entregar, sin esa variable).
 - Antes de cada test se borran todas las tablas (en orden de FK) y se reinician las identidades: cada test arranca

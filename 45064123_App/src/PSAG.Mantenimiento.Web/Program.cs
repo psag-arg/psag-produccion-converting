@@ -59,6 +59,8 @@ builder.Services.AddScoped<IIndicadoresService, IndicadoresService>();
 builder.Services.AddScoped<IMaestrosProduccionService, MaestrosProduccionService>();
 // Roles y permisos configurables (T-802): menú, páginas y botones según GET api/permisos/mios
 builder.Services.AddScoped<IPermisosService, PermisosService>();
+// Obligado a turno (T-802): turno propio del usuario; sin turno, sólo "Inicio de turno"
+builder.Services.AddScoped<ITurnoPropioService, TurnoPropioService>();
 
 // Servicio de temas
 builder.Services.AddScoped<IThemeService, ThemeService>();

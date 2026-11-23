@@ -2,6 +2,7 @@
 @using PSAG.Mantenimiento.Web.Services
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
+@inject PSAG.Mantenimiento.Web.Services.IPermisosService PermisosService
 
 <div class="login-container">
     <div class="login-card">
@@ -116,8 +117,11 @@
             {
                 // T-798 etapa 2: el operario pasa por "Inicio de turno" (toma el turno de sus líneas y elige el producto).
                 // Si no hay nada que preguntar o la API falla, esa pantalla sigue de largo al destino.
+                // T-802: también el obligado a turno (rol con ObligadoATurno), que no puede seguir sin tomar uno.
                 var destino = RutasLogin.DestinoSeguro(Volver);
-                Navigation.NavigateTo(result.Roles?.Contains("OPERARIO") == true
+                var obligado = false;
+                try { obligado = (await PermisosService.RefrescarAsync()).ObligadoATurno; } catch { /* lo resuelve el layout */ }
+                Navigation.NavigateTo(result.Roles?.Contains("OPERARIO") == true || obligado
                     ? $"/produccion/inicio-turno?volver={Uri.EscapeDataString(destino)}"
                     : destino);
             }

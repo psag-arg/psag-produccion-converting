@@ -71,8 +71,6 @@ public class MaquinistaDto
     public string EmailUsuario { get; set; } = string.Empty;
     public int LineaId { get; set; }
     public string LineaNombre { get; set; } = string.Empty;
-    public int? TurnoId { get; set; }
-    public string? TurnoNombre { get; set; }
     public DateTimeOffset FechaAsignacion { get; set; }
 }
 

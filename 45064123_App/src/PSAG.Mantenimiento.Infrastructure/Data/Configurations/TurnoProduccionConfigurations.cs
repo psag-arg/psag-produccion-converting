@@ -99,6 +99,10 @@ public class TurnoProduccionOperadorConfiguration : IEntityTypeConfiguration<Tur
 
         builder.HasIndex(x => x.TurnoProduccionId);
         builder.HasIndex(x => x.OperadorUsuarioId);
+        // T-802 (script 40): un solo operador vigente por turno (dos operarios no pueden tener el mismo turno a la vez).
+        builder.HasIndex(x => x.TurnoProduccionId, "UX_PRD_TurnosProduccionOperadores_Vigente")
+            .IsUnique()
+            .HasFilter("[Hasta] IS NULL AND [AnuladoPorId] IS NULL");
     }
 }
 
