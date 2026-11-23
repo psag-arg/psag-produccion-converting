@@ -20,6 +20,7 @@ namespace PSAG.Mantenimiento.Api.IntegrationTests;
 /// T-611: endpoint de ingesta del detector. Clave correcta / incorrecta / ausente / sin configurar,
 /// y el pedido completo hasta la base. También que los atributos de rol coincidan con CalidadReglas.
 /// </summary>
+[Collection(ColeccionBaseDeDatos.Nombre)]
 public class CalidadIngestaTests : CalidadTestBase
 {
     private const string Clave = "clave-ingesta-de-prueba-0123456789";

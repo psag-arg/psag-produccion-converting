@@ -1,5 +1,4 @@
 using System.Globalization;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using PSAG.Mantenimiento.Application.DTOs.Proceso;
@@ -15,13 +14,14 @@ namespace PSAG.Mantenimiento.Api.IntegrationTests;
 /// Lee los VALUES de database/24_t545_plantilla_control_proceso_tango2.sql, los carga por el maestro
 /// (grupos y puntos) + estándares del producto, y verifica la carga del maquinista.
 /// </summary>
+[Collection(ColeccionBaseDeDatos.Nombre)]
 public class PlantillaTango2Tests : IDisposable
 {
     private const string Script = "24_t545_plantilla_control_proceso_tango2.sql";
     private const string Admin = "SCRIPT-24";
     private const string Maquinista = "maquinista-test";
 
-    private readonly SqliteConnection _conexion;
+    private readonly BaseDePrueba _base;
     private readonly MantenimientoDbContext _context;
     private readonly ControlProcesoPlantillaService _maestro;
     private readonly RegistroProcesoService _carga;
@@ -31,10 +31,8 @@ public class PlantillaTango2Tests : IDisposable
 
     public PlantillaTango2Tests()
     {
-        _conexion = new SqliteConnection("DataSource=:memory:");
-        _conexion.Open();
-        _context = new MantenimientoDbContext(new DbContextOptionsBuilder<MantenimientoDbContext>().UseSqlite(_conexion).Options);
-        _context.Database.EnsureCreated();
+        _base = BaseDePrueba.Crear();
+        _context = _base.Context;
 
         var uow = new UnitOfWork(_context);
         _maestro = new ControlProcesoPlantillaService(uow, NullLogger<ControlProcesoPlantillaService>.Instance);
@@ -57,7 +55,7 @@ public class PlantillaTango2Tests : IDisposable
     public void Dispose()
     {
         _context.Dispose();
-        _conexion.Dispose();
+        _base.Dispose();
     }
 
     [Fact]

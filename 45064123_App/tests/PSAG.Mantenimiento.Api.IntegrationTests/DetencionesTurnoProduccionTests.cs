@@ -25,6 +25,7 @@ namespace PSAG.Mantenimiento.Api.IntegrationTests;
 /// T2 13–21, T3 21–05; planta UTC-3. Las fechas son de hace unos días (la API no acepta fechas futuras) y el reloj del
 /// servicio de turnos se mueve a mano.
 /// </summary>
+[Collection(ColeccionBaseDeDatos.Nombre)]
 public class DetencionesTurnoProduccionTests : IDisposable
 {
     private const string Admin = "admin-t798";
@@ -35,7 +36,7 @@ public class DetencionesTurnoProduccionTests : IDisposable
     private static readonly TimeZoneInfo ZonaPlanta =
         TimeZoneInfo.CreateCustomTimeZone("Planta-Test", TimeSpan.FromHours(-3), "Planta", "Planta");
 
-    private readonly SqliteConnection _conexion;
+    private readonly BaseDePrueba _base;
     private readonly MantenimientoDbContext _context;
     private readonly UnitOfWork _unitOfWork;
     private readonly TurnoProduccionService _turnos;
@@ -54,10 +55,8 @@ public class DetencionesTurnoProduccionTests : IDisposable
 
     public DetencionesTurnoProduccionTests()
     {
-        _conexion = new SqliteConnection("DataSource=:memory:");
-        _conexion.Open();
-        _context = new MantenimientoDbContext(new DbContextOptionsBuilder<MantenimientoDbContext>().UseSqlite(_conexion).Options);
-        _context.Database.EnsureCreated();
+        _base = BaseDePrueba.Crear();
+        _context = _base.Context;
 
         _tango2 = new Linea { Codigo = "T2", Nombre = "Tango 2", Orden = 1, CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin };
         _t1 = Turno("T1", "Turno 1", 5, 13, 1);
@@ -93,7 +92,7 @@ public class DetencionesTurnoProduccionTests : IDisposable
     public void Dispose()
     {
         _context.Dispose();
-        _conexion.Dispose();
+        _base.Dispose();
     }
 
     private static Turno Turno(string codigo, string nombre, int desde, int hasta, int orden) => new()

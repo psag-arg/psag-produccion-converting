@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using PSAG.Mantenimiento.Domain.Entities;
 using PSAG.Mantenimiento.Domain.Enums;
@@ -10,25 +9,24 @@ namespace PSAG.Mantenimiento.Api.IntegrationTests;
 /// <summary>
 /// Filtro de duración mínima del listado paginado (lo usa el detalle de Fallos mayores).
 /// </summary>
+[Collection(ColeccionBaseDeDatos.Nombre)]
 public class DetencionRepositoryFiltroTests : IDisposable
 {
     private const string Usuario = "usuario-test";
 
-    private readonly SqliteConnection _conexion;
+    private readonly BaseDePrueba _base;
     private readonly MantenimientoDbContext _context;
 
     public DetencionRepositoryFiltroTests()
     {
-        _conexion = new SqliteConnection("DataSource=:memory:");
-        _conexion.Open();
-        _context = new MantenimientoDbContext(new DbContextOptionsBuilder<MantenimientoDbContext>().UseSqlite(_conexion).Options);
-        _context.Database.EnsureCreated();
+        _base = BaseDePrueba.Crear();
+        _context = _base.Context;
     }
 
     public void Dispose()
     {
         _context.Dispose();
-        _conexion.Dispose();
+        _base.Dispose();
     }
 
     [Fact]

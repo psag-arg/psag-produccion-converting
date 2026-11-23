@@ -24,6 +24,7 @@ namespace PSAG.Mantenimiento.Api.IntegrationTests;
 /// o eliminar un usuario que es maquinista de una detención (B), producción por cámara y por turno (D), aviso de
 /// fin de turno (N), tipo/detalle de falla al declarar (P) y restricción por línea de la pantalla de declarar (Q).
 /// </summary>
+[Collection(ColeccionBaseDeDatos.Nombre)]
 public class AuditoriaApiTests : CalidadTestBase
 {
     private readonly UnitOfWork _unitOfWork;

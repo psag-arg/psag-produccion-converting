@@ -15,6 +15,7 @@ namespace PSAG.Mantenimiento.Api.IntegrationTests;
 /// T-610: ingesta del servicio de conteo por cámara (idempotente, todo o nada), cruce de las paradas con
 /// detenciones y producción por hora. Reusa la base de calidad; la cámara es la de CAM_Camaras (T-798 etapa 4).
 /// </summary>
+[Collection(ColeccionBaseDeDatos.Nombre)]
 public class ConteoCamaraServiceTests : CalidadTestBase
 {
     private readonly ConteoCamaraService _conteo;

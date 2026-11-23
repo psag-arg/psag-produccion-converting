@@ -1,6 +1,5 @@
 using System.Reflection;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using PSAG.Mantenimiento.Api.Controllers;
@@ -17,6 +16,7 @@ namespace PSAG.Mantenimiento.Api.IntegrationTests;
 /// <summary>
 /// Tareas de mantenimiento contra SQLite en memoria: permisos por rol, línea asignada y ciclo de estados.
 /// </summary>
+[Collection(ColeccionBaseDeDatos.Nombre)]
 public class TareaMantenimientoServiceTests : IDisposable
 {
     private const string Admin = "admin";
@@ -29,7 +29,7 @@ public class TareaMantenimientoServiceTests : IDisposable
     private static readonly string[] RolSupervisor = ["SUPERVISOR"];
     private static readonly string[] RolGerencia = ["GERENCIA"];
 
-    private readonly SqliteConnection _conexion;
+    private readonly BaseDePrueba _base;
     private readonly MantenimientoDbContext _context;
     private readonly TareaMantenimientoService _service;
     private readonly Linea _lineaAsignada;
@@ -39,10 +39,8 @@ public class TareaMantenimientoServiceTests : IDisposable
 
     public TareaMantenimientoServiceTests()
     {
-        _conexion = new SqliteConnection("DataSource=:memory:");
-        _conexion.Open();
-        _context = new MantenimientoDbContext(new DbContextOptionsBuilder<MantenimientoDbContext>().UseSqlite(_conexion).Options);
-        _context.Database.EnsureCreated();
+        _base = BaseDePrueba.Crear();
+        _context = _base.Context;
 
         _lineaAsignada = new Linea { Codigo = "T2", Nombre = "Tango 2", CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin };
         _otraLinea = new Linea { Codigo = "F2", Nombre = "Futura 2", CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin };
@@ -61,7 +59,7 @@ public class TareaMantenimientoServiceTests : IDisposable
     public void Dispose()
     {
         _context.Dispose();
-        _conexion.Dispose();
+        _base.Dispose();
     }
 
     private CrearTareaMantenimientoRequest Pedido(string criticidad = "ALTA", int? lineaId = null, int? equipoId = null) => new()

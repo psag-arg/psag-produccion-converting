@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using PSAG.Mantenimiento.Application.DTOs.Dashboard;
@@ -19,6 +18,7 @@ namespace PSAG.Mantenimiento.Api.IntegrationTests;
 /// cobertura, validación / corrección / carga manual insert-only, parcial al vuelo, presupuesto vs. real por turno, día,
 /// producto y línea, velocidad e indisponibilidad desde los turnos. Planta UTC-3; reloj movible.
 /// </summary>
+[Collection(ColeccionBaseDeDatos.Nombre)]
 public class IndicadoresTests : IDisposable
 {
     private const string Admin = "admin-t798-5";
@@ -30,7 +30,7 @@ public class IndicadoresTests : IDisposable
     private static readonly TimeZoneInfo ZonaPlanta =
         TimeZoneInfo.CreateCustomTimeZone("Planta-Test", TimeSpan.FromHours(-3), "Planta", "Planta");
 
-    private readonly SqliteConnection _conexion;
+    private readonly BaseDePrueba _base;
     private readonly MantenimientoDbContext _context;
     private readonly UnitOfWork _unitOfWork;
     private readonly TurnoProduccionService _turnos;
@@ -47,10 +47,8 @@ public class IndicadoresTests : IDisposable
 
     public IndicadoresTests()
     {
-        _conexion = new SqliteConnection("DataSource=:memory:");
-        _conexion.Open();
-        _context = new MantenimientoDbContext(new DbContextOptionsBuilder<MantenimientoDbContext>().UseSqlite(_conexion).Options);
-        _context.Database.EnsureCreated();
+        _base = BaseDePrueba.Crear();
+        _context = _base.Context;
 
         _tango2 = new Linea { Codigo = "T2", Nombre = "Tango 2", Orden = 1, CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin };
         _t1 = Turno("T1", "Turno 1", 5, 13, 1);
@@ -86,7 +84,7 @@ public class IndicadoresTests : IDisposable
     public void Dispose()
     {
         _context.Dispose();
-        _conexion.Dispose();
+        _base.Dispose();
     }
 
     private static Turno Turno(string codigo, string nombre, int desde, int hasta, int orden) => new()
@@ -457,7 +455,8 @@ public class IndicadoresTests : IDisposable
     [Fact]
     public async Task Velocidad_PorTramo_EnLosMinutosEnMarcha()
     {
-        Minutos(H(19, 5), 60, 22.33m);         // 22,33 mangas/min × 30 m ≈ 670 m/min
+        // Cantidad es DECIMAL(9,1) (como manda la cámara, un decimal): con 22,33 SQL Server guarda 22,3 y SQLite 22,33.
+        Minutos(H(19, 5), 60, 22.3m);          // 22,3 mangas/min × 30 m = 669 m/min
         Minutos(H(19, 6), 30, 0, 0);           // parada: no entra
         var t1 = await AbrirAsync(H(19, 5), _sh30);
         await CerrarAsync(t1.TurnoProduccionId, H(19, 6, 30));
@@ -465,7 +464,7 @@ public class IndicadoresTests : IDisposable
         var ind = await IndicadoresAsync(t1.TurnoProduccionId);
 
         Assert.Equal(60, ind.Tramos[0].MinutosMarcha);
-        Assert.InRange(ind.VelocidadMetrosMinuto!.Value, 669.5m, 670.5m);
+        Assert.InRange(ind.VelocidadMetrosMinuto!.Value, 668.5m, 669.5m);
     }
 
     // ===================== Indisponibilidad desde los turnos =====================

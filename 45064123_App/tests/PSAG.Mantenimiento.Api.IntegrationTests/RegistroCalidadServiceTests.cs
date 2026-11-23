@@ -9,6 +9,7 @@ namespace PSAG.Mantenimiento.Api.IntegrationTests;
 /// <summary>
 /// T-611 contra SQLite y disco reales: ingesta, carga manual, imagen, revisión con historial, permisos y filtros.
 /// </summary>
+[Collection(ColeccionBaseDeDatos.Nombre)]
 public class RegistroCalidadServiceTests : CalidadTestBase
 {
     private IngestaCalidadRequest Ingesta(string? fechaHora = null, string? id = null, string tipo = "TEST-RABO", string punto = "test-cam-t2") => new()

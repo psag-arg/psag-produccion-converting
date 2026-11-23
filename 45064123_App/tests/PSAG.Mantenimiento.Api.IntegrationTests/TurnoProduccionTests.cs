@@ -18,6 +18,7 @@ namespace PSAG.Mantenimiento.Api.IntegrationTests;
 /// SIN_APERTURA, AsegurarTurno (SISTEMA), relevos y cambio de producto con snapshot, cierre automático y producto no
 /// habilitado. Turnos de planta T1 05–13, T2 13–21, T3 21–05; planta UTC-3; reloj fijo y movible.
 /// </summary>
+[Collection(ColeccionBaseDeDatos.Nombre)]
 public class TurnoProduccionTests : IDisposable
 {
     private const string Admin = "admin-test";
@@ -32,7 +33,7 @@ public class TurnoProduccionTests : IDisposable
     private static readonly TimeZoneInfo ZonaPlanta =
         TimeZoneInfo.CreateCustomTimeZone("Planta-Test", TimeSpan.FromHours(-3), "Planta", "Planta");
 
-    private readonly SqliteConnection _conexion;
+    private readonly BaseDePrueba _base;
     private readonly MantenimientoDbContext _context;
     private readonly TurnoProduccionService _servicio;
     private DateTimeOffset _reloj;
@@ -50,10 +51,8 @@ public class TurnoProduccionTests : IDisposable
 
     public TurnoProduccionTests()
     {
-        _conexion = new SqliteConnection("DataSource=:memory:");
-        _conexion.Open();
-        _context = new MantenimientoDbContext(new DbContextOptionsBuilder<MantenimientoDbContext>().UseSqlite(_conexion).Options);
-        _context.Database.EnsureCreated();
+        _base = BaseDePrueba.Crear();
+        _context = _base.Context;
 
         _tango2 = new Linea { Codigo = "T2", Nombre = "Tango 2", Orden = 1, CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin };
         _futura2 = new Linea { Codigo = "F2", Nombre = "Futura 2", Orden = 2, CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin };
@@ -90,7 +89,7 @@ public class TurnoProduccionTests : IDisposable
     public void Dispose()
     {
         _context.Dispose();
-        _conexion.Dispose();
+        _base.Dispose();
     }
 
     private static Turno Turno(string codigo, string nombre, int desde, int hasta, int orden) => new()

@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using PSAG.Mantenimiento.Domain.Entities;
@@ -11,11 +10,12 @@ namespace PSAG.Mantenimiento.Api.IntegrationTests;
 /// T-798 etapa 1 · Maestros de producción contra SQLite en memoria: SKU (FK NOT NULL al maestro y CHECKs por tipo),
 /// parametrización línea-producto (lista de productos de Control de Proceso) y turnos de la semilla de DEV.
 /// </summary>
+[Collection(ColeccionBaseDeDatos.Nombre)]
 public class MaestrosProduccionTests : IDisposable
 {
     private const string Admin = "admin-test";
 
-    private readonly SqliteConnection _conexion;
+    private readonly BaseDePrueba _base;
     private readonly MantenimientoDbContext _context;
     private readonly Linea _tango2;
     private readonly Linea _futura2;
@@ -24,10 +24,8 @@ public class MaestrosProduccionTests : IDisposable
 
     public MaestrosProduccionTests()
     {
-        _conexion = new SqliteConnection("DataSource=:memory:");
-        _conexion.Open();
-        _context = new MantenimientoDbContext(new DbContextOptionsBuilder<MantenimientoDbContext>().UseSqlite(_conexion).Options);
-        _context.Database.EnsureCreated();
+        _base = BaseDePrueba.Crear();
+        _context = _base.Context;
 
         _tango2 = new Linea { Codigo = "T2", Nombre = "Tango 2", CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin };
         _futura2 = new Linea { Codigo = "F2", Nombre = "Futura 2", CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin };
@@ -48,7 +46,7 @@ public class MaestrosProduccionTests : IDisposable
     public void Dispose()
     {
         _context.Dispose();
-        _conexion.Dispose();
+        _base.Dispose();
     }
 
     // ===================== SKU =====================
@@ -70,9 +68,12 @@ public class MaestrosProduccionTests : IDisposable
     public async Task Sku_ConMaestroNulo_SeRechaza()
     {
         // La columna es NOT NULL: ni por SQL directo se puede cargar un SKU sin maestro.
-        var ex = await Assert.ThrowsAsync<SqliteException>(() => _context.Database.ExecuteSqlRawAsync(
-            "INSERT INTO ABM_ProductosSku (ProductoMaestroId, CodigoSku, TipoSku, Activo) VALUES (NULL, 'SKU-NULO', 'BOLSON', 1)"));
-        Assert.Contains("NOT NULL", ex.Message);
+        // Vale en los dos motores: tabla con esquema en SQL Server (mnt.) y sin esquema en SQLite; la excepción es la del proveedor.
+        var tabla = _context.Model.FindEntityType(typeof(ProductoSku))!.GetSchemaQualifiedTableName();
+        var sql = "INSERT INTO " + tabla + " (ProductoMaestroId, CodigoSku, TipoSku, Activo) VALUES (NULL, 'SKU-NULO', 'BOLSON', 1)";
+        var ex = await Assert.ThrowsAnyAsync<System.Data.Common.DbException>(() => _context.Database.ExecuteSqlRawAsync(sql));
+        Assert.Contains("ProductoMaestroId", ex.Message);
+        Assert.Contains("NULL", ex.Message);
     }
 
     [Fact]

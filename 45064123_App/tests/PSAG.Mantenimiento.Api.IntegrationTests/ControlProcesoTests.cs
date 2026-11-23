@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using PSAG.Mantenimiento.Application.DTOs.Proceso;
@@ -12,12 +11,13 @@ namespace PSAG.Mantenimiento.Api.IntegrationTests;
 /// <summary>
 /// T-545 · Control de Proceso: plantilla por línea cargada desde el maestro y carga del maquinista validada por tipo.
 /// </summary>
+[Collection(ColeccionBaseDeDatos.Nombre)]
 public class ControlProcesoTests : IDisposable
 {
     private const string Admin = "admin-test";
     private const string Maquinista = "maquinista-test";
 
-    private readonly SqliteConnection _conexion;
+    private readonly BaseDePrueba _base;
     private readonly MantenimientoDbContext _context;
     private readonly ControlProcesoPlantillaService _plantilla;
     private readonly RegistroProcesoService _carga;
@@ -25,10 +25,8 @@ public class ControlProcesoTests : IDisposable
 
     public ControlProcesoTests()
     {
-        _conexion = new SqliteConnection("DataSource=:memory:");
-        _conexion.Open();
-        _context = new MantenimientoDbContext(new DbContextOptionsBuilder<MantenimientoDbContext>().UseSqlite(_conexion).Options);
-        _context.Database.EnsureCreated();
+        _base = BaseDePrueba.Crear();
+        _context = _base.Context;
 
         var uow = new UnitOfWork(_context);
         _plantilla = new ControlProcesoPlantillaService(uow, NullLogger<ControlProcesoPlantillaService>.Instance);
@@ -48,7 +46,7 @@ public class ControlProcesoTests : IDisposable
     public void Dispose()
     {
         _context.Dispose();
-        _conexion.Dispose();
+        _base.Dispose();
     }
 
     [Fact]

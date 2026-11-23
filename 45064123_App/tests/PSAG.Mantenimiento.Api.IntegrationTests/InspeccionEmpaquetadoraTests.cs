@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.SqlServer.TransactSql.ScriptDom;
@@ -17,6 +16,7 @@ namespace PSAG.Mantenimiento.Api.IntegrationTests;
 /// Inspecciones con el formato de Control de Proceso (reunión 03/11 [78:17]) y la planilla de Ferretti de la
 /// EMPAQUETADORA TMC de TANGO 2. Lee los VALUES de database/27_..., los carga por el maestro y prueba la carga.
 /// </summary>
+[Collection(ColeccionBaseDeDatos.Nombre)]
 public class InspeccionEmpaquetadoraTests : IDisposable
 {
     private const string Script = "27_inspecciones_empaquetadora_tmc_tango2.sql";
@@ -24,7 +24,7 @@ public class InspeccionEmpaquetadoraTests : IDisposable
     private const string Operador = "op-packaging";
     private const string Mecanico = "mecanico";
 
-    private readonly SqliteConnection _conexion;
+    private readonly BaseDePrueba _base;
     private readonly MantenimientoDbContext _context;
     private readonly InspeccionPlantillaService _maestro;
     private readonly InspeccionService _carga;
@@ -34,10 +34,8 @@ public class InspeccionEmpaquetadoraTests : IDisposable
 
     public InspeccionEmpaquetadoraTests()
     {
-        _conexion = new SqliteConnection("DataSource=:memory:");
-        _conexion.Open();
-        _context = new MantenimientoDbContext(new DbContextOptionsBuilder<MantenimientoDbContext>().UseSqlite(_conexion).Options);
-        _context.Database.EnsureCreated();
+        _base = BaseDePrueba.Crear();
+        _context = _base.Context;
 
         var uow = new UnitOfWork(_context);
         _maestro = new InspeccionPlantillaService(uow, NullLogger<InspeccionPlantillaService>.Instance);
@@ -59,7 +57,7 @@ public class InspeccionEmpaquetadoraTests : IDisposable
     public void Dispose()
     {
         _context.Dispose();
-        _conexion.Dispose();
+        _base.Dispose();
     }
 
     private static DateOnly Hoy => DateOnly.FromDateTime(DateTime.Today);

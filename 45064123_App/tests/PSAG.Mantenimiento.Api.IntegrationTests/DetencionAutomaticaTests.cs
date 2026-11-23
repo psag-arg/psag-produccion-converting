@@ -16,6 +16,7 @@ namespace PSAG.Mantenimiento.Api.IntegrationTests;
 /// maquinista del turno, alertas de cámara, declaración del operador y solapa "Pendiente de declaración".
 /// La cámara de la Tango (TEST-CAM-T2) crea detenciones; la de la Futura (TEST-CAM-F2) sólo informa, como la 09.
 /// </summary>
+[Collection(ColeccionBaseDeDatos.Nombre)]
 public class DetencionAutomaticaTests : CalidadTestBase
 {
     private readonly ConteoCamaraService _conteo;

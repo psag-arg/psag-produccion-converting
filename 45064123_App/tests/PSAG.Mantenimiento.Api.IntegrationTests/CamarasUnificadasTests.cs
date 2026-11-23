@@ -22,6 +22,7 @@ namespace PSAG.Mantenimiento.Api.IntegrationTests;
 /// minuto colgado del turno de producción, configuración para el servicio (sólo habilitadas), producción oficial
 /// única por línea y magnitud y alerta SIN_DATOS (sin datos no es producción cero).
 /// </summary>
+[Collection(ColeccionBaseDeDatos.Nombre)]
 public class CamarasUnificadasTests : CalidadTestBase
 {
     private readonly ConteoCamaraService _conteo;

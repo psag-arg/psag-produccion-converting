@@ -1,5 +1,4 @@
 using PSAG.Mantenimiento.Application.DTOs.Produccion;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using PSAG.Mantenimiento.Application.Services.Implementations;
@@ -12,7 +11,7 @@ using PSAG.Mantenimiento.Infrastructure.Services;
 namespace PSAG.Mantenimiento.Api.IntegrationTests;
 
 /// <summary>
-/// Base de los tests de calidad (T-611): SQLite en memoria y carpeta temporal de imágenes.
+/// Base de los tests de calidad (T-611): base de prueba (SQLite en memoria o SQL Server, ver BaseDePrueba) y carpeta temporal de imágenes.
 /// Los datos de prueba viven SOLO acá, nunca en los scripts de producción.
 /// </summary>
 public abstract class CalidadTestBase : IDisposable
@@ -33,7 +32,7 @@ public abstract class CalidadTestBase : IDisposable
     protected static readonly TimeZoneInfo ZonaPlanta =
         TimeZoneInfo.CreateCustomTimeZone("Planta-Test", TimeSpan.FromHours(-3), "Planta", "Planta");
 
-    protected readonly SqliteConnection Conexion;
+    protected readonly BaseDePrueba Base;
     protected readonly MantenimientoDbContext Context;
     protected readonly string Carpeta;
     protected readonly AlmacenImagenesCalidadDisco Almacen;
@@ -61,10 +60,8 @@ public abstract class CalidadTestBase : IDisposable
 
     protected CalidadTestBase()
     {
-        Conexion = new SqliteConnection("DataSource=:memory:");
-        Conexion.Open();
-        Context = new MantenimientoDbContext(new DbContextOptionsBuilder<MantenimientoDbContext>().UseSqlite(Conexion).Options);
-        Context.Database.EnsureCreated();
+        Base = BaseDePrueba.Crear();
+        Context = Base.Context;
 
         Carpeta = Path.Combine(Path.GetTempPath(), "psag-calidad-test-" + Guid.NewGuid().ToString("N"));
         Almacen = new AlmacenImagenesCalidadDisco(Carpeta);
@@ -80,7 +77,7 @@ public abstract class CalidadTestBase : IDisposable
     public void Dispose()
     {
         Context.Dispose();
-        Conexion.Dispose();
+        Base.Dispose();
         if (Directory.Exists(Carpeta))
             Directory.Delete(Carpeta, recursive: true);
         GC.SuppressFinalize(this);

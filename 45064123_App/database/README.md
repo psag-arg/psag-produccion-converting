@@ -65,6 +65,10 @@ Los scripts traen `USE [PSAG_Mantenimiento]`: para DEV se pasan por un filtro qu
 (`sed 's/USE \[PSAG_Mantenimiento\]/USE [PSAG_Mantenimiento_DEV]/'`). Correr con `sqlcmd -C -I -b -f 65001` y la clave en
 `SQLCMDPASSWORD`.
 
+Los tests de integración con `PSAG_TEST_MOTOR=SQLSERVER` arman la base de TEST con esta misma lista (sin el paso 3 ni
+datos de prueba) en `tests/PSAG.Mantenimiento.Api.IntegrationTests/EsquemaSqlServer.cs`: **si se agrega un script de
+producción, sumarlo también ahí**. Ver `README.md` de la app, sección Tests.
+
 ## Requisitos
 
 - SQL Server 2019 o superior

@@ -14,6 +14,7 @@ namespace PSAG.Mantenimiento.Api.IntegrationTests;
 /// T-798 etapa 5: la "eficiencia por cámara" (contadas, microcortes por turno) se reemplazó por los indicadores
 /// (IndicadoresTests); acá queda lo de las paradas, consultado por api/conteo-camara/paradas.
 /// </summary>
+[Collection(ColeccionBaseDeDatos.Nombre)]
 public class ParadasCamaraUmbralTests : CalidadTestBase
 {
     private readonly ConteoCamaraService _conteo;

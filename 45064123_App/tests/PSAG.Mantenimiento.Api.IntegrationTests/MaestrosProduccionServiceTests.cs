@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using PSAG.Mantenimiento.Application.DTOs.Produccion;
@@ -14,23 +13,22 @@ namespace PSAG.Mantenimiento.Api.IntegrationTests;
 /// T-798 etapa 6 · ABM de Maestros → Productos (con SKU) y Parámetros línea + producto contra SQLite en memoria:
 /// permisos (sólo administrador), validaciones con mensaje claro (las mismas que los CHECK) y estado de vigencia.
 /// </summary>
+[Collection(ColeccionBaseDeDatos.Nombre)]
 public class MaestrosProduccionServiceTests : IDisposable
 {
     private const string Admin = "admin-test";
     private static readonly string[] RolAdmin = [RolesSistema.Administrador];
     private static readonly TimeZoneInfo ZonaPlanta = TimeZoneInfo.CreateCustomTimeZone("Planta-Test", TimeSpan.FromHours(-3), "Planta", "Planta");
 
-    private readonly SqliteConnection _conexion;
+    private readonly BaseDePrueba _base;
     private readonly MantenimientoDbContext _context;
     private readonly MaestrosProduccionService _servicio;
     private readonly Linea _tango2;
 
     public MaestrosProduccionServiceTests()
     {
-        _conexion = new SqliteConnection("DataSource=:memory:");
-        _conexion.Open();
-        _context = new MantenimientoDbContext(new DbContextOptionsBuilder<MantenimientoDbContext>().UseSqlite(_conexion).Options);
-        _context.Database.EnsureCreated();
+        _base = BaseDePrueba.Crear();
+        _context = _base.Context;
         _tango2 = new Linea { Codigo = "T2", Nombre = "Tango 2", CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin };
         _context.Add(_tango2);
         _context.SaveChanges();
@@ -40,7 +38,7 @@ public class MaestrosProduccionServiceTests : IDisposable
     public void Dispose()
     {
         _context.Dispose();
-        _conexion.Dispose();
+        _base.Dispose();
     }
 
     private static DateOnly Hoy() => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ZonaPlanta).Date);
