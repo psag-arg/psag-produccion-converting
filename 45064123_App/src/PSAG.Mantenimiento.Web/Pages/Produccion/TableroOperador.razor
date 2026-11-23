@@ -1,4 +1,5 @@
 @page "/produccion/tablero"
+@page "/produccion/tablero/gerencial"
 @using Microsoft.AspNetCore.Authorization
 @using Blazored.LocalStorage
 @using PSAG.Mantenimiento.Web.Models
@@ -10,6 +11,8 @@
 @inject IAuthService AuthService
 @inject ILocalStorageService LocalStorage
 @inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IPermisosService PermisosService
 @implements IAsyncDisposable
 
 <PageTitle>Tablero del turno - PSAG Produccion</PageTitle>
@@ -18,8 +21,11 @@
    Presupuesto vs. real SOLO de su turno en proceso, detenciones reales (superan el umbral) separadas de los microcortes,
    pendientes de declarar (se declaran en un modal, sin salir) y el último dato de cámara. Se actualiza en línea por
    SignalR (la ingesta de cámara y las detenciones avisan) y, de respaldo, cada 10 s. El supervisor elige la línea y lo
-   ve en sólo lectura. Cada "Ver detalle" abre un modal. Para sumar bloques (pedido de Ferretti del 18/11, pendiente:
-   el adjunto no llegó) alcanza con otra <TarjetaKpi> en la grilla. *@
+   ve en sólo lectura. Cada "Ver detalle" abre un modal.
+   Iteración 2 (láminas de Ferretti): arriba los 4 indicadores en gráficos SVG propios (eficiencia con aguja, producción
+   en barras, velocidad en línea, detenciones por tipo de falla); abajo los bloques de antes.
+   Modo GERENCIAL (/produccion/tablero/gerencial, PRODUCCION.TABLERO_GERENCIAL): fecha + línea + turno, cualquier turno
+   (en curso o cerrado) en sólo lectura, mismos indicadores; los turnos en curso también se actualizan en línea. *@
 
 <div class="container-fluid px-0 tablero">
     @if (cargando)
@@ -28,7 +34,37 @@
     }
     else
     {
-        @if (!obligado)
+        @if (gerencial)
+        {
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-3" data-testid="selector-gerencial">
+                <label class="fw-semibold mb-0" for="ger-fecha">Fecha de producción</label>
+                <input id="ger-fecha" type="date" class="form-control form-control-lg w-auto" value="@fecha.ToString("yyyy-MM-dd")"
+                       @onchange="@(async e => await ElegirFecha(e))" />
+                <label class="fw-semibold mb-0" for="ger-linea">Línea</label>
+                <select id="ger-linea" class="form-select form-select-lg w-auto" value="@lineaId" @onchange="@(async e => await ElegirLineaGerencial(e))">
+                    @foreach (var l in lineas)
+                    {
+                        <option value="@l.Id">@l.Nombre</option>
+                    }
+                </select>
+                <div class="btn-group" role="group" aria-label="Turno">
+                    @foreach (var tu in TurnosDeLinea())
+                    {
+                        <button type="button" class="btn btn-lg @(tu.TurnoProduccionId == turnoElegido ? "btn-primary" : "btn-outline-primary")"
+                                @onclick="@(async () => await ElegirTurno(tu.TurnoProduccionId))">
+                            @tu.TurnoCodigo@(tu.Abierto ? " ●" : "")
+                        </button>
+                    }
+                </div>
+                <span class="badge text-bg-secondary fs-6"><i class="bi bi-eye me-1"></i>Gerencial · sólo lectura</span>
+                @* Misma página con otra ruta: se recarga entera para que arranque en el otro modo. *@
+                @if (veTablero)
+                {
+                    <button type="button" class="btn btn-link" @onclick="@(() => Navigation.NavigateTo("produccion/tablero", forceLoad: true))">Tablero de línea</button>
+                }
+            </div>
+        }
+        else if (!obligado)
         {
             <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
                 <label class="fw-semibold mb-0" for="tablero-linea">Línea</label>
@@ -39,12 +75,17 @@
                     }
                 </select>
                 <span class="badge text-bg-secondary fs-6"><i class="bi bi-eye me-1"></i>Sólo lectura</span>
+                @if (veGerencial)
+                {
+                    <button type="button" class="btn btn-link" @onclick="@(() => Navigation.NavigateTo("produccion/tablero/gerencial", forceLoad: true))">Otros turnos (gerencial)</button>
+                }
             </div>
         }
 
         @if (tablero == null)
         {
-            <div class="alert alert-info fs-5">@(error ?? (lineas.Count == 0 && !obligado ? "No hay líneas para elegir." : "La línea no tiene turno en curso."))</div>
+            <div class="alert alert-info fs-5">@(error ?? (lineas.Count == 0 && !obligado ? "No hay líneas para elegir."
+                : gerencial ? "La línea no tiene turnos de producción ese día." : "La línea no tiene turno en curso."))</div>
         }
         else
         {
@@ -93,6 +134,27 @@
                 </div>
             }
 
+            @* Los 4 indicadores de Ferretti (láminas 1 a 4) *@
+            <div class="row row-cols-1 row-cols-lg-2 g-3 mb-3" data-testid="indicadores-ferretti">
+                <TarjetaGrafico Titulo="Eficiencia" Icono="bi-speedometer" TestId="ind-eficiencia" Subtitulo="acumulada del turno"
+                                AlVerDetalle="@(() => Abrir(Detalle.Mangas))">
+                    <div class="mx-auto w-100" style="max-width: 26rem;"><MedidorEficiencia Eficiencia="t.Eficiencia" /></div>
+                </TarjetaGrafico>
+                <TarjetaGrafico Titulo="Producción" Icono="bi-box-seam" TestId="ind-produccion" Subtitulo="acumulada del turno"
+                                AlVerDetalle="@(() => Abrir(Detalle.Tramos))">
+                    <BarrasProduccion Produccion="t.Produccion" />
+                </TarjetaGrafico>
+                <TarjetaGrafico Titulo="Velocidad" Icono="bi-graph-up" TestId="ind-velocidad" Subtitulo="m/min por minuto (cámara de mangas)"
+                                AlVerDetalle="@(() => Abrir(Detalle.Velocidad))">
+                    <LineaVelocidad Velocidad="t.Velocidad" />
+                </TarjetaGrafico>
+                <TarjetaGrafico Titulo="Detenciones" Icono="bi-stop-circle" TestId="ind-detenciones" Subtitulo="minutos por tipo de falla"
+                                AlVerDetalle="@(() => Abrir(Detalle.Indisponibilidad))">
+                    <BarrasDetenciones Detenciones="t.DetencionesPorTipo" AlVerPendientes="@(() => Abrir(Detalle.Pendientes))" />
+                </TarjetaGrafico>
+            </div>
+
+            <h5 class="text-body-secondary mt-2">Más datos del turno</h5>
             <div class="row row-cols-1 row-cols-sm-2 row-cols-xl-4 g-3 mb-3">
                 <TarjetaKpi Titulo="@(t.Abierto ? "Mangas (obj. a la hora)" : "Mangas")" Icono="bi-box-seam" TestId="kpi-mangas"
                             Valor="@TableroUi.TextoReal(ind.Mangas.Real)"
@@ -143,7 +205,6 @@
                         </div>
                     }
                 </TarjetaKpi>
-                @* Bloques pendientes (Ferretti 18/11): sumar acá otra <TarjetaKpi> cuando llegue el pedido. *@
             </div>
         }
     }
@@ -188,8 +249,54 @@
                         case Detalle.Tramos:
                             <TablaTramos Tramos="td.Indicadores.Tramos" />
                             break;
+                        case Detalle.Velocidad:
+                            <p class="text-body-secondary small">
+                                m/min de cada minuto = mangas del minuto (cámara oficial de mangas) × metros por manga del producto de ese
+                                minuto. Las paradas caen a 0; los minutos sin datos de la cámara cortan la línea. Raya verde: velocidad normal.
+                            </p>
+                            <LineaVelocidad Velocidad="td.Velocidad" Ancho="1000" Alto="320" />
+                            <div class="table-responsive mt-3">
+                                <table class="table align-middle">
+                                    <thead><tr><th>Desde</th><th>Producto</th><th class="text-end">Metros por manga</th></tr></thead>
+                                    <tbody>
+                                        @foreach (var tr in td.Velocidad.Tramos)
+                                        {
+                                            <tr>
+                                                <td>@tr.Desde.ToString("HH:mm")</td>
+                                                <td>@tr.ProductoNombre</td>
+                                                <td class="text-end">@(tr.MetrosPorManga is { } mpm ? EficienciaUi.Numero(mpm) : "sin dato")</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                            break;
                         case Detalle.Indisponibilidad:
-                            <p class="text-body-secondary small">Detenciones del turno. Suman en la indisponibilidad las que cuentan (las paradas programadas no).</p>
+                            <div class="table-responsive">
+                                <table class="table align-middle">
+                                    <thead><tr><th>Tipo de falla</th><th class="text-end">Detenciones</th><th class="text-end">Minutos</th></tr></thead>
+                                    <tbody>
+                                        @foreach (var b in td.DetencionesPorTipo.Barras.Where(b => b.Cantidad > 0 || b.SinDeclarar))
+                                        {
+                                            <tr class="@(b.SinDeclarar && b.Cantidad > 0 ? "table-danger" : "")">
+                                                <td>@b.Nombre@(b.Cuenta ? "" : " (programada, no cuenta)")</td>
+                                                <td class="text-end">@b.Cantidad</td>
+                                                <td class="text-end fw-bold">@GraficosUi.TextoMinutos(b.Minutos)</td>
+                                            </tr>
+                                        }
+                                        <tr class="table-active">
+                                            <td>Total del turno (las que cuentan)</td>
+                                            <td></td>
+                                            <td class="text-end fw-bold">@GraficosUi.TextoMinutos(td.DetencionesPorTipo.MinutosTotal)</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p class="text-body-secondary small">
+                                "Sin declarar": minutos desde la parada de la cámara hasta que la cámara vio arrancar (o hasta ahora si sigue
+                                parada); al declararla pasa a su tipo con los minutos declarados. Detenciones del turno (suman en la
+                                indisponibilidad las que cuentan; las paradas programadas no):
+                            </p>
                             <div class="list-group">
                                 @foreach (var d in td.Detenciones)
                                 {
@@ -288,8 +395,9 @@
 
 @code {
     private const string ClaveLinea = "tablero.lineaId";
+    private const string ClaveLineaGerencial = "tablero.gerencial.lineaId";
 
-    private enum Detalle { Ninguno, Mangas, Tramos, Indisponibilidad, Reales, Microcortes, Pendientes, Declarar }
+    private enum Detalle { Ninguno, Mangas, Tramos, Velocidad, Indisponibilidad, Reales, Microcortes, Pendientes, Declarar }
 
     private bool cargando = true;
     private bool obligado;
@@ -308,13 +416,37 @@
     private readonly SemaphoreSlim cargaEnCurso = new(1, 1);
     private CancellationTokenSource? agrupar;
 
+    // Modo gerencial
+    private bool gerencial;
+    private bool veGerencial;
+    private bool veTablero;
+    private DateOnly fecha = DateOnly.FromDateTime(DateTime.Now);
+    private TurnosTableroDto? turnosDia;
+    private long? turnoElegido;
+
     protected override async Task OnInitializedAsync()
     {
         try
         {
+            gerencial = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].TrimEnd('/')
+                .EndsWith("gerencial", StringComparison.OrdinalIgnoreCase);
+            try
+            {
+                var permisos = await PermisosService.ObtenerAsync();
+                veGerencial = permisos.Ve(Opciones.ProduccionTableroGerencial);
+                veTablero = permisos.Ve(Opciones.ProduccionTablero);
+            }
+            catch
+            {
+                veGerencial = veTablero = false;
+            }
             var propio = await TurnoPropio.ObtenerAsync();
-            obligado = propio.Obligado;
-            if (!obligado)
+            obligado = propio.Obligado && !gerencial;
+            if (gerencial)
+            {
+                await CargarTurnosDiaAsync(lineaPreferida: await LeerGuardadaAsync(ClaveLineaGerencial));
+            }
+            else if (!obligado)
             {
                 var asignaciones = await CatalogosService.GetMisAsignacionesAsync();
                 lineas = asignaciones.Count > 0
@@ -341,6 +473,72 @@
             await SeguirAsync();
         }
         timer = new Timer(async _ => await AlTick(), null, TableroUi.RefrescoRespaldo, TableroUi.RefrescoRespaldo);
+    }
+
+    private async Task<int?> LeerGuardadaAsync(string clave)
+    {
+        try
+        {
+            return await LocalStorage.GetItemAsync<int?>(clave);
+        }
+        catch
+        {
+            return null;   // sin almacenamiento local
+        }
+    }
+
+    /// <summary>Modo gerencial: líneas a mi alcance y turnos de la fecha; elige línea y el turno en curso (o el último).</summary>
+    private async Task CargarTurnosDiaAsync(int? lineaPreferida)
+    {
+        turnosDia = await TableroService.GetTurnosAsync(fecha);
+        lineas = turnosDia.Lineas.Select(l => (l.LineaId, l.Nombre)).ToList();
+        lineaId = lineaPreferida is { } p && lineas.Any(l => l.Id == p) ? p : lineas.Count > 0 ? lineas[0].Id : null;
+        ElegirTurnoPorDefecto();
+    }
+
+    private IEnumerable<TurnoTableroItemDto> TurnosDeLinea() =>
+        turnosDia?.Turnos.Where(t => t.LineaId == lineaId).OrderBy(t => t.InicioProgramado) ?? Enumerable.Empty<TurnoTableroItemDto>();
+
+    private void ElegirTurnoPorDefecto()
+    {
+        var delaLinea = TurnosDeLinea().ToList();
+        turnoElegido = (delaLinea.FirstOrDefault(t => t.Abierto) ?? delaLinea.LastOrDefault())?.TurnoProduccionId;
+    }
+
+    private async Task ElegirFecha(ChangeEventArgs e)
+    {
+        if (!DateOnly.TryParse(e.Value?.ToString(), System.Globalization.CultureInfo.InvariantCulture, out var f))
+            return;
+        fecha = f;
+        try
+        {
+            await CargarTurnosDiaAsync(lineaId);
+            error = null;
+        }
+        catch (Exception ex)
+        {
+            error = ex is HttpRequestException h && !string.IsNullOrWhiteSpace(h.Message) ? h.Message : ApiErrores.SinConexion;
+        }
+        await RecargarAsync();
+        await SeguirAsync();
+    }
+
+    private async Task ElegirLineaGerencial(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var id))
+            return;
+        lineaId = id;
+        try { await LocalStorage.SetItemAsync(ClaveLineaGerencial, id); } catch { /* no es crítico */ }
+        ElegirTurnoPorDefecto();
+        await RecargarAsync();
+        await SeguirAsync();
+    }
+
+    private async Task ElegirTurno(long turnoProduccionId)
+    {
+        turnoElegido = turnoProduccionId;
+        await RecargarAsync();
+        await SeguirAsync();
     }
 
     private async Task<int?> LeerLineaGuardadaAsync()
@@ -373,12 +571,19 @@
     /// <summary>Pide el tablero entero (una llamada). Si falla, queda lo último que se vio con el aviso de conexión.</summary>
     private async Task RecargarAsync()
     {
-        if (!obligado && lineaId == null)
+        if (gerencial && turnoElegido == null)
+        {
+            tablero = null;
+            return;
+        }
+        if (!obligado && !gerencial && lineaId == null)
             return;
         await cargaEnCurso.WaitAsync();
         try
         {
-            tablero = await TableroService.GetTurnoAsync(obligado ? null : lineaId);
+            tablero = gerencial
+                ? await TableroService.GetTurnoGerencialAsync(turnoElegido!.Value)
+                : await TableroService.GetTurnoAsync(obligado ? null : lineaId);
             error = null;
             ultimaCarga = DateTime.UtcNow;
         }
@@ -428,6 +633,9 @@
     /// <summary>Respaldo cada 10 s sin SignalR; con SignalR, cada 60 s (el objetivo "a la hora" avanza con el reloj).</summary>
     private async Task AlTick()
     {
+        // Gerencial mirando un turno cerrado: no cambia más, no hace falta refrescar.
+        if (gerencial && tablero is { Abierto: false })
+            return;
         var conectado = tiempoReal?.Conectado == true;
         var espera = conectado ? TableroUi.RefrescoConectado : TableroUi.RefrescoRespaldo;
         if (DateTime.UtcNow - ultimaCarga < espera - TimeSpan.FromSeconds(1))
@@ -460,9 +668,10 @@
 
     private string TituloDetalle() => detalle switch
     {
-        Detalle.Mangas => "Mangas por hora y por producto",
+        Detalle.Mangas => "Eficiencia: mangas por hora y por producto",
         Detalle.Tramos => "Presupuesto vs. real por producto",
-        Detalle.Indisponibilidad => "Indisponibilidad: detenciones del turno",
+        Detalle.Velocidad => "Velocidad del turno (m/min)",
+        Detalle.Indisponibilidad => "Detenciones del turno por tipo de falla",
         Detalle.Reales => "Detenciones (superan el umbral)",
         Detalle.Microcortes => "Microcortes (no llegan al umbral)",
         Detalle.Pendientes => "Pendientes de declarar",

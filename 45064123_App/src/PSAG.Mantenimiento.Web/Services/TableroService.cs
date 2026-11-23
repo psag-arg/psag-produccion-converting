@@ -10,6 +10,12 @@ public interface ITableroService
 {
     /// <summary>El tablero del turno propio (obligado a turno) o de la línea (supervisor). Null si la línea no tiene turno. Lanza si la API falla.</summary>
     Task<TableroTurnoDto?> GetTurnoAsync(int? lineaId);
+
+    /// <summary>Modo gerencial: el tablero de un turno de producción cualquiera (sólo lectura). Lanza si la API falla.</summary>
+    Task<TableroTurnoDto?> GetTurnoGerencialAsync(long turnoProduccionId);
+
+    /// <summary>Modo gerencial: líneas a tu alcance y sus turnos de producción de la fecha.</summary>
+    Task<TurnosTableroDto> GetTurnosAsync(DateOnly fecha);
 }
 
 public class TableroService : ITableroService
@@ -25,6 +31,22 @@ public class TableroService : ITableroService
             return null;
         await ApiErrores.AsegurarExitoAsync(response);
         return await response.Content.ReadFromJsonAsync<TableroTurnoDto>();
+    }
+
+    public async Task<TableroTurnoDto?> GetTurnoGerencialAsync(long turnoProduccionId)
+    {
+        var response = await _httpClient.GetAsync($"api/tablero/turno?turnoProduccionId={turnoProduccionId}");
+        if (response.StatusCode == HttpStatusCode.NoContent)
+            return null;
+        await ApiErrores.AsegurarExitoAsync(response);
+        return await response.Content.ReadFromJsonAsync<TableroTurnoDto>();
+    }
+
+    public async Task<TurnosTableroDto> GetTurnosAsync(DateOnly fecha)
+    {
+        var response = await _httpClient.GetAsync($"api/tablero/turnos?fecha={fecha:yyyy-MM-dd}");
+        await ApiErrores.AsegurarExitoAsync(response);
+        return await response.Content.ReadFromJsonAsync<TurnosTableroDto>() ?? new TurnosTableroDto { Fecha = fecha };
     }
 }
 

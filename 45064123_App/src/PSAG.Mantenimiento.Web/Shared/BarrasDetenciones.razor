@@ -1,0 +1,63 @@
+@* T-770 iteración 2 · 4) DETENCIONES (lámina 4 de Ferretti): barras horizontales por tipo de falla (maestro
+   ABM_TiposFalla) con los minutos acumulados del turno, más el total de detenciones del turno y los minutos pendientes de
+   declaración (clic → pendientes / declarar). Las pendientes son la barra "Sin declarar" (minutos desde la parada de
+   cámara). Los tipos que no cuentan (paradas programadas) van en gris y fuera del total. SVG propio. *@
+
+@{
+    var d = Detenciones;
+    var maximo = GraficosUi.EscalaDetenciones(d.Barras.Select(b => b.Minutos));
+    var alto = 8 + d.Barras.Count * Fila + 22;
+}
+<div class="row g-2 align-items-stretch mb-2">
+    <div class="col-6">
+        <div class="border rounded-2 p-2 h-100 text-center" data-testid="detenciones-total">
+            <div class="fw-bold fs-2 lh-1">@GraficosUi.TextoMinutos(d.MinutosTotal)</div>
+            <div class="small text-body-secondary">Detenciones del turno</div>
+            @if (d.MinutosNoCuentan > 0)
+            {
+                <div class="small text-body-secondary">+ @GraficosUi.TextoMinutos(d.MinutosNoCuentan) programadas (no cuentan)</div>
+            }
+        </div>
+    </div>
+    <div class="col-6">
+        <button type="button" class="btn w-100 h-100 border-2 @(d.CantidadPendientes > 0 ? "btn-outline-danger" : "btn-outline-success")"
+                data-testid="detenciones-pendientes" @onclick="@(async () => await AlVerPendientes.InvokeAsync())" disabled="@(!AlVerPendientes.HasDelegate)">
+            <div class="fw-bold fs-2 lh-1">@GraficosUi.TextoMinutos(d.MinutosPendientes)</div>
+            <div class="small">Pendientes de declaración@(d.CantidadPendientes > 0 ? $" ({d.CantidadPendientes})" : "")</div>
+        </button>
+    </div>
+</div>
+<svg viewBox="0 0 480 @alto" class="w-100 grafico-tablero" role="img" aria-label="Detenciones por tipo de falla" data-testid="barras-detenciones">
+    @foreach (var m in GraficosUi.Marcas(maximo, 4))
+    {
+        var x = X0 + AnchoPlot * GraficosUi.Proporcion(m, maximo);
+        <line x1="@GraficosUi.N(x)" x2="@GraficosUi.N(x)" y1="4" y2="@(alto - 18)" stroke-width="1" style="stroke: var(--bs-border-color)" />
+        <g><text x="@GraficosUi.N(x)" y="@(alto - 4)" text-anchor="middle" font-size="11" style="fill: var(--bs-secondary-color)">@GraficosUi.TextoMarca(m)</text></g>
+    }
+    @{ var i = 0; }
+    @foreach (var b in d.Barras)
+    {
+        var y = 8 + i * Fila;
+        var color = b.SinDeclarar ? "var(--bs-danger)" : b.Cuenta ? "var(--bs-primary)" : "var(--bs-secondary)";
+        <g><text x="0" y="@(y + 15)" font-size="12" font-weight="@(b.SinDeclarar ? "700" : "600")" style="fill: @(b.SinDeclarar ? "var(--bs-danger-text-emphasis)" : "var(--bs-body-color)")">@Corto(b.Nombre)</text></g>
+        @if (b.Minutos > 0)
+        {
+            <rect x="@X0" y="@y" width="@GraficosUi.N(Math.Max(2, AnchoPlot * GraficosUi.Proporcion(b.Minutos, maximo)))" height="20" rx="2" style="fill: @color" />
+        }
+        <g><text x="@GraficosUi.N(X0 + AnchoPlot * GraficosUi.Proporcion(b.Minutos, maximo) + 5)" y="@(y + 15)" font-size="12" style="fill: var(--bs-body-color)">@b.Minutos</text></g>
+        i++;
+    }
+</svg>
+
+@code {
+    private const double X0 = 140;
+    private const double AnchoPlot = 300;
+    private const int Fila = 28;
+
+    [Parameter, EditorRequired] public DetencionesTipoTableroDto Detenciones { get; set; } = new();
+
+    /// <summary>Clic en "pendientes de declaración": abre el modal de pendientes (declarar).</summary>
+    [Parameter] public EventCallback AlVerPendientes { get; set; }
+
+    private static string Corto(string nombre) => nombre.Length <= 20 ? nombre.ToUpperInvariant() : nombre[..19].ToUpperInvariant() + "…";
+}

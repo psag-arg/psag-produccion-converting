@@ -1,0 +1,50 @@
+@* T-770 iteración 2 · 2) PRODUCCIÓN (lámina 2 de Ferretti): barras horizontales MANGAS y BOLSONES, acumulado del turno
+   contra el objetivo del turno completo (la barra gris es el objetivo; la de color, el real, con el semáforo de la
+   eficiencia contra el objetivo a la hora, que se marca con una raya). Sin real: "Sin datos" (nunca 0 %). SVG propio. *@
+
+<div class="mb-1" data-testid="produccion-producto">
+    <strong>Producto:</strong> @(Produccion.ProductoNombre ?? "a completar")
+    @if (Produccion.Productos.Count > 1)
+    {
+        <span class="small text-body-secondary">(en el turno: @string.Join(" → ", Produccion.Productos))</span>
+    }
+</div>
+<svg viewBox="0 0 480 112" class="w-100 grafico-tablero" role="img" aria-label="Producción del turno" data-testid="barras-produccion">
+    @{ var fila = 0; }
+    @foreach (var (barra, etiqueta, unidad) in Filas())
+    {
+        var y = 6 + fila * 54;
+        var maximo = Math.Max(barra.ObjetivoTurno ?? 0, barra.Real ?? 0);
+        var nivel = GraficosUi.NivelDeApi(barra.Nivel);
+        <g><text x="0" y="@(y + 21)" font-size="17" font-weight="700" style="fill: var(--bs-body-color)">@etiqueta</text></g>
+        <rect x="@X0" y="@y" width="@GraficosUi.N(Ancho)" height="26" rx="3" style="fill: var(--bs-secondary-bg); stroke: var(--bs-border-color)" />
+        @if (barra.Real is { } real && maximo > 0)
+        {
+            <rect x="@X0" y="@y" width="@GraficosUi.N(Ancho * GraficosUi.Proporcion(real, maximo))" height="26" rx="3"
+                  style="fill: @(GraficosUi.Color(nivel == TableroUi.Nivel.SinDato ? TableroUi.Nivel.Neutro : nivel))" data-testid="barra-real-@barra.Magnitud" />
+        }
+        @if (barra.ObjetivoALaHora is { } oh && maximo > 0)
+        {
+            var xh = X0 + Ancho * GraficosUi.Proporcion(oh, maximo);
+            <line x1="@GraficosUi.N(xh)" x2="@GraficosUi.N(xh)" y1="@(y - 3)" y2="@(y + 29)" stroke-width="2" stroke-dasharray="3 2" style="stroke: var(--bs-body-color)" />
+        }
+        <g><text x="@(X0 + Ancho + 8)" y="@(y + 18)" font-size="12" font-weight="700" style="fill: var(--bs-body-color)">@GraficosUi.TextoObjetivoBarra(barra.ObjetivoTurno, unidad)</text></g>
+        <g><text x="@X0" y="@(y + 43)" font-size="12" style="fill: var(--bs-secondary-color)" data-testid="texto-@barra.Magnitud">
+            @(barra.Estado == "SIN_DATOS" ? EficienciaUi.TextoSinDatos : $"Real {GraficosUi.TextoRealBarra(barra.Real, barra.PorcentajeTurno)} del turno")@(barra.ObjetivoALaHora is { } o2 ? $" · a la hora {EficienciaUi.Numero(o2)}" : "")
+        </text></g>
+        fila++;
+    }
+</svg>
+
+@code {
+    private const double X0 = 110;
+    private const double Ancho = 220;
+
+    [Parameter, EditorRequired] public ProduccionTableroDto Produccion { get; set; } = new();
+
+    private IEnumerable<(BarraProduccionDto Barra, string Etiqueta, string Unidad)> Filas()
+    {
+        yield return (Produccion.Mangas, "MANGAS", "mangas");
+        yield return (Produccion.Bolsones, "BOLSONES", "bolsones");
+    }
+}

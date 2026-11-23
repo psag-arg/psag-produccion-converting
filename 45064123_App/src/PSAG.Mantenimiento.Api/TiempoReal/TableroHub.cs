@@ -32,7 +32,7 @@ public sealed class TableroHub : Hub
     }
 
     /// <summary>
-    /// Suma la conexión al grupo del turno. Hace falta VER de "Tablero del turno"; el obligado a turno sólo puede seguir
+    /// Suma la conexión al grupo del turno. Hace falta VER de "Tablero del turno" o del "Tablero gerencial"; el obligado a turno sólo puede seguir
     /// el suyo (el turno abierto en el que es el operador vigente). Si no puede, HubException con el motivo.
     /// </summary>
     public async Task Seguir(long turnoProduccionId)
@@ -46,7 +46,9 @@ public sealed class TableroHub : Hub
         if (permisos.ObligadoATurno)
             propio = (await _unitOfWork.TurnosProduccion.GetAbiertosDeOperadorAsync(usuarioId, Context.ConnectionAborted))
                 .FirstOrDefault()?.TurnoProduccionId;
-        if (!TableroReglas.PuedeSeguir(permisos.Tiene(Opciones.ProduccionTablero, AccionPermiso.Ver), permisos.ObligadoATurno, propio, turnoProduccionId))
+        // T-770 iteración 2: el tablero gerencial también sigue en línea los turnos en curso que mira.
+        var puedeVer = permisos.Tiene(Opciones.ProduccionTablero, AccionPermiso.Ver) || permisos.Tiene(Opciones.ProduccionTableroGerencial, AccionPermiso.Ver);
+        if (!TableroReglas.PuedeSeguir(puedeVer, permisos.ObligadoATurno, propio, turnoProduccionId))
             throw new HubException("No podés seguir ese turno.");
         await Groups.AddToGroupAsync(Context.ConnectionId, TableroReglas.GrupoTurno(turnoProduccionId), Context.ConnectionAborted);
     }

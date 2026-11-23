@@ -40,6 +40,8 @@ public class PermisosWebTests
     [InlineData("inspecciones/7", OpcionesWeb.InspeccionesEjecuciones)]
     [InlineData("", OpcionesWeb.DashboardInicio)]
     [InlineData("dashboard/produccion", OpcionesWeb.ProduccionPresupuestoReal)]
+    [InlineData("produccion/tablero", OpcionesWeb.ProduccionTablero)]
+    [InlineData("produccion/tablero/gerencial", OpcionesWeb.ProduccionTableroGerencial)]
     [InlineData("login", null)]
     public void RutaSinMenu_UsaLaOpcionDeSuPantalla(string ruta, string? opcion) =>
         Assert.Equal(opcion, RutasPermiso.OpcionDe(ruta));

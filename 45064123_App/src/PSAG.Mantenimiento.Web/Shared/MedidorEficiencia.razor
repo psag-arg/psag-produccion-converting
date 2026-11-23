@@ -1,0 +1,46 @@
+@* T-770 iteración 2 · 1) EFICIENCIA (lámina 1 de Ferretti): medidor semicircular con aguja, SVG propio (sin librerías).
+   Bandas: rojo < 65 %, amarillo 65–85 %, verde > 85 %. La aguja es la eficiencia acumulada del turno contra el objetivo
+   "a la hora"; abajo, el objetivo del turno completo y el avance contra él. *@
+
+@{
+    var e = Eficiencia;
+    var nivel = GraficosUi.NivelDeApi(e.Nivel);
+    var angulo = GraficosUi.AnguloAguja(e.Estado == "OK" ? e.Porcentaje : null);
+    var (px, py) = GraficosUi.Punto(Cx, Cy, 84, angulo);
+}
+<svg viewBox="0 0 220 128" class="w-100 grafico-tablero" role="img" aria-label="Eficiencia @GraficosUi.TextoPorcentaje(e.Porcentaje, e.Estado)" data-testid="medidor-eficiencia">
+    @foreach (var (desde, hasta, n) in GraficosUi.BandasEficiencia)
+    {
+        <path d="@GraficosUi.Banda(Cx, Cy, 96, 64, desde, hasta)" style="fill: @GraficosUi.Color(n); opacity: @(n == nivel ? "1" : ".55")" />
+    }
+    @foreach (var marca in Marcas)
+    {
+        var (tx, ty) = GraficosUi.Punto(Cx, Cy, 104, GraficosUi.AnguloAguja(marca));
+        <g><text x="@GraficosUi.N(tx)" y="@GraficosUi.N(ty + 3)" text-anchor="middle" font-size="8" style="fill: var(--bs-secondary-color)">@marca%</text></g>
+    }
+    @if (e.Estado == "OK")
+    {
+        <line x1="@GraficosUi.N(Cx)" y1="@GraficosUi.N(Cy)" x2="@GraficosUi.N(px)" y2="@GraficosUi.N(py)" stroke-width="5" stroke-linecap="round"
+              style="stroke: var(--bs-body-color)" data-testid="aguja" />
+    }
+    <circle cx="@GraficosUi.N(Cx)" cy="@GraficosUi.N(Cy)" r="8" style="fill: var(--bs-body-color)" />
+</svg>
+<div class="text-center">
+    <div class="fw-bold lh-1 kpi-numero @TableroUi.ClaseNumero(nivel)" data-testid="eficiencia-valor">
+        @GraficosUi.TextoPorcentaje(e.Porcentaje, e.Estado)
+    </div>
+    <div class="text-body-secondary mt-1">
+        Real @TableroUi.TextoReal(e.Real) · Obj. a la hora @TableroUi.TextoObjetivo(e.ObjetivoALaHora)
+    </div>
+    <div class="small text-body-secondary" data-testid="eficiencia-turno">
+        Obj. del turno: @TableroUi.TextoObjetivo(e.ObjetivoTurno) mangas@(e.PorcentajeTurno is { } pt ? $" · avance {GraficosUi.TextoPorcentaje(pt)}" : "")
+    </div>
+</div>
+
+@code {
+    private const double Cx = 110;
+    private const double Cy = 112;
+    private static readonly decimal[] Marcas = [0m, 25m, 50m, GraficosUi.EficienciaRojoDebajoDe, GraficosUi.EficienciaVerdeArribaDe, 100m];
+
+    [Parameter, EditorRequired] public EficienciaTableroDto Eficiencia { get; set; } = new();
+}

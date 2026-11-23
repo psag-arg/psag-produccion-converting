@@ -161,6 +161,7 @@ V = Ver, A = Alta, M = Modificación, B = Baja; — = nada. "(sin menú)" = func
 | Turnos de producción (corregir turno cerrado y producción) <br><sub>aplica: VER,MOD</sub> | `PRODUCCION.TURNOS` | `/produccion/turnos` | V M | V M | V M | — | — |
 | Presupuesto vs. real <br><sub>aplica: VER</sub> | `PRODUCCION.PRESUPUESTO_REAL` | `/dashboard/produccion` | V | V | V | V | V |
 | Tablero del turno (operador) <br><sub>aplica: VER · T-770, script 41</sub> | `PRODUCCION.TABLERO` | `/produccion/tablero` | — | — | V | V | — |
+| Tablero gerencial (cualquier línea y turno) <br><sub>aplica: VER · T-770 iteración 2, script 42</sub> | `PRODUCCION.TABLERO_GERENCIAL` | (sin menú: `/produccion/tablero/gerencial`) | V | — | V | — | V |
 | **Tareas de mantenimiento** | `TAREAS` | | | | | | |
 | Pendientes y programadas <br><sub>aplica: VER,ALTA,MOD</sub> | `TAREAS.PENDIENTES` | `/tareas-mantenimiento` | V A M | V M | V A M | V A | V |
 | Historial <br><sub>aplica: VER</sub> | `TAREAS.HISTORIAL` | `/tareas-mantenimiento/historial` | V | V | V | V | V |
@@ -332,7 +333,8 @@ antes, con los cambios deliberados de arriba).
 | POST | `api/registrosproceso/{id:long}/cerrar` | `CONTROL_PROCESO.REGISTROS` · MODIFICACION |
 | GET | `api/registrosproceso` | `CONTROL_PROCESO.REGISTROS` · VER |
 | GET | `api/registrosproceso/grupos/{lineaId:int}/{productoId:int}` | `CONTROL_PROCESO.REGISTROS` · VER |
-| GET | `api/tablero/turno` | `PRODUCCION.TABLERO` · VER (obligado a turno: su turno; resto: `lineaId`, sólo lectura) |
+| GET | `api/tablero/turno` | `PRODUCCION.TABLERO` o `PRODUCCION.TABLERO_GERENCIAL` · VER (obligado a turno: su turno; resto: `lineaId`, sólo lectura; `turnoProduccionId` exige el gerencial) |
+| GET | `api/tablero/turnos` | `PRODUCCION.TABLERO_GERENCIAL` · VER (líneas al alcance y sus turnos de la fecha) |
 | GET | `api/tareas-mantenimiento` | `TAREAS.PENDIENTES` · VER |
 | GET | `api/tareas-mantenimiento/historial` | `TAREAS.HISTORIAL` · VER |
 | POST | `api/tareas-mantenimiento` | `TAREAS.PENDIENTES` · ALTA |
@@ -365,7 +367,20 @@ antes, con los cambios deliberados de arriba).
 - `GET api/tablero/turno`: el obligado a turno ve **su** turno (el filtro de turno obligatorio fija la línea; sin turno, 409);
   el resto pasa `lineaId` y lo ve en **sólo lectura** (el que es sólo operario, únicamente en sus líneas).
 - Hub SignalR `/hubs/tablero` (sin opción en el mapa de controllers): exige sesión; `Seguir(turnoProduccionId)` exige VER del
-  tablero y, al obligado a turno, que sea su turno. Sólo avisa "cambió el turno N"; los datos se piden a la API.
+  tablero (o del gerencial) y, al obligado a turno, que sea su turno. Sólo avisa "cambió el turno N"; los datos se piden a la API.
+
+### Tablero gerencial (T-770 iteración 2)
+
+- `PRODUCCION.TABLERO_GERENCIAL` (script **42**, también en `CatalogoPermisos.cs` y la semilla): VER para ADMINISTRADOR,
+  SUPERVISOR y GERENCIA. **Sin ruta de menú** a propósito (el menú lo reordena T-803): la pantalla es
+  `/produccion/tablero/gerencial` (la página exige esa opción) y el supervisor tiene el acceso "Otros turnos (gerencial)" desde
+  su tablero. Mismos 4 indicadores que el operador, en sólo lectura, para cualquier línea y turno (en curso o cerrado):
+  fecha de producción + línea + turno (`GET api/tablero/turnos?fecha=` y `GET api/tablero/turno?turnoProduccionId=`).
+- **Alcance por línea** (en la API, para `lineaId` y `turnoProduccionId`): la regla de T-802 de la corrección de turnos
+  (`TableroIndicadoresReglas.AlcanzaLinea`): ADMINISTRADOR y MANTENIMIENTO todas; el resto sus líneas (sin líneas asignadas,
+  todas); el que es sólo operario, únicamente sus líneas. Fuera de alcance: 403.
+- El obligado a turno no puede ver otro turno: el filtro de turno obligatorio fija `turnoProduccionId` (y `lineaId`) al suyo.
+- Los turnos en curso se siguen actualizando en línea en el modo gerencial (el hub acepta el permiso gerencial).
 
 ## Tests
 

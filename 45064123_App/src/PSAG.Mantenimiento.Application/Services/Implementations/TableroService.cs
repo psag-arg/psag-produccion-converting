@@ -131,7 +131,7 @@ public class TableroService : ITableroService
         var tramos = tp.Productos.Where(p => !p.Anulado)
             .Select(p => new TramoObjetivo(p.Desde, p.Hasta ?? finTurno, p.MangasObjetivoTurno, p.MinutosTurnoReferencia))
             .ToList();
-        var minutos = oficialMangas == null || finTurno <= inicioTurno
+        IReadOnlyList<MinutoConteo> minutos = oficialMangas == null || finTurno <= inicioTurno
             ? []
             : await _unitOfWork.ConteosCamaraMinuto.GetMinutosAsync([oficialMangas.CamaraId], inicioTurno, finTurno, cancellationToken);
         dto.MangasPorHora = TableroReglas.MangasPorHora(minutos, oficialMangas?.CamaraId, tramos, inicioTurno, finTurno, ahora, _zonaPlanta)
@@ -163,7 +163,143 @@ public class TableroService : ITableroService
             }).ToList()
         };
 
+        // Los 4 indicadores de Ferretti (T-770 iteración 2)
+        var tramosVivos = tp.Productos.Where(p => !p.Anulado).OrderBy(p => p.Desde).ToList();
+        dto.Eficiencia = Eficiencia(ind, tramosVivos, tp, ahora);
+        dto.Produccion = Produccion(ind, tramosVivos, tp, ahora);
+        dto.Velocidad = Velocidad(ind, tramosVivos, minutos, oficialMangas?.CamaraId, inicioTurno, finTurno, tp);
+        var tipos = (await _unitOfWork.TiposFalla.GetAllAsync(cancellationToken))
+            .Select(t => new TipoFallaTablero(t.TipoFallaId, t.Nombre, t.Orden, t.CuentaParaIndicadores, t.Activo));
+        // Pendiente que sigue parada: hasta ahora con el turno abierto; hasta el fin del turno si ya cerró.
+        var hastaSiSigue = tp.EstaAbierto ? ahora : finTurno;
+        var resumen = TableroIndicadoresReglas.DetencionesPorTipo(
+            detenciones.Select(d => d.EsPendienteDeclaracion
+                ? new DetencionTablero(d.TipoFallaId, TableroIndicadoresReglas.MinutosPendiente(d.FechaHoraParada, d.FechaHoraArranqueDetectada, hastaSiSigue), true, true)
+                : new DetencionTablero(d.TipoFallaId, d.MinutosEfectivos, false, DetencionIndicadores.Cuenta(d))),
+            tipos);
+        dto.DetencionesPorTipo = new DetencionesTipoTableroDto
+        {
+            Barras = resumen.Barras.Select(b => new BarraTipoFallaDto
+            {
+                TipoFallaId = b.TipoFallaId, Nombre = b.Nombre, Minutos = b.Minutos, Cantidad = b.Cantidad, Cuenta = b.Cuenta, SinDeclarar = b.SinDeclarar
+            }).ToList(),
+            MinutosTotal = resumen.MinutosTotal,
+            MinutosPendientes = resumen.MinutosPendientes,
+            CantidadPendientes = resumen.CantidadPendientes,
+            MinutosNoCuentan = resumen.MinutosNoCuentan
+        };
+
         return Result<TableroTurnoDto>.Success(dto);
+    }
+
+    private static decimal? ObjetivoTurno(IReadOnlyList<TurnoProduccionProducto> tramos, Func<TurnoProduccionProducto, int?> objetivo,
+        TurnoProduccion tp, int minutosProgramados, DateTimeOffset ahora) =>
+        TableroIndicadoresReglas.ObjetivoTurnoCompleto(
+            tramos.Select(t => new TramoTurnoCompleto(t.Desde, t.Hasta, objetivo(t), t.MinutosTurnoReferencia)).ToList(),
+            tp.FinProgramado, tp.FinReal, ahora, minutosProgramados);
+
+    private static EficienciaTableroDto Eficiencia(IndicadoresTurnoDto ind, IReadOnlyList<TurnoProduccionProducto> tramos, TurnoProduccion tp, DateTimeOffset ahora)
+    {
+        var objetivoTurno = ObjetivoTurno(tramos, t => t.MangasObjetivoTurno, tp, ind.MinutosProgramados, ahora);
+        return new EficienciaTableroDto
+        {
+            Porcentaje = ind.Eficiencia.Porcentaje,
+            Estado = ind.Eficiencia.Estado,
+            Nivel = TableroIndicadoresReglas.NivelEficiencia(ind.Eficiencia.Estado == EstadoIndicador.Ok ? ind.Eficiencia.Porcentaje : null),
+            Provisorio = ind.Eficiencia.Provisorio,
+            Real = ind.Mangas.Real,
+            ObjetivoALaHora = ind.Mangas.Objetivo,
+            ObjetivoTurno = objetivoTurno,
+            PorcentajeTurno = TableroIndicadoresReglas.Porcentaje(ind.Mangas.Real, objetivoTurno),
+            UmbralRojo = TableroIndicadoresReglas.EficienciaRojoDebajoDe,
+            UmbralVerde = TableroIndicadoresReglas.EficienciaVerdeArribaDe
+        };
+    }
+
+    private static ProduccionTableroDto Produccion(IndicadoresTurnoDto ind, IReadOnlyList<TurnoProduccionProducto> tramos, TurnoProduccion tp, DateTimeOffset ahora)
+    {
+        BarraProduccionDto Barra(ComparacionProduccionDto c, Func<TurnoProduccionProducto, int?> objetivo)
+        {
+            var objetivoTurno = ObjetivoTurno(tramos, objetivo, tp, ind.MinutosProgramados, ahora);
+            var porcentajeHora = c.Estado == EstadoIndicador.Ok ? c.Porcentaje : null;
+            return new BarraProduccionDto
+            {
+                Magnitud = c.Magnitud,
+                Real = c.Real,
+                ObjetivoTurno = objetivoTurno,
+                ObjetivoALaHora = c.Objetivo,
+                PorcentajeTurno = TableroIndicadoresReglas.Porcentaje(c.Real, objetivoTurno),
+                PorcentajeALaHora = porcentajeHora,
+                Estado = c.Real == null ? EstadoIndicador.SinDatos : objetivoTurno == null ? EstadoIndicador.SinObjetivo : EstadoIndicador.Ok,
+                Nivel = TableroIndicadoresReglas.NivelEficiencia(porcentajeHora),
+                Provisorio = c.Provisorio
+            };
+        }
+
+        var vigente = ind.Tramos.LastOrDefault(t => t.Abierto) ?? ind.Tramos.LastOrDefault();
+        return new ProduccionTableroDto
+        {
+            ProductoNombre = vigente?.ProductoNombre,
+            Productos = ind.Tramos.Select(t => t.ProductoNombre).Where(n => !string.IsNullOrEmpty(n))
+                .Aggregate(new List<string>(), (l, n) => { if (l.Count == 0 || l[^1] != n) l.Add(n); return l; }),
+            Mangas = Barra(ind.Mangas, t => t.MangasObjetivoTurno),
+            Bolsones = Barra(ind.Bolsones, t => t.BolsonesObjetivoTurno)
+        };
+    }
+
+    private VelocidadTableroDto Velocidad(IndicadoresTurnoDto ind, IReadOnlyList<TurnoProduccionProducto> tramos, IReadOnlyList<MinutoConteo> minutos,
+        int? camaraId, DateTimeOffset inicioTurno, DateTimeOffset finTurno, TurnoProduccion tp)
+    {
+        var serie = TableroIndicadoresReglas.VelocidadPorMinuto(
+            minutos, camaraId, tramos.Select(t => new TramoMetraje(t.Desde, t.Hasta ?? finTurno, t.MetrosPorManga)).ToList(), inicioTurno, finTurno);
+        var finEje = finTurno > tp.FinProgramado ? finTurno : tp.FinProgramado;
+        return new VelocidadTableroDto
+        {
+            Desde = HoraPlanta.En(TableroIndicadoresReglas.Minuto(inicioTurno), _zonaPlanta)!.Value,
+            MetrosPorMinuto = serie.ToList(),
+            EjeDesde = HoraPlanta.En(inicioTurno, _zonaPlanta)!.Value,
+            EjeHasta = HoraPlanta.En(finEje, _zonaPlanta)!.Value,
+            Promedio = ind.VelocidadMetrosMinuto,
+            Actual = serie.LastOrDefault(v => v != null),
+            Referencia = TableroIndicadoresReglas.VelocidadReferenciaMetrosMinuto,
+            FaltaMetraje = tramos.Any(t => t.MetrosPorManga == null),
+            Tramos = tramos.Select(t => new TramoVelocidadDto
+            {
+                Desde = HoraPlanta.En(t.Desde, _zonaPlanta)!.Value,
+                ProductoNombre = t.ProductoMaestro?.Nombre ?? string.Empty,
+                MetrosPorManga = t.MetrosPorManga
+            }).ToList()
+        };
+    }
+
+    public async Task<TurnosTableroDto> ListarTurnosAsync(DateOnly fecha, IReadOnlyCollection<string> roles, IReadOnlyCollection<int> lineasAsignadas,
+        CancellationToken cancellationToken = default)
+    {
+        var lineas = (await _unitOfWork.Lineas.GetActivasAsync(cancellationToken))
+            .Where(l => TableroIndicadoresReglas.AlcanzaLinea(roles, lineasAsignadas, l.LineaId))
+            .OrderBy(l => l.Orden).ThenBy(l => l.Nombre)
+            .ToList();
+        var ids = lineas.Select(l => l.LineaId).ToList();
+        var turnos = ids.Count == 0 ? [] : await _unitOfWork.TurnosProduccion.GetPorFechasAsync(fecha, fecha, ids, cancellationToken);
+        return new TurnosTableroDto
+        {
+            Fecha = fecha,
+            Lineas = lineas.Select(l => new LineaTableroDto { LineaId = l.LineaId, Nombre = l.Nombre }).ToList(),
+            Turnos = turnos
+                .OrderBy(t => t.LineaId).ThenBy(t => t.InicioProgramado)
+                .Select(t => new TurnoTableroItemDto
+                {
+                    TurnoProduccionId = t.TurnoProduccionId,
+                    LineaId = t.LineaId,
+                    TurnoCodigo = t.Turno?.Codigo ?? string.Empty,
+                    TurnoNombre = t.Turno?.Nombre ?? string.Empty,
+                    Estado = t.Estado.ToString(),
+                    Abierto = t.EstaAbierto,
+                    InicioProgramado = HoraPlanta.En(t.InicioProgramado, _zonaPlanta)!.Value,
+                    FinProgramado = HoraPlanta.En(t.FinProgramado, _zonaPlanta)!.Value
+                })
+                .ToList()
+        };
     }
 
     private ParadaCamaraDto ParadaDto(ParadaCamara p, IReadOnlyList<Detencion> detenciones)

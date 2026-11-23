@@ -11,9 +11,10 @@ public class TableroUiTests
 
     [Theory]
     [InlineData(100, TableroUi.Nivel.Bien)]
-    [InlineData(95, TableroUi.Nivel.Bien)]
-    [InlineData(90, TableroUi.Nivel.Atencion)]
-    [InlineData(84.9, TableroUi.Nivel.Mal)]
+    [InlineData(85.1, TableroUi.Nivel.Bien)]
+    [InlineData(85, TableroUi.Nivel.Atencion)]
+    [InlineData(65, TableroUi.Nivel.Atencion)]
+    [InlineData(64.9, TableroUi.Nivel.Mal)]
     public void Eficiencia_ColorPorUmbral(decimal porcentaje, TableroUi.Nivel esperado) =>
         Assert.Equal(esperado, TableroUi.NivelEficiencia(Ok(porcentaje)));
 
@@ -89,7 +90,8 @@ public class TableroUiTests
         var h = new MangasHoraDto { Hora = new DateTimeOffset(2026, 11, 23, 6, 0, 0, TimeSpan.FromHours(-3)), Objetivo = 600, Real = 480 };
         Assert.Equal("06:00", TableroUi.TextoHora(h.Hora));
         Assert.Equal("−120", TableroUi.TextoDiferencia(h));
-        Assert.Equal(TableroUi.Nivel.Mal, TableroUi.NivelHora(h));
+        Assert.Equal(TableroUi.Nivel.Atencion, TableroUi.NivelHora(h));   // 80 %: amarillo (65–85)
+        Assert.Equal(TableroUi.Nivel.Mal, TableroUi.NivelHora(new MangasHoraDto { Objetivo = 600, Real = 300 }));
         Assert.Equal(TableroUi.Nivel.Bien, TableroUi.NivelHora(new MangasHoraDto { Objetivo = 100, Real = 96 }));
         Assert.Null(TableroUi.TextoDiferencia(new MangasHoraDto { Real = 10 }));
         Assert.Equal(TableroUi.Nivel.SinDato, TableroUi.NivelHora(new MangasHoraDto { Real = 10 }));

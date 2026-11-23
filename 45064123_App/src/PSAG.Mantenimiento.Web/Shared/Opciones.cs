@@ -38,6 +38,7 @@ public static class Opciones
     public const string ProduccionTurnos = "PRODUCCION.TURNOS";
     public const string ProduccionPresupuestoReal = "PRODUCCION.PRESUPUESTO_REAL";
     public const string ProduccionTablero = "PRODUCCION.TABLERO";
+    public const string ProduccionTableroGerencial = "PRODUCCION.TABLERO_GERENCIAL";
     public const string Tareas = "TAREAS";
     public const string TareasPendientes = "TAREAS.PENDIENTES";
     public const string TareasHistorial = "TAREAS.HISTORIAL";
@@ -88,6 +89,7 @@ public static class RutasPermiso
         ("produccion/inicio-turno", Opciones.ProduccionInicioTurno),
         ("produccion/turnos", Opciones.ProduccionTurnos),
         ("produccion/tablero", Opciones.ProduccionTablero),
+        ("produccion/tablero/gerencial", Opciones.ProduccionTableroGerencial),
         ("tareas-mantenimiento", Opciones.TareasPendientes),
         ("tareas-mantenimiento/historial", Opciones.TareasHistorial),
         ("control-proceso", Opciones.ControlProcesoRegistros),

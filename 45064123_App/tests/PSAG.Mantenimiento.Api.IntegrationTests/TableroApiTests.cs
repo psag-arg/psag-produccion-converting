@@ -13,6 +13,8 @@ namespace PSAG.Mantenimiento.Api.IntegrationTests;
 /// (obligado a turno) ve SOLO su turno aunque pida otra línea; las paradas de cámara se separan en detenciones reales
 /// (superan el umbral) y microcortes; pendientes de declarar y detenciones son las del turno; último dato y "sin datos"
 /// de la cámara. El supervisor lo ve por línea en sólo lectura; sin permiso 403; el obligado sin turno 409.
+/// Iteración 2: modo gerencial por turnoProduccionId (permiso PRODUCCION.TABLERO_GERENCIAL y alcance por línea), los 4
+/// bloques de Ferretti en la respuesta, y el operador no puede pedir otro turno.
 /// </summary>
 [Collection(ColeccionBaseDeDatos.Nombre)]
 public sealed class TableroApiTests : IDisposable
@@ -187,12 +189,120 @@ public sealed class TableroApiTests : IDisposable
         // Línea sin turno en curso: 204
         Assert.Equal(HttpStatusCode.NoContent, (await sup.GetAsync($"api/tablero/turno?lineaId={_linea3}")).StatusCode);
 
-        // Gerencia y administrador no tienen VER del tablero en la matriz migrada: 403 "Sin permiso"
+        // Mantenimiento no tiene VER del tablero ni del gerencial en la matriz migrada: 403 "Sin permiso".
+        // (Gerencia y administrador tienen el gerencial desde la iteración 2: ver Gerencial_*.)
+        var prohibido = await _api.Cliente("usr-mant", RolesSistema.Mantenimiento).GetAsync($"api/tablero/turno?lineaId={_linea1}");
+        Assert.Equal(HttpStatusCode.Forbidden, prohibido.StatusCode);
+        Assert.Contains("Sin permiso", await prohibido.Content.ReadAsStringAsync());
+    }
+
+    private void AsignarLineas(string usuario, params int[] lineas)
+    {
+        using var ctx = _api.NuevoContexto();
+        foreach (var l in lineas)
+            ctx.OperadoresLinea.Add(new OperadorLinea { UsuarioId = usuario, LineaId = l, FechaAsignacion = DateTimeOffset.UtcNow.AddDays(-1), AsignadoPorUsuarioId = "admin" });
+        ctx.SaveChanges();
+    }
+
+    [Fact]
+    public async Task Gerencial_CualquierTurnoPorId_SoloLectura_ConPermisoYAlcance_YLosCuatroBloques()
+    {
+        var turno = await AbrirAsync();
+        CargarDatos(turno.TurnoProduccionId);
+        long cerrado;
+        using (var ctx = _api.NuevoContexto())
+        {
+            var tp = ctx.TurnosProduccion.Single(t => t.TurnoProduccionId == turno.TurnoProduccionId);
+            cerrado = ctx.TurnoProduccionId(_linea2, tp.TurnoId, tp.FechaProduccion.AddDays(-1));   // CERRADO, del día anterior
+        }
+
+        // Gerencia y administrador: cualquier turno (en curso o cerrado), sólo lectura, con los 4 indicadores
         foreach (var rol in new[] { RolesSistema.Gerencia, RolesSistema.Administrador })
         {
-            var prohibido = await _api.Cliente("usr-" + rol, rol).GetAsync($"api/tablero/turno?lineaId={_linea1}");
-            Assert.Equal(HttpStatusCode.Forbidden, prohibido.StatusCode);
-            Assert.Contains("Sin permiso", await prohibido.Content.ReadAsStringAsync());
+            var cliente = _api.Cliente("ger-" + rol, rol);
+            var r = await cliente.GetAsync($"api/tablero/turno?turnoProduccionId={turno.TurnoProduccionId}");
+            Assert.True(r.StatusCode == HttpStatusCode.OK, await r.Content.ReadAsStringAsync());
+            var t = (await r.Content.ReadFromJsonAsync<TableroTurnoDto>())!;
+            Assert.Equal(turno.TurnoProduccionId, t.TurnoProduccionId);
+            Assert.True(t.SoloLectura);
+            Assert.True(t.Abierto);
+            Assert.Equal(65m, t.Eficiencia.UmbralRojo);
+            Assert.Equal("SIN_DATOS", t.Produccion.Bolsones.Estado);          // sin cámara de bolsones: nunca 0 %
+            Assert.NotEmpty(t.Velocidad.MetrosPorMinuto);
+            Assert.Equal(670m, t.Velocidad.Referencia);
+            var sinDeclarar = t.DetencionesPorTipo.Barras.Single(b => b.SinDeclarar);
+            Assert.Equal(1, sinDeclarar.Cantidad);
+            Assert.InRange(t.DetencionesPorTipo.MinutosPendientes, 29, 31); // parada de cámara hace 30 min, sigue parada
+            Assert.Equal(t.DetencionesPorTipo.MinutosPendientes + 12, t.DetencionesPorTipo.MinutosTotal);
+
+            var c = await cliente.GetAsync($"api/tablero/turno?turnoProduccionId={cerrado}");
+            Assert.True(c.StatusCode == HttpStatusCode.OK, await c.Content.ReadAsStringAsync());
+            var tc = (await c.Content.ReadFromJsonAsync<TableroTurnoDto>())!;
+            Assert.False(tc.Abierto);
+            Assert.Equal(_linea2, tc.LineaId);
+            Assert.Equal(30, tc.DetencionesPorTipo.MinutosTotal);
+
+            Assert.Equal(HttpStatusCode.NotFound, (await cliente.GetAsync("api/tablero/turno?turnoProduccionId=999999")).StatusCode);
         }
+
+        // Supervisor: alcance de T-802. Con la línea 2 asignada no ve la 1; sin líneas asignadas, todas.
+        AsignarLineas("sup-l2", _linea2);
+        var supL2 = _api.Cliente("sup-l2", RolesSistema.Supervisor);
+        Assert.Equal(HttpStatusCode.Forbidden, (await supL2.GetAsync($"api/tablero/turno?turnoProduccionId={turno.TurnoProduccionId}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await supL2.GetAsync($"api/tablero/turno?lineaId={_linea1}")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await supL2.GetAsync($"api/tablero/turno?turnoProduccionId={cerrado}")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await _api.Cliente("sup-todas", RolesSistema.Supervisor)
+            .GetAsync($"api/tablero/turno?turnoProduccionId={turno.TurnoProduccionId}")).StatusCode);
+
+        // Mantenimiento: sin el permiso gerencial
+        Assert.Equal(HttpStatusCode.Forbidden, (await _api.Cliente("mant-ger", RolesSistema.Mantenimiento)
+            .GetAsync($"api/tablero/turno?turnoProduccionId={turno.TurnoProduccionId}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Gerencial_ElOperadorNoPuedePedirOtroTurno()
+    {
+        var turno = await AbrirAsync();
+        long otro;
+        using (var ctx = _api.NuevoContexto())
+        {
+            var tp = ctx.TurnosProduccion.Single(t => t.TurnoProduccionId == turno.TurnoProduccionId);
+            otro = ctx.TurnoProduccionId(_linea2, tp.TurnoId, tp.FechaProduccion.AddDays(-1));
+        }
+
+        // Pida el turno que pida, el filtro de turno obligatorio (T-802: en las lecturas fija turnoProduccionId al suyo)
+        // le devuelve SU turno, con carga habilitada: nunca ve el otro.
+        foreach (var pedido in new[] { otro, turno.TurnoProduccionId })
+        {
+            var r = await Operario().GetAsync($"api/tablero/turno?turnoProduccionId={pedido}");
+            Assert.True(r.StatusCode == HttpStatusCode.OK, await r.Content.ReadAsStringAsync());
+            var t = (await r.Content.ReadFromJsonAsync<TableroTurnoDto>())!;
+            Assert.Equal(turno.TurnoProduccionId, t.TurnoProduccionId);
+            Assert.False(t.SoloLectura);
+        }
+
+        // Ni el listado del gerencial
+        Assert.Equal(HttpStatusCode.Forbidden, (await Operario().GetAsync("api/tablero/turnos")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Gerencial_ListaDeTurnosDelDia_PorAlcance()
+    {
+        var turno = await AbrirAsync();
+        DateOnly fecha;
+        using (var ctx = _api.NuevoContexto())
+            fecha = ctx.TurnosProduccion.Single(t => t.TurnoProduccionId == turno.TurnoProduccionId).FechaProduccion;
+
+        var ger = await _api.Cliente("ger-lista", RolesSistema.Gerencia).GetFromJsonAsync<TurnosTableroDto>($"api/tablero/turnos?fecha={fecha:yyyy-MM-dd}");
+        Assert.Equal(fecha, ger!.Fecha);
+        Assert.Contains(ger.Lineas, l => l.LineaId == _linea1);
+        var item = Assert.Single(ger.Turnos, t => t.TurnoProduccionId == turno.TurnoProduccionId);
+        Assert.True(item.Abierto);
+        Assert.Equal(_linea1, item.LineaId);
+
+        AsignarLineas("sup-lista", _linea2);
+        var sup = await _api.Cliente("sup-lista", RolesSistema.Supervisor).GetFromJsonAsync<TurnosTableroDto>($"api/tablero/turnos?fecha={fecha:yyyy-MM-dd}");
+        Assert.Equal([_linea2], sup!.Lineas.Select(l => l.LineaId));
+        Assert.DoesNotContain(sup.Turnos, t => t.TurnoProduccionId == turno.TurnoProduccionId);
     }
 }

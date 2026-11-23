@@ -1,0 +1,71 @@
+@* T-770 iteración 2 · 3) VELOCIDAD (lámina 3 de Ferretti): línea m/min a lo largo del turno (eje X: hora; eje Y: m/min),
+   un punto por minuto = mangas del minuto de la cámara oficial × metros por manga del producto de ese minuto. Las
+   paradas caen a 0; un minuto sin datos corta la línea (sin datos no es 0). Raya punteada: velocidad normal 670 m/min.
+   SVG propio, sin librerías. *@
+
+@{
+    var v = Velocidad;
+    var minutosEje = Math.Max(1, GraficosUi.MinutosEntre(v.EjeDesde, v.EjeHasta));
+    var desplazamiento = GraficosUi.MinutosEntre(v.EjeDesde, v.Desde);
+    var maximo = GraficosUi.EscalaVelocidad(v.MetrosPorMinuto, v.Referencia);
+    var alto = Alto - 30;
+    double XDe(DateTimeOffset h) => X0 + AnchoPlot * Math.Clamp(GraficosUi.MinutosEntre(v.EjeDesde, h) / (double)minutosEje, 0, 1);
+    double YDe(decimal valor) => Y0 + alto - alto * GraficosUi.Proporcion(valor, maximo);
+    var cadaHoras = minutosEje > 10 * 60 ? 2 : 1;
+}
+<div class="d-flex flex-wrap gap-3 mb-1">
+    <span>Ahora: <strong class="fs-5" data-testid="velocidad-actual">@GraficosUi.TextoVelocidad(v.Actual)</strong></span>
+    <span class="text-body-secondary">En marcha (promedio): <strong>@GraficosUi.TextoVelocidad(v.Promedio)</strong></span>
+</div>
+<svg viewBox="0 0 @Ancho @Alto" class="w-100 grafico-tablero" role="img" aria-label="Velocidad m/min del turno" data-testid="linea-velocidad">
+    @foreach (var m in GraficosUi.Marcas(maximo, 4))
+    {
+        var y = YDe(m);
+        <line x1="@X0" x2="@(X0 + AnchoPlot)" y1="@GraficosUi.N(y)" y2="@GraficosUi.N(y)" stroke-width="1" style="stroke: var(--bs-border-color)" />
+        <g><text x="@(X0 - 4)" y="@GraficosUi.N(y + 4)" text-anchor="end" font-size="11" style="fill: var(--bs-secondary-color)">@GraficosUi.TextoMarca(m)</text></g>
+    }
+    @foreach (var h in GraficosUi.MarcasHora(v.EjeDesde, v.EjeHasta, cadaHoras))
+    {
+        var x = XDe(h);
+        <line x1="@GraficosUi.N(x)" x2="@GraficosUi.N(x)" y1="@Y0" y2="@(Y0 + alto)" stroke-width="1" stroke-dasharray="2 4" style="stroke: var(--bs-border-color)" />
+        <g><text x="@GraficosUi.N(x)" y="@(Alto - 8)" text-anchor="middle" font-size="11" style="fill: var(--bs-secondary-color)">@h.ToString("HH:mm")</text></g>
+    }
+    @if (v.Referencia > 0 && v.Referencia <= maximo)
+    {
+        var yr = YDe(v.Referencia);
+        <line x1="@X0" x2="@(X0 + AnchoPlot)" y1="@GraficosUi.N(yr)" y2="@GraficosUi.N(yr)" stroke-width="1.5" stroke-dasharray="6 4" style="stroke: var(--bs-success)" />
+        <g><text x="@(X0 + AnchoPlot)" y="@GraficosUi.N(yr - 4)" text-anchor="end" font-size="11" style="fill: var(--bs-success)">normal @GraficosUi.TextoMarca(v.Referencia) m/min</text></g>
+    }
+    @foreach (var t in v.Tramos.Skip(1))
+    {
+        var xt = XDe(t.Desde);
+        <line x1="@GraficosUi.N(xt)" x2="@GraficosUi.N(xt)" y1="@Y0" y2="@(Y0 + alto)" stroke-width="1.5" style="stroke: var(--bs-info)" />
+        <g><text x="@GraficosUi.N(xt + 3)" y="@(Y0 + 10)" font-size="10" style="fill: var(--bs-info)">@t.ProductoNombre</text></g>
+    }
+    @foreach (var tramo in GraficosUi.Polilineas(v.MetrosPorMinuto, desplazamiento, minutosEje, maximo, X0, AnchoPlot, Y0, alto))
+    {
+        <polyline points="@tramo" fill="none" stroke-width="2" stroke-linejoin="round" style="stroke: var(--bs-primary)" />
+    }
+    <g><text x="2" y="@(Y0 + 8)" font-size="11" style="fill: var(--bs-secondary-color)">m/min</text></g>
+</svg>
+@if (v.MetrosPorMinuto.All(x => x == null))
+{
+    <div class="text-body-secondary small">Sin datos de la cámara de mangas en el turno.</div>
+}
+@if (v.FaltaMetraje)
+{
+    <div class="text-warning-emphasis small"><i class="bi bi-exclamation-triangle me-1"></i>Hay un producto sin metros por manga en el parámetro: esos minutos quedan sin dato.</div>
+}
+
+@code {
+    private const double X0 = 44;
+    private const double Y0 = 6;
+
+    [Parameter, EditorRequired] public VelocidadTableroDto Velocidad { get; set; } = new();
+
+    /// <summary>Ancho del dibujo (en el modal se agranda).</summary>
+    [Parameter] public int Ancho { get; set; } = 600;
+    [Parameter] public int Alto { get; set; } = 220;
+
+    private double AnchoPlot => Ancho - X0 - 8;
+}

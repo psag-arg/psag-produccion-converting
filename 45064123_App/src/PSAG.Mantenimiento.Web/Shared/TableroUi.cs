@@ -21,9 +21,12 @@ public static class TableroUi
     /// <summary>Estado de un KPI: verde, amarillo, rojo o gris (sin dato).</summary>
     public enum Nivel { SinDato, Bien, Atencion, Mal, Neutro }
 
-    /// <summary>Eficiencia (mangas real ÷ objetivo a la hora): verde desde 95 %, amarillo desde 85 %, rojo debajo (como Presupuesto vs. real).</summary>
+    /// <summary>
+    /// Eficiencia (mangas real ÷ objetivo a la hora): cortes de Ferretti (T-770 iteración 2): rojo &lt; 65 %, amarillo
+    /// 65–85 %, verde &gt; 85 % (<see cref="GraficosUi.NivelEficiencia"/>). Presupuesto vs. real sigue con los suyos.
+    /// </summary>
     public static Nivel NivelEficiencia(ComparacionProduccionDto c) =>
-        c.Estado != "OK" || c.Porcentaje is not { } p ? Nivel.SinDato : p >= 95 ? Nivel.Bien : p >= 85 ? Nivel.Atencion : Nivel.Mal;
+        c.Estado != "OK" || c.Porcentaje is not { } p ? Nivel.SinDato : GraficosUi.NivelEficiencia(p);
 
     /// <summary>Indisponibilidad del turno: verde hasta 5 %, amarillo hasta 15 %, rojo más (decisión T-770, ajustable).</summary>
     public static Nivel NivelIndisponibilidad(decimal? porcentaje) =>
@@ -108,10 +111,9 @@ public static class TableroUi
     public static string? TextoDiferencia(MangasHoraDto h) =>
         h.Objetivo is { } o ? (h.Real - o >= 0 ? "+" : "−") + EficienciaUi.Numero(Math.Abs(h.Real - o)) : null;
 
-    /// <summary>Color de la fila de una hora: real ≥ 95 % del objetivo verde, ≥ 85 % amarillo, menos rojo; sin objetivo gris.</summary>
+    /// <summary>Color de la fila de una hora: real vs. objetivo con los cortes de la eficiencia (65 / 85); sin objetivo gris.</summary>
     public static Nivel NivelHora(MangasHoraDto h) =>
-        h.Objetivo is not { } o || o <= 0 ? Nivel.SinDato
-        : h.Real * 100 / o >= 95 ? Nivel.Bien : h.Real * 100 / o >= 85 ? Nivel.Atencion : Nivel.Mal;
+        h.Objetivo is not { } o || o <= 0 ? Nivel.SinDato : GraficosUi.NivelEficiencia(h.Real * 100 / o);
 
     /// <summary>Aviso al entrar con pendientes (T-792): "Tenés 2 detenciones para declarar".</summary>
     public static string? TextoAvisoPendientes(int cantidad) => cantidad switch

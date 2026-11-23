@@ -11,4 +11,11 @@ namespace PSAG.Mantenimiento.Application.Services.Interfaces;
 public interface ITableroService
 {
     Task<Result<TableroTurnoDto>> ObtenerAsync(long turnoProduccionId, bool soloLectura, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Modo gerencial: líneas activas al alcance del usuario (administrador y mantenimiento, todas; el resto, sus líneas o
+    /// todas si no tiene asignadas) y sus turnos de producción de la fecha (en curso o cerrados).
+    /// </summary>
+    Task<TurnosTableroDto> ListarTurnosAsync(DateOnly fecha, IReadOnlyCollection<string> roles, IReadOnlyCollection<int> lineasAsignadas,
+        CancellationToken cancellationToken = default);
 }
