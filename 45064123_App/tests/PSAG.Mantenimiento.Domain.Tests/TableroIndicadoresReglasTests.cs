@@ -24,25 +24,7 @@ public class TableroIndicadoresReglasTests
     public void Eficiencia_Semaforo(double? porcentaje, string esperado) =>
         Assert.Equal(esperado, TableroIndicadoresReglas.NivelEficiencia(porcentaje is { } p ? (decimal)p : null));
 
-    [Fact]
-    public void ObjetivoTurnoCompleto_UnProducto_EsElDelParametro_YConCambioSeProrratea()
-    {
-        // Un solo producto abierto a las 07:00 de un turno 05–13: el abierto se estira al fin programado (8 h)
-        var uno = TableroIndicadoresReglas.ObjetivoTurnoCompleto([new TramoTurnoCompleto(H(5), null, 11200, 480)], H(13), null, H(7), 480);
-        Assert.Equal(11200m, uno);
-
-        // SH 30 3 h (cerrado) + SH 50 abierto desde las 08 (5 h hasta el fin): 4.200 + 4.200
-        var dos = TableroIndicadoresReglas.ObjetivoTurnoCompleto(
-            [new TramoTurnoCompleto(H(5), H(8), 11200, 480), new TramoTurnoCompleto(H(8), null, 6720, 480)], H(13), null, H(9), 480);
-        Assert.Equal(8400m, dos);
-
-        // Sin objetivo en ningún tramo, o sin tramos: null (nunca 0)
-        Assert.Null(TableroIndicadoresReglas.ObjetivoTurnoCompleto([new TramoTurnoCompleto(H(5), null, null, 480)], H(13), null, H(7), 480));
-        Assert.Null(TableroIndicadoresReglas.ObjetivoTurnoCompleto([], H(13), null, H(7), 480));
-
-        // Turno cerrado a las 11 (fin real): el tramo abierto termina ahí
-        Assert.Equal(8400m, TableroIndicadoresReglas.ObjetivoTurnoCompleto([new TramoTurnoCompleto(H(5), null, 11200, 480)], H(13), H(11), H(12), 480));
-    }
+    // T-805: el objetivo del turno completo es ObjetivoTurnoReglas (ver ObjetivoTurnoReglasTests).
 
     [Fact]
     public void Porcentaje_SoloConLosDos()

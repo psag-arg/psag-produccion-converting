@@ -60,18 +60,7 @@ public class ProduccionUiTests
         Assert.Equal((false, false, true), ProduccionUi.AccionesProduccion(tramoAbierto: false, bolsonesSinCamara));
     }
 
-    // ===================== Objetivo a la hora =====================
-
-    [Fact]
-    public void ObjetivoALaHora_Prorrateado()
-    {
-        // 11.200 mangas en 480 min; a las 3 h 37 min (217 min) del turno: 5.063,3.
-        Assert.Equal(5063.3m, ProduccionUi.ObjetivoALaHora(11200, 480, 217));
-        Assert.Equal(11200m, ProduccionUi.ObjetivoALaHora(11200, 480, 480));
-        Assert.Equal(0m, ProduccionUi.ObjetivoALaHora(11200, 480, -5));
-        Assert.Null(ProduccionUi.ObjetivoALaHora(null, 480, 217));
-        Assert.Null(ProduccionUi.ObjetivoALaHora(11200, 0, 217));
-    }
+    // T-805: el objetivo a la hora lo calcula sólo la API (ObjetivoTurnoReglas); la Web no lo recalcula.
 
     [Fact]
     public void Barra_ComoEnLaDemo()

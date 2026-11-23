@@ -1,6 +1,8 @@
 @* T-798 etapa 6 · Barra de turno: arriba de todas las pantallas, el turno de producción de la línea con su producto,
    operador, eficiencia parcial y paradas que cuentan. El operario ve sus líneas; supervisión (sin líneas propias)
-   elige la línea. Refresca cada 60 s y al navegar; si la API falla no muestra nada (no rompe la pantalla). *@
+   elige la línea. Refresca cada 60 s y al navegar; si la API falla no muestra nada (no rompe la pantalla).
+   T-805: si el tablero está mostrando el mismo turno, usa SUS indicadores (IndicadoresEnPantalla): mismos números,
+   mismo "ahora"; el % se pinta con el semáforo único (rojo < 65, amarillo 65–85, verde > 85). *@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Blazored.LocalStorage
 @using PSAG.Mantenimiento.Web.Models
@@ -12,6 +14,7 @@
 @inject ILocalStorageService LocalStorage
 @inject NavigationManager Navigation
 @inject ITurnoPropioService TurnoPropio
+@inject IndicadoresEnPantalla EnPantalla
 @implements IDisposable
 
 @if (visible)
@@ -45,10 +48,11 @@
                     var t = item.Turno;
                     var partes = PSAG.Mantenimiento.Web.Shared.ProduccionUi.PartesBarra(t, item.Indicadores);
                     <span class="me-1"><i class="bi bi-play-circle-fill text-success me-1"></i><strong>@partes[0]</strong></span>
-                    @foreach (var parte in partes.Skip(1))
+                    @for (var i = 1; i < partes.Count; i++)
                     {
+                        var esEficiencia = item.Indicadores != null && i == partes.Count - 1;
                         <span class="text-body-secondary">·</span>
-                        <span>@parte</span>
+                        <span class="@(esEficiencia ? EficienciaUi.ClasePorcentaje(item.Indicadores!.Eficiencia) : "")" data-testid="@(esEficiencia ? "barra-eficiencia" : null)">@partes[i]</span>
                     }
                     @if (item.Indicadores != null)
                     {
@@ -194,6 +198,7 @@
             visible = true;
             await CargarAsync();
             Navigation.LocationChanged += AlNavegar;
+            EnPantalla.Publicado += AlPublicar;
             timer = new Timer(async _ =>
             {
                 await CargarAsync();
@@ -259,7 +264,15 @@
                 {
                     item.Turno = await TurnosService.GetActualAsync(id);
                     if (item.Turno != null)
-                        item.Indicadores = await IndicadoresService.GetTurnoAsync(item.Turno.TurnoProduccionId);
+                    {
+                        // T-805: con el tablero mostrando este turno, sus indicadores; si no, los de la API (y se publican).
+                        item.Indicadores = EnPantalla.ParaBarra(item.Turno.TurnoProduccionId);
+                        if (item.Indicadores == null)
+                        {
+                            item.Indicadores = await IndicadoresService.GetTurnoAsync(item.Turno.TurnoProduccionId);
+                            EnPantalla.Publicar(item.Indicadores);
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -276,6 +289,16 @@
         {
             cargando = false;
         }
+    }
+
+    /// <summary>El tablero (u otra barra) publicó un cálculo nuevo de un turno que se está mostrando: se usa ese.</summary>
+    private void AlPublicar(IndicadoresTurnoDto indicadores)
+    {
+        var item = items.FirstOrDefault(i => i.Turno?.TurnoProduccionId == indicadores.TurnoProduccionId);
+        if (item == null || ReferenceEquals(item.Indicadores, indicadores))
+            return;
+        item.Indicadores = indicadores;
+        _ = InvokeAsync(StateHasChanged);
     }
 
     private async Task AbrirCambio(Item item)
@@ -357,5 +380,6 @@
     {
         timer?.Dispose();
         Navigation.LocationChanged -= AlNavegar;
+        EnPantalla.Publicado -= AlPublicar;
     }
 }

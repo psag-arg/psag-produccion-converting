@@ -38,7 +38,8 @@ public sealed record VelocidadTramo(decimal Mangas, int MinutosMarcha, decimal? 
 /// <summary>
 /// Indicadores de presupuesto vs. real (T-798 2.10, etapa 5). Funciones puras: no tocan la base.
 /// <list type="bullet">
-/// <item>Objetivo del tramo = objetivo por turno (snapshot) × minutos del tramo ÷ minutos de referencia (snapshot).</item>
+/// <item>Objetivo del tramo = objetivo por turno (snapshot) × minutos del tramo ÷ minutos de referencia (snapshot); qué
+/// minutos le tocan a cada tramo lo decide <see cref="ObjetivoTurnoReglas"/> (T-805).</item>
 /// <item>Eficiencia (MANGAS) = Σ real ÷ Σ objetivo prorrateado; producción por magnitud (mangas y bolsones), igual.</item>
 /// <item>Velocidad = mangas de los minutos en marcha × metros por manga ÷ minutos en marcha.</item>
 /// <item>Indisponibilidad = Σ minutos de las detenciones que cuentan ÷ Σ minutos programados de los turnos.</item>
@@ -57,19 +58,6 @@ public static class IndicadoresProduccionCalculador
         if (objetivoTurno is not { } objetivo || minutosTurnoReferencia <= 0)
             return null;
         return objetivo * Math.Max(0m, minutosTramo) / minutosTurnoReferencia;
-    }
-
-    /// <summary>
-    /// Minutos de cada tramo que cuentan para el objetivo. Si el turno tiene minutos programados (&gt; 0) y los tramos
-    /// suman más (turno cortado por una excepción del día, cierre después de hora), se reparten los programados en
-    /// proporción a la duración de cada tramo. Con 0 minutos programados (fuera de programación) se usa la duración.
-    /// </summary>
-    public static IReadOnlyList<decimal> MinutosParaObjetivo(IReadOnlyList<decimal> duraciones, int minutosProgramados)
-    {
-        var total = duraciones.Sum();
-        if (minutosProgramados <= 0 || total <= minutosProgramados)
-            return duraciones;
-        return duraciones.Select(d => d * minutosProgramados / total).ToList();
     }
 
     /// <summary>Minutos programados del turno: el snapshot; si es 0 (sin snapshot o convertido), el recálculo desde la programación.</summary>

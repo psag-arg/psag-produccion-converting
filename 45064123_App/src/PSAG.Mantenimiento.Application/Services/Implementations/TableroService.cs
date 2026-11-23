@@ -37,7 +37,9 @@ public class TableroService : ITableroService
 
     public async Task<Result<TableroTurnoDto>> ObtenerAsync(long turnoProduccionId, bool soloLectura, CancellationToken cancellationToken = default)
     {
-        var indicadores = await _indicadores.ObtenerTurnoAsync(turnoProduccionId, cancellationToken);
+        // T-805: un solo "ahora" para todos los números del tablero (los de indicadores incluidos).
+        var ahora = _ahora();
+        var indicadores = await _indicadores.ObtenerTurnoAsync(turnoProduccionId, ahora, cancellationToken);
         if (indicadores.IsFailure)
             return Result<TableroTurnoDto>.Failure(indicadores.ErrorCode ?? "NOT_FOUND", indicadores.ErrorMessage ?? "El turno de producción no existe.");
         var tp = await _unitOfWork.TurnosProduccion.GetConDetalleAsync(turnoProduccionId, cancellationToken);
@@ -45,7 +47,6 @@ public class TableroService : ITableroService
             return Result<TableroTurnoDto>.Failure("NOT_FOUND", "El turno de producción no existe.");
 
         var ind = indicadores.Value!;
-        var ahora = _ahora();
         var finTurno = tp.FinReal ?? (tp.EstaAbierto ? ahora : tp.FinProgramado);
         var inicioTurno = tp.InicioReal is { } ir && ir < tp.InicioProgramado ? ir : tp.InicioProgramado;
 
@@ -128,8 +129,11 @@ public class TableroService : ITableroService
         // Mangas por hora (cámara oficial de mangas de la línea)
         var oficialMangas = (await _unitOfWork.Camaras.GetOficialesAsync(cancellationToken))
             .FirstOrDefault(c => c.LineaId == tp.LineaId && c.Magnitud == MagnitudProduccion.Mangas);
-        var tramos = tp.Productos.Where(p => !p.Anulado)
-            .Select(p => new TramoObjetivo(p.Desde, p.Hasta ?? finTurno, p.MangasObjetivoTurno, p.MinutosTurnoReferencia))
+        // Objetivo por hora: la misma repartición que el objetivo del turno (T-805, huecos sin producto al tramo más cercano).
+        var vivosOrdenados = tp.Productos.Where(p => !p.Anulado).OrderBy(p => p.Desde).ToList();
+        var reparticion = IndicadoresService.Reparticion(tp, vivosOrdenados, ind.MinutosProgramados, ahora);
+        var tramos = vivosOrdenados
+            .SelectMany((p, i) => reparticion.Intervalos[i].Select(x => new TramoObjetivo(x.Desde, x.Hasta, p.MangasObjetivoTurno, p.MinutosTurnoReferencia, reparticion.Factor)))
             .ToList();
         IReadOnlyList<MinutoConteo> minutos = oficialMangas == null || finTurno <= inicioTurno
             ? []
@@ -165,8 +169,8 @@ public class TableroService : ITableroService
 
         // Los 4 indicadores de Ferretti (T-770 iteración 2)
         var tramosVivos = tp.Productos.Where(p => !p.Anulado).OrderBy(p => p.Desde).ToList();
-        dto.Eficiencia = Eficiencia(ind, tramosVivos, tp, ahora);
-        dto.Produccion = Produccion(ind, tramosVivos, tp, ahora);
+        dto.Eficiencia = Eficiencia(ind);
+        dto.Produccion = Produccion(ind);
         dto.Velocidad = Velocidad(ind, tramosVivos, minutos, oficialMangas?.CamaraId, inicioTurno, finTurno, tp);
         var tipos = (await _unitOfWork.TiposFalla.GetAllAsync(cancellationToken))
             .Select(t => new TipoFallaTablero(t.TipoFallaId, t.Nombre, t.Orden, t.CuentaParaIndicadores, t.Activo));
@@ -201,15 +205,10 @@ public class TableroService : ITableroService
         return Result<TableroTurnoDto>.Success(dto);
     }
 
-    private static decimal? ObjetivoTurno(IReadOnlyList<TurnoProduccionProducto> tramos, Func<TurnoProduccionProducto, int?> objetivo,
-        TurnoProduccion tp, int minutosProgramados, DateTimeOffset ahora) =>
-        TableroIndicadoresReglas.ObjetivoTurnoCompleto(
-            tramos.Select(t => new TramoTurnoCompleto(t.Desde, t.Hasta, objetivo(t), t.MinutosTurnoReferencia)).ToList(),
-            tp.FinProgramado, tp.FinReal, ahora, minutosProgramados);
-
-    private static EficienciaTableroDto Eficiencia(IndicadoresTurnoDto ind, IReadOnlyList<TurnoProduccionProducto> tramos, TurnoProduccion tp, DateTimeOffset ahora)
+    /// <summary>T-805: el objetivo del turno y el de a la hora salen de los indicadores (una sola regla, mismo "ahora").</summary>
+    private static EficienciaTableroDto Eficiencia(IndicadoresTurnoDto ind)
     {
-        var objetivoTurno = ObjetivoTurno(tramos, t => t.MangasObjetivoTurno, tp, ind.MinutosProgramados, ahora);
+        var objetivoTurno = ind.Mangas.ObjetivoTurno;
         return new EficienciaTableroDto
         {
             Porcentaje = ind.Eficiencia.Porcentaje,
@@ -225,11 +224,11 @@ public class TableroService : ITableroService
         };
     }
 
-    private static ProduccionTableroDto Produccion(IndicadoresTurnoDto ind, IReadOnlyList<TurnoProduccionProducto> tramos, TurnoProduccion tp, DateTimeOffset ahora)
+    private static ProduccionTableroDto Produccion(IndicadoresTurnoDto ind)
     {
-        BarraProduccionDto Barra(ComparacionProduccionDto c, Func<TurnoProduccionProducto, int?> objetivo)
+        BarraProduccionDto Barra(ComparacionProduccionDto c)
         {
-            var objetivoTurno = ObjetivoTurno(tramos, objetivo, tp, ind.MinutosProgramados, ahora);
+            var objetivoTurno = c.ObjetivoTurno;
             var porcentajeHora = c.Estado == EstadoIndicador.Ok ? c.Porcentaje : null;
             return new BarraProduccionDto
             {
@@ -251,8 +250,8 @@ public class TableroService : ITableroService
             ProductoNombre = vigente?.ProductoNombre,
             Productos = ind.Tramos.Select(t => t.ProductoNombre).Where(n => !string.IsNullOrEmpty(n))
                 .Aggregate(new List<string>(), (l, n) => { if (l.Count == 0 || l[^1] != n) l.Add(n); return l; }),
-            Mangas = Barra(ind.Mangas, t => t.MangasObjetivoTurno),
-            Bolsones = Barra(ind.Bolsones, t => t.BolsonesObjetivoTurno)
+            Mangas = Barra(ind.Mangas),
+            Bolsones = Barra(ind.Bolsones)
         };
     }
 

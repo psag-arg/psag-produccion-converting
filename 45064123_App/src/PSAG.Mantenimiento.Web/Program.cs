@@ -64,6 +64,8 @@ builder.Services.AddScoped<ITurnoPropioService, TurnoPropioService>();
 
 // Tablero del operador (T-770): api/tablero/turno; los avisos en línea (SignalR) los arma la pantalla
 builder.Services.AddScoped<ITableroService, TableroService>();
+// T-805: la barra de turno y el tablero comparten los indicadores del turno en pantalla (mismos números)
+builder.Services.AddScoped<IndicadoresEnPantalla>();
 
 // Servicio de temas
 builder.Services.AddScoped<IThemeService, ThemeService>();

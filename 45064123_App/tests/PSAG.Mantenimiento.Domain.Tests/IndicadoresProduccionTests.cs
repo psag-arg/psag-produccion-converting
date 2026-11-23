@@ -66,27 +66,7 @@ public class IndicadoresProduccionTests
         Assert.Equal(92.3m, r.Porcentaje);
     }
 
-    [Fact]
-    public void TurnoCortadoA6Horas_PorExcepcion_Objetivo8400()
-    {
-        // Tramo que dura todo el turno (cierre automático) pero el día tiene 360 min programados: se prorratea sobre 360.
-        var minutos = IndicadoresProduccionCalculador.MinutosParaObjetivo([480m], 360);
-        var objetivo = IndicadoresProduccionCalculador.ObjetivoTramo(11200, 480, minutos[0]);
-        // Tramo que terminó a las 6 h: da lo mismo.
-        var cerradoAntes = IndicadoresProduccionCalculador.MinutosParaObjetivo([360m], 360);
-
-        Assert.Equal(8400m, objetivo);
-        Assert.Equal(360m, cerradoAntes[0]);
-        Assert.Equal(83.3m, IndicadoresProduccionCalculador.Comparar([(objetivo, Validada(7000))]).Porcentaje);
-    }
-
-    [Fact]
-    public void MinutosParaObjetivo_RepartenLosProgramadosEnProporcion_YFueraDeProgramacionUsaLaDuracion()
-    {
-        Assert.Equal([135m, 225m], IndicadoresProduccionCalculador.MinutosParaObjetivo([180m, 300m], 360));
-        Assert.Equal([180m, 300m], IndicadoresProduccionCalculador.MinutosParaObjetivo([180m, 300m], 480));
-        Assert.Equal([180m, 300m], IndicadoresProduccionCalculador.MinutosParaObjetivo([180m, 300m], 0));
-    }
+    // T-805: el turno cortado a 6 h y el reparto sobre los programados están en ObjetivoTurnoReglasTests.
 
     // ===================== Sin datos / sin objetivo / cero =====================
 

@@ -78,7 +78,13 @@ public class ProduccionTurnoDto
 public class ComparacionProduccionDto
 {
     public string Magnitud { get; set; } = string.Empty;
+
+    /// <summary>Objetivo contra el que se mide el %: a la hora si el turno está abierto, el del turno si cerró.</summary>
     public decimal? Objetivo { get; set; }
+
+    /// <summary>T-805 · Objetivo del TURNO COMPLETO (misma regla, <c>ObjetivoTurnoReglas</c>); igual a Objetivo si cerró.</summary>
+    public decimal? ObjetivoTurno { get; set; }
+
     public decimal? Real { get; set; }
 
     /// <summary>Σ real ÷ Σ objetivo × 100 (un decimal). Null si el estado no es OK.</summary>
@@ -102,6 +108,9 @@ public class MagnitudTramoDto
 {
     public string Magnitud { get; set; } = string.Empty;
     public decimal? Objetivo { get; set; }
+
+    /// <summary>T-805 · Objetivo del tramo para el turno completo (con los huecos sin producto que le tocan).</summary>
+    public decimal? ObjetivoTurno { get; set; }
     public decimal? Real { get; set; }
 
     /// <summary>VALIDADA, PENDIENTE, PARCIAL o SIN_DATOS.</summary>
@@ -128,8 +137,11 @@ public class TramoIndicadorDto
     /// <summary>Duración del tramo (hasta ahora si está abierto).</summary>
     public decimal MinutosTramo { get; set; }
 
-    /// <summary>Minutos que cuentan para el objetivo (duración, recortada a los minutos programados del turno si los pasa).</summary>
+    /// <summary>Minutos que cuentan para el objetivo del %: a la hora (turno abierto) o del turno (cerrado), según ObjetivoTurnoReglas (T-805).</summary>
     public decimal MinutosObjetivo { get; set; }
+
+    /// <summary>T-805 · Minutos del turno completo que le tocan al tramo (su duración + huecos sin producto, escalados).</summary>
+    public decimal MinutosObjetivoTurno { get; set; }
 
     public int? MangasObjetivoTurno { get; set; }
     public int? BolsonesObjetivoTurno { get; set; }
@@ -162,6 +174,10 @@ public class IndicadoresTurnoDto
     public DateOnly FechaProduccion { get; set; }
     public string Estado { get; set; } = string.Empty;
     public bool Abierto { get; set; }
+
+    /// <summary>T-805 · El "ahora" (hora de planta) con el que se calcularon todos los números de la respuesta.</summary>
+    public DateTimeOffset CalculadoEn { get; set; }
+
     public DateTimeOffset InicioProgramado { get; set; }
     public DateTimeOffset FinProgramado { get; set; }
 
@@ -250,6 +266,9 @@ public class FilaPresupuestoRealDto
 /// <summary>GET api/indicadores/produccion: presupuesto vs. real por línea, turno, producto o día en un período.</summary>
 public class PresupuestoRealDto
 {
+    /// <summary>T-805 · El "ahora" (hora de planta) con el que se calcularon los turnos abiertos.</summary>
+    public DateTimeOffset CalculadoEn { get; set; }
+
     public DateOnly Desde { get; set; }
     public DateOnly Hasta { get; set; }
     public int? LineaId { get; set; }

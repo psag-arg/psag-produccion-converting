@@ -20,6 +20,10 @@ namespace PSAG.Mantenimiento.Application.Services.Implementations;
 /// informan en TramosSinDatos (el objetivo total igual los suma).</item>
 /// <item>Si los tramos de un turno suman más minutos que los programados (turno cortado por excepción, cierre tarde),
 /// el objetivo se prorratea sobre los programados. Fuera de programación (0) se usa la duración del tramo.</item>
+/// <item>T-805 · El objetivo sale de <see cref="ObjetivoTurnoReglas"/> (una sola regla para todas las pantallas): los minutos
+/// del turno sin producto van al tramo más cercano, y el objetivo "a la hora" de un turno abierto es la misma repartición
+/// cortada en "ahora" (un solo "ahora" por respuesta). <c>Objetivo</c> es el de a la hora (abierto) o el del turno
+/// (cerrado); <c>ObjetivoTurno</c>, siempre el del turno completo.</item>
 /// <item>Al agrupar o filtrar por producto no se informan paradas ni indisponibilidad (son del turno, no del tramo).</item>
 /// <item>T-803 · Microcortes (paradas de cámara que no llegaron al umbral de detención, <see cref="DetencionCamaraReglas.SuperaUmbral(ParadaCamara)"/>,
 /// por su <c>TurnoProduccionId</c>): por turno, día, línea y en el total, todos los del turno; al agrupar o filtrar por
@@ -52,10 +56,11 @@ public class IndicadoresService : IIndicadoresService
 
     // ===================== Modelo de cálculo =====================
 
-    private sealed record MagnitudCalculada(string Magnitud, decimal? Objetivo, RealProduccion Real, ProduccionTurno? Vigente, bool TieneCamara);
+    /// <summary>Objetivo = a la hora (turno abierto) o del turno (cerrado); ObjetivoTurno = del turno completo (T-805).</summary>
+    private sealed record MagnitudCalculada(string Magnitud, decimal? Objetivo, decimal? ObjetivoTurno, RealProduccion Real, ProduccionTurno? Vigente, bool TieneCamara);
 
     private sealed record TramoCalculado(
-        TurnoProduccionProducto Tramo, bool Abierto, decimal MinutosTramo, decimal MinutosObjetivo,
+        TurnoProduccionProducto Tramo, bool Abierto, decimal MinutosTramo, decimal MinutosObjetivo, decimal MinutosObjetivoTurno,
         IReadOnlyDictionary<string, MagnitudCalculada> Magnitudes, VelocidadTramo? Velocidad, DateTimeOffset Fin)
     {
         public bool Contiene(DateTimeOffset momento) => momento >= Tramo.Desde && momento < Fin;
@@ -66,11 +71,10 @@ public class IndicadoresService : IIndicadoresService
         TurnoProduccion Turno, int MinutosProgramados, int MinutosParada, IReadOnlyList<TramoCalculado> Tramos,
         bool ConCamara, IReadOnlyList<(DateTimeOffset Inicio, int Segundos)> Microcortes);
 
-    private async Task<List<TurnoCalculado>> CalcularAsync(IReadOnlyList<TurnoProduccion> turnos, CancellationToken cancellationToken)
+    private async Task<List<TurnoCalculado>> CalcularAsync(IReadOnlyList<TurnoProduccion> turnos, DateTimeOffset ahora, CancellationToken cancellationToken)
     {
         if (turnos.Count == 0)
             return [];
-        var ahora = _ahora();
         var lineas = turnos.Select(t => t.LineaId).ToHashSet();
         var camaras = (await _unitOfWork.Camaras.GetOficialesAsync(cancellationToken))
             .Where(c => lineas.Contains(c.LineaId) && c.Magnitud != null)
@@ -100,7 +104,10 @@ public class IndicadoresService : IIndicadoresService
             var minutosProgramados = programados.GetValueOrDefault(tp.TurnoProduccionId);
             var vivos = tp.Productos.Where(p => !p.Anulado).OrderBy(p => p.Desde).ToList();
             var duraciones = vivos.Select(p => ProduccionOficialReglas.MinutosTramo(p.Desde, FinTramo(tp, p, ahora))).ToList();
-            var paraObjetivo = IndicadoresProduccionCalculador.MinutosParaObjetivo(duraciones, minutosProgramados);
+            // T-805: una sola regla de objetivo (huecos sin producto al tramo más cercano, sobre los minutos programados);
+            // a la hora = la misma repartición cortada en "ahora" (turno abierto).
+            var reparticion = Reparticion(tp, vivos, minutosProgramados, ahora);
+            DateTimeOffset? corte = tp.EstaAbierto ? ahora : null;
 
             var tramos = new List<TramoCalculado>();
             for (var i = 0; i < vivos.Count; i++)
@@ -112,7 +119,8 @@ public class IndicadoresService : IIndicadoresService
                 foreach (var magnitud in IndicadoresProduccionCalculador.MagnitudesConPresupuesto)
                 {
                     var objetivoTurno = magnitud == MagnitudProduccion.Mangas ? tramo.MangasObjetivoTurno : tramo.BolsonesObjetivoTurno;
-                    var objetivo = IndicadoresProduccionCalculador.ObjetivoTramo(objetivoTurno, tramo.MinutosTurnoReferencia, paraObjetivo[i]);
+                    var objetivo = IndicadoresProduccionCalculador.ObjetivoTramo(objetivoTurno, tramo.MinutosTurnoReferencia, reparticion.MinutosHasta(i, corte));
+                    var objetivoDelTurno = IndicadoresProduccionCalculador.ObjetivoTramo(objetivoTurno, tramo.MinutosTurnoReferencia, reparticion.MinutosTurno(i));
                     var camara = camaras.GetValueOrDefault((tp.LineaId, magnitud));
                     ProduccionTurno? vigente = null;
                     RealProduccion real;
@@ -133,20 +141,29 @@ public class IndicadoresService : IIndicadoresService
                         vigente = ProduccionOficialReglas.Vigente(tramo.Producciones, magnitud);
                         real = ProduccionOficialReglas.RealParaIndicadores(vigente);
                     }
-                    magnitudes[magnitud] = new MagnitudCalculada(magnitud, objetivo, real, vigente, camara != null);
+                    magnitudes[magnitud] = new MagnitudCalculada(magnitud, objetivo, objetivoDelTurno, real, vigente, camara != null);
                 }
 
                 var camaraMangas = camaras.GetValueOrDefault((tp.LineaId, MagnitudProduccion.Mangas));
                 var velocidad = camaraMangas == null
                     ? null
                     : IndicadoresProduccionCalculador.VelocidadDelTramo(minutos, camaraMangas.CamaraId, tramo.Desde, fin, tramo.MetrosPorManga);
-                tramos.Add(new TramoCalculado(tramo, abierto, duraciones[i], paraObjetivo[i], magnitudes, velocidad, fin));
+                tramos.Add(new TramoCalculado(tramo, abierto, duraciones[i], reparticion.MinutosHasta(i, corte), reparticion.MinutosTurno(i), magnitudes, velocidad, fin));
             }
             resultado.Add(new TurnoCalculado(tp, minutosProgramados, paradas.GetValueOrDefault(tp.TurnoProduccionId), tramos,
                 lineasConCamara.Contains(tp.LineaId), microcortes.GetValueOrDefault(tp.TurnoProduccionId) ?? []));
         }
         return resultado;
     }
+
+    /// <summary>
+    /// T-805 · Repartición de los minutos del turno entre sus tramos vivos (<see cref="ObjetivoTurnoReglas"/>): la usan los
+    /// indicadores y el objetivo por hora del tablero, con los mismos datos de entrada.
+    /// </summary>
+    public static ReparticionObjetivo Reparticion(TurnoProduccion tp, IReadOnlyList<TurnoProduccionProducto> vivosOrdenados, int minutosProgramados, DateTimeOffset ahora) =>
+        ObjetivoTurnoReglas.Repartir(
+            vivosOrdenados.Select(p => new TramoParaObjetivo(p.Desde, ObjetivoTurnoReglas.FinTramo(p.Desde, p.Hasta, tp.FinReal, tp.FinProgramado, ahora))).ToList(),
+            tp.InicioProgramado, tp.FinProgramado, minutosProgramados);
 
     /// <summary>Fin del tramo para el cálculo: su Hasta; abierto, ahora (o el fin real del turno si ya cerró).</summary>
     private static DateTimeOffset FinTramo(TurnoProduccion tp, TurnoProduccionProducto tramo, DateTimeOffset ahora)
@@ -155,10 +172,11 @@ public class IndicadoresService : IIndicadoresService
         return fin > tramo.Desde ? fin : tramo.Desde;
     }
 
-    private static ComparacionProduccionDto Dto(string magnitud, ComparacionProduccion c) => new()
+    private static ComparacionProduccionDto Dto(string magnitud, ComparacionProduccion c, decimal? objetivoTurno) => new()
     {
         Magnitud = magnitud,
         Objetivo = c.Objetivo,
+        ObjetivoTurno = objetivoTurno,
         Real = c.Real,
         Porcentaje = c.Porcentaje,
         Estado = c.Estado,
@@ -188,11 +206,23 @@ public class IndicadoresService : IIndicadoresService
         return IndicadoresProduccionCalculador.Comparar(items);
     }
 
+    /// <summary>T-805 · Σ objetivo del TURNO COMPLETO de la magnitud sobre los tramos elegidos (null si ninguno tiene).</summary>
+    private static decimal? ObjetivoTurno(IEnumerable<TurnoCalculado> turnos, string magnitud, Func<TramoCalculado, bool> tramoIncluido)
+    {
+        var objetivos = turnos.SelectMany(t => t.Tramos.Where(tramoIncluido))
+            .Select(x => x.Magnitudes[magnitud].ObjetivoTurno).Where(o => o != null).ToList();
+        return objetivos.Count == 0 ? null : Math.Round(objetivos.Sum(o => o!.Value), 1, MidpointRounding.AwayFromZero);
+    }
+
+    private static ComparacionProduccionDto Comparacion(
+        IReadOnlyCollection<TurnoCalculado> turnos, string magnitud, Func<TramoCalculado, bool> tramoIncluido, bool incluirSinTramos) =>
+        Dto(magnitud, Comparar(turnos, magnitud, tramoIncluido, incluirSinTramos), ObjetivoTurno(turnos, magnitud, tramoIncluido));
+
     private static FilaPresupuestoRealDto Fila(
         string clave, string etiqueta, IReadOnlyCollection<TurnoCalculado> turnos, Func<TramoCalculado, bool> tramoIncluido,
         bool incluirSinTramos, bool incluirParadas)
     {
-        var mangas = Dto(MagnitudProduccion.Mangas, Comparar(turnos, MagnitudProduccion.Mangas, tramoIncluido, incluirSinTramos));
+        var mangas = Comparacion(turnos, MagnitudProduccion.Mangas, tramoIncluido, incluirSinTramos);
         var fila = new FilaPresupuestoRealDto
         {
             Clave = clave,
@@ -200,7 +230,7 @@ public class IndicadoresService : IIndicadoresService
             Turnos = turnos.Count,
             IncluyeAbiertos = turnos.Any(t => t.Turno.EstaAbierto),
             Mangas = mangas,
-            Bolsones = Dto(MagnitudProduccion.Bolsones, Comparar(turnos, MagnitudProduccion.Bolsones, tramoIncluido, incluirSinTramos)),
+            Bolsones = Comparacion(turnos, MagnitudProduccion.Bolsones, tramoIncluido, incluirSinTramos),
             Eficiencia = mangas,
             VelocidadMetrosMinuto = IndicadoresProduccionCalculador.Velocidad(
                 turnos.SelectMany(t => t.Tramos.Where(tramoIncluido)).Where(x => x.Velocidad != null).Select(x => x.Velocidad!))
@@ -227,13 +257,17 @@ public class IndicadoresService : IIndicadoresService
 
     // ===================== Detalle del turno =====================
 
-    public async Task<Result<IndicadoresTurnoDto>> ObtenerTurnoAsync(long turnoProduccionId, CancellationToken cancellationToken = default)
+    public Task<Result<IndicadoresTurnoDto>> ObtenerTurnoAsync(long turnoProduccionId, CancellationToken cancellationToken = default) =>
+        ObtenerTurnoAsync(turnoProduccionId, null, cancellationToken);
+
+    public async Task<Result<IndicadoresTurnoDto>> ObtenerTurnoAsync(long turnoProduccionId, DateTimeOffset? ahora, CancellationToken cancellationToken = default)
     {
+        var momento = ahora ?? _ahora();
         var tp = await _unitOfWork.TurnosProduccion.GetConDetalleAsync(turnoProduccionId, cancellationToken);
         if (tp == null)
             return Result<IndicadoresTurnoDto>.Failure("NOT_FOUND", "El turno de producción no existe.");
 
-        var calculado = (await CalcularAsync([tp], cancellationToken)).Single();
+        var calculado = (await CalcularAsync([tp], momento, cancellationToken)).Single();
         var fila = Fila(tp.TurnoProduccionId.ToString(), string.Empty, [calculado], _ => true, incluirSinTramos: true, incluirParadas: true);
 
         var dto = new IndicadoresTurnoDto
@@ -247,6 +281,7 @@ public class IndicadoresService : IIndicadoresService
             FechaProduccion = tp.FechaProduccion,
             Estado = tp.Estado.ToString(),
             Abierto = tp.EstaAbierto,
+            CalculadoEn = HoraPlanta.En(momento, _zonaPlanta)!.Value,
             InicioProgramado = HoraPlanta.En(tp.InicioProgramado, _zonaPlanta)!.Value,
             FinProgramado = HoraPlanta.En(tp.FinProgramado, _zonaPlanta)!.Value,
             MinutosProgramados = calculado.MinutosProgramados,
@@ -272,6 +307,7 @@ public class IndicadoresService : IIndicadoresService
                 Abierto = t.Abierto,
                 MinutosTramo = Math.Round(t.MinutosTramo, 1),
                 MinutosObjetivo = Math.Round(t.MinutosObjetivo, 1),
+                MinutosObjetivoTurno = Math.Round(t.MinutosObjetivoTurno, 1),
                 MangasObjetivoTurno = tramo.MangasObjetivoTurno,
                 BolsonesObjetivoTurno = tramo.BolsonesObjetivoTurno,
                 MinutosTurnoReferencia = tramo.MinutosTurnoReferencia,
@@ -279,7 +315,8 @@ public class IndicadoresService : IIndicadoresService
                 Mangas = MagnitudDto(t.Magnitudes[MagnitudProduccion.Mangas]),
                 Bolsones = MagnitudDto(t.Magnitudes[MagnitudProduccion.Bolsones]),
                 Eficiencia = Dto(MagnitudProduccion.Mangas, IndicadoresProduccionCalculador.Comparar(
-                    [(t.Magnitudes[MagnitudProduccion.Mangas].Objetivo, t.Magnitudes[MagnitudProduccion.Mangas].Real)])),
+                    [(t.Magnitudes[MagnitudProduccion.Mangas].Objetivo, t.Magnitudes[MagnitudProduccion.Mangas].Real)]),
+                    Redondear1(t.Magnitudes[MagnitudProduccion.Mangas].ObjetivoTurno)),
                 VelocidadMetrosMinuto = t.Velocidad?.MetrosPorMinuto,
                 MinutosMarcha = t.Velocidad?.MinutosMarcha ?? 0,
                 Producciones = tramo.Producciones
@@ -294,13 +331,16 @@ public class IndicadoresService : IIndicadoresService
     private MagnitudTramoDto MagnitudDto(MagnitudCalculada m) => new()
     {
         Magnitud = m.Magnitud,
-        Objetivo = m.Objetivo is { } o ? Math.Round(o, 1, MidpointRounding.AwayFromZero) : null,
+        Objetivo = Redondear1(m.Objetivo),
+        ObjetivoTurno = Redondear1(m.ObjetivoTurno),
         Real = m.Real.Cantidad,
         EstadoReal = m.Real.Estado,
         Provisorio = m.Real.Provisorio,
         TieneCamaraOficial = m.TieneCamara,
         Vigente = m.Vigente == null ? null : ProduccionTurnoDto.De(m.Vigente, _zonaPlanta)
     };
+
+    private static decimal? Redondear1(decimal? valor) => valor is { } v ? Math.Round(v, 1, MidpointRounding.AwayFromZero) : null;
 
     // ===================== Presupuesto vs. real =====================
 
@@ -325,7 +365,8 @@ public class IndicadoresService : IIndicadoresService
             .OrderBy(t => t.FechaProduccion).ThenBy(t => t.Linea?.Orden).ThenBy(t => t.Linea?.Nombre)
             .ThenBy(t => t.Turno?.Orden).ThenBy(t => t.Turno?.HoraInicio)
             .ToList();
-        var calculados = await CalcularAsync(ordenados, cancellationToken);
+        var ahora = _ahora();
+        var calculados = await CalcularAsync(ordenados, ahora, cancellationToken);
 
         Func<TramoCalculado, bool> delProducto = productoId == null ? _ => true : x => x.Tramo.ProductoMaestroId == productoId;
         var sinProducto = productoId == null;
@@ -337,7 +378,8 @@ public class IndicadoresService : IIndicadoresService
             Hasta = filtro.Hasta,
             LineaId = filtro.LineaId,
             ProductoMaestroId = productoId,
-            Agrupar = agrupar
+            Agrupar = agrupar,
+            CalculadoEn = HoraPlanta.En(ahora, _zonaPlanta)!.Value
         };
 
         switch (agrupar)

@@ -19,6 +19,13 @@ public static class EficienciaUi
     /// <summary>"11.200", o "Sin objetivo".</summary>
     public static string TextoObjetivo(ComparacionProduccionDto c) => c.Objetivo is { } o ? Numero(o) : TextoSinObjetivo;
 
+    /// <summary>
+    /// T-805 · Con turnos en curso el objetivo de la columna es el de "a la hora" (el del %): se agrega "del turno 11.200".
+    /// Null si coincide con el del turno (turnos cerrados) o no hay.
+    /// </summary>
+    public static string? TextoObjetivoDelTurno(ComparacionProduccionDto c) =>
+        c.ObjetivoTurno is { } t && c.Objetivo is { } o && Math.Round(t) != Math.Round(o) ? $"del turno {Numero(t)}" : null;
+
     /// <summary>"83,0 %" (con "*" si es provisorio), "Sin objetivo" o "Sin datos".</summary>
     public static string TextoPorcentaje(ComparacionProduccionDto c) => c.Estado switch
     {
@@ -27,10 +34,20 @@ public static class EficienciaUi
         _ => TextoSinDatos
     };
 
-    /// <summary>Color del %: verde desde 95, amarillo desde 85, rojo debajo; gris sin dato.</summary>
-    public static string ClasePorcentaje(ComparacionProduccionDto c) => c.Estado != "OK" || c.Porcentaje is not { } p
-        ? "text-muted"
-        : p >= 95 ? "text-success" : p >= 85 ? "text-warning-emphasis" : "text-danger";
+    /// <summary>
+    /// Color del %: EL semáforo de eficiencia (T-805, <see cref="GraficosUi.NivelEficiencia"/>): rojo &lt; 65, amarillo
+    /// 65–85, verde &gt; 85; gris sin dato.
+    /// </summary>
+    public static string ClasePorcentaje(ComparacionProduccionDto c) => ClaseNivel(TableroUi.NivelEficiencia(c));
+
+    /// <summary>Clase de texto de un nivel del semáforo (gris sin dato).</summary>
+    public static string ClaseNivel(TableroUi.Nivel nivel) => nivel switch
+    {
+        TableroUi.Nivel.Bien => "text-success",
+        TableroUi.Nivel.Atencion => "text-warning-emphasis",
+        TableroUi.Nivel.Mal => "text-danger",
+        _ => "text-muted"
+    };
 
     public static string TextoVelocidad(decimal? metrosMinuto) =>
         metrosMinuto is { } v ? v.ToString("N0", CultureInfo.CurrentCulture) + " m/min" : "-";

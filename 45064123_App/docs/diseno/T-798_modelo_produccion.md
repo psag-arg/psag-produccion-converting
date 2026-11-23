@@ -442,6 +442,26 @@ Ejemplos con turnos de 8 h (los de la v2, que siguen valiendo):
   - Presupuesto = Σ objetivo prorrateado de los tramos (o, si el turno no tiene producto, "sin objetivo").
   - Real = Σ producción oficial.
 
+**T-805 · Una sola regla de objetivo y un solo cálculo** (coherencia entre dashboard, barra de turno y tablero):
+
+- **Regla única** (`Domain/Services/ObjetivoTurnoReglas`, función pura; la usa `IndicadoresService` y, a través de él, todas las pantallas):
+  - Objetivo del turno = objetivos de los tramos prorrateados sobre los **minutos programados del turno**.
+  - Minutos del turno **sin tramo de producto** (producto declarado tarde, huecos, cierre antes de hora) → al tramo **más cercano**
+    (el hueco del principio al primero, el del final al último, uno del medio se parte por la mitad). **Decisión**; alternativa
+    pendiente de Emiliano (pregunta 13): objetivo "sin producto" que se muestra aparte.
+  - Ejemplo: T2 13–21 con SH 30 declarado a las 13:05 → objetivo 11.200 mangas / 6.500 bolsones (antes 11.083 / 6.432);
+    a la hora 14:09:32 = 11.200 × 69,53 / 480 = 1.622 (minutos transcurridos **del turno**, no del tramo).
+  - Si los minutos repartidos pasan los programados (cierre tarde, día cortado) se escalan a los programados. Fuera de programación
+    (0 min) no se rellenan huecos. Sin ningún tramo: "sin objetivo".
+  - Objetivo **a la hora** = la misma repartición cortada en "ahora"; un solo "ahora" por respuesta (`CalculadoEn`). El objetivo
+    por hora del tablero usa la misma repartición.
+- **Un solo cálculo**: `ComparacionProduccionDto.Objetivo` (a la hora si el turno está abierto; el del turno si cerró) y
+  `ObjetivoTurno` (turno completo) salen de `IndicadoresService`. El tablero ya no calcula su objetivo: usa esos dos y le pasa
+  su "ahora" a los indicadores. La barra de turno usa los indicadores que publica el tablero del mismo turno
+  (`Web/Services/IndicadoresEnPantalla`); sin tablero abierto los pide a `api/indicadores/turno/{id}`.
+- **Un solo semáforo** de eficiencia: rojo < 65, amarillo 65–85, verde > 85 (`TableroIndicadoresReglas.NivelEficiencia` en la API,
+  `GraficosUi.NivelEficiencia` en la Web; `EficienciaUi.ClasePorcentaje` lo usa). Se fueron los cortes viejos 95/85.
+
 ### 2.11 Datos de prueba (opción B, decidida)
 
 Script T-SQL idempotente, con rollback (es el mismo para producción):
@@ -471,6 +491,7 @@ Primero las que cambian números.
 | 10 | Otras líneas: ¿mismas magnitudes (mangas y bolsones) y objetivos? | Datos por línea | Cliente |
 | 11 | `TipoProducto`: ¿catálogo fijo (higiénico, cocina, servilleta…)? | Lista | Cliente |
 | 12 | Tolerancias: cierre automático (+30 min) y cobertura mínima de datos (90 %) | Confirmar | Emiliano |
+| 13 | T-805 · Minutos del turno sin producto (declaración tardía, huecos): ¿a qué objetivo van? | (a) al tramo más cercano, **lo implementado**; (b) objetivo "sin producto" que se muestra aparte | Emiliano |
 
 ### 2.13 Ejecución (etapas en DEV)
 

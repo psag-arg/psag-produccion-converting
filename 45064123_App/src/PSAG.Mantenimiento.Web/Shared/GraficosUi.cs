@@ -20,7 +20,10 @@ public static class GraficosUi
     /// <summary>Fondo de escala del medidor: 0 a 100 % (más de 100 deja la aguja al tope; el número dice el valor real).</summary>
     public const decimal TopeMedidor = 100m;
 
-    /// <summary>Semáforo de la eficiencia: rojo &lt; 65, amarillo 65–85 (inclusive), verde &gt; 85; sin dato gris.</summary>
+    /// <summary>
+    /// T-805 · EL semáforo de la eficiencia de la Web (dashboard, barra de turno, tablero, modales): rojo &lt; 65,
+    /// amarillo 65–85 (inclusive), verde &gt; 85; sin dato gris. Mismos cortes que la API (TableroIndicadoresReglas).
+    /// </summary>
     public static TableroUi.Nivel NivelEficiencia(decimal? porcentaje) => porcentaje switch
     {
         null => TableroUi.Nivel.SinDato,

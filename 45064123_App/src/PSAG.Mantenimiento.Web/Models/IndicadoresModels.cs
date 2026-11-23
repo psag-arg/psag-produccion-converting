@@ -5,7 +5,12 @@ namespace PSAG.Mantenimiento.Web.Models;
 public class ComparacionProduccionDto
 {
     public string Magnitud { get; set; } = string.Empty;
+
+    /// <summary>Objetivo del %: a la hora (turno abierto) o del turno (cerrado).</summary>
     public decimal? Objetivo { get; set; }
+
+    /// <summary>T-805 · Objetivo del turno completo (la misma regla en todas las pantallas).</summary>
+    public decimal? ObjetivoTurno { get; set; }
     public decimal? Real { get; set; }
     public decimal? Porcentaje { get; set; }
 
@@ -51,6 +56,7 @@ public class PresupuestoRealDto
     public int? LineaId { get; set; }
     public int? ProductoMaestroId { get; set; }
     public string Agrupar { get; set; } = "turno";
+    public DateTimeOffset CalculadoEn { get; set; }
     public List<FilaPresupuestoRealDto> Filas { get; set; } = [];
     public FilaPresupuestoRealDto Total { get; set; } = new();
 }
@@ -83,6 +89,7 @@ public class MagnitudTramoDto
 {
     public string Magnitud { get; set; } = string.Empty;
     public decimal? Objetivo { get; set; }
+    public decimal? ObjetivoTurno { get; set; }
     public decimal? Real { get; set; }
 
     /// <summary>VALIDADA, PENDIENTE, PARCIAL o SIN_DATOS.</summary>
@@ -103,6 +110,7 @@ public class TramoIndicadorDto
     public bool Abierto { get; set; }
     public decimal MinutosTramo { get; set; }
     public decimal MinutosObjetivo { get; set; }
+    public decimal MinutosObjetivoTurno { get; set; }
     public int? MangasObjetivoTurno { get; set; }
     public int? BolsonesObjetivoTurno { get; set; }
     public int MinutosTurnoReferencia { get; set; }
@@ -126,6 +134,9 @@ public class IndicadoresTurnoDto
     public DateOnly FechaProduccion { get; set; }
     public string Estado { get; set; } = string.Empty;
     public bool Abierto { get; set; }
+
+    /// <summary>T-805 · El "ahora" con el que la API calculó todos los números.</summary>
+    public DateTimeOffset CalculadoEn { get; set; }
     public DateTimeOffset InicioProgramado { get; set; }
     public DateTimeOffset FinProgramado { get; set; }
     public int MinutosProgramados { get; set; }

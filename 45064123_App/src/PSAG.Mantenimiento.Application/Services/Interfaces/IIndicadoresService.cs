@@ -13,6 +13,12 @@ public interface IIndicadoresService
     /// <summary>Detalle de un turno: tramos, objetivo, real, eficiencia, velocidad y minutos de parada que cuentan.</summary>
     Task<Result<IndicadoresTurnoDto>> ObtenerTurnoAsync(long turnoProduccionId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// T-805 · Igual, calculado con un "ahora" dado (el tablero pasa el suyo, para que todos sus números usen el mismo
+    /// momento). Null = el reloj del servicio.
+    /// </summary>
+    Task<Result<IndicadoresTurnoDto>> ObtenerTurnoAsync(long turnoProduccionId, DateTimeOffset? ahora, CancellationToken cancellationToken = default);
+
     /// <summary>Presupuesto vs. real en un período (fecha de producción), agrupado por turno, día, producto o línea.</summary>
     Task<Result<PresupuestoRealDto>> ObtenerProduccionAsync(IndicadoresProduccionFiltro filtro, CancellationToken cancellationToken = default);
 }

@@ -35,7 +35,7 @@ public class EficienciaUiTests
         Assert.Equal("92,3 % *", EficienciaUi.TextoPorcentaje(new ComparacionProduccionDto { Porcentaje = 92.3m, Estado = "OK", Provisorio = true }));
         Assert.Equal("0", EficienciaUi.TextoReal(new ComparacionProduccionDto { Real = 0, Estado = "OK", Porcentaje = 0 }));
         Assert.Equal("9.300", EficienciaUi.TextoReal(new ComparacionProduccionDto { Real = 9300 }));
-        Assert.Equal("text-danger", EficienciaUi.ClasePorcentaje(new ComparacionProduccionDto { Porcentaje = 83.0m, Estado = "OK" }));
+        Assert.Equal("text-warning-emphasis", EficienciaUi.ClasePorcentaje(new ComparacionProduccionDto { Porcentaje = 83.0m, Estado = "OK" }));
         Assert.Equal("670 m/min", EficienciaUi.TextoVelocidad(669.9m));
         Assert.Equal("-", EficienciaUi.TextoVelocidad(null));
     }

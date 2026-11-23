@@ -71,7 +71,7 @@
                 <div class="border rounded p-2 text-center h-100">
                     <div class="small text-muted">Mangas real / objetivo</div>
                     <div class="fs-5 fw-semibold">@EficienciaUi.TextoReal(datos.Total.Mangas)</div>
-                    <div class="small text-muted">de @EficienciaUi.TextoObjetivo(datos.Total.Mangas)</div>
+                    <div class="small text-muted">de @EficienciaUi.TextoObjetivo(datos.Total.Mangas)@(EficienciaUi.TextoObjetivoDelTurno(datos.Total.Mangas) is { } dt ? $" ({dt})" : "")</div>
                 </div>
             </div>
             <div class="col-6 col-md-3">
@@ -135,10 +135,16 @@
                                     }
                                 </td>
                                 <td class="text-end d-none d-md-table-cell">@f.Turnos</td>
-                                <td class="text-end">@EficienciaUi.TextoObjetivo(f.Mangas)</td>
+                                <td class="text-end">
+                                    @EficienciaUi.TextoObjetivo(f.Mangas)
+                                    @if (EficienciaUi.TextoObjetivoDelTurno(f.Mangas) is { } dtm) { <div class="small text-muted fw-normal" title="Objetivo a la hora (el del %) y del turno completo">@dtm</div> }
+                                </td>
                                 <td class="text-end">@EficienciaUi.TextoReal(f.Mangas)</td>
                                 <td class="text-end @EficienciaUi.ClasePorcentaje(f.Eficiencia)">@EficienciaUi.TextoPorcentaje(f.Eficiencia)</td>
-                                <td class="text-end d-none d-md-table-cell">@EficienciaUi.TextoObjetivo(f.Bolsones)</td>
+                                <td class="text-end d-none d-md-table-cell">
+                                    @EficienciaUi.TextoObjetivo(f.Bolsones)
+                                    @if (EficienciaUi.TextoObjetivoDelTurno(f.Bolsones) is { } dtb) { <div class="small text-muted fw-normal">@dtb</div> }
+                                </td>
                                 <td class="text-end d-none d-md-table-cell">@EficienciaUi.TextoReal(f.Bolsones)</td>
                                 <td class="text-end d-none d-md-table-cell @EficienciaUi.ClasePorcentaje(f.Bolsones)">@EficienciaUi.TextoPorcentaje(f.Bolsones)</td>
                                 <td class="text-end d-none d-lg-table-cell">@EficienciaUi.TextoVelocidad(f.VelocidadMetrosMinuto)</td>

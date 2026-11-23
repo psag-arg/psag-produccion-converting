@@ -1,8 +1,5 @@
 namespace PSAG.Mantenimiento.Domain.Services;
 
-/// <summary>Un tramo de producto con su objetivo por turno (snapshot), para el objetivo del turno completo.</summary>
-public readonly record struct TramoTurnoCompleto(DateTimeOffset Desde, DateTimeOffset? Hasta, int? ObjetivoTurno, int MinutosTurnoReferencia);
-
 /// <summary>Un tramo de producto con sus metros por manga (snapshot), para la velocidad minuto a minuto.</summary>
 public readonly record struct TramoMetraje(DateTimeOffset Desde, DateTimeOffset Hasta, decimal? MetrosPorManga);
 
@@ -48,8 +45,11 @@ public sealed record CifrasDetenciones(
 /// <summary>
 /// T-770 (iteración 2) · Reglas puras de los 4 indicadores de Ferretti en el tablero (eficiencia, producción, velocidad y
 /// detenciones). Los números de presupuesto vs. real siguen saliendo de <c>IndicadoresService</c>; acá sólo lo que el
-/// tablero agrega: el semáforo de eficiencia, el objetivo del turno completo, la serie de velocidad minuto a minuto y las
-/// detenciones por tipo de falla con los minutos pendientes.
+/// tablero agrega: el semáforo de eficiencia, la serie de velocidad minuto a minuto y las
+/// detenciones por tipo de falla con los minutos pendientes. El objetivo del turno (completo y a la hora) es el de
+/// <see cref="ObjetivoTurnoReglas"/> (T-805), que calcula <c>IndicadoresService</c>.
+/// <para>T-805 · <see cref="NivelEficiencia"/> es EL semáforo de eficiencia de la API (el de la Web, <c>GraficosUi.NivelEficiencia</c>,
+/// usa los mismos cortes): ROJO &lt; 65, AMARILLO 65–85, VERDE &gt; 85.</para>
 /// </summary>
 public static class TableroIndicadoresReglas
 {
@@ -85,35 +85,6 @@ public static class TableroIndicadoresReglas
     /// <summary>real ÷ objetivo × 100 con un decimal; null si falta alguno o el objetivo no es positivo.</summary>
     public static decimal? Porcentaje(decimal? real, decimal? objetivo) =>
         real is { } r && objetivo is { } o && o > 0 ? IndicadoresProduccionCalculador.Porcentaje(r, o) : null;
-
-    /// <summary>
-    /// Objetivo del TURNO COMPLETO (no "a la hora"): cada tramo con su objetivo por turno prorrateado por su duración, el
-    /// tramo abierto estirado hasta el fin programado del turno (o hasta ahora, si ya se pasó; o hasta el fin real si el
-    /// turno cerró), y recortado a los minutos programados como hace el total del turno
-    /// (<see cref="IndicadoresProduccionCalculador.MinutosParaObjetivo"/>). Null si ningún tramo tiene objetivo.
-    /// Con un solo producto todo el turno da el objetivo por turno del parámetro (11.200 mangas del SH 30).
-    /// </summary>
-    public static decimal? ObjetivoTurnoCompleto(
-        IReadOnlyList<TramoTurnoCompleto> tramos, DateTimeOffset finProgramado, DateTimeOffset? finReal, DateTimeOffset ahora, int minutosProgramados)
-    {
-        if (tramos.Count == 0)
-            return null;
-        var ordenados = tramos.OrderBy(t => t.Desde).ToList();
-        var finAbierto = finReal ?? (ahora > finProgramado ? ahora : finProgramado);
-        var duraciones = ordenados.Select(t =>
-        {
-            var hasta = t.Hasta ?? finAbierto;
-            return hasta > t.Desde ? (decimal)(hasta - t.Desde).TotalMinutes : 0m;
-        }).ToList();
-        var paraObjetivo = IndicadoresProduccionCalculador.MinutosParaObjetivo(duraciones, minutosProgramados);
-        decimal? total = null;
-        for (var i = 0; i < ordenados.Count; i++)
-        {
-            if (IndicadoresProduccionCalculador.ObjetivoTramo(ordenados[i].ObjetivoTurno, ordenados[i].MinutosTurnoReferencia, paraObjetivo[i]) is { } o)
-                total = (total ?? 0) + o;
-        }
-        return total is { } t2 ? Math.Round(t2, 0, MidpointRounding.AwayFromZero) : null;
-    }
 
     /// <summary>Minuto entero (segundos en 0) de una hora.</summary>
     public static DateTimeOffset Minuto(DateTimeOffset hora) =>

@@ -23,7 +23,7 @@ public static class TableroUi
 
     /// <summary>
     /// Eficiencia (mangas real ÷ objetivo a la hora): cortes de Ferretti (T-770 iteración 2): rojo &lt; 65 %, amarillo
-    /// 65–85 %, verde &gt; 85 % (<see cref="GraficosUi.NivelEficiencia"/>). Presupuesto vs. real sigue con los suyos.
+    /// 65–85 %, verde &gt; 85 % (<see cref="GraficosUi.NivelEficiencia"/>). T-805: el mismo en todas las pantallas.
     /// </summary>
     public static Nivel NivelEficiencia(ComparacionProduccionDto c) =>
         c.Estado != "OK" || c.Porcentaje is not { } p ? Nivel.SinDato : GraficosUi.NivelEficiencia(p);

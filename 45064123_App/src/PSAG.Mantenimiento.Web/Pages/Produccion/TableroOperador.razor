@@ -13,6 +13,7 @@
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject IPermisosService PermisosService
+@inject IndicadoresEnPantalla EnPantalla
 @implements IAsyncDisposable
 
 <PageTitle>Tablero del turno - PSAG Produccion</PageTitle>
@@ -366,6 +367,8 @@
     private DateTime ultimaCarga = DateTime.MinValue;
     private readonly SemaphoreSlim cargaEnCurso = new(1, 1);
     private CancellationTokenSource? agrupar;
+    private IDisposable? fuente;
+    private long? turnoFuente;
 
     // Modo gerencial
     private bool gerencial;
@@ -537,6 +540,7 @@
                 : await TableroService.GetTurnoAsync(obligado ? null : lineaId);
             error = null;
             ultimaCarga = DateTime.UtcNow;
+            PublicarIndicadores();
         }
         catch (Exception ex)
         {
@@ -546,6 +550,23 @@
         {
             cargaEnCurso.Release();
         }
+    }
+
+    /// <summary>
+    /// T-805: el tablero es la fuente de los indicadores del turno que muestra; la barra de turno usa estos mismos (mismo
+    /// cálculo, mismo "ahora") en lugar de pedirlos aparte.
+    /// </summary>
+    private void PublicarIndicadores()
+    {
+        var id = tablero?.TurnoProduccionId;
+        if (id != turnoFuente)
+        {
+            fuente?.Dispose();
+            fuente = id is { } t ? EnPantalla.AnotarFuente(t) : null;
+            turnoFuente = id;
+        }
+        if (tablero != null)
+            EnPantalla.Publicar(tablero.Indicadores);
     }
 
     private async Task SeguirAsync()
@@ -652,6 +673,7 @@
     {
         timer?.Dispose();
         agrupar?.Cancel();
+        fuente?.Dispose();
         if (tiempoReal != null)
         {
             tiempoReal.Cambio -= AlCambiar;

@@ -67,17 +67,6 @@ public static class ProduccionUi
 
     private static string Hora(DateTimeOffset h) => h.Minute == 0 ? h.ToString("HH", CultureInfo.InvariantCulture) : h.ToString("HH:mm", CultureInfo.InvariantCulture);
 
-    /// <summary>
-    /// Objetivo prorrateado a una hora: objetivo por turno × minutos transcurridos ÷ minutos de referencia (misma regla
-    /// que la API). Null sin objetivo o con referencia inválida; nunca negativo.
-    /// </summary>
-    public static decimal? ObjetivoALaHora(int? objetivoTurno, int minutosTurnoReferencia, decimal minutosTranscurridos)
-    {
-        if (objetivoTurno is not { } objetivo || minutosTurnoReferencia <= 0)
-            return null;
-        return Math.Round(objetivo * Math.Max(0m, minutosTranscurridos) / minutosTurnoReferencia, 1, MidpointRounding.AwayFromZero);
-    }
-
     /// <summary>"Eficiencia parcial 81 %" (turno abierto) o "Eficiencia 83 %"; "Eficiencia: sin datos" / "sin objetivo".</summary>
     public static string TextoEficienciaBarra(ComparacionProduccionDto c, bool abierto)
     {

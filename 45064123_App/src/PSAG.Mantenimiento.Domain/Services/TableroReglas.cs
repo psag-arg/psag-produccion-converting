@@ -1,7 +1,8 @@
 namespace PSAG.Mantenimiento.Domain.Services;
 
 /// <summary>Un tramo de producto del turno, para prorratear el objetivo de mangas por hora.</summary>
-public readonly record struct TramoObjetivo(DateTimeOffset Desde, DateTimeOffset Hasta, int? ObjetivoTurno, int MinutosTurnoReferencia);
+/// <param name="Factor">T-805: factor de <see cref="ReparticionObjetivo"/> (minutos programados ÷ minutos repartidos; 1 si no se escala).</param>
+public readonly record struct TramoObjetivo(DateTimeOffset Desde, DateTimeOffset Hasta, int? ObjetivoTurno, int MinutosTurnoReferencia, decimal Factor = 1m);
 
 /// <summary>Mangas de una hora de planta del turno: objetivo prorrateado y real de la cámara oficial.</summary>
 public sealed record MangasHora(DateTimeOffset Hora, decimal? Objetivo, decimal Real, int MinutosConDatos, bool EnCurso);
@@ -71,7 +72,7 @@ public static class TableroReglas
                 var h = t.Hasta < hasta ? t.Hasta : hasta;
                 if (h <= d)
                     continue;
-                objetivo = (objetivo ?? 0) + obj * (decimal)(h - d).TotalMinutes / t.MinutosTurnoReferencia;
+                objetivo = (objetivo ?? 0) + obj * (decimal)(h - d).TotalMinutes * t.Factor / t.MinutosTurnoReferencia;
             }
 
             var enLaHora = delaCamara.Where(m => m.Minuto >= desde && m.Minuto < hasta).ToList();
