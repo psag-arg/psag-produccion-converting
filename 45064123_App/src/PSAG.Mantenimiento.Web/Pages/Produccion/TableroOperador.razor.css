@@ -1,0 +1,6 @@
+/* T-770: botones grandes para la tablet (los colores son de Bootstrap). */
+.boton-tablet,
+.boton-declarar {
+    min-height: 3.25rem;
+    min-width: 8rem;
+}

@@ -43,6 +43,7 @@ public static class Opciones
     public const string ProduccionOperacionTurno = "PRODUCCION.OPERACION_TURNO";
     public const string ProduccionTurnos = "PRODUCCION.TURNOS";
     public const string ProduccionPresupuestoReal = "PRODUCCION.PRESUPUESTO_REAL";
+    public const string ProduccionTablero = "PRODUCCION.TABLERO";
 
     public const string Tareas = "TAREAS";
     public const string TareasPendientes = "TAREAS.PENDIENTES";
@@ -174,6 +175,8 @@ public static class CatalogoPermisos
         Opcion(Opciones.ProduccionTurnos, "Turnos de producción (corregir turno cerrado y producción)", Opciones.Produccion, "produccion/turnos", 3,
             (V, Supervision), (Mo, Supervision));
         Opcion(Opciones.ProduccionPresupuestoReal, "Presupuesto vs. real", Opciones.Produccion, "dashboard/produccion", 4, (V, Todos));
+        // T-770 (script 41): tablero del operador en la tablet. El obligado a turno ve el suyo; el supervisor, una línea en sólo lectura.
+        Opcion(Opciones.ProduccionTablero, "Tablero del turno (operador)", Opciones.Produccion, "produccion/tablero", 5, (V, [S, O]));
 
         Seccion(Opciones.Tareas, "Tareas de mantenimiento", 50);
         Opcion(Opciones.TareasPendientes, "Pendientes y programadas", Opciones.Tareas, "tareas-mantenimiento", 1,

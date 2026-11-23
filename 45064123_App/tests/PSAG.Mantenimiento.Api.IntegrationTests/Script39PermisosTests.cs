@@ -4,7 +4,7 @@ using PSAG.Mantenimiento.Domain.Permisos;
 namespace PSAG.Mantenimiento.Api.IntegrationTests;
 
 /// <summary>
-/// T-802: el script 39 carga exactamente el catálogo y la matriz de <see cref="CatalogoPermisos"/> (la misma que la semilla
+/// T-802: el script 39 (más el 41 de T-770, que suma la opción del tablero) carga exactamente el catálogo y la matriz de <see cref="CatalogoPermisos"/> (la misma que la semilla
 /// de la API), es idempotente y no pisa lo editado. Sólo en SQL Server (en SQLite no hay scripts).
 /// </summary>
 [Collection(ColeccionBaseDeDatos.Nombre)]
@@ -37,6 +37,7 @@ public class Script39PermisosTests
         using var b = BaseDePrueba.Crear();
         CrearRoles(b);
         EsquemaSqlServer.CorrerScript("39_t802_roles_permisos.sql");
+        EsquemaSqlServer.CorrerScript("41_t770_tablero_operador.sql");   // T-770: la opción del tablero (39 + 41 = catálogo)
 
         var opciones = b.Context.OpcionesSistema.AsNoTracking().Include(o => o.Padre).ToList();
         Assert.Equal(
@@ -86,6 +87,7 @@ public class Script39PermisosTests
         finally
         {
             EsquemaSqlServer.CorrerScript("39_t802_roles_permisos.sql");
+            EsquemaSqlServer.CorrerScript("41_t770_tablero_operador.sql");
             BaseDePrueba.OlvidarOrden();   // cambiaron las tablas: rearmar el orden de borrado
         }
         Assert.Equal(3, b.Context.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS Value FROM sys.tables WHERE name LIKE 'CFG[_]%'").AsEnumerable().First());

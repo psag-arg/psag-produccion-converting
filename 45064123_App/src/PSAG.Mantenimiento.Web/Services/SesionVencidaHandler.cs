@@ -79,4 +79,21 @@ public static class RutasLogin
             && !v.StartsWith("/login", StringComparison.OrdinalIgnoreCase)
             ? v
             : "/detenciones";
+
+    /// <summary>T-770: pantalla central del operador obligado a turno.</summary>
+    public const string Tablero = "/produccion/tablero";
+
+    /// <summary>
+    /// T-770: a dónde va después de tomar (o ya tener) el turno. El obligado a turno cae en el tablero, salvo que venga de
+    /// una pantalla concreta (sesión vencida, enlace); "/" y el destino por defecto ("/detenciones") cuentan como "ninguna".
+    /// El resto sigue como antes.
+    /// </summary>
+    public static string DestinoTrasTurno(string? volver, bool obligadoATurno)
+    {
+        var destino = DestinoSeguro(volver);
+        if (!obligadoATurno)
+            return destino;
+        var ruta = destino.Split('?', '#')[0].TrimEnd('/');
+        return ruta is "" or "/detenciones" ? Tablero : destino;
+    }
 }

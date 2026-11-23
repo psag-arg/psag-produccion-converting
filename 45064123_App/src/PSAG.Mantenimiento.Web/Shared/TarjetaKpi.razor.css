@@ -1,0 +1,8 @@
+/* T-770: tamaños para la tablet (los colores son de Bootstrap, no de tema propio). */
+.kpi-numero {
+    font-size: clamp(2rem, 5vw, 3.25rem);
+}
+
+.boton-tablet {
+    min-height: 3.25rem;
+}

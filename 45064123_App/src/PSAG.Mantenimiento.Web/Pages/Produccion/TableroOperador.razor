@@ -1,0 +1,484 @@
+@page "/produccion/tablero"
+@using Microsoft.AspNetCore.Authorization
+@using Blazored.LocalStorage
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize]
+@inject ITableroService TableroService
+@inject ITurnoPropioService TurnoPropio
+@inject ICatalogosService CatalogosService
+@inject IAuthService AuthService
+@inject ILocalStorageService LocalStorage
+@inject HttpClient Http
+@implements IAsyncDisposable
+
+<PageTitle>Tablero del turno - PSAG Produccion</PageTitle>
+
+@* T-770 · Tablero del operador (tablet). Pantalla central del obligado a turno: después de tomar el turno cae acá.
+   Presupuesto vs. real SOLO de su turno en proceso, detenciones reales (superan el umbral) separadas de los microcortes,
+   pendientes de declarar (se declaran en un modal, sin salir) y el último dato de cámara. Se actualiza en línea por
+   SignalR (la ingesta de cámara y las detenciones avisan) y, de respaldo, cada 10 s. El supervisor elige la línea y lo
+   ve en sólo lectura. Cada "Ver detalle" abre un modal. Para sumar bloques (pedido de Ferretti del 18/11, pendiente:
+   el adjunto no llegó) alcanza con otra <TarjetaKpi> en la grilla. *@
+
+<div class="container-fluid px-0 tablero">
+    @if (cargando)
+    {
+        <div class="text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Cargando...</span></div></div>
+    }
+    else
+    {
+        @if (!obligado)
+        {
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                <label class="fw-semibold mb-0" for="tablero-linea">Línea</label>
+                <select id="tablero-linea" class="form-select form-select-lg w-auto" value="@lineaId" @onchange="@(async e => await ElegirLinea(e))">
+                    @foreach (var l in lineas)
+                    {
+                        <option value="@l.Id">@l.Nombre</option>
+                    }
+                </select>
+                <span class="badge text-bg-secondary fs-6"><i class="bi bi-eye me-1"></i>Sólo lectura</span>
+            </div>
+        }
+
+        @if (tablero == null)
+        {
+            <div class="alert alert-info fs-5">@(error ?? (lineas.Count == 0 && !obligado ? "No hay líneas para elegir." : "La línea no tiene turno en curso."))</div>
+        }
+        else
+        {
+            var t = tablero;
+            var ind = t.Indicadores;
+
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                <h3 class="mb-0 me-auto"><i class="bi bi-speedometer2 me-2"></i>@TableroUi.Encabezado(t)</h3>
+                <span class="badge fs-6 @(enLinea ? "text-bg-success" : "text-bg-secondary")" data-testid="estado-en-linea"
+                      title="@(enLinea ? "Se actualiza solo cuando la cámara cuenta o cambian las detenciones" : "Se actualiza cada 10 segundos")">
+                    <i class="bi @(enLinea ? "bi-broadcast" : "bi-arrow-repeat") me-1"></i>@(enLinea ? "En línea" : "Cada 10 s")
+                </span>
+            </div>
+            <div class="d-flex flex-wrap gap-3 mb-3 text-body-secondary">
+                <span data-testid="ultimo-dato"><i class="bi bi-camera-video me-1"></i>@TableroUi.TextoUltimoDato(t.Camara)</span>
+                <span><i class="bi bi-clock me-1"></i>Actualizado @t.GeneradoEn.ToString("HH:mm:ss")</span>
+                @if (error != null)
+                {
+                    <span class="text-danger"><i class="bi bi-wifi-off me-1"></i>@error</span>
+                }
+            </div>
+
+            @if (TableroUi.TextoSinDatos(t.Camara) is { } sinDatos)
+            {
+                <div class="alert alert-danger fs-5 d-flex align-items-center gap-2" role="alert" data-testid="alerta-sin-datos">
+                    <i class="bi bi-camera-video-off fs-3"></i><div>@sinDatos</div>
+                </div>
+            }
+            @foreach (var a in t.Camara.Alertas.Where(a => a.Tipo != "SIN_DATOS" || !t.Camara.SinDatos))
+            {
+                <div class="alert alert-warning d-flex align-items-center gap-2" role="alert">
+                    <i class="bi bi-exclamation-triangle fs-4"></i>
+                    <div><strong>@a.TipoDescripcion</strong>: @a.CamaraNombre (@a.CamaraCodigo) desde las @a.FechaHoraInicio.ToString("HH:mm").</div>
+                </div>
+            }
+
+            @if (!t.SoloLectura && !avisoDescartado && TableroUi.TextoAvisoPendientes(t.PendientesDeclarar.Count) is { } aviso)
+            {
+                <div class="alert alert-danger d-flex flex-wrap align-items-center gap-3 fs-5" role="alert" data-testid="aviso-pendientes">
+                    <i class="bi bi-exclamation-octagon fs-2"></i>
+                    <div class="flex-grow-1"><strong>@aviso</strong> Declaralas antes de terminar el turno.</div>
+                    <button class="btn btn-danger btn-lg boton-tablet" @onclick="() => AbrirDeclarar(t.PendientesDeclarar[0].DetencionId)">
+                        <i class="bi bi-pencil-square me-1"></i>Declarar ahora
+                    </button>
+                    <button type="button" class="btn-close" aria-label="Cerrar" @onclick="() => avisoDescartado = true"></button>
+                </div>
+            }
+
+            <div class="row row-cols-1 row-cols-sm-2 row-cols-xl-4 g-3 mb-3">
+                <TarjetaKpi Titulo="@(t.Abierto ? "Mangas (obj. a la hora)" : "Mangas")" Icono="bi-box-seam" TestId="kpi-mangas"
+                            Valor="@TableroUi.TextoReal(ind.Mangas.Real)"
+                            Detalle="@($"Objetivo: {TableroUi.TextoObjetivo(ind.Mangas.Objetivo)}")"
+                            Nivel="@TableroUi.NivelEficiencia(ind.Mangas)"
+                            AlVerDetalle="@(() => Abrir(Detalle.Mangas))" />
+                <TarjetaKpi Titulo="@(t.Abierto ? "Eficiencia parcial" : "Eficiencia")" Icono="bi-graph-up-arrow" TestId="kpi-eficiencia"
+                            Valor="@TableroUi.TextoEficiencia(ind.Eficiencia)"
+                            Detalle="@(ind.Eficiencia.Provisorio ? "Provisoria (turno en curso)" : null)"
+                            Nivel="@TableroUi.NivelEficiencia(ind.Eficiencia)"
+                            AlVerDetalle="@(() => Abrir(Detalle.Tramos))" />
+                <TarjetaKpi Titulo="Bolsones (real / obj.)" Icono="bi-bag" TestId="kpi-bolsones"
+                            Valor="@TableroUi.TextoBolsones(ind.Bolsones)"
+                            Nivel="@TableroUi.NivelEficiencia(ind.Bolsones)"
+                            AlVerDetalle="@(() => Abrir(Detalle.Tramos))" />
+                <TarjetaKpi Titulo="Velocidad" Icono="bi-speedometer" TestId="kpi-velocidad"
+                            Valor="@EficienciaUi.TextoVelocidad(ind.VelocidadMetrosMinuto)"
+                            Detalle="m/min en marcha (cámara de mangas)"
+                            Nivel="@(ind.VelocidadMetrosMinuto == null ? TableroUi.Nivel.SinDato : TableroUi.Nivel.Neutro)"
+                            AlVerDetalle="@(() => Abrir(Detalle.Tramos))" />
+                <TarjetaKpi Titulo="Indisponibilidad" Icono="bi-hourglass-split" TestId="kpi-indisponibilidad"
+                            Valor="@EficienciaUi.Minutos(ind.MinutosParadaQueCuentan)"
+                            Detalle="@($"{TableroUi.TextoPorcentaje(ind.Indisponibilidad)} de {EficienciaUi.Minutos(ind.MinutosProgramados)} programados")"
+                            Nivel="@TableroUi.NivelIndisponibilidad(ind.Indisponibilidad)"
+                            AlVerDetalle="@(() => Abrir(Detalle.Indisponibilidad))" />
+                <TarjetaKpi Titulo="Detenciones (superan umbral)" Icono="bi-stop-circle" TestId="kpi-detenciones"
+                            Valor="@t.DetencionesReales.Cantidad.ToString()"
+                            Detalle="@TableroUi.TextoDuracion(t.DetencionesReales.Segundos)"
+                            Nivel="@TableroUi.NivelDetenciones(t.DetencionesReales.Cantidad)"
+                            AlVerDetalle="@(() => Abrir(Detalle.Reales))" />
+                <TarjetaKpi Titulo="Microcortes (no llegan al umbral)" Icono="bi-lightning" TestId="kpi-microcortes"
+                            Valor="@t.Microcortes.Cantidad.ToString()"
+                            Detalle="@TableroUi.TextoDuracion(t.Microcortes.Segundos)"
+                            Nivel="TableroUi.Nivel.Neutro"
+                            AlVerDetalle="@(() => Abrir(Detalle.Microcortes))" />
+                <TarjetaKpi Titulo="Pendientes de declarar" Icono="bi-inbox" TestId="kpi-pendientes"
+                            Valor="@t.PendientesDeclarar.Count.ToString()"
+                            Nivel="@TableroUi.NivelPendientes(t.PendientesDeclarar.Count)"
+                            AlVerDetalle="@(() => Abrir(Detalle.Pendientes))">
+                    @foreach (var p in t.PendientesDeclarar.Take(3))
+                    {
+                        <div class="d-flex align-items-center gap-2 mt-2">
+                            <span class="me-auto">@p.Codigo · @(p.FechaHoraParada?.ToString("HH:mm") ?? "sin hora")</span>
+                            @if (!t.SoloLectura)
+                            {
+                                <button class="btn btn-primary btn-lg" @onclick="() => AbrirDeclarar(p.DetencionId)">Declarar</button>
+                            }
+                        </div>
+                    }
+                </TarjetaKpi>
+                @* Bloques pendientes (Ferretti 18/11): sumar acá otra <TarjetaKpi> cuando llegue el pedido. *@
+            </div>
+        }
+    }
+</div>
+
+@if (detalle != Detalle.Ninguno && tablero is { } td)
+{
+    <div class="modal d-block" tabindex="-1" style="background: rgba(0,0,0,.5);" data-testid="modal-detalle">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-md-down">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title">@TituloDetalle()</h4>
+                    <button type="button" class="btn-close" aria-label="Cerrar" @onclick="CerrarDetalle"></button>
+                </div>
+                <div class="modal-body fs-5">
+                    @switch (detalle)
+                    {
+                        case Detalle.Mangas:
+                            <p class="text-body-secondary small">Por hora del turno: objetivo prorrateado por los minutos de cada producto y real de la cámara oficial de mangas.</p>
+                            <div class="table-responsive">
+                                <table class="table table-lg align-middle">
+                                    <thead><tr><th>Hora</th><th class="text-end">Objetivo</th><th class="text-end">Real</th><th class="text-end">Dif.</th></tr></thead>
+                                    <tbody>
+                                        @foreach (var h in td.MangasPorHora)
+                                        {
+                                            <tr class="@(h.EnCurso ? "table-active" : "")">
+                                                <td>@TableroUi.TextoHora(h.Hora)@(h.EnCurso ? " (en curso)" : "")</td>
+                                                <td class="text-end">@TableroUi.TextoObjetivo(h.Objetivo)</td>
+                                                <td class="text-end fw-bold">@(h.MinutosConDatos == 0 ? EficienciaUi.TextoSinDatos : EficienciaUi.Numero(h.Real))</td>
+                                                <td class="text-end @TableroUi.ClaseNumero(TableroUi.NivelHora(h))">@(TableroUi.TextoDiferencia(h) ?? "-")</td>
+                                            </tr>
+                                        }
+                                        @if (td.MangasPorHora.Count == 0)
+                                        {
+                                            <tr><td colspan="4" class="text-center text-muted">Sin datos de la cámara de mangas.</td></tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                            <TablaTramos Tramos="td.Indicadores.Tramos" />
+                            break;
+                        case Detalle.Tramos:
+                            <TablaTramos Tramos="td.Indicadores.Tramos" />
+                            break;
+                        case Detalle.Indisponibilidad:
+                            <p class="text-body-secondary small">Detenciones del turno. Suman en la indisponibilidad las que cuentan (las paradas programadas no).</p>
+                            <div class="list-group">
+                                @foreach (var d in td.Detenciones)
+                                {
+                                    <div class="list-group-item d-flex flex-wrap align-items-center gap-2 py-3">
+                                        <strong>@d.Codigo</strong>
+                                        <span>@(d.FechaHoraParada?.ToString("HH:mm") ?? "-")@(d.FechaHoraArranque is { } a ? $"–{a:HH:mm}" : "")</span>
+                                        <span class="badge text-bg-secondary">@d.EstadoActualDescripcion</span>
+                                        @if (!d.Cuenta)
+                                        {
+                                            <span class="badge text-bg-light border">No cuenta</span>
+                                        }
+                                        <span class="text-body-secondary">@(d.EquipoNombre ?? "")@(d.TipoFallaNombre is { } tf ? $" · {tf}" : "")</span>
+                                        <span class="ms-auto fw-bold">@(d.PendienteDeclaracion ? "a declarar" : EficienciaUi.Minutos(d.MinutosEfectivos))</span>
+                                    </div>
+                                }
+                                @if (td.Detenciones.Count == 0)
+                                {
+                                    <div class="list-group-item text-muted">No hay detenciones cargadas en el turno.</div>
+                                }
+                            </div>
+                            break;
+                        case Detalle.Reales:
+                        case Detalle.Microcortes:
+                            var resumen = detalle == Detalle.Reales ? td.DetencionesReales : td.Microcortes;
+                            <p class="text-body-secondary small">
+                                @(detalle == Detalle.Reales
+                                    ? "Paradas de la cámara que llegaron al umbral de detención: crean (o tienen) una detención para declarar."
+                                    : "Paradas cortas de la cámara que no llegaron al umbral: no crean detención.")
+                            </p>
+                            <div class="list-group">
+                                @foreach (var p in resumen.Items)
+                                {
+                                    <div class="list-group-item d-flex flex-wrap align-items-center gap-2 py-3">
+                                        <strong>@p.FechaHoraInicio.ToString("HH:mm:ss")–@p.FechaHoraFin.ToString("HH:mm:ss")</strong>
+                                        <span class="badge text-bg-info">@p.CamaraCodigo</span>
+                                        @if (p.UmbralTexto != null)
+                                        {
+                                            <span class="text-body-secondary small">umbral @p.UmbralTexto</span>
+                                        }
+                                        @if (p.CodigosDetencion.Count > 0)
+                                        {
+                                            <span class="small">@string.Join(", ", p.CodigosDetencion)</span>
+                                        }
+                                        <span class="ms-auto fw-bold">@TableroUi.TextoDuracion(p.DuracionSegundos)</span>
+                                    </div>
+                                }
+                                @if (resumen.Items.Count == 0)
+                                {
+                                    <div class="list-group-item text-muted">No hay en el turno.</div>
+                                }
+                            </div>
+                            break;
+                        case Detalle.Pendientes:
+                            <div class="list-group">
+                                @foreach (var p in td.PendientesDeclarar)
+                                {
+                                    <div class="list-group-item d-flex flex-wrap align-items-center gap-2 py-3">
+                                        <strong>@p.Codigo</strong>
+                                        <span>parada desde @(p.FechaHoraParada?.ToString("HH:mm") ?? "sin hora")</span>
+                                        @if (p.FechaHoraArranqueDetectada is { } arr)
+                                        {
+                                            <span class="text-body-secondary">arrancó @arr.ToString("HH:mm") (cámara)</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger-subtle text-danger-emphasis">Sigue parada</span>
+                                        }
+                                        @if (!td.SoloLectura)
+                                        {
+                                            <button class="btn btn-primary btn-lg ms-auto boton-declarar" @onclick="() => AbrirDeclarar(p.DetencionId)">Declarar</button>
+                                        }
+                                    </div>
+                                }
+                                @if (td.PendientesDeclarar.Count == 0)
+                                {
+                                    <div class="list-group-item text-muted">No hay detenciones para declarar.</div>
+                                }
+                            </div>
+                            break;
+                        case Detalle.Declarar when declarandoId is { } id:
+                            <FormularioDeclaracion DetencionId="id" EnModal="true" TextoListo="Volver al tablero"
+                                                   AlDeclarar="@(async _ => await RecargarAsync())" AlCerrar="CerrarDetalle" />
+                            break;
+                    }
+                </div>
+                @if (detalle != Detalle.Declarar)
+                {
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary btn-lg" @onclick="CerrarDetalle">Cerrar</button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private const string ClaveLinea = "tablero.lineaId";
+
+    private enum Detalle { Ninguno, Mangas, Tramos, Indisponibilidad, Reales, Microcortes, Pendientes, Declarar }
+
+    private bool cargando = true;
+    private bool obligado;
+    private List<(int Id, string Nombre)> lineas = [];
+    private int? lineaId;
+    private TableroTurnoDto? tablero;
+    private string? error;
+    private bool avisoDescartado;
+    private Detalle detalle;
+    private long? declarandoId;
+
+    private TableroTiempoReal? tiempoReal;
+    private bool enLinea;
+    private Timer? timer;
+    private DateTime ultimaCarga = DateTime.MinValue;
+    private readonly SemaphoreSlim cargaEnCurso = new(1, 1);
+    private CancellationTokenSource? agrupar;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var propio = await TurnoPropio.ObtenerAsync();
+            obligado = propio.Obligado;
+            if (!obligado)
+            {
+                var asignaciones = await CatalogosService.GetMisAsignacionesAsync();
+                lineas = asignaciones.Count > 0
+                    ? asignaciones.GroupBy(a => a.LineaId).Select(g => (g.Key, g.First().LineaNombre)).ToList()
+                    : (await CatalogosService.GetLineasAsync()).Select(l => (l.LineaId, l.Nombre)).ToList();
+                lineaId = await LeerLineaGuardadaAsync();
+            }
+            await RecargarAsync();
+        }
+        catch (Exception)
+        {
+            error = ApiErrores.SinConexion;
+        }
+        finally
+        {
+            cargando = false;
+        }
+
+        if (Http.BaseAddress != null)
+        {
+            tiempoReal = new TableroTiempoReal(Http.BaseAddress, () => AuthService.GetTokenAsync());
+            tiempoReal.Cambio += AlCambiar;
+            tiempoReal.EstadoCambio += AlCambiarEstado;
+            await SeguirAsync();
+        }
+        timer = new Timer(async _ => await AlTick(), null, TableroUi.RefrescoRespaldo, TableroUi.RefrescoRespaldo);
+    }
+
+    private async Task<int?> LeerLineaGuardadaAsync()
+    {
+        if (lineas.Count == 0)
+            return null;
+        try
+        {
+            var guardada = await LocalStorage.GetItemAsync<int?>(ClaveLinea);
+            if (guardada is { } id && lineas.Any(l => l.Id == id))
+                return id;
+        }
+        catch
+        {
+            // sin almacenamiento local: la primera línea
+        }
+        return lineas[0].Id;
+    }
+
+    private async Task ElegirLinea(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var id))
+            return;
+        lineaId = id;
+        try { await LocalStorage.SetItemAsync(ClaveLinea, id); } catch { /* no es crítico */ }
+        await RecargarAsync();
+        await SeguirAsync();
+    }
+
+    /// <summary>Pide el tablero entero (una llamada). Si falla, queda lo último que se vio con el aviso de conexión.</summary>
+    private async Task RecargarAsync()
+    {
+        if (!obligado && lineaId == null)
+            return;
+        await cargaEnCurso.WaitAsync();
+        try
+        {
+            tablero = await TableroService.GetTurnoAsync(obligado ? null : lineaId);
+            error = null;
+            ultimaCarga = DateTime.UtcNow;
+        }
+        catch (Exception ex)
+        {
+            error = ex is HttpRequestException h && !string.IsNullOrWhiteSpace(h.Message) ? h.Message : ApiErrores.SinConexion;
+        }
+        finally
+        {
+            cargaEnCurso.Release();
+        }
+    }
+
+    private async Task SeguirAsync()
+    {
+        if (tiempoReal != null && tablero != null)
+            enLinea = await tiempoReal.SeguirAsync(tablero.TurnoProduccionId) && tiempoReal.Conectado;
+        else
+            enLinea = false;
+    }
+
+    /// <summary>Aviso del hub: se juntan los que llegan seguidos y se recarga una vez.</summary>
+    private async Task AlCambiar(long turnoProduccionId)
+    {
+        if (tablero?.TurnoProduccionId != turnoProduccionId)
+            return;
+        agrupar?.Cancel();
+        var cts = agrupar = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(TableroUi.EsperaAgrupar, cts.Token);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+        await RecargarAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void AlCambiarEstado()
+    {
+        enLinea = tiempoReal?.Conectado == true;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Respaldo cada 10 s sin SignalR; con SignalR, cada 60 s (el objetivo "a la hora" avanza con el reloj).</summary>
+    private async Task AlTick()
+    {
+        var conectado = tiempoReal?.Conectado == true;
+        var espera = conectado ? TableroUi.RefrescoConectado : TableroUi.RefrescoRespaldo;
+        if (DateTime.UtcNow - ultimaCarga < espera - TimeSpan.FromSeconds(1))
+            return;
+        var turnoAntes = tablero?.TurnoProduccionId;
+        await RecargarAsync();
+        // Cambió el turno (relevo de turno en la línea del supervisor) o se cayó la conexión: volver a seguir.
+        if (tablero != null && (tablero.TurnoProduccionId != turnoAntes || !conectado))
+            await SeguirAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void Abrir(Detalle d)
+    {
+        detalle = d;
+        declarandoId = null;
+    }
+
+    private void AbrirDeclarar(long detencionId)
+    {
+        declarandoId = detencionId;
+        detalle = Detalle.Declarar;
+    }
+
+    private void CerrarDetalle()
+    {
+        detalle = Detalle.Ninguno;
+        declarandoId = null;
+    }
+
+    private string TituloDetalle() => detalle switch
+    {
+        Detalle.Mangas => "Mangas por hora y por producto",
+        Detalle.Tramos => "Presupuesto vs. real por producto",
+        Detalle.Indisponibilidad => "Indisponibilidad: detenciones del turno",
+        Detalle.Reales => "Detenciones (superan el umbral)",
+        Detalle.Microcortes => "Microcortes (no llegan al umbral)",
+        Detalle.Pendientes => "Pendientes de declarar",
+        Detalle.Declarar => "Declarar detención",
+        _ => string.Empty
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        timer?.Dispose();
+        agrupar?.Cancel();
+        if (tiempoReal != null)
+        {
+            tiempoReal.Cambio -= AlCambiar;
+            tiempoReal.EstadoCambio -= AlCambiarEstado;
+            await tiempoReal.DisposeAsync();
+        }
+    }
+}

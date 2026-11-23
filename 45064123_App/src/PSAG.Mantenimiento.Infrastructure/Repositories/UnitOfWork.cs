@@ -1,4 +1,7 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using PSAG.Mantenimiento.Application.Services.Interfaces;
+using PSAG.Mantenimiento.Domain.Entities;
 using PSAG.Mantenimiento.Domain.Interfaces;
 using PSAG.Mantenimiento.Infrastructure.Data;
 
@@ -51,9 +54,12 @@ public class UnitOfWork : IUnitOfWork
     private IParadaCamaraRepository? _paradasCamara;
     private IAlertaCamaraRepository? _alertasCamara;
 
-    public UnitOfWork(MantenimientoDbContext context)
+    private readonly INotificadorTablero? _notificador;
+
+    public UnitOfWork(MantenimientoDbContext context, INotificadorTablero? notificador = null)
     {
         _context = context;
+        _notificador = notificador;
     }
 
     // Eje 1: Detenciones
@@ -100,7 +106,54 @@ public class UnitOfWork : IUnitOfWork
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        return await _context.SaveChangesAsync(cancellationToken);
+        if (_notificador == null)
+            return await _context.SaveChangesAsync(cancellationToken);
+
+        // T-770: qué turnos de producción tocó este guardado (los Id de lo agregado se leen después de guardar).
+        var cambiados = EntidadesDelTablero();
+        var filas = await _context.SaveChangesAsync(cancellationToken);
+        var cambios = cambiados
+            .Select(c => (Turno: c.Turno(), c.Motivo))
+            .Where(c => c.Turno is > 0)
+            .Select(c => new CambioTablero(c.Turno!.Value, c.Motivo))
+            .Distinct()
+            .ToList();
+        if (cambios.Count > 0)
+        {
+            try
+            {
+                await _notificador.NotificarAsync(cambios, cancellationToken);
+            }
+            catch (Exception)
+            {
+                // El aviso en línea nunca hace fallar el guardado (el tablero tiene un refresco de respaldo).
+            }
+        }
+        return filas;
+    }
+
+    /// <summary>
+    /// T-770 · Entidades agregadas o modificadas que cambian el tablero del turno: minutos y paradas de cámara,
+    /// detenciones, el turno de producción, sus tramos de producto y de operador.
+    /// </summary>
+    private List<(Func<long?> Turno, string Motivo)> EntidadesDelTablero()
+    {
+        var lista = new List<(Func<long?> Turno, string Motivo)>();
+        foreach (var e in _context.ChangeTracker.Entries())
+        {
+            if (e.State is not (EntityState.Added or EntityState.Modified))
+                continue;
+            switch (e.Entity)
+            {
+                case ConteoCamaraMinuto m: lista.Add((() => m.TurnoProduccionId, MotivoCambioTablero.Conteo)); break;
+                case ParadaCamara p: lista.Add((() => p.TurnoProduccionId, MotivoCambioTablero.Paradas)); break;
+                case Detencion d: lista.Add((() => d.TurnoProduccionId, MotivoCambioTablero.Detenciones)); break;
+                case TurnoProduccion t: lista.Add((() => t.TurnoProduccionId, MotivoCambioTablero.Turno)); break;
+                case TurnoProduccionProducto t: lista.Add((() => t.TurnoProduccionId, MotivoCambioTablero.Turno)); break;
+                case TurnoProduccionOperador t: lista.Add((() => t.TurnoProduccionId, MotivoCambioTablero.Turno)); break;
+            }
+        }
+        return lista;
     }
 
     public async Task BeginTransactionAsync(CancellationToken cancellationToken = default)

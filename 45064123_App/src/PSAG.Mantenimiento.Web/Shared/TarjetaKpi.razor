@@ -1,0 +1,36 @@
+@* T-770 · Bloque (KPI) del tablero del operador: título, número grande con color de estado, una línea de detalle y
+   "Ver detalle" (abre un modal; no navega). Para sumar un bloque nuevo al tablero alcanza con otra TarjetaKpi. *@
+
+<div class="col">
+    <div class="card h-100 border-2 @TableroUi.ClaseTarjeta(Nivel)" data-testid="@TestId">
+        <div class="card-body d-flex flex-column">
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <i class="bi @Icono fs-4"></i>
+                <span class="fw-semibold text-uppercase small">@Titulo</span>
+            </div>
+            <div class="kpi-numero fw-bold lh-1 my-2 @TableroUi.ClaseNumero(Nivel)">@Valor</div>
+            @if (!string.IsNullOrEmpty(Detalle))
+            {
+                <div class="text-body-secondary">@Detalle</div>
+            }
+            @ChildContent
+            @if (AlVerDetalle.HasDelegate)
+            {
+                <button type="button" class="btn btn-outline-secondary btn-lg mt-auto pt-2 w-100 boton-tablet" @onclick="@(async () => await AlVerDetalle.InvokeAsync())">
+                    <i class="bi bi-zoom-in me-1"></i>Ver detalle
+                </button>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+    [Parameter] public string Icono { get; set; } = "bi-speedometer2";
+    [Parameter, EditorRequired] public string Valor { get; set; } = string.Empty;
+    [Parameter] public string? Detalle { get; set; }
+    [Parameter] public TableroUi.Nivel Nivel { get; set; } = TableroUi.Nivel.SinDato;
+    [Parameter] public string? TestId { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public EventCallback AlVerDetalle { get; set; }
+}

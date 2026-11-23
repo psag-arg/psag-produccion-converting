@@ -160,6 +160,7 @@ V = Ver, A = Alta, M = Modificación, B = Baja; — = nada. "(sin menú)" = func
 | Operar el turno (tomar, cambiar producto, relevar, cerrar) <br><sub>aplica: VER,ALTA,MOD</sub> | `PRODUCCION.OPERACION_TURNO` | (sin menú) | V A M | V A M | V A M | V A M | V |
 | Turnos de producción (corregir turno cerrado y producción) <br><sub>aplica: VER,MOD</sub> | `PRODUCCION.TURNOS` | `/produccion/turnos` | V M | V M | V M | — | — |
 | Presupuesto vs. real <br><sub>aplica: VER</sub> | `PRODUCCION.PRESUPUESTO_REAL` | `/dashboard/produccion` | V | V | V | V | V |
+| Tablero del turno (operador) <br><sub>aplica: VER · T-770, script 41</sub> | `PRODUCCION.TABLERO` | `/produccion/tablero` | — | — | V | V | — |
 | **Tareas de mantenimiento** | `TAREAS` | | | | | | |
 | Pendientes y programadas <br><sub>aplica: VER,ALTA,MOD</sub> | `TAREAS.PENDIENTES` | `/tareas-mantenimiento` | V A M | V M | V A M | V A | V |
 | Historial <br><sub>aplica: VER</sub> | `TAREAS.HISTORIAL` | `/tareas-mantenimiento/historial` | V | V | V | V | V |
@@ -179,7 +180,7 @@ V = Ver, A = Alta, M = Modificación, B = Baja; — = nada. "(sin menú)" = func
 
 ## Mapa endpoint → (opción, acción)
 
-Todas las acciones de los controllers (160 con permiso; 10 sin opción a propósito). Lo verifica
+Todas las acciones de los controllers (161 con permiso; 10 sin opción a propósito). Lo verifica
 `PermisosCatalogoTests` (ninguna acción sin `[Permiso]` salvo esas, y los roles que habilita la matriz migrada son los de
 antes, con los cambios deliberados de arriba).
 
@@ -331,6 +332,7 @@ antes, con los cambios deliberados de arriba).
 | POST | `api/registrosproceso/{id:long}/cerrar` | `CONTROL_PROCESO.REGISTROS` · MODIFICACION |
 | GET | `api/registrosproceso` | `CONTROL_PROCESO.REGISTROS` · VER |
 | GET | `api/registrosproceso/grupos/{lineaId:int}/{productoId:int}` | `CONTROL_PROCESO.REGISTROS` · VER |
+| GET | `api/tablero/turno` | `PRODUCCION.TABLERO` · VER (obligado a turno: su turno; resto: `lineaId`, sólo lectura) |
 | GET | `api/tareas-mantenimiento` | `TAREAS.PENDIENTES` · VER |
 | GET | `api/tareas-mantenimiento/historial` | `TAREAS.HISTORIAL` · VER |
 | POST | `api/tareas-mantenimiento` | `TAREAS.PENDIENTES` · ALTA |
@@ -355,6 +357,15 @@ antes, con los cambios deliberados de arriba).
 | GET | `api/usuarios/roles-obligados-turno` | `CONFIG.USUARIOS` · VER |
 | DELETE | `api/usuarios/{id}` | `CONFIG.USUARIOS` · BAJA |
 | POST | `api/usuarios/{id}/reset-password` | `CONFIG.USUARIOS` · MODIFICACION |
+
+## Tablero del operador (T-770)
+
+- `PRODUCCION.TABLERO` (script **41**, también en `CatalogoPermisos.cs` y la semilla): VER para OPERARIO y SUPERVISOR.
+  Administrador, mantenimiento y gerencia no lo tienen en la matriz: se les puede dar desde Roles y permisos.
+- `GET api/tablero/turno`: el obligado a turno ve **su** turno (el filtro de turno obligatorio fija la línea; sin turno, 409);
+  el resto pasa `lineaId` y lo ve en **sólo lectura** (el que es sólo operario, únicamente en sus líneas).
+- Hub SignalR `/hubs/tablero` (sin opción en el mapa de controllers): exige sesión; `Seguir(turnoProduccionId)` exige VER del
+  tablero y, al obligado a turno, que sea su turno. Sólo avisa "cambió el turno N"; los datos se piden a la API.
 
 ## Tests
 

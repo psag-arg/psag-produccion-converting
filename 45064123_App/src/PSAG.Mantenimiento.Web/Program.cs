@@ -62,6 +62,9 @@ builder.Services.AddScoped<IPermisosService, PermisosService>();
 // Obligado a turno (T-802): turno propio del usuario; sin turno, sólo "Inicio de turno"
 builder.Services.AddScoped<ITurnoPropioService, TurnoPropioService>();
 
+// Tablero del operador (T-770): api/tablero/turno; los avisos en línea (SignalR) los arma la pantalla
+builder.Services.AddScoped<ITableroService, TableroService>();
+
 // Servicio de temas
 builder.Services.AddScoped<IThemeService, ThemeService>();
 

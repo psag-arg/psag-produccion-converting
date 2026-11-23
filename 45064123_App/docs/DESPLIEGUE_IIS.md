@@ -154,6 +154,22 @@ cargarla como variable de entorno del servicio NSSM. Pasos en `docs/CALIDAD.md` 
 </configuration>
 ```
 
+## Tablero en línea (SignalR, T-770)
+
+El tablero del operador (`/produccion/tablero`) se actualiza solo con **SignalR**: hub `/hubs/tablero` en la **API**.
+
+- La API corre en **Kestrel como servicio NSSM** (`PSAG_Mantenimiento_API`) y el navegador le habla directo (`ApiBaseUrl`):
+  los WebSockets funcionan **sin configurar nada en IIS** (IIS sólo sirve los archivos estáticos de la Web).
+- Si algún día la API se publica **detrás de IIS** (in-process o ARR como proxy): instalar la característica
+  **Web Server → Application Development → WebSocket Protocol** (`Install-WindowsFeature Web-WebSockets`). Sin eso SignalR
+  igual anda (cae solo a Server-Sent Events / long polling), pero más pesado.
+- CORS: el hub usa la misma política `AllowBlazorClient` (`Cors:AllowedOrigins` con la URL de la Web, http y https si hay).
+- El JWT viaja en `?access_token=` sólo para `/hubs/*` (el navegador no puede mandar el encabezado en el WebSocket); el log de
+  requests no guarda la query.
+- Firewall: es el mismo puerto de la API (no hace falta abrir otro).
+- Respaldo: si el WebSocket no conecta (proxy, red, token vencido), la pantalla refresca cada **10 s** y lo muestra
+  ("Cada 10 s" en lugar de "En línea").
+
 ## Logs
 
 - Ubicación: `C:\inetpub\wwwroot\PSAGMantenimiento\api\logs\`

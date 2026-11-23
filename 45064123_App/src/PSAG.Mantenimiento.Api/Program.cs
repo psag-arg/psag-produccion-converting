@@ -98,6 +98,15 @@ builder.Services.AddAuthentication(options =>
 
     options.Events = new JwtBearerEvents
     {
+        // T-770: el navegador no puede mandar el encabezado Authorization en el WebSocket de SignalR: el token viaja en
+        // ?access_token= (sólo para /hubs; el log de requests no guarda la query).
+        OnMessageReceived = context =>
+        {
+            var token = context.Request.Query["access_token"];
+            if (!string.IsNullOrEmpty(token) && context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+                context.Token = token;
+            return Task.CompletedTask;
+        },
         OnAuthenticationFailed = context =>
         {
             if (context.Exception.GetType() == typeof(SecurityTokenExpiredException))
@@ -139,6 +148,12 @@ builder.Services.AddControllers(options => options.Filters.Add<PSAG.Mantenimient
         options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
         options.JsonSerializerOptions.Converters.Add(new FechaHoraPlantaJsonConverter(zonaPlanta));
     });
+
+// T-770: tablero del operador en línea (SignalR). La ingesta de cámara y las detenciones avisan por el UnitOfWork
+// (INotificadorTablero) al grupo del turno; el cliente vuelve a pedir api/tablero/turno. Kestrel directo: WebSockets sin
+// configurar nada; detrás de IIS haría falta la característica "WebSocket Protocol" (si no, cae a SSE / long polling).
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<PSAG.Mantenimiento.Application.Services.Interfaces.INotificadorTablero, PSAG.Mantenimiento.Api.TiempoReal.NotificadorTableroSignalR>();
 
 // Configurar Swagger
 builder.Services.AddEndpointsApiExplorer();
@@ -227,6 +242,7 @@ app.UseSerilogRequestLogging(options =>
 });
 
 app.MapControllers();
+app.MapHub<PSAG.Mantenimiento.Api.TiempoReal.TableroHub>(PSAG.Mantenimiento.Api.TiempoReal.TableroHub.Ruta);
 
 app.MapHealthChecks("/health");
 

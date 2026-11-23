@@ -42,6 +42,9 @@ public static class DependencyInjection
         // Indicadores: presupuesto vs. real desde el turno y el parámetro (T-798 etapa 5)
         services.AddScoped<IIndicadoresService, IndicadoresService>();
 
+        // Tablero del operador (T-770): todo el turno en proceso en una llamada
+        services.AddScoped<ITableroService, TableroService>();
+
         // Maestros de producción: productos + SKU y parametrización línea + producto (T-798 etapa 6)
         services.AddScoped<IMaestrosProduccionService, MaestrosProduccionService>();
 

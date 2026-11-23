@@ -138,6 +138,7 @@
     private readonly Dictionary<int, AperturaTurnoProduccionDto> tomadas = [];
     private readonly Dictionary<int, int?> productos = [];
     private bool cargando = true;
+    private bool obligado;
     private bool enviando;
     private string? error;
 
@@ -150,7 +151,9 @@
         if (propuesta is not { Preguntar: true })
         {
             // El obligado a turno sin turno no sigue de largo (si la API falló, el layout lo vuelve a traer acá).
-            if ((await TurnoPropio.RefrescarAsync()).Bloqueado)
+            var estado = await TurnoPropio.RefrescarAsync();
+            obligado = estado.Obligado;
+            if (estado.Bloqueado)
             {
                 propuesta ??= new PropuestaTurnoProduccionDto { ObligadoATurno = true, Aviso = ApiErrores.SinConexion };
                 cargando = false;
@@ -218,7 +221,8 @@
         }
     }
 
-    private void Seguir() => Navigation.NavigateTo(RutasLogin.DestinoSeguro(Volver));
+    // T-770: el obligado a turno cae en el tablero (su pantalla central de trabajo).
+    private void Seguir() => Navigation.NavigateTo(RutasLogin.DestinoTrasTurno(Volver, propuesta?.ObligadoATurno == true || obligado));
 
     private async Task CerrarSesion()
     {
