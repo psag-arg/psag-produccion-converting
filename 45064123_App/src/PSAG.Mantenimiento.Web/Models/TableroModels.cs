@@ -31,6 +31,27 @@ public class TableroTurnoDto
     public ProduccionTableroDto Produccion { get; set; } = new();
     public VelocidadTableroDto Velocidad { get; set; } = new();
     public DetencionesTipoTableroDto DetencionesPorTipo { get; set; } = new();
+    public CifrasDetencionesTableroDto CifrasDetenciones { get; set; } = new();
+}
+
+/// <summary>Cantidad y minutos de una cifra del bloque Detenciones.</summary>
+public class CifraDetencionesDto
+{
+    public int Cantidad { get; set; }
+    public int Minutos { get; set; }
+}
+
+/// <summary>
+/// Las 4 cifras del bloque Detenciones: pendientes de declarar, declaradas, totales (= declaradas + pendientes) y
+/// microcortes (aparte, no suman en totales); más las programadas que no cuentan (se muestran chico).
+/// </summary>
+public class CifrasDetencionesTableroDto
+{
+    public CifraDetencionesDto Pendientes { get; set; } = new();
+    public CifraDetencionesDto Declaradas { get; set; } = new();
+    public CifraDetencionesDto Totales { get; set; } = new();
+    public CifraDetencionesDto Microcortes { get; set; } = new();
+    public CifraDetencionesDto Programadas { get; set; } = new();
 }
 
 public class MangasHoraDto

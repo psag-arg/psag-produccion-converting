@@ -65,6 +65,29 @@ public class TableroTurnoDto
 
     /// <summary>4) Detenciones del turno por tipo de falla, total y minutos pendientes de declaración.</summary>
     public DetencionesTipoTableroDto DetencionesPorTipo { get; set; } = new();
+
+    /// <summary>
+    /// Las 4 cifras del bloque Detenciones (T-770, ajustes 23/11): pendientes de declarar, declaradas, totales
+    /// (= declaradas + pendientes) y microcortes (aparte, no suman en totales); más las programadas que no cuentan.
+    /// </summary>
+    public CifrasDetencionesTableroDto CifrasDetenciones { get; set; } = new();
+}
+
+/// <summary>Cantidad y minutos de una cifra del bloque Detenciones.</summary>
+public class CifraDetencionesDto
+{
+    public int Cantidad { get; set; }
+    public int Minutos { get; set; }
+}
+
+/// <summary>Ver <c>TableroIndicadoresReglas.Cifras</c>.</summary>
+public class CifrasDetencionesTableroDto
+{
+    public CifraDetencionesDto Pendientes { get; set; } = new();
+    public CifraDetencionesDto Declaradas { get; set; } = new();
+    public CifraDetencionesDto Totales { get; set; } = new();
+    public CifraDetencionesDto Microcortes { get; set; } = new();
+    public CifraDetencionesDto Programadas { get; set; } = new();
 }
 
 /// <summary>

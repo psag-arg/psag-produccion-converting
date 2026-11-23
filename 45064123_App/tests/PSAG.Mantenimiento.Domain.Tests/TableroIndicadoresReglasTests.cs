@@ -134,6 +134,42 @@ public class TableroIndicadoresReglasTests
         Assert.Equal(7, sinTipo.MinutosTotal);
     }
 
+    [Fact]
+    public void Cifras_PendientesDeclaradasTotalesYMicrocortes_ConDatosMixtos()
+    {
+        var detenciones = new[]
+        {
+            new DetencionTablero(1, 12, false, true),     // declarada (manual o de cámara) que cuenta
+            new DetencionTablero(1, 8, false, true),
+            new DetencionTablero(null, 5, false, true),   // declarada sin tipo: cuenta
+            new DetencionTablero(3, 30, false, false),    // programada: no cuenta, aparte
+            new DetencionTablero(null, 10, true, true),   // pendiente (minutos desde la parada de cámara)
+            new DetencionTablero(null, 7, true, true)
+        };
+
+        var c = TableroIndicadoresReglas.Cifras(detenciones, cantidadMicrocortes: 3, segundosMicrocortes: 150);
+
+        Assert.Equal(new CifraDetenciones(2, 17), c.Pendientes);
+        Assert.Equal(new CifraDetenciones(3, 25), c.Declaradas);
+        Assert.Equal(new CifraDetenciones(5, 42), c.Totales);              // = declaradas + pendientes
+        Assert.Equal(new CifraDetenciones(3, 3), c.Microcortes);           // 150 s → 3 min; NO suman en totales
+        Assert.Equal(new CifraDetenciones(1, 30), c.Programadas);          // fuera de totales
+        Assert.Equal(c.Declaradas.Minutos + c.Pendientes.Minutos, c.Totales.Minutos);
+
+        // Coincide con el total del gráfico por tipo (las barras que cuentan, incluida "Sin declarar")
+        var porTipo = TableroIndicadoresReglas.DetencionesPorTipo(detenciones, [new TipoFallaTablero(1, "FALLA PROCESO", 1, true, true),
+            new TipoFallaTablero(3, "PARADA PROGRAMADA", 3, false, true)]);
+        Assert.Equal(porTipo.MinutosTotal, c.Totales.Minutos);
+        Assert.Equal(porTipo.MinutosNoCuentan, c.Programadas.Minutos);
+
+        var vacio = TableroIndicadoresReglas.Cifras([], 0, 0);
+        Assert.Equal(default, vacio.Totales);
+        Assert.Equal(default, vacio.Microcortes);
+
+        // Microcortes de pocos segundos: 1 microcorte de 20 s = 0 min (la cantidad igual se ve)
+        Assert.Equal(new CifraDetenciones(1, 0), TableroIndicadoresReglas.Cifras([], 1, 20).Microcortes);
+    }
+
     [Theory]
     [InlineData(RolesSistema.Administrador, new int[] { 2 }, 1, true)]
     [InlineData(RolesSistema.Mantenimiento, new int[] { 2 }, 1, true)]

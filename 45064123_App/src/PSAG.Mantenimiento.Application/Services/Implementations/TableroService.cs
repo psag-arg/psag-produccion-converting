@@ -172,11 +172,20 @@ public class TableroService : ITableroService
             .Select(t => new TipoFallaTablero(t.TipoFallaId, t.Nombre, t.Orden, t.CuentaParaIndicadores, t.Activo));
         // Pendiente que sigue parada: hasta ahora con el turno abierto; hasta el fin del turno si ya cerró.
         var hastaSiSigue = tp.EstaAbierto ? ahora : finTurno;
-        var resumen = TableroIndicadoresReglas.DetencionesPorTipo(
-            detenciones.Select(d => d.EsPendienteDeclaracion
+        var detencionesTablero = detenciones.Select(d => d.EsPendienteDeclaracion
                 ? new DetencionTablero(d.TipoFallaId, TableroIndicadoresReglas.MinutosPendiente(d.FechaHoraParada, d.FechaHoraArranqueDetectada, hastaSiSigue), true, true)
-                : new DetencionTablero(d.TipoFallaId, d.MinutosEfectivos, false, DetencionIndicadores.Cuenta(d))),
-            tipos);
+                : new DetencionTablero(d.TipoFallaId, d.MinutosEfectivos, false, DetencionIndicadores.Cuenta(d)))
+            .ToList();
+        var resumen = TableroIndicadoresReglas.DetencionesPorTipo(detencionesTablero, tipos);
+        var cifras = TableroIndicadoresReglas.Cifras(detencionesTablero, dto.Microcortes.Cantidad, dto.Microcortes.Segundos);
+        dto.CifrasDetenciones = new CifrasDetencionesTableroDto
+        {
+            Pendientes = Cifra(cifras.Pendientes),
+            Declaradas = Cifra(cifras.Declaradas),
+            Totales = Cifra(cifras.Totales),
+            Microcortes = Cifra(cifras.Microcortes),
+            Programadas = Cifra(cifras.Programadas)
+        };
         dto.DetencionesPorTipo = new DetencionesTipoTableroDto
         {
             Barras = resumen.Barras.Select(b => new BarraTipoFallaDto
@@ -329,6 +338,8 @@ public class TableroService : ITableroService
             CodigosDetencion = codigos.ToList()
         };
     }
+
+    private static CifraDetencionesDto Cifra(CifraDetenciones c) => new() { Cantidad = c.Cantidad, Minutos = c.Minutos };
 
     private static ResumenParadasTableroDto Resumen(IEnumerable<ParadaCamaraDto> paradas)
     {
