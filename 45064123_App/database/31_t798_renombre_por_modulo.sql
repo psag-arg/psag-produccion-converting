@@ -213,9 +213,10 @@ IF OBJECT_ID(N'mnt.CAL_PuntosControl', N'U') IS NOT NULL
    AND COL_LENGTH(N'mnt.CAL_PuntosControl', N'MetodoConteo') IS NOT NULL
    AND NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_PuntosControlCalidad_MetodoConteo')
 BEGIN
-    ALTER TABLE [mnt].[CAL_PuntosControl]
+    -- Dinámico: después del 36 la columna ya no existe y el lote no compilaría (re-ejecución idempotente).
+    EXEC (N'ALTER TABLE [mnt].[CAL_PuntosControl]
         ADD CONSTRAINT [CK_PuntosControlCalidad_MetodoConteo]
-        CHECK ([MetodoConteo] IS NULL OR [MetodoConteo] IN (N'CARRILES', N'MANGAS', N'BOLSONES'));
+        CHECK ([MetodoConteo] IS NULL OR [MetodoConteo] IN (N''CARRILES'', N''MANGAS'', N''BOLSONES''));');
     PRINT 'Check CK_PuntosControlCalidad_MetodoConteo creado (CARRILES, MANGAS, BOLSONES).'
 END
 ELSE
@@ -228,6 +229,8 @@ GO
 -- ============================================================================
 -- VW_DetencionesDetalle
 IF OBJECT_ID(N'mnt.VW_DetencionesDetalle', N'V') IS NOT NULL
+   -- Si ya corrió el 35, la vista es la del turno de producción: no se pisa (re-ejecución idempotente).
+   AND COL_LENGTH(N'mnt.DET_Detenciones', N'TurnoId') IS NOT NULL
 BEGIN
     EXEC sys.sp_executesql N'ALTER VIEW [mnt].[VW_DetencionesDetalle]
 AS
@@ -280,11 +283,13 @@ WHERE d.[Eliminada] = 0';
     PRINT 'Vista VW_DetencionesDetalle actualizada con los nombres nuevos.'
 END
 ELSE
-    PRINT 'Vista VW_DetencionesDetalle no existe: sin cambios.'
+    PRINT 'Vista VW_DetencionesDetalle no existe o ya es la del 35: sin cambios.'
 GO
 
 -- VW_DetencionesAbiertas
 IF OBJECT_ID(N'mnt.VW_DetencionesAbiertas', N'V') IS NOT NULL
+   -- Si ya corrió el 35, la vista es la del turno de producción: no se pisa (re-ejecución idempotente).
+   AND COL_LENGTH(N'mnt.DET_Detenciones', N'TurnoId') IS NOT NULL
 BEGIN
     EXEC sys.sp_executesql N'ALTER VIEW [mnt].[VW_DetencionesAbiertas]
 AS
@@ -317,11 +322,13 @@ WHERE d.[EstadoActual] != ''CERRADA''
     PRINT 'Vista VW_DetencionesAbiertas actualizada con los nombres nuevos.'
 END
 ELSE
-    PRINT 'Vista VW_DetencionesAbiertas no existe: sin cambios.'
+    PRINT 'Vista VW_DetencionesAbiertas no existe o ya es la del 35: sin cambios.'
 GO
 
 -- VW_DetencionesIndicadores
 IF OBJECT_ID(N'mnt.VW_DetencionesIndicadores', N'V') IS NOT NULL
+   -- Si ya corrió el 35, la vista es la del turno de producción: no se pisa (re-ejecución idempotente).
+   AND COL_LENGTH(N'mnt.DET_Detenciones', N'TurnoId') IS NOT NULL
 BEGIN
     EXEC sys.sp_executesql N'ALTER VIEW [mnt].[VW_DetencionesIndicadores]
 AS
@@ -345,11 +352,13 @@ GROUP BY l.[LineaId], l.[Nombre], d.[Fecha], t.[TurnoId], t.[Nombre]';
     PRINT 'Vista VW_DetencionesIndicadores actualizada con los nombres nuevos.'
 END
 ELSE
-    PRINT 'Vista VW_DetencionesIndicadores no existe: sin cambios.'
+    PRINT 'Vista VW_DetencionesIndicadores no existe o ya es la del 35: sin cambios.'
 GO
 
 -- VW_ResumenTurnoActual
 IF OBJECT_ID(N'mnt.VW_ResumenTurnoActual', N'V') IS NOT NULL
+   -- Si ya corrió el 35, la vista es la del turno de producción: no se pisa (re-ejecución idempotente).
+   AND COL_LENGTH(N'mnt.DET_Detenciones', N'TurnoId') IS NOT NULL
 BEGIN
     EXEC sys.sp_executesql N'ALTER VIEW [mnt].[VW_ResumenTurnoActual]
 AS
@@ -371,7 +380,7 @@ GROUP BY l.[LineaId], l.[Nombre], d.[TurnoId], t.[Nombre], d.[Fecha]';
     PRINT 'Vista VW_ResumenTurnoActual actualizada con los nombres nuevos.'
 END
 ELSE
-    PRINT 'Vista VW_ResumenTurnoActual no existe: sin cambios.'
+    PRINT 'Vista VW_ResumenTurnoActual no existe o ya es la del 35: sin cambios.'
 GO
 
 -- VW_LineasConEquipos

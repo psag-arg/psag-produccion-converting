@@ -13,6 +13,7 @@
 --      VigenteDesde = 2026-01-01, Habilitado = 1 y sin objetivos (las sigue listando Control de Proceso).
 --   4. ABM_TiposFalla.CuentaParaIndicadores BIT NOT NULL DEFAULT 1 (todas cuentan, como hasta ahora;
 --      qué tipos no cuentan lo define el cliente en Maestros).
+--      Y ABM_TiposFalla.RequiereDescripcion BIT NOT NULL DEFAULT 0 si falta (la lee EF; 04 no la creaba).
 --   5. ABM_Turnos: horarios de planta T1 05:00-13:00, T2 13:00-21:00, T3 21:00-05:00 (8 h cada uno),
 --      por Codigo. Los registros ya cargados no cambian de turno (TurnoId materializado).
 -- Versión: 1.0
@@ -248,6 +249,19 @@ ELSE
     PRINT 'Columna ABM_TiposFalla.CuentaParaIndicadores ya existía.'
 GO
 
+-- ABM_TiposFalla.RequiereDescripcion: la mapea el modelo de EF (TipoFalla) desde siempre, pero 04_create_tables.sql
+-- no la crea (sólo la tiene DetallesFalla). Si falta, la API falla al leer tipos de falla. Se agrega con 0.
+-- El rollback no la quita (la versión anterior de la API también la lee).
+IF COL_LENGTH(N'mnt.ABM_TiposFalla', N'RequiereDescripcion') IS NULL
+BEGIN
+    ALTER TABLE [mnt].[ABM_TiposFalla]
+        ADD [RequiereDescripcion] BIT NOT NULL CONSTRAINT [DF_ABM_TiposFalla_RequiereDescripcion] DEFAULT 0;
+    PRINT 'Columna ABM_TiposFalla.RequiereDescripcion agregada (faltaba; todos los tipos en 0).'
+END
+ELSE
+    PRINT 'Columna ABM_TiposFalla.RequiereDescripcion ya existía.'
+GO
+
 -- ============================================================================
 -- 5. ABM_Turnos: horarios de planta confirmados (T1 05-13, T2 13-21, T3 21-05, 8 h cada uno).
 --    Se imprime el horario anterior de cada turno que cambia (queda en el log del deploy).
@@ -290,7 +304,7 @@ DECLARE @CantidadCambios INT = (SELECT COUNT(*) FROM @Cambios);
 PRINT CONCAT(N'Turnos corregidos: ', @CantidadCambios, N'.');
 
 IF EXISTS (SELECT 1 FROM @Turnos n WHERE NOT EXISTS (SELECT 1 FROM [mnt].[ABM_Turnos] t WHERE t.[Codigo] = n.[Codigo]))
-    PRINT 'AVISO: falta algún turno T1/T2/T3 en ABM_Turnos (no se crea: revisar en Configuración → Turnos).'
+    PRINT N'AVISO: falta algún turno T1/T2/T3 en ABM_Turnos (no se crea: revisar en Configuración → Turnos).'
 GO
 
 PRINT 'Script 32_t798_maestros_productos.sql completado.'

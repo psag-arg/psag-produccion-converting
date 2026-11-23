@@ -12,6 +12,11 @@ public class LineaConfiguration : IEntityTypeConfiguration<Linea>
 
         builder.HasKey(x => x.LineaId);
 
+        // Como en la base (04_create_tables.sql: NVARCHAR(50)).
+        builder.Property(x => x.Codigo)
+            .IsRequired()
+            .HasMaxLength(50);
+
         builder.Property(x => x.Nombre)
             .IsRequired()
             .HasMaxLength(100);

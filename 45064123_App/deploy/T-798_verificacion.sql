@@ -1,7 +1,7 @@
 -- ==============================================================================
 -- T-798_verificacion.sql · Consultas de verificación después del deploy de T-798 (scripts 31 a 38).
 -- SOLO LECTURA: sólo SELECT (no cambia nada). Se puede correr las veces que haga falta.
---   sqlcmd -S localhost\SQLEXPRESS -d PSAG_Mantenimiento -I -f 65001 -W -s "|" -i T-798_verificacion.sql -o verificacion.txt
+--   sqlcmd -S <servidor> -d PSAG_Mantenimiento -I -f 65001 -W -s "|" -i T-798_verificacion.sql -o verificacion.txt
 -- Cada bloque dice qué valor se espera. Si algo da distinto, NO publicar la API: avisar a Emiliano con la salida.
 -- Los conteos "antes" son los del archivo conteos_antes.txt que se sacó antes de correr los scripts (paso 3 del
 -- T-798_DEPLOY.md): tienen que coincidir con los de las tablas nuevas.
@@ -82,7 +82,7 @@ FROM [mnt].[PRD_TurnosProduccion] tp
 WHERE tp.[ObservacionCierre] LIKE N'Convertido (T-798 etapa %'
   AND EXISTS (SELECT 1 FROM [mnt].[PRD_TurnosProduccionProductos] p WHERE p.[TurnoProduccionId] = tp.[TurnoProduccionId]);
 
-PRINT '== 10. Excepción 05:00-06:00 (T3 viejo → T1): registros movidos por el 38 (los del 35/36 se ven en su log)';
+PRINT N'== 10. Excepción 05:00-06:00 (T3 viejo → T1): registros movidos por el 38 (los del 35/36 se ven en su log)';
 SELECT [Tabla], COUNT(*) AS [MovidosAlT1] FROM [mnt].[PRD_ConversionRegistrosT798] WHERE [Excepcion0506] = 1 GROUP BY [Tabla];
 
 PRINT '== 11. Detenciones colgadas de un turno cuya ventana no contiene la hora de parada (esperado: 0 o muy pocas: si hay, son detenciones a las que el operario les eligió otro turno; listarlas y revisar con Emiliano)';

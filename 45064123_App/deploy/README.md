@@ -27,7 +27,8 @@ Sistema de control de paradas y variables de proceso para líneas de Converting.
 - **OS**: Windows Server 2022 (verificado en 2K22RECIMG)
 - **RAM**: 2 GB libres mínimo (recomendado 4 GB)
 - **Disco**: 1 GB para aplicación + espacio para logs
-- **Base de Datos**: SQLite (incluida) o SQL Server Express 2019+
+- **Base de Datos**: SQL Server (Express según Emiliano; versión exacta de producción a confirmar). Los datos de
+  producción van a SQL Server; SQLite es sólo para desarrollo local (la API lo detecta por la cadena de conexión).
 
 ---
 
@@ -70,14 +71,14 @@ Sistema de control de paradas y variables de proceso para líneas de Converting.
 # 3. Crear Windows Service para API
 .\04-Crear-Servicio-API.ps1 -InstallPath "C:\PSAG_Mantenimiento"
 
-# 4. Configurar base de datos (SQLite por defecto)
-.\05-Configurar-BaseDatos.ps1 -InstallPath "C:\PSAG_Mantenimiento"
+# 4. Configurar base de datos (SQL Server; -SqlInstance = la instancia donde está la base:
+#    localhost\SQLEXPRESS o el SQL central PSAG-SQL 172.16.12.189, a definir con IT)
+.\05-Configurar-BaseDatos.ps1 -SqlInstance "localhost\SQLEXPRESS" -UseSqlServer
 
-# O para SQL Server:
-# .\05-Configurar-BaseDatos.ps1 -SqlInstance "localhost\SQLEXPRESS" -UseSqlServer
+# (Sin -SqlInstance / -UseSqlServer el 05 configura SQLite: sólo para desarrollo, no para producción.)
 ```
 
-**Opcion Rapida (todo en uno con SQLite):**
+**Opcion Rapida (todo en uno; revisar que use SQL Server, no SQLite):**
 ```powershell
 .\00-Instalacion-Completa.ps1 -InstallPath "C:\PSAG_Mantenimiento"
 ```

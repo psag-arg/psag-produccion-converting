@@ -1,12 +1,27 @@
 # T-798 · Deploy en producción (modelo de producción: el turno)
 
-Para Francisco / Emiliano. Servidor **2k22recimgProd (172.16.18.52)**, base **SQL Server** `PSAG_Mantenimiento`
-en `localhost\SQLEXPRESS`. Rama `agente-psag-conv/T-798` (etapas 1 a 7).
+Para Francisco / Emiliano. Servidor de la app **2k22recimgProd (172.16.18.52)**; base **SQL Server**
+`PSAG_Mantenimiento`. Rama `agente-psag-conv/T-798` (etapas 1 a 7).
 
-> **ADVERTENCIA.** Los scripts SQL 31 a 38 **no se probaron contra SQL Server**: no hay una base SQL Server de DEV
-> (en DEV se corre SQLite y el esquema lo crea la API). Se revisaron a mano (orden, dependencias, idempotencia y
-> rollback). **Correrlos primero en una copia de la base** (restaurar el backup del paso 2 como
+> **¿En qué instancia está la base? (a definir con IT antes del deploy).** Los comandos usan `-S $srv`. Los scripts de
+> instalación asumían `localhost\SQLEXPRESS` (SQL en el mismo servidor de la app), pero el plan es tener los datos en el
+> SQL central **PSAG-SQL 172.16.12.189**. Definir `$srv` en el paso 2 con la instancia real. Si es el 189:
+> - `-E` (Windows) sólo sirve si el usuario que corre los comandos tiene permisos ahí; si no, login SQL con la clave en
+>   `$env:SQLCMDPASSWORD` (nunca `-P` en la línea de comandos);
+> - las rutas de `BACKUP`/`RESTORE` (`C:\Backups\...`) son del servidor SQL, no del de la app.
+>
+> Versión exacta de SQL Server de producción: **no está en el repo** (sólo dice "2019 o superior"). Pregunta abierta.
+
+> **Probado en SQL Server DEV (23/11/2026)**: SQL Server 2022 (16.0, compatibilidad 160), base `PSAG_Mantenimiento_DEV`,
+> intercalación `Latin1_General_CI_AS` con la del servidor distinta (`SQL_Latin1_General_CP1_CI_AS`). Base armada con los
+> mismos scripts que producción (02-08, 17, 18, 11, 12, 19-30) más datos de prueba (`database/dev/`), y sobre ella:
+> 31→38, verificación, rollback 38→31, de nuevo 31→38 corriendo cada script dos veces, y 31→38 otra vez completo. Todo sin
+> errores después de las correcciones (intercalación de tempdb en 36 y 38, re-ejecución del 31 después del 35/36,
+> índices que el rollback de 35/36 no dejaba como estaban, turno original de la excepción 05-06 en el rollback del 36).
+> Igual: **correrlos primero en una copia de la base de producción** (restaurar el backup del paso 2 como
 > `PSAG_Mantenimiento_PRUEBA`, cambiar el `-d` de los comandos y revisar la salida) y recién después en la real.
+> En DEV los scripts se corren con un filtro que cambia `USE [PSAG_Mantenimiento]` por el nombre de la base de DEV; en
+> producción van tal cual.
 
 Duración estimada: 1 hora con la verificación. Hacerlo en un horario sin producción (o avisar: mientras dure, no
 hay carga de detenciones ni conteo de cámaras).
@@ -53,14 +68,15 @@ quedado en el T3 por el horario viejo 21–06 pasa al T1 de ese día. Los turnos
 
 ## 2. Backup (en el servidor, como Administrador)
 
-Hacer los pasos 2 a 9 en **la misma ventana de PowerShell** (usan las variables `$app`, `$f` y `$log`).
+Hacer los pasos 2 a 9 en **la misma ventana de PowerShell** (usan las variables `$app`, `$srv`, `$f` y `$log`).
 
 1. Backup completo de la base (SSMS o `sqlcmd`):
 
    ```powershell
+   $srv = "localhost\SQLEXPRESS"   # <-- la instancia donde está la base (ver nota arriba: ¿o PSAG-SQL 172.16.12.189?)
    $f = Get-Date -Format yyyyMMdd_HHmm
-   sqlcmd -S localhost\SQLEXPRESS -E -b -Q "BACKUP DATABASE [PSAG_Mantenimiento] TO DISK = N'C:\Backups\PSAG_Mantenimiento_antes_T798_$f.bak' WITH INIT, CHECKSUM, COPY_ONLY, STATS = 10"
-   sqlcmd -S localhost\SQLEXPRESS -E -b -Q "RESTORE VERIFYONLY FROM DISK = N'C:\Backups\PSAG_Mantenimiento_antes_T798_$f.bak' WITH CHECKSUM"
+   sqlcmd -S $srv -E -b -Q "BACKUP DATABASE [PSAG_Mantenimiento] TO DISK = N'C:\Backups\PSAG_Mantenimiento_antes_T798_$f.bak' WITH INIT, CHECKSUM, COPY_ONLY, STATS = 10"
+   sqlcmd -S $srv -E -b -Q "RESTORE VERIFYONLY FROM DISK = N'C:\Backups\PSAG_Mantenimiento_antes_T798_$f.bak' WITH CHECKSUM"
    ```
 
    (La carpeta `C:\Backups` tiene que existir y el usuario del servicio de SQL tiene que poder escribir ahí.)
@@ -90,7 +106,7 @@ $log = "C:\Backups\T798_$f"
 
    ```powershell
    cd $app\deploy
-   sqlcmd -S localhost\SQLEXPRESS -d PSAG_Mantenimiento -I -b -f 65001 -W -i T-798_conteos_antes.sql -o C:\Backups\T798_$f\conteos_antes.txt
+   sqlcmd -S $srv -d PSAG_Mantenimiento -I -b -f 65001 -W -i T-798_conteos_antes.sql -o C:\Backups\T798_$f\conteos_antes.txt
    ```
 
 ## 4. Scripts SQL, en orden
@@ -106,13 +122,13 @@ foreach ($s in "31_t798_renombre_por_modulo", "32_t798_maestros_productos", "33_
                "34_t798_turnos_produccion", "35_t798_detenciones_turno", "36_t798_camaras",
                "37_t798_indicadores", "38_t798_conversion_turnos") {
     Write-Host "== $s"
-    sqlcmd -S localhost\SQLEXPRESS -d PSAG_Mantenimiento -I -b -f 65001 -i "$s.sql" -o "$log\$s.txt"
+    sqlcmd -S $srv -d PSAG_Mantenimiento -I -b -f 65001 -i "$s.sql" -o "$log\$s.txt"
     Get-Content "$log\$s.txt" -Tail 15
     if ($LASTEXITCODE -ne 0) { Write-Host "ERROR en $s: NO seguir. Revisar $log\$s.txt" -ForegroundColor Red; break }
 }
 ```
 
-(Equivalente a mano: `sqlcmd -S localhost\SQLEXPRESS -d PSAG_Mantenimiento -I -b -f 65001 -i <script>`.)
+(Equivalente a mano: `sqlcmd -S $srv -d PSAG_Mantenimiento -I -b -f 65001 -i <script>`.)
 
 Qué mirar en la salida:
 - **32**: imprime el horario anterior de cada turno que cambió (queda en el log).
@@ -124,7 +140,7 @@ Qué mirar en la salida:
 
 ```powershell
 cd $app\deploy
-sqlcmd -S localhost\SQLEXPRESS -d PSAG_Mantenimiento -I -b -f 65001 -W -s "|" -i T-798_verificacion.sql -o "$log\verificacion.txt"
+sqlcmd -S $srv -d PSAG_Mantenimiento -I -b -f 65001 -W -s "|" -i T-798_verificacion.sql -o "$log\verificacion.txt"
 notepad "$log\verificacion.txt"
 ```
 
@@ -222,7 +238,7 @@ cd $app\database
 foreach ($s in "38_t798_conversion_turnos_rollback", "37_t798_indicadores_rollback", "36_t798_camaras_rollback",
                "35_t798_detenciones_turno_rollback", "34_t798_turnos_produccion_rollback", "33_t798_datos_tango2_rollback",
                "32_t798_maestros_productos_rollback", "31_t798_renombre_por_modulo_rollback") {
-    sqlcmd -S localhost\SQLEXPRESS -d PSAG_Mantenimiento -I -b -f 65001 -i "$s.sql" -o "$log\$s.txt"
+    sqlcmd -S $srv -d PSAG_Mantenimiento -I -b -f 65001 -i "$s.sql" -o "$log\$s.txt"
     if ($LASTEXITCODE -ne 0) { Write-Host "Se detuvo en $s (ver $log\$s.txt)" -ForegroundColor Red; break }
 }
 ```
@@ -233,7 +249,7 @@ foreach ($s in "38_t798_conversion_turnos_rollback", "37_t798_indicadores_rollba
 - **Último recurso**: restore del backup del paso 2 (se pierde todo lo cargado después del backup):
 
   ```powershell
-  sqlcmd -S localhost\SQLEXPRESS -E -b -Q "ALTER DATABASE [PSAG_Mantenimiento] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; RESTORE DATABASE [PSAG_Mantenimiento] FROM DISK = N'C:\Backups\PSAG_Mantenimiento_antes_T798_<fecha>.bak' WITH REPLACE; ALTER DATABASE [PSAG_Mantenimiento] SET MULTI_USER;"
+  sqlcmd -S $srv -E -b -Q "ALTER DATABASE [PSAG_Mantenimiento] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; RESTORE DATABASE [PSAG_Mantenimiento] FROM DISK = N'C:\Backups\PSAG_Mantenimiento_antes_T798_<fecha>.bak' WITH REPLACE; ALTER DATABASE [PSAG_Mantenimiento] SET MULTI_USER;"
   ```
 
 ## 10. Al terminar

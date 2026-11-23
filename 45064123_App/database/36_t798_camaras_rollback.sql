@@ -5,9 +5,10 @@
 --      punto de control (mismo código; si ya hay un punto con ese código, se usa ése).
 --   2. CAL_PuntosControl recupera NumeroCamara, MetodoConteo, CreaDetenciones, MinutosUmbralDetencion,
 --      SegundosUmbralDetencion, ObjetivoPorHora y EquipoId, con los valores ACTUALES de la cámara (el objetivo, del
---      respaldo). Los puntos que el script desactivó por ser sólo cámara se reactivan.
+--      respaldo; el umbral, del respaldo si no cambió). Los puntos que el script desactivó por ser sólo cámara se reactivan.
 --   3. CAM_ConteosMinuto, CAM_Paradas, CAM_Alertas y DET_Detenciones recuperan PuntoControlCalidadId (y los CAM_,
---      LineaId; conteos y paradas, TurnoId desde su turno de producción), con los nombres de FK e índices de los
+--      LineaId; conteos y paradas, TurnoId desde su turno de producción, salvo los de la excepción 05:00-06:00, que
+--      recuperan el turno original de mnt.CAM_ExcepcionTurnoT798), con los nombres de FK e índices de los
 --      scripts 25 y 26. CAM_ConteosMinuto.Cantidad vuelve a llamarse Rollos.
 --   4. Elimina CamaraId (y TurnoProduccionId de conteos y paradas), CAM_Camaras y el respaldo.
 --   Los turnos de producción que creó la conversión quedan: los elimina 35_t798_detenciones_turno_rollback.sql.
@@ -52,10 +53,13 @@ BEGIN
     SET NOCOUNT ON;
     DECLARE @Id INT = OBJECT_ID(@Tabla);
     IF @Id IS NULL RETURN;
-    DECLARE @Viejas TABLE ([column_id] INT PRIMARY KEY, [name] SYSNAME);
+    DECLARE @Viejas TABLE ([column_id] INT PRIMARY KEY, [name] SYSNAME COLLATE Latin1_General_CI_AS);
     INSERT INTO @Viejas
     SELECT c.[column_id], c.[name] FROM sys.columns c
-    WHERE c.[object_id] = @Id AND c.[name] IN (SELECT LTRIM(RTRIM([value])) FROM STRING_SPLIT(@Columnas, N','));
+    WHERE c.[object_id] = @Id
+      -- Sin STRING_SPLIT: un procedimiento temporal compila con la intercalación de tempdb y choca con la de la base.
+      AND (N',' + REPLACE(@Columnas COLLATE Latin1_General_CI_AS, N' ', N'') + N',')
+          LIKE (N'%,' + c.[name] COLLATE Latin1_General_CI_AS + N',%');
     IF NOT EXISTS (SELECT 1 FROM @Viejas) RETURN;
 
     DECLARE @Sql NVARCHAR(MAX), @Nombre SYSNAME, @EsRestriccion BIT;
@@ -77,7 +81,7 @@ BEGIN
         SELECT cc.[name] FROM sys.check_constraints cc
         WHERE cc.[parent_object_id] = @Id
           AND (cc.[parent_column_id] IN (SELECT [column_id] FROM @Viejas)
-               OR EXISTS (SELECT 1 FROM @Viejas v WHERE cc.[definition] LIKE N'%[[]' + v.[name] + N']%'))
+               OR EXISTS (SELECT 1 FROM @Viejas v WHERE cc.[definition] COLLATE Latin1_General_CI_AS LIKE N'%[[]' + v.[name] + N']%'))
         UNION
         SELECT dc.[name] FROM sys.default_constraints dc
         WHERE dc.[parent_object_id] = @Id AND dc.[parent_column_id] IN (SELECT [column_id] FROM @Viejas);
@@ -212,10 +216,17 @@ BEGIN
             p.[MetodoConteo] = CASE c.[Magnitud] WHEN N''ROLLOS'' THEN N''CARRILES'' WHEN N''MANGAS'' THEN N''MANGAS''
                                                  WHEN N''BOLSONES'' THEN N''BOLSONES'' END,
             p.[CreaDetenciones] = c.[CreaDetenciones],
-            p.[MinutosUmbralDetencion] = CASE WHEN c.[UmbralDetencionSegundos] % 60 = 0 AND c.[UmbralDetencionSegundos] / 60 BETWEEN 1 AND 240
+            -- Si el umbral de la cámara no cambió desde la migración, vuelven los valores exactos del respaldo.
+            p.[MinutosUmbralDetencion] = CASE WHEN r.[MinutosUmbralDetencion] IS NOT NULL
+                                                   AND c.[UmbralDetencionSegundos] = COALESCE(r.[SegundosUmbralDetencion], r.[MinutosUmbralDetencion] * 60)
+                                              THEN r.[MinutosUmbralDetencion]
+                                              WHEN c.[UmbralDetencionSegundos] % 60 = 0 AND c.[UmbralDetencionSegundos] / 60 BETWEEN 1 AND 240
                                               THEN c.[UmbralDetencionSegundos] / 60
                                               ELSE ISNULL(r.[MinutosUmbralDetencion], 5) END,
-            p.[SegundosUmbralDetencion] = CASE WHEN c.[UmbralDetencionSegundos] % 60 = 0 THEN NULL ELSE c.[UmbralDetencionSegundos] END,
+            p.[SegundosUmbralDetencion] = CASE WHEN r.[MinutosUmbralDetencion] IS NOT NULL
+                                                    AND c.[UmbralDetencionSegundos] = COALESCE(r.[SegundosUmbralDetencion], r.[MinutosUmbralDetencion] * 60)
+                                               THEN r.[SegundosUmbralDetencion]
+                                               WHEN c.[UmbralDetencionSegundos] % 60 = 0 THEN NULL ELSE c.[UmbralDetencionSegundos] END,
             p.[ObjetivoPorHora] = r.[ObjetivoPorHora],
             p.[Activo] = CASE WHEN r.[Desactivado] = 1 THEN r.[ActivoAntes] ELSE p.[Activo] END
         FROM [mnt].[CAL_PuntosControl] p
@@ -298,6 +309,27 @@ BEGIN
 END
 GO
 
+-- Excepción 05:00-06:00: los conteos y paradas que el 36 pasó del T3 al T1 vuelven a su turno original.
+IF OBJECT_ID(N'mnt.CAM_ExcepcionTurnoT798', N'U') IS NOT NULL
+   AND COL_LENGTH(N'mnt.CAM_ConteosMinuto', N'TurnoId') IS NOT NULL
+   AND COL_LENGTH(N'mnt.CAM_Paradas', N'TurnoId') IS NOT NULL
+BEGIN
+    SET XACT_ABORT ON;
+    BEGIN TRANSACTION;
+    EXEC sys.sp_executesql N'
+        UPDATE m SET m.[TurnoId] = r.[TurnoIdOriginal]
+        FROM [mnt].[CAM_ConteosMinuto] m
+        INNER JOIN [mnt].[CAM_ExcepcionTurnoT798] r ON r.[Tabla] = ''M'' AND r.[Id] = m.[ConteoCamaraMinutoId];
+        PRINT CONCAT(''Conteos de 05:00 a 06:00 que vuelven a su turno original: '', @@ROWCOUNT);
+        UPDATE p SET p.[TurnoId] = r.[TurnoIdOriginal]
+        FROM [mnt].[CAM_Paradas] p
+        INNER JOIN [mnt].[CAM_ExcepcionTurnoT798] r ON r.[Tabla] = ''P'' AND r.[Id] = p.[ParadaCamaraId];
+        PRINT CONCAT(''Paradas de 05:00 a 06:00 que vuelven a su turno original: '', @@ROWCOUNT);';
+    DROP TABLE [mnt].[CAM_ExcepcionTurnoT798];
+    COMMIT TRANSACTION;
+END
+GO
+
 IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'mnt.CAM_ConteosMinuto') AND name = N'LineaId' AND is_nullable = 1)
 BEGIN
     ALTER TABLE [mnt].[CAM_ConteosMinuto] ALTER COLUMN [LineaId] INT NOT NULL;
@@ -342,7 +374,15 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'mnt.CAM_C
     CREATE UNIQUE INDEX [UX_ConteosCamaraMinuto_Punto_Minuto_Carril] ON [mnt].[CAM_ConteosMinuto] ([PuntoControlCalidadId], [Minuto], [Carril]);
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'mnt.CAM_ConteosMinuto') AND name = N'IX_ConteosCamaraMinuto_Linea_Minuto')
-    CREATE INDEX [IX_ConteosCamaraMinuto_Linea_Minuto] ON [mnt].[CAM_ConteosMinuto] ([LineaId], [Minuto]);
+BEGIN
+    -- Igual que el 25 (con INCLUDE). Cantidad vuelve a llamarse Rollos más abajo: se incluye la que exista
+    -- (es la misma columna).
+    DECLARE @IxSql NVARCHAR(MAX) = N'CREATE INDEX [IX_ConteosCamaraMinuto_Linea_Minuto] ON [mnt].[CAM_ConteosMinuto] ([LineaId], [Minuto]) INCLUDE ([Carril], '
+        + QUOTENAME(CASE WHEN COL_LENGTH(N'mnt.CAM_ConteosMinuto', N'Rollos') IS NOT NULL THEN N'Rollos' ELSE N'Cantidad' END) + N', [Estado]);';
+    EXEC sys.sp_executesql @IxSql;
+END
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'mnt.CAM_ConteosMinuto') AND name = N'IX_ConteosCamaraMinuto_PuntoControlCalidadId')
+    CREATE INDEX [IX_ConteosCamaraMinuto_PuntoControlCalidadId] ON [mnt].[CAM_ConteosMinuto] ([PuntoControlCalidadId]);
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'mnt.CAM_ConteosMinuto') AND name = N'IX_ConteosCamaraMinuto_TurnoId')
     CREATE INDEX [IX_ConteosCamaraMinuto_TurnoId] ON [mnt].[CAM_ConteosMinuto] ([TurnoId]);

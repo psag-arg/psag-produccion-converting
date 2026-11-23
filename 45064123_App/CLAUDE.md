@@ -14,9 +14,14 @@ dotnet test
 dotnet publish src/PSAG.Mantenimiento.Api -c Release -o publish/api
 dotnet publish src/PSAG.Mantenimiento.Web -c Release -o publish/web
 
-# Base de datos (ejecutar scripts en orden)
-# database/01_create_database.sql hasta 99_drop_objects_development_only.sql
+# Base de datos: SQL Server. Scripts de database/ en orden (ver database/README.md:
+# producción corrió 02-08, 17, 18, 11, 12, 19-30 y T-798 31-38; 09/15/16/99 son sólo demo/desarrollo).
+# DEV/TEST sobre SQL Server: database/dev/ (limpiar base y datos de prueba; no va a producción).
 ```
+
+**Base de datos de producción: SQL Server** (Express según Emiliano; la versión exacta está por confirmar; los datos
+pasan al SQL central PSAG-SQL 172.16.12.189). SQLite sólo se usa en desarrollo local (la API elige el proveedor por la
+cadena de conexión y con SQLite crea el esquema con `EnsureCreated`; con SQL Server el esquema lo crean los scripts).
 
 ## Trampas críticas - LEER ANTES DE TOCAR
 
@@ -48,10 +53,13 @@ Si mañana cambian el estándar, el registro histórico sigue mostrando contra q
 
 **NO hagas JOIN al estándar vigente para "optimizar". Rompe la consulta histórica.**
 
-### 4. Turno materializado
+### 4. Turno de producción materializado
 
-El turno se deriva automáticamente de la fecha/hora y se guarda como `TurnoId` en el registro.
-**NO lo recalcules al consultar.** Si cambian los horarios de turno, los registros históricos mantienen el turno al que pertenecieron.
+Cada detención, conteo, parada y registro de proceso/calidad guarda `TurnoProduccionId` (`PRD_TurnosProduccion`:
+línea + turno + fecha de producción). **Fecha y turno salen de ahí**: no se recalculan desde la hora ni desde los
+horarios de `ABM_Turnos`. El T3 (21–05) es **un solo turno, del día en que empieza** (lo de las 02:00 del 20 es del T3
+del 19). Única excepción, aplicada una sola vez en la conversión T-798 (scripts 35, 36 y 38): lo de 05:00–06:00 que había
+quedado en el T3 viejo (21–06) pasó al T1 de ese día.
 
 ### 5. Estado REGISTRADA = dato completo
 
@@ -99,6 +107,17 @@ Si la app se queda en 99% cargando con errores de `integrity` en consola:
 Usar `data-bs-theme="dark|light"` en el `<html>` (Bootstrap 5.3 nativo).
 El toggle está en MainLayout. **No usar CSS custom para colores de tema.**
 
+### 11. EF no traduce `x.Id != (id ?? 0)` dentro de Where/Any
+
+Calculá el valor antes en una variable (`var excluir = id ?? 0;` y después `x.Id != excluir`).
+
+### 12. Prefijo de tabla por módulo (T-798)
+
+Las tablas tienen prefijo por módulo: `ABM_`, `PRD_`, `CAM_`, `DET_`, `MNT_`, `CPR_`, `INS_`, `CAL_` (esquema `mnt`;
+`AspNet*` y `Auditoria` sin prefijo). Las clases C# que sólo cambiaron de tabla **conservan el nombre viejo**
+(`Detencion` ↔ `DET_Detenciones`, `TipoFalla` ↔ `ABM_TiposFalla`). Buscá la tabla en la configuración de EF
+(`ToTable`), no por el nombre de la clase.
+
 ## Lo que NUNCA hacer
 
 - Endpoints de DELETE para registros de negocio
@@ -107,7 +126,7 @@ El toggle está en MainLayout. **No usar CSS custom para colores de tema.**
 - Confiar en cálculos del cliente (validar siempre en backend)
 - Usar `MinutosDeclarados` directamente
 - JOIN a estándares vigentes en consultas históricas
-- Recalcular turno en cada consulta
+- Recalcular turno o fecha de producción en cada consulta (usar `TurnoProduccionId`)
 
 ## Convenciones
 

@@ -88,7 +88,7 @@ BEGIN TRANSACTION;
 
 -- Pendientes: turno materializado (si lo hay), instante y fecha declarada.
 CREATE TABLE #Pendientes (
-    [Tabla] VARCHAR(20) NOT NULL, [RegistroId] BIGINT NOT NULL, [LineaId] INT NOT NULL,
+    [Tabla] VARCHAR(20) COLLATE DATABASE_DEFAULT NOT NULL, [RegistroId] BIGINT NOT NULL, [LineaId] INT NOT NULL,  -- sin COLLATE toma la de tempdb
     [TurnoMaterializadoId] INT NULL, [Instante] DATETIMEOFFSET NULL, [FechaDeclarada] DATE NULL);
 
 INSERT INTO #Pendientes

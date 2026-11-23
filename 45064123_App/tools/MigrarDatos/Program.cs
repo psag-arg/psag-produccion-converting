@@ -15,20 +15,38 @@ Console.WriteLine("  SQL Server -> SQLite");
 Console.WriteLine("==========================================");
 Console.WriteLine();
 
-// Connection strings
-string sqlServerConn = "Server=PILLOWSRV001;Database=PSAG_Mantenimiento;User Id=sa;Password=P177Ow_SQLsALog1n;TrustServerCertificate=True;";
+// Cadena de conexión de SQL Server (origen): NUNCA escrita en el código.
+//   1. argumento --sqlserver "<cadena>"  (tiene prioridad), o
+//   2. variable de entorno PSAG_MIGRAR_SQLSERVER.
+// El primer argumento que no sea --sqlserver sigue siendo la ruta del SQLite de destino.
+var argsLibres = new List<string>();
+string? sqlServerConn = Environment.GetEnvironmentVariable("PSAG_MIGRAR_SQLSERVER");
+for (int i = 0; i < args.Length; i++)
+{
+    if (string.Equals(args[i], "--sqlserver", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+        sqlServerConn = args[++i];
+    else
+        argsLibres.Add(args[i]);
+}
+if (string.IsNullOrWhiteSpace(sqlServerConn))
+{
+    Console.WriteLine("Falta la cadena de conexión de SQL Server: pasarla con --sqlserver \"<cadena>\" o en la variable de entorno PSAG_MIGRAR_SQLSERVER.");
+    Environment.Exit(2);
+}
 string sqlitePath = @"C:\Temp\PSAG_Migration\mantenimiento.db";
 
 // Verificar argumentos para override de rutas
-if (args.Length >= 1)
+if (argsLibres.Count >= 1)
 {
-    sqlitePath = args[0];
+    sqlitePath = argsLibres[0];
     Console.WriteLine($"SQLite path override: {sqlitePath}");
 }
 
 string sqliteConn = $"Data Source={sqlitePath}";
 
-Console.WriteLine($"SQL Server: PILLOWSRV001\\PSAG_Mantenimiento");
+// Sólo servidor y base (nunca la cadena completa: tiene la clave).
+var origen = new SqlConnectionStringBuilder(sqlServerConn);
+Console.WriteLine($"SQL Server: {origen.DataSource}\\{origen.InitialCatalog}");
 Console.WriteLine($"SQLite: {sqlitePath}");
 Console.WriteLine();
 

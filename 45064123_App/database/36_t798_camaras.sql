@@ -73,10 +73,13 @@ BEGIN
     SET NOCOUNT ON;
     DECLARE @Id INT = OBJECT_ID(@Tabla);
     IF @Id IS NULL RETURN;
-    DECLARE @Viejas TABLE ([column_id] INT PRIMARY KEY, [name] SYSNAME);
+    DECLARE @Viejas TABLE ([column_id] INT PRIMARY KEY, [name] SYSNAME COLLATE Latin1_General_CI_AS);
     INSERT INTO @Viejas
     SELECT c.[column_id], c.[name] FROM sys.columns c
-    WHERE c.[object_id] = @Id AND c.[name] IN (SELECT LTRIM(RTRIM([value])) FROM STRING_SPLIT(@Columnas, N','));
+    WHERE c.[object_id] = @Id
+      -- Sin STRING_SPLIT: un procedimiento temporal compila con la intercalación de tempdb y choca con la de la base.
+      AND (N',' + REPLACE(@Columnas COLLATE Latin1_General_CI_AS, N' ', N'') + N',')
+          LIKE (N'%,' + c.[name] COLLATE Latin1_General_CI_AS + N',%');
     IF NOT EXISTS (SELECT 1 FROM @Viejas) RETURN;
 
     DECLARE @Sql NVARCHAR(MAX), @Nombre SYSNAME;
@@ -98,7 +101,7 @@ BEGIN
         SELECT cc.[name] FROM sys.check_constraints cc
         WHERE cc.[parent_object_id] = @Id
           AND (cc.[parent_column_id] IN (SELECT [column_id] FROM @Viejas)
-               OR EXISTS (SELECT 1 FROM @Viejas v WHERE cc.[definition] LIKE N'%[[]' + v.[name] + N']%'))
+               OR EXISTS (SELECT 1 FROM @Viejas v WHERE cc.[definition] COLLATE Latin1_General_CI_AS LIKE N'%[[]' + v.[name] + N']%'))
         UNION
         SELECT dc.[name] FROM sys.default_constraints dc
         WHERE dc.[parent_object_id] = @Id AND dc.[parent_column_id] IN (SELECT [column_id] FROM @Viejas);
@@ -435,14 +438,13 @@ BEGIN
     SET XACT_ABORT ON;
     BEGIN TRANSACTION;
 
-    CREATE TABLE #Conversion ([Tabla] CHAR(1) NOT NULL, [Id] BIGINT NOT NULL, [LineaId] INT NOT NULL, [TurnoId] INT NOT NULL,
+    CREATE TABLE #Conversion ([Tabla] CHAR(1) COLLATE DATABASE_DEFAULT NOT NULL, [Id] BIGINT NOT NULL, [LineaId] INT NOT NULL, [TurnoId] INT NOT NULL,
                               [FechaProduccion] DATE NOT NULL, [Excepcion0506] BIT NOT NULL);
 
     -- Fecha de producción = día de inicio del turno materializado (hora de planta UTC-3; el T3 después de medianoche
     -- es del día anterior). La línea es la de la cámara.
     -- EXCEPCIÓN (2.11, igual que el 35): lo de 05:00 a 06:00 que quedó en el T3 por el horario viejo 21-06 pasa al T1
-    -- de ese día. El rollback les devuelve el TurnoId desde su turno de producción (T1, coherente con los horarios
-    -- corregidos, que el rollback del 32 no revierte salvo que se pida).
+    -- de ese día. El turno original queda en mnt.CAM_ExcepcionTurnoT798 y el rollback lo restaura.
     IF COL_LENGTH(N'mnt.CAM_ConteosMinuto', N'TurnoId') IS NOT NULL
         EXEC sys.sp_executesql N'
             INSERT INTO #Conversion ([Tabla], [Id], [LineaId], [TurnoId], [FechaProduccion], [Excepcion0506])
@@ -482,6 +484,21 @@ BEGIN
                                           AND h.[HoraLocal] >= t1.[HoraInicio] AND h.[HoraLocal] < CAST(''06:00'' AS TIME)
                                      THEN 1 ELSE 0 END AS [Excepcion0506]) x
             WHERE p.[TurnoProduccionId] IS NULL AND p.[TurnoId] IS NOT NULL;';
+
+    -- Respaldo del turno original (T3) de los que pasan al T1 por la excepción 05:00-06:00, para que el rollback
+    -- los deje exactamente como estaban.
+    IF OBJECT_ID(N'mnt.CAM_ExcepcionTurnoT798', N'U') IS NULL
+        CREATE TABLE [mnt].[CAM_ExcepcionTurnoT798] (
+            [Tabla] CHAR(1) NOT NULL,            -- M = CAM_ConteosMinuto, P = CAM_Paradas
+            [Id] BIGINT NOT NULL,
+            [TurnoIdOriginal] INT NOT NULL,
+            CONSTRAINT [PK_CAM_ExcepcionTurnoT798] PRIMARY KEY ([Tabla], [Id]));
+    INSERT INTO [mnt].[CAM_ExcepcionTurnoT798] ([Tabla], [Id], [TurnoIdOriginal])
+    SELECT c.[Tabla], c.[Id], t3.[TurnoId]
+    FROM #Conversion c
+    CROSS JOIN (SELECT TOP 1 [TurnoId] FROM [mnt].[ABM_Turnos] WHERE [Codigo] = N'T3') t3
+    WHERE c.[Excepcion0506] = 1
+      AND NOT EXISTS (SELECT 1 FROM [mnt].[CAM_ExcepcionTurnoT798] r WHERE r.[Tabla] = c.[Tabla] AND r.[Id] = c.[Id]);
 
     -- Turnos de producción que faltan (CERRADO por SISTEMA, sin operador ni producto: "a completar").
     INSERT INTO [mnt].[PRD_TurnosProduccion]
@@ -635,5 +652,5 @@ GO
 
 SET NOEXEC OFF;
 GO
-PRINT 'Script 36_t798_camaras.sql terminado. Revisar en Maestros → Cámaras qué cámaras quedan habilitadas.'
+PRINT N'Script 36_t798_camaras.sql terminado. Revisar en Maestros → Cámaras qué cámaras quedan habilitadas.'
 GO

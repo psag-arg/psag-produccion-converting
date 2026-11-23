@@ -8,7 +8,8 @@
 --        línea (ABM_OperadoresLinea), si la tiene.
 --      TurnoId y Fecha quedan NOT NULL, con FK_Detenciones_Turnos, FK_Detenciones_UsuariosLineas,
 --      IX_Detenciones_Fecha, IX_Detenciones_TurnoId e IX_Detenciones_UsuarioLineaId. Los índices que el 35 re-creó
---      sin la columna Fecha incluida (INCLUDE) quedan así (no cambia ningún resultado).
+--      sin TurnoId/Fecha (IX_Detenciones_EstadoActual, _LineaId, _LineaId_EstadoActual, _Linea_Turno_Fecha) vuelven
+--      a la definición del 05.
 --   2. Vistas VW_* de detenciones: vuelven a la versión del 31 (TurnoId y Fecha de la detención).
 --   3. Elimina DET_Detenciones.TurnoProduccionId y OperadorUsuarioId (con su FK e índices) y
 --      CPR_Registros.TurnoProduccionId / CAL_Registros.TurnoProduccionId.
@@ -121,6 +122,32 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'mnt.DET_D
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'mnt.DET_Detenciones') AND name = N'IX_Detenciones_UsuarioLineaId')
     CREATE INDEX [IX_Detenciones_UsuarioLineaId] ON [mnt].[DET_Detenciones] ([UsuarioLineaId]);
+GO
+-- Índices que el 35 re-creó sin TurnoId/Fecha: vuelven a la definición del 05 (si no tienen ya la columna Fecha).
+DECLARE @Ix TABLE ([Nombre] SYSNAME, [Sql] NVARCHAR(MAX));
+INSERT INTO @Ix VALUES
+    (N'IX_Detenciones_EstadoActual', N'CREATE INDEX [IX_Detenciones_EstadoActual] ON [mnt].[DET_Detenciones] ([EstadoActual]) INCLUDE ([Codigo], [LineaId], [Fecha])'),
+    (N'IX_Detenciones_LineaId', N'CREATE INDEX [IX_Detenciones_LineaId] ON [mnt].[DET_Detenciones] ([LineaId]) INCLUDE ([Codigo], [EstadoActual], [Fecha])'),
+    (N'IX_Detenciones_LineaId_EstadoActual', N'CREATE INDEX [IX_Detenciones_LineaId_EstadoActual] ON [mnt].[DET_Detenciones] ([LineaId], [EstadoActual]) INCLUDE ([Codigo], [Fecha])'),
+    (N'IX_Detenciones_Linea_Turno_Fecha', N'CREATE INDEX [IX_Detenciones_Linea_Turno_Fecha] ON [mnt].[DET_Detenciones] ([LineaId], [TurnoId], [Fecha]) INCLUDE ([Codigo], [EstadoActual], [MinutosEfectivos])');
+DECLARE @IxNombre SYSNAME, @IxSql NVARCHAR(MAX);
+DECLARE ix CURSOR LOCAL FAST_FORWARD FOR SELECT [Nombre], [Sql] FROM @Ix;
+OPEN ix; FETCH NEXT FROM ix INTO @IxNombre, @IxSql;
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes i
+                   INNER JOIN sys.index_columns ic ON ic.[object_id] = i.[object_id] AND ic.[index_id] = i.[index_id]
+                   WHERE i.[object_id] = OBJECT_ID(N'mnt.DET_Detenciones') AND i.[name] = @IxNombre
+                     AND ic.[column_id] = COLUMNPROPERTY(OBJECT_ID(N'mnt.DET_Detenciones'), N'Fecha', 'ColumnId'))
+    BEGIN
+        SET @IxSql = @IxSql + CASE WHEN EXISTS (SELECT 1 FROM sys.indexes WHERE [object_id] = OBJECT_ID(N'mnt.DET_Detenciones') AND [name] = @IxNombre)
+                                   THEN N' WITH (DROP_EXISTING = ON);' ELSE N';' END;
+        EXEC sys.sp_executesql @IxSql;
+        PRINT N'Índice restaurado como en el 05: ' + @IxNombre;
+    END
+    FETCH NEXT FROM ix INTO @IxNombre, @IxSql;
+END
+CLOSE ix; DEALLOCATE ix;
 GO
 
 -- ============================================================================

@@ -1,7 +1,7 @@
 -- ==============================================================================
 -- T-798_conteos_antes.sql · Conteos de las tablas ANTES del deploy de T-798 (paso 3 del T-798_DEPLOY.md).
 -- SOLO LECTURA. Guardar la salida (conteos_antes.txt) para compararla con T-798_verificacion.sql (bloque 3).
---   sqlcmd -S localhost\SQLEXPRESS -d PSAG_Mantenimiento -I -f 65001 -W -i T-798_conteos_antes.sql -o conteos_antes.txt
+--   sqlcmd -S <servidor> -d PSAG_Mantenimiento -I -f 65001 -W -i T-798_conteos_antes.sql -o conteos_antes.txt
 -- Una tabla que no existe en esta base sale con -1.
 -- ==============================================================================
 SET NOCOUNT ON;

@@ -42,9 +42,28 @@ Ejecutar los scripts en orden numérico:
 | 38 | `38_t798_conversion_turnos.sql` | **T-798 etapa 7** (idempotente, en transacción): cierra la conversión opción B (2.11). Cuelga del turno de producción los registros de Control de Proceso y de Calidad (y los conteos/paradas de cámara que no tenían turno): turno materializado + fecha de producción por la hora del registro; sin turno, el turno activo cuyo horario contiene la hora; los que falten se crean CERRADO por SISTEMA "a completar". Recalcula `MinutosProgramados` de **todos** los turnos convertidos (35, 36 y 38) desde la programación (`PRD_ProgramacionLinea` vigente + día de la semana + `PRD_ExcepcionesHorasDia`, la misma regla que la API). Respaldo en `mnt.PRD_ConversionTurnosT798` y `mnt.PRD_ConversionRegistrosT798`. Requiere 31 a 36. **Correr con la API detenida, antes de publicar la API de T-798**. Deshace: `38_t798_conversion_turnos_rollback.sql` |
 | 99 | `99_drop_objects_development_only.sql` | **SOLO DESARROLLO** - Limpieza total |
 
-> **T-798 (deploy y rollback):** procedimiento completo en `deploy/T-798_DEPLOY.md` (backup, orden 31→38 con `sqlcmd -I -b -f 65001`, verificación con `deploy/T-798_verificacion.sql`). Rollback: **orden inverso** `38`, `37`, `36`, `35`, `34`, `33`, `32`, `31` (`*_rollback.sql`; cada uno verifica que se corrió el anterior) y volver a publicar la API anterior; último recurso, restore del backup. **Excepción documentada de la conversión**: lo de 05:00 a 06:00 que había quedado en el T3 por el horario viejo 21–06 pasa al T1 de ese día (35, 36 y 38; el 35 guarda el turno original en su respaldo). Los 32/33 de T-784/T-785 (`32_marca_umbral_paradas_camara.sql`, `33_bolsones_camara_8.sql`) se descartaron sin desplegar: su contenido está en el 31. `IncluirEnEficiencia` ya no existe (lo reemplaza `CAM_Camaras.CuentaProduccionOficial`). **Los scripts 31 a 38 no se probaron contra SQL Server** (no hay base SQL Server de DEV): correrlos primero en una copia.
+> **T-798 (deploy y rollback):** procedimiento completo en `deploy/T-798_DEPLOY.md` (backup, orden 31→38 con `sqlcmd -I -b -f 65001`, verificación con `deploy/T-798_verificacion.sql`). Rollback: **orden inverso** `38`, `37`, `36`, `35`, `34`, `33`, `32`, `31` (`*_rollback.sql`; cada uno verifica que se corrió el anterior) y volver a publicar la API anterior; último recurso, restore del backup. **Excepción documentada de la conversión**: lo de 05:00 a 06:00 que había quedado en el T3 por el horario viejo 21–06 pasa al T1 de ese día (35, 36 y 38; el 35 guarda el turno original en su respaldo). Los 32/33 de T-784/T-785 (`32_marca_umbral_paradas_camara.sql`, `33_bolsones_camara_8.sql`) se descartaron sin desplegar: su contenido está en el 31. `IncluirEnEficiencia` ya no existe (lo reemplaza `CAM_Camaras.CuentaProduccionOficial`). **Probados el 23/11/2026 en SQL Server 2022 de DEV** (`PSAG_Mantenimiento_DEV`, compatibilidad 160) sobre una base armada con los scripts de producción y datos de prueba (ver *Desarrollo* abajo): 31→38, verificación, rollback 38→31 y re-aplicación (cada script dos veces). Igual, correrlos primero en una copia de la base de producción. Diferencias que deja el rollback a propósito: `ParadasCamara.UmbralSegundos`/`SuperaUmbral` (T-784), `UsuariosLineas.TurnoId` (si el 31 la agregó), `TiposFalla.RequiereDescripcion` (si el 32 la agregó) y los horarios de turno (salvo `@RestaurarTurnosAnteriores = 1` en el rollback del 32).
 
 > **Producción (22/10/2026):** la base de producción se armó sin los scripts 11 y 12, así que no tenía las tablas de Registros/Control de Proceso ni de Inspecciones. Se crearon en el deploy de T-539 junto con 19 a 22. Al instalar en otro servidor, correr 11 y 12 antes que 21.
+
+## Desarrollo (`database/dev/`, NO va al paquete de producción)
+
+Para armar en una base SQL Server de DEV/TEST lo mismo que tiene producción (los scripts se niegan a correr si el nombre
+de la base no termina en `_DEV`, `_TEST` o `_PRUEBA`):
+
+1. `dev/limpiar_base_dev.sql`: vacía la base actual (FKs, vistas, procedimientos, tablas y el esquema `mnt`; nunca `DROP DATABASE`).
+2. Scripts de producción en el orden en que se corrieron allá: `02`–`08`, `dev/seed_previo_t798_maestros.sql` (lo que en
+   producción se cargó desde la app: nombres de líneas y turnos con el T3 21–06), `17`, `18`, `11`, `12`, `19`–`30`.
+   **No** van `01` (la base ya existe y el login de DEV no puede crear bases), `09`, `15`, `16` (demo), `10` (ejemplo de
+   permisos) ni `99`. Las tablas `AspNet*` las crea `03` y los roles `08`, como en producción.
+3. `dev/seed_previo_t798.sql`: datos de prueba inventados sobre el esquema viejo (Tango 2 y otras 2 líneas, usuarios,
+   cámaras T2-CAM09/T2-CAM10 y un punto de calidad, 2 días de conteos, paradas, alertas, detenciones manuales y de
+   cámara, registros de proceso y calidad).
+4. `31`→`38` como en `deploy/T-798_DEPLOY.md`.
+
+Los scripts traen `USE [PSAG_Mantenimiento]`: para DEV se pasan por un filtro que lo cambia por el nombre de la base
+(`sed 's/USE \[PSAG_Mantenimiento\]/USE [PSAG_Mantenimiento_DEV]/'`). Correr con `sqlcmd -C -I -b -f 65001` y la clave en
+`SQLCMDPASSWORD`.
 
 ## Requisitos
 
