@@ -27,10 +27,10 @@ else
         @foreach (var b in barras)
         {
             var y = 4 + i * Fila;
-            var color = b.SinDeclarar ? "var(--bs-danger)" : "var(--bs-primary)";
+            var color = b.SinDeclarar ? GraficosUi.Color(TableroUi.Nivel.Mal) : TableroUi.ColorTema(TableroUi.Tema.Detenciones);
             var ancho = Math.Max(2, AnchoPlot * GraficosUi.Proporcion(b.Minutos, maximo));
             <g data-testid="barra-tipo"><text x="0" y="@(y + 13)" font-size="13" font-weight="@(b.SinDeclarar ? "700" : "600")" style="fill: @(b.SinDeclarar ? "var(--bs-danger-text-emphasis)" : "var(--bs-body-color)")">@GraficosUi.EtiquetaTipo(b.Nombre)<tspan font-weight="400" style="fill: var(--bs-secondary-color)"> · @b.Cantidad</tspan></text></g>
-            <rect x="0" y="@(y + 18)" width="@GraficosUi.N(ancho)" height="18" rx="2" style="fill: @color" />
+            <rect x="0" y="@(y + 18)" width="@GraficosUi.N(ancho)" height="18" rx="9" style="fill: @color" />
             <g><text x="@GraficosUi.N(ancho + 6)" y="@(y + 32)" font-size="13" font-weight="700" style="fill: var(--bs-body-color)">@GraficosUi.TextoMinutos(b.Minutos)</text></g>
             i++;
         }

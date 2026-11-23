@@ -1,4 +1,4 @@
-/* T-770: tamaños para la tablet (los colores son de Bootstrap, no de tema propio). */
+/* T-770: tamaños para la tablet (colores: clases de Bootstrap mapeadas en css/tema.css, T-806). */
 .kpi-numero {
     font-size: clamp(2rem, 5vw, 3.25rem);
 }

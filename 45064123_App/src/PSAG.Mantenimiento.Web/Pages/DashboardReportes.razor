@@ -512,7 +512,7 @@
 @* Modal de Detalle de Detenciones *@
 @if (mostrarModal)
 {
-    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: var(--psag-velo);">
         <div class="modal-dialog modal-xl modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
@@ -639,7 +639,7 @@
 
 @if (mostrarModalProgramado && mesProgramado != null)
 {
-    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: var(--psag-velo);">
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
@@ -726,7 +726,7 @@
 
 <style>
     .stacked-bar {
-        border: 1px solid #ddd;
+        border: 1px solid var(--bs-border-color);
         border-bottom: none;
     }
 
@@ -752,11 +752,11 @@
 
     .stacked-bar > div.clickable:hover {
         filter: brightness(1.1);
-        box-shadow: 0 0 5px rgba(0,0,0,0.3);
+        box-shadow: var(--bs-box-shadow-sm);
     }
 
     tr.clickable:hover {
-        background-color: rgba(0,123,255,0.1) !important;
+        background-color: rgba(var(--bs-primary-rgb), .1) !important;
     }
 </style>
 

@@ -17,10 +17,10 @@
         var maximo = Math.Max(barra.ObjetivoTurno ?? 0, barra.Real ?? 0);
         var nivel = GraficosUi.NivelDeApi(barra.Nivel);
         <g><text x="0" y="@(y + 21)" font-size="17" font-weight="700" style="fill: var(--bs-body-color)">@etiqueta</text></g>
-        <rect x="@X0" y="@y" width="@GraficosUi.N(Ancho)" height="26" rx="3" style="fill: var(--bs-secondary-bg); stroke: var(--bs-border-color)" />
+        <rect x="@X0" y="@y" width="@GraficosUi.N(Ancho)" height="26" rx="13" style="fill: var(--bs-secondary-bg); stroke: var(--bs-border-color)" />
         @if (barra.Real is { } real && maximo > 0)
         {
-            <rect x="@X0" y="@y" width="@GraficosUi.N(Ancho * GraficosUi.Proporcion(real, maximo))" height="26" rx="3"
+            <rect x="@X0" y="@y" width="@GraficosUi.N(Ancho * GraficosUi.Proporcion(real, maximo))" height="26" rx="13"
                   style="fill: @(GraficosUi.Color(nivel == TableroUi.Nivel.SinDato ? TableroUi.Nivel.Neutro : nivel))" data-testid="barra-real-@barra.Magnitud" />
         }
         @if (barra.ObjetivoALaHora is { } oh && maximo > 0)

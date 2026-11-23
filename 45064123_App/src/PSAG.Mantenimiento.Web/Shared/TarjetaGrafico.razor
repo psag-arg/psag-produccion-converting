@@ -1,14 +1,16 @@
 @* T-770 iteración 2 · Bloque de un tema del tablero (los 4 indicadores de Ferretti): título, el gráfico SVG y
    "Ver detalle" (abre un modal; no navega). Colores de Bootstrap: sigue al modo oscuro.
    Ajustes 23/11: cada tema tiene su color de acento (borde superior e ícono, TableroUi.ColorTema); el mismo color va en
-   el encabezado de sus modales. El acento no toca el semáforo del medidor de eficiencia. *@
+   el encabezado de sus modales. El acento no toca el semáforo del medidor de eficiencia.
+   T-806: el título va en el color de texto (los colores vivos de tema no llegan a 4.5:1 como texto); el tema se marca con
+   el borde superior y el ícono. *@
 
 <div class="col">
     <div class="card h-100 border-2" data-testid="@TestId" data-tema="@TableroUi.ClaveTema(Tema)" style="@TableroUi.EstiloAcento(Tema)">
         <div class="card-body d-flex flex-column">
             <div class="d-flex align-items-center gap-2 mb-2">
                 <i class="bi @Icono fs-4" style="color: @TableroUi.ColorTema(Tema)"></i>
-                <span class="fw-bold text-uppercase" style="color: @TableroUi.ColorTema(Tema)">@Titulo</span>
+                <span class="fw-bold text-uppercase titulo-tema">@Titulo</span>
                 @if (!string.IsNullOrEmpty(Subtitulo))
                 {
                     <span class="ms-auto small text-body-secondary text-end">@Subtitulo</span>

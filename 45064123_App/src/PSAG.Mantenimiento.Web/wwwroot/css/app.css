@@ -1,39 +1,11 @@
-html, body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-}
+/* T-806: colores, tipografía y formas salen de css/tema.css (tokens --psag-* mapeados a Bootstrap 5.3). */
 
 h1:focus {
     outline: none;
 }
 
-a, .btn-link {
-    color: #0071c1;
-}
-
-.btn-primary {
-    color: #fff;
-    background-color: #1b6ec2;
-    border-color: #1861ac;
-}
-
-.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
-}
-
 .content {
     padding-top: 1.1rem;
-}
-
-.valid.modified:not([type=checkbox]) {
-    outline: 1px solid #26b050;
-}
-
-.invalid {
-    outline: 1px solid red;
-}
-
-.validation-message {
-    color: red;
 }
 
 #blazor-error-ui {
@@ -77,14 +49,12 @@ a, .btn-link {
 
     .loading-progress circle {
         fill: none;
-        stroke: #e0e0e0;
         stroke-width: 0.6rem;
         transform-origin: 50% 50%;
         transform: rotate(-90deg);
     }
 
         .loading-progress circle:last-child {
-            stroke: #1b6ec2;
             stroke-dasharray: calc(3.141 * var(--blazor-load-percentage, 0%) * 0.8), 500%;
             transition: stroke-dasharray 0.05s ease-in-out;
         }
@@ -100,28 +70,7 @@ a, .btn-link {
         content: var(--blazor-load-percentage-text, "Loading");
     }
 
-code {
-    color: #c02d76;
-}
-
-/* Theme transition */
-html {
-    transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-[data-bs-theme="dark"] .sidebar {
-    background: var(--bs-dark);
-}
-
-[data-bs-theme="dark"] .top-row {
-    background-color: var(--bs-dark);
-}
-
-[data-bs-theme="dark"] code {
-    color: #e685b5;
-}
-
-[data-bs-theme="dark"] .autocomplete-dropdown {
+.autocomplete-dropdown {
     background-color: var(--bs-body-bg);
     border-color: var(--bs-border-color);
 }
@@ -160,10 +109,7 @@ html {
     text-align: right;
 }
 
-@keyframes dictado-pulso {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.6); }
-    50% { box-shadow: 0 0 0 0.45rem rgba(220, 53, 69, 0); }
-}
+/* @keyframes dictado-pulso: en tema.css (usa el rojo del semáforo) */
 
 /* Control de proceso: avance fijo arriba, solapas deslizables y alerta de "falta estándar" */
 .avance-control {

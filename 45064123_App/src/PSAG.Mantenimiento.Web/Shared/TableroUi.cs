@@ -5,7 +5,8 @@ namespace PSAG.Mantenimiento.Web.Shared;
 
 /// <summary>
 /// T-770 · Textos y colores del tablero del operador (tablet). Los números los calcula la API; acá sólo se muestran.
-/// "Sin datos" nunca es 0 y "sin objetivo" nunca es 0 %. Colores de estado de Bootstrap 5.3 (nada de CSS de tema propio).
+/// "Sin datos" nunca es 0 y "sin objetivo" nunca es 0 %. Colores de estado: clases de Bootstrap 5.3, que css/tema.css
+/// (T-806) mapea al semáforo del tema; los colores de los temas del tablero son tokens --psag-tema-*.
 /// </summary>
 public static class TableroUi
 {
@@ -129,17 +130,17 @@ public static class TableroUi
     public enum Tema { Eficiencia, Produccion, Velocidad, Detenciones }
 
     /// <summary>
-    /// Color de acento del tema (borde superior y encabezado del bloque y de sus modales). Colores de Bootstrap que se ven
-    /// en claro y en oscuro; ninguno es rojo, amarillo ni verde, para no confundirse con el semáforo de la eficiencia
-    /// (rojo &lt; 65, amarillo 65–85, verde &gt; 85), que sigue igual dentro del medidor.
+    /// Color de acento del tema (borde superior, punto e ícono del bloque y de sus modales). T-806: tokens de css/tema.css,
+    /// uno por tema y por modo (claro "Redondo vivo" / oscuro "Industrial oscuro"); son variables distintas de las del
+    /// semáforo de la eficiencia (rojo &lt; 65, amarillo 65–85, verde &gt; 85), que sigue igual dentro del medidor.
     /// </summary>
     public static string ColorTema(Tema tema) => tema switch
     {
-        Tema.Eficiencia => "var(--bs-purple)",
-        Tema.Produccion => "var(--bs-primary)",
-        Tema.Velocidad => "var(--bs-info)",
-        Tema.Detenciones => "var(--bs-orange)",
-        _ => "var(--bs-secondary)"
+        Tema.Eficiencia => "var(--psag-tema-eficiencia)",
+        Tema.Produccion => "var(--psag-tema-produccion)",
+        Tema.Velocidad => "var(--psag-tema-velocidad)",
+        Tema.Detenciones => "var(--psag-tema-detenciones)",
+        _ => "var(--bs-secondary-color)"
     };
 
     /// <summary>Nombre corto del tema para data-tema (pruebas y estilos): "eficiencia", "produccion"…</summary>

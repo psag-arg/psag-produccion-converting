@@ -6,8 +6,8 @@ namespace PSAG.Mantenimiento.Web.Shared;
 /// <summary>
 /// T-770 (iteración 2) · Lógica pura de los gráficos SVG del tablero (medidor de eficiencia, barras de producción y de
 /// detenciones, línea de velocidad). Sin librerías ni CDN: la tablet de planta no tiene Internet. Las coordenadas van con
-/// punto decimal (cultura invariante: con la de Argentina el SVG se rompe). Los colores son variables de Bootstrap 5.3,
-/// así que siguen al modo oscuro sin CSS propio.
+/// punto decimal (cultura invariante: con la de Argentina el SVG se rompe). Los colores son tokens de css/tema.css
+/// (T-806: semáforo --psag-semaforo-*), definidos para el modo claro y el oscuro de Bootstrap 5.3.
 /// </summary>
 public static class GraficosUi
 {
@@ -41,13 +41,13 @@ public static class GraficosUi
         _ => TableroUi.Nivel.SinDato
     };
 
-    /// <summary>Color de relleno SVG del nivel (variables de Bootstrap: cambian solas en modo oscuro).</summary>
+    /// <summary>Color de relleno SVG del nivel (tokens del semáforo: cambian solos en modo oscuro).</summary>
     public static string Color(TableroUi.Nivel nivel) => nivel switch
     {
-        TableroUi.Nivel.Bien => "var(--bs-success)",
-        TableroUi.Nivel.Atencion => "var(--bs-warning)",
-        TableroUi.Nivel.Mal => "var(--bs-danger)",
-        TableroUi.Nivel.Neutro => "var(--bs-primary)",
+        TableroUi.Nivel.Bien => "var(--psag-semaforo-verde)",
+        TableroUi.Nivel.Atencion => "var(--psag-semaforo-amarillo)",
+        TableroUi.Nivel.Mal => "var(--psag-semaforo-rojo)",
+        TableroUi.Nivel.Neutro => "var(--psag-acento)",
         _ => "var(--bs-secondary-color)"
     };
 

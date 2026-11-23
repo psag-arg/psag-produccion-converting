@@ -38,11 +38,12 @@ public class GraficosUiTests
         Assert.Equal(esperado, GraficosUi.NivelEficiencia(porcentaje is { } p ? (decimal)p : null));
 
     [Fact]
-    public void Colores_SonVariablesDeBootstrap()
+    public void Colores_SonTokensDelSemaforoDelTema()
     {
-        Assert.Equal("var(--bs-danger)", GraficosUi.Color(TableroUi.Nivel.Mal));
-        Assert.Equal("var(--bs-warning)", GraficosUi.Color(TableroUi.Nivel.Atencion));
-        Assert.Equal("var(--bs-success)", GraficosUi.Color(TableroUi.Nivel.Bien));
+        // T-806: el semáforo sale de css/tema.css (claro y oscuro), no de colores sueltos
+        Assert.Equal("var(--psag-semaforo-rojo)", GraficosUi.Color(TableroUi.Nivel.Mal));
+        Assert.Equal("var(--psag-semaforo-amarillo)", GraficosUi.Color(TableroUi.Nivel.Atencion));
+        Assert.Equal("var(--psag-semaforo-verde)", GraficosUi.Color(TableroUi.Nivel.Bien));
         Assert.Equal("var(--bs-secondary-color)", GraficosUi.Color(TableroUi.Nivel.SinDato));
         Assert.Equal(TableroUi.Nivel.Bien, GraficosUi.NivelDeApi("VERDE"));
         Assert.Equal(TableroUi.Nivel.Atencion, GraficosUi.NivelDeApi("AMARILLO"));

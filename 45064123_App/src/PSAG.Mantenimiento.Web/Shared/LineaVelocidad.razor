@@ -44,7 +44,7 @@
     }
     @foreach (var tramo in GraficosUi.Polilineas(v.MetrosPorMinuto, desplazamiento, minutosEje, maximo, X0, AnchoPlot, Y0, alto))
     {
-        <polyline points="@tramo" fill="none" stroke-width="2" stroke-linejoin="round" style="stroke: var(--bs-primary)" />
+        <polyline points="@tramo" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="stroke: @TableroUi.ColorTema(TableroUi.Tema.Velocidad)" />
     }
     <g><text x="2" y="@(Y0 + 8)" font-size="11" style="fill: var(--bs-secondary-color)">m/min</text></g>
 </svg>

@@ -69,7 +69,7 @@ public class TableroSinDuplicadosTests
     {
         var colores = Enum.GetValues<TableroUi.Tema>().Select(TableroUi.ColorTema).ToList();
         Assert.Equal(4, colores.Distinct().Count());
-        Assert.All(colores, c => Assert.StartsWith("var(--bs-", c));
+        Assert.All(colores, c => Assert.StartsWith("var(--psag-tema-", c));   // T-806: tokens del tema
         var semaforo = new[] { TableroUi.Nivel.Bien, TableroUi.Nivel.Atencion, TableroUi.Nivel.Mal }.Select(GraficosUi.Color).ToList();
         Assert.All(colores, c => Assert.DoesNotContain(c, semaforo));
     }

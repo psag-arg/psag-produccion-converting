@@ -33,12 +33,12 @@
                     }
                     else
                     {
-                        <span class="me-auto small text-muted"><i class="bi bi-lock me-1"></i>Abrí o tomá un turno para empezar</span>
+                        <span class="me-auto small aviso-bloqueado"><i class="bi bi-lock me-1"></i>Abrí o tomá un turno para empezar</span>
                     }
                     <button class="btn btn-outline-secondary btn-sm me-3" @onclick="ToggleTheme" title="@(isDarkMode ? "Cambiar a modo claro" : "Cambiar a modo oscuro")">
                         <i class="bi @(isDarkMode ? "bi-sun-fill" : "bi-moon-stars-fill")"></i>
                     </button>
-                    <span class="me-3 text-dark nombre-usuario">@context.User.Identity?.Name</span>
+                    <span class="me-3 nombre-usuario">@context.User.Identity?.Name</span>
                     <button class="btn btn-outline-secondary btn-sm" @onclick="Logout">
                         Cerrar sesión
                     </button>

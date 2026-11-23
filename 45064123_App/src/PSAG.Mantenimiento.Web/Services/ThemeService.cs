@@ -31,7 +31,11 @@ public class ThemeService : IThemeService
 
         try
         {
-            var savedTheme = await _jsRuntime.InvokeAsync<string>("localStorage.getItem", "theme");
+            var savedTheme = await _jsRuntime.InvokeAsync<string?>("localStorage.getItem", "theme");
+            // T-806: sin elección guardada, sigue al sistema (prefers-color-scheme): el script de index.html ya lo puso
+            // en <html data-bs-theme> antes de pintar; acá sólo se lee (y no se guarda, para que siga al sistema).
+            if (savedTheme is not ("dark" or "light"))
+                savedTheme = await _jsRuntime.InvokeAsync<string?>("document.documentElement.getAttribute", "data-bs-theme");
             _isDarkMode = savedTheme == "dark";
             await ApplyThemeAsync();
             _initialized = true;

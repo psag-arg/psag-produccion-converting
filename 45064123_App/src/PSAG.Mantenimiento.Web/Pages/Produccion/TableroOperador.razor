@@ -177,12 +177,12 @@
 @if (detalle != Detalle.Ninguno && tablero is { } td)
 {
     var tema = TemaDetalle(detalle);
-    <div class="modal d-block" tabindex="-1" style="background: rgba(0,0,0,.5);" data-testid="modal-detalle"
+    <div class="modal d-block" tabindex="-1" style="background-color: var(--psag-velo);" data-testid="modal-detalle"
          data-tema="@TableroUi.ClaveTema(tema)" data-solo-lectura="@(detalle is Detalle.Pendientes or Detalle.Declarar ? "false" : "true")">
         <div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-md-down">
             <div class="modal-content" style="@TableroUi.EstiloAcento(tema)">
                 <div class="modal-header">
-                    <h4 class="modal-title" style="color: @TableroUi.ColorTema(tema)">@TituloDetalle()</h4>
+                    <h4 class="modal-title d-flex align-items-center gap-2"><span class="psag-tema-punto" style="background: @TableroUi.ColorTema(tema)"></span>@TituloDetalle()</h4>
                     <button type="button" class="btn-close" aria-label="Cerrar" @onclick="CerrarDetalle"></button>
                 </div>
                 <div class="modal-body fs-5">
