@@ -4,15 +4,15 @@
 @using PSAG.Mantenimiento.Web.Services
 @attribute [Authorize]
 @inject IIndicadoresService IndicadoresService
-@inject IConteoCamaraService ConteoCamaraService
 @inject ICatalogosService CatalogosService
 @inject IPermisosService PermisosService
 
 <PageTitle>Presupuesto vs. real - PSAG Produccion</PageTitle>
 
 @* T-798 etapa 6 · Presupuesto vs. real (api/indicadores/produccion): un solo cálculo, el de la API. Por línea y
-   período, agrupado por turno, día o producto. "Sin datos" nunca es 0 y "sin objetivo" nunca es 0 %. Abajo, los
-   microcortes por turno de cada cámara (api/conteo-camara/paradas). *@
+   período, agrupado por turno, día o producto. "Sin datos" nunca es 0 y "sin objetivo" nunca es 0 %.
+   T-803: UNA sola tabla; los microcortes son una columna más (también los calcula la API: por turno/día, todos los del
+   turno; por producto, los que empezaron en un tramo de ese producto). "Detalle" abre el turno en un modal. *@
 <div class="container-fluid">
     <div class="d-flex flex-wrap align-items-end justify-content-between gap-2 mb-3">
         <div>
@@ -110,6 +110,12 @@
                             <th class="text-end d-none d-md-table-cell">%</th>
                             <th class="text-end d-none d-lg-table-cell">Velocidad</th>
                             <th class="text-end d-none d-lg-table-cell">Indisponibilidad</th>
+                            <th class="text-end" title="Paradas de cámara más cortas que el umbral de detención">Microcortes</th>
+                            <th class="text-end d-none d-md-table-cell">Min. microcortes</th>
+                            @if (agrupar == "turno")
+                            {
+                                <th></th>
+                            }
                         </tr>
                     </thead>
                     <tbody>
@@ -126,13 +132,6 @@
                                     {
                                         <span>@Etiqueta(f)</span>
                                         @if (f.IncluyeAbiertos) { <span class="badge bg-primary ms-1">En curso</span> }
-                                        @if (f.TurnoProduccionId is { } tid && f.FechaProduccion is { } fp)
-                                        {
-                                            @if (veTurnos)
-                                            {
-                                                <a class="small ms-1" href="@($"produccion/turnos?fecha={fp:yyyy-MM-dd}&turno={tid}")" title="Ver el turno, validar o corregir la producción">detalle</a>
-                                            }
-                                        }
                                     }
                                 </td>
                                 <td class="text-end d-none d-md-table-cell">@f.Turnos</td>
@@ -144,6 +143,17 @@
                                 <td class="text-end d-none d-md-table-cell @EficienciaUi.ClasePorcentaje(f.Bolsones)">@EficienciaUi.TextoPorcentaje(f.Bolsones)</td>
                                 <td class="text-end d-none d-lg-table-cell">@EficienciaUi.TextoVelocidad(f.VelocidadMetrosMinuto)</td>
                                 <td class="text-end d-none d-lg-table-cell">@TextoIndisponibilidad(f)</td>
+                                <td class="text-end">@ProduccionUi.TextoMicrocortes(f.Microcortes)</td>
+                                <td class="text-end d-none d-md-table-cell">@(f.MinutosMicrocortes is { } mm ? EficienciaUi.Minutos(mm) : "-")</td>
+                                @if (agrupar == "turno")
+                                {
+                                    <td class="text-end">
+                                        @if (!total && f.TurnoProduccionId != null)
+                                        {
+                                            <button type="button" class="btn btn-sm btn-link py-0" @onclick="() => AbrirDetalle(f)" title="Indicadores, tramos, producción y microcortes por cámara">Detalle</button>
+                                        }
+                                    </td>
+                                }
                             </tr>
                         }
                     </tbody>
@@ -153,13 +163,16 @@
                 Objetivo prorrateado por los minutos de cada producto del turno (en curso: hasta ahora). * provisorio: producción
                 sin validar o turno en curso. Indisponibilidad: minutos de las detenciones que cuentan ÷ minutos programados
                 @(agrupar == "producto" ? "(no se calcula por producto: las paradas son del turno)." : ".")
+                Microcortes: paradas de las cámaras más cortas que su umbral de detención
+                @(agrupar == "producto" ? "que empezaron mientras se hacía ese producto" : "del turno"); "-" = la línea no tiene cámara de conteo.
+                <a href="paradas-camara">Ver cada parada</a>
             </div>
         }
-
-        <h5 class="mt-2">Microcortes por turno y cámara</h5>
-        <MicrocortesTurnos Paradas="paradas" Error="@errorParadas" />
     }
 </div>
+
+<DetalleTurnoModal TurnoProduccionId="@filaDetalle?.TurnoProduccionId" LineaId="@filaDetalle?.LineaId" FechaProduccion="@filaDetalle?.FechaProduccion"
+                   Titulo="@(filaDetalle == null ? "" : $"Turno {Etiqueta(filaDetalle)}")" VeTurnos="veTurnos" AlCerrar="@(() => filaDetalle = null)" />
 
 @code {
     [SupplyParameterFromQuery(Name = "lineaId")] public int? LineaIdQuery { get; set; }
@@ -170,8 +183,7 @@
     private DateOnly hasta = DateOnly.FromDateTime(DateTime.Today);
     private string agrupar = "turno";
     private PresupuestoRealDto? datos;
-    private List<ParadaCamaraDto>? paradas;
-    private string? errorParadas;
+    private FilaPresupuestoRealDto? filaDetalle;   // T-803: turno abierto en el modal
     private bool cargando = true;
     private string? error;
 
@@ -224,26 +236,13 @@
             datos = null;
         }
 
-        // Microcortes: el T3 termina al día siguiente, por eso se pide un día más y se filtra por fecha de producción del turno.
-        errorParadas = null;
-        try
-        {
-            var r = await ConteoCamaraService.GetParadasAsync(desde, hasta.AddDays(1), linea, soloSinDetencion: false, segundosMinimos: 0);
-            var turnosDelPeriodo = datos?.Filas.Where(f => f.TurnoProduccionId != null).Select(f => f.TurnoProduccionId!.Value).ToHashSet();
-            paradas = agrupar == "turno" && turnosDelPeriodo != null
-                ? r.Items.Where(p => p.TurnoProduccionId is { } t && turnosDelPeriodo.Contains(t)).ToList()
-                : r.Items.Where(p => DateOnly.FromDateTime(p.FechaHoraInicio.DateTime) <= hasta).ToList();
-        }
-        catch (Exception)
-        {
-            paradas = null;
-            errorParadas = "No se pudieron cargar las paradas de las cámaras.";
-        }
         finally
         {
             cargando = false;
         }
     }
+
+    private void AbrirDetalle(FilaPresupuestoRealDto f) => filaDetalle = f;
 
     private string TituloGrupo() => agrupar switch
     {

@@ -68,6 +68,9 @@ public static class Opciones
     public const string ConfigRoles = "CONFIG.ROLES";
 }
 
+/// <summary>Acción que una tarea le quitó a un rol en una opción (ver <see cref="CatalogoPermisos.Quitados"/>).</summary>
+public sealed record PermisoQuitado(string Codigo, string Rol, AccionPermiso Acciones, string Usuario);
+
 /// <summary>Una opción del catálogo con su matriz inicial (lo que el código permitía antes de T-802).</summary>
 public sealed record OpcionDefinicion(
     string Codigo,
@@ -113,6 +116,20 @@ public static class CatalogoPermisos
 
     public static readonly IReadOnlyList<OpcionDefinicion> Todas = Armar();
 
+    /// <summary>
+    /// Permisos que una tarea le SACÓ a la matriz migrada (los scripts 39–42 y la semilla vieja los dieron). La semilla y el
+    /// script de la tarea los sacan sólo de las filas que nadie tocó desde el configurador (<c>ModificadoPorUsuarioId</c> es
+    /// el del script 39 o el de la semilla); lo editado no se pisa.
+    /// </summary>
+    public static readonly IReadOnlyList<PermisoQuitado> Quitados =
+    [
+        // T-803 (script 43): "Dashboard Admin" es para administrador, mantenimiento, supervisor y gerencia; no para el operario.
+        new(Opciones.DashboardReportes, O, AccionPermiso.Ver, "SCRIPT-43-T803")
+    ];
+
+    /// <summary>Usuarios que dejan las cargas automáticas (script 39 y semilla): filas "sin editar".</summary>
+    public static readonly IReadOnlyList<string> UsuariosDeCarga = ["SCRIPT-39-T802", "SYSTEM-SEED"];
+
     public static OpcionDefinicion? Buscar(string codigo) =>
         Todas.FirstOrDefault(o => string.Equals(o.Codigo, codigo, StringComparison.OrdinalIgnoreCase));
 
@@ -138,11 +155,22 @@ public static class CatalogoPermisos
         Opcion(Opciones.GeneralCatalogos, "Consultas comunes (listas de líneas, equipos, fallas, turnos, productos y operadores)", Opciones.General, null, 1,
             (V, Todos));
 
+        // T-803 (script 43): la sección DASHBOARD tiene SÓLO los tableros: Dashboard Admin, Presupuesto vs. real, Tablero del
+        // turno, Tablero de producción (gerencial) y Horas programadas. Las tres de producción conservan su código
+        // (PRODUCCION.*: lo usan los [Permiso] de la API y las filas de CFG_PermisosRol); cambia sólo el padre.
+        // "Inicio" (/ y /dashboard, el viejo "Dashboard de Control") sale del menú: la raíz redirige según el usuario
+        // (Web: Shared/RutasInicio). La opción queda sin ruta y con los mismos permisos: sigue habilitando las lecturas
+        // de api/dashboard (junto con Dashboard Admin), así la API no cambia.
         Seccion(Opciones.Dashboard, "Dashboard", 10);
-        Opcion(Opciones.DashboardInicio, "Inicio", Opciones.Dashboard, "", 1, (V, Todos));
-        Opcion(Opciones.DashboardReportes, "Reportes", Opciones.Dashboard, "dashboard/reportes", 2, (V, Todos));
-        Opcion(Opciones.DashboardHorasProgramadas, "Horas programadas", Opciones.Dashboard, "configuracion/horas-programadas", 3,
+        Opcion(Opciones.DashboardReportes, "Dashboard Admin", Opciones.Dashboard, "dashboard/reportes", 1, (V, [A, M, S, G]));
+        Opcion(Opciones.ProduccionPresupuestoReal, "Presupuesto vs. real", Opciones.Dashboard, "dashboard/produccion", 2, (V, Todos));
+        // T-770 (script 41): tablero del operador en la tablet. El obligado a turno ve el suyo; el supervisor, una línea en sólo lectura.
+        Opcion(Opciones.ProduccionTablero, "Tablero del turno", Opciones.Dashboard, "produccion/tablero", 3, (V, [S, O]));
+        // T-770 iteración 2 (script 42): el mismo tablero para cualquier línea y turno (en curso o cerrado), sólo lectura.
+        Opcion(Opciones.ProduccionTableroGerencial, "Tablero de producción (gerencial)", Opciones.Dashboard, "produccion/tablero/gerencial", 4, (V, [A, S, G]));
+        Opcion(Opciones.DashboardHorasProgramadas, "Horas programadas", Opciones.Dashboard, "configuracion/horas-programadas", 5,
             (V, [A, S]), (Al, [A, S]), (Ba, [A, S]));
+        Opcion(Opciones.DashboardInicio, "Inicio (sin menú: lecturas del dashboard)", Opciones.Dashboard, null, 9, (V, Todos));
 
         Seccion(Opciones.Maestros, "Maestros", 20);
         Opcion(Opciones.MaestrosLineas, "Líneas", Opciones.Maestros, "maestros/lineas", 1, (V, Admin), (Al, Admin), (Mo, Admin));
@@ -175,12 +203,7 @@ public static class CatalogoPermisos
             (V, Todos), (Al, Carga), (Mo, Carga));
         Opcion(Opciones.ProduccionTurnos, "Turnos de producción (corregir turno cerrado y producción)", Opciones.Produccion, "produccion/turnos", 3,
             (V, Supervision), (Mo, Supervision));
-        Opcion(Opciones.ProduccionPresupuestoReal, "Presupuesto vs. real", Opciones.Produccion, "dashboard/produccion", 4, (V, Todos));
-        // T-770 (script 41): tablero del operador en la tablet. El obligado a turno ve el suyo; el supervisor, una línea en sólo lectura.
-        Opcion(Opciones.ProduccionTablero, "Tablero del turno (operador)", Opciones.Produccion, "produccion/tablero", 5, (V, [S, O]));
-        // T-770 iteración 2 (script 42): el mismo tablero para cualquier línea y turno (en curso o cerrado), sólo lectura.
-        // Sin ruta de menú a propósito (el menú lo reordena T-803): la pantalla es /produccion/tablero/gerencial.
-        Opcion(Opciones.ProduccionTableroGerencial, "Tablero gerencial (cualquier línea y turno)", Opciones.Produccion, null, 6, (V, [A, S, G]));
+        // Presupuesto vs. real y los dos tableros (PRODUCCION.*) están en la sección DASHBOARD desde T-803 (arriba).
 
         Seccion(Opciones.Tareas, "Tareas de mantenimiento", 50);
         Opcion(Opciones.TareasPendientes, "Pendientes y programadas", Opciones.Tareas, "tareas-mantenimiento", 1,

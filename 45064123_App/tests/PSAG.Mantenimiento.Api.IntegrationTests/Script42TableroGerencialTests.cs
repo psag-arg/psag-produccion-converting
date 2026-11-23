@@ -36,10 +36,11 @@ public class Script42TableroGerencialTests
             EsquemaSqlServer.CorrerScript("42_t770_tablero_gerencial.sql");
 
             var def = CatalogoPermisos.Buscar(Opciones.ProduccionTableroGerencial)!;
-            Assert.Null(def.Ruta);   // sin entrada de menú (T-803)
             var opcion = b.Context.OpcionesSistema.AsNoTracking().Include(o => o.Padre).Single(o => o.Codigo == Opciones.ProduccionTableroGerencial);
-            Assert.Equal($"{def.Nombre}|{def.PadreCodigo}|{def.Ruta}|{def.Orden}|{AccionPermisoTexto.AColumna(def.Aplicables)}",
+            // Como la dejó el 42: sin entrada de menú (el 43 de T-803 le da ruta y la pasa a DASHBOARD: ver Script43MenuDashboardsTests)
+            Assert.Equal("Tablero gerencial (cualquier línea y turno)|PRODUCCION||6|VER",
                 $"{opcion.Nombre}|{opcion.Padre?.Codigo}|{opcion.Ruta}|{opcion.Orden}|{opcion.AccionesAplicables}");
+            Assert.Equal(AccionPermisoTexto.AColumna(def.Aplicables), opcion.AccionesAplicables);
             var esperado = MatrizMigrada.Roles.Where(r => def.De(r) != AccionPermiso.Ninguna).Select(r => $"{r}|{(int)def.De(r)}").OrderBy(x => x).ToList();
             Assert.Equal(["ADMINISTRADOR|1", "GERENCIA|1", "SUPERVISOR|1"], esperado);
             Assert.Equal(esperado, Permisos(b, Opciones.ProduccionTableroGerencial));
@@ -68,6 +69,7 @@ public class Script42TableroGerencialTests
         finally
         {
             EsquemaSqlServer.CorrerScript("42_t770_tablero_gerencial.sql");
+            EsquemaSqlServer.CorrerScript("43_t803_menu_dashboards.sql");
         }
     }
 }

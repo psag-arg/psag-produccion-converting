@@ -126,6 +126,9 @@ public static class ProduccionUi
         return r.Any(RolesSupervision.Contains) || (r.Contains("OPERARIO") && lineasHabilitadas.Contains(lineaId));
     }
 
+    /// <summary>T-803 · Columna Microcortes del presupuesto vs. real: null (línea sin cámara de conteo) es "-", nunca 0.</summary>
+    public static string TextoMicrocortes(int? cantidad) => cantidad is { } c ? c.ToString("N0") : "-";
+
     // ===================== Microcortes por turno y cámara =====================
 
     /// <summary>Paradas de una cámara en un turno: las que llegaron al umbral y los microcortes (no llegaron).</summary>

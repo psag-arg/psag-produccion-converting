@@ -131,10 +131,13 @@ V = Ver, A = Alta, M = Modificación, B = Baja; — = nada. "(sin menú)" = func
 |---|---|---|---|---|---|---|---|
 | **General (sin menú)** | `GENERAL` | | | | | | |
 | Consultas comunes (listas de líneas, equipos, fallas, turnos, productos y operadores) <br><sub>aplica: VER</sub> | `GENERAL.CATALOGOS` | (sin menú) | V | V | V | V | V |
-| **Dashboard** | `DASHBOARD` | | | | | | |
-| Inicio <br><sub>aplica: VER</sub> | `DASHBOARD.INICIO` | `/` | V | V | V | V | V |
-| Reportes <br><sub>aplica: VER</sub> | `DASHBOARD.REPORTES` | `/dashboard/reportes` | V | V | V | V | V |
+| **Dashboard** (T-803: sólo los tableros) | `DASHBOARD` | | | | | | |
+| Dashboard Admin (ex Reportes) <br><sub>aplica: VER · T-803: sin el operario</sub> | `DASHBOARD.REPORTES` | `/dashboard/reportes` | V | V | V | — | V |
+| Presupuesto vs. real <br><sub>aplica: VER · T-803: de Producción a Dashboard</sub> | `PRODUCCION.PRESUPUESTO_REAL` | `/dashboard/produccion` | V | V | V | V | V |
+| Tablero del turno <br><sub>aplica: VER · T-770, script 41 · T-803: a Dashboard</sub> | `PRODUCCION.TABLERO` | `/produccion/tablero` | — | — | V | V | — |
+| Tablero de producción (gerencial) <br><sub>aplica: VER · T-770 iteración 2, script 42 · T-803: a Dashboard, con ruta</sub> | `PRODUCCION.TABLERO_GERENCIAL` | `/produccion/tablero/gerencial` | V | — | V | — | V |
 | Horas programadas <br><sub>aplica: VER,ALTA,BAJA</sub> | `DASHBOARD.HORAS_PROGRAMADAS` | `/configuracion/horas-programadas` | V A B | — | V A B | — | — |
+| Inicio (sin menú: lecturas del dashboard) <br><sub>aplica: VER · T-803: sin ruta</sub> | `DASHBOARD.INICIO` | (sin menú) | V | V | V | V | V |
 | **Maestros** | `MAESTROS` | | | | | | |
 | Líneas <br><sub>aplica: VER,ALTA,MOD</sub> | `MAESTROS.LINEAS` | `/maestros/lineas` | V A M | — | — | — | — |
 | Equipos <br><sub>aplica: VER,ALTA,MOD</sub> | `MAESTROS.EQUIPOS` | `/maestros/equipos` | V A M | — | — | — | — |
@@ -159,9 +162,6 @@ V = Ver, A = Alta, M = Modificación, B = Baja; — = nada. "(sin menú)" = func
 | Inicio de turno <br><sub>aplica: VER</sub> | `PRODUCCION.INICIO_TURNO` | `/produccion/inicio-turno` | — | — | — | V | — |
 | Operar el turno (tomar, cambiar producto, relevar, cerrar) <br><sub>aplica: VER,ALTA,MOD</sub> | `PRODUCCION.OPERACION_TURNO` | (sin menú) | V A M | V A M | V A M | V A M | V |
 | Turnos de producción (corregir turno cerrado y producción) <br><sub>aplica: VER,MOD</sub> | `PRODUCCION.TURNOS` | `/produccion/turnos` | V M | V M | V M | — | — |
-| Presupuesto vs. real <br><sub>aplica: VER</sub> | `PRODUCCION.PRESUPUESTO_REAL` | `/dashboard/produccion` | V | V | V | V | V |
-| Tablero del turno (operador) <br><sub>aplica: VER · T-770, script 41</sub> | `PRODUCCION.TABLERO` | `/produccion/tablero` | — | — | V | V | — |
-| Tablero gerencial (cualquier línea y turno) <br><sub>aplica: VER · T-770 iteración 2, script 42</sub> | `PRODUCCION.TABLERO_GERENCIAL` | (sin menú: `/produccion/tablero/gerencial`) | V | — | V | — | V |
 | **Tareas de mantenimiento** | `TAREAS` | | | | | | |
 | Pendientes y programadas <br><sub>aplica: VER,ALTA,MOD</sub> | `TAREAS.PENDIENTES` | `/tareas-mantenimiento` | V A M | V M | V A M | V A | V |
 | Historial <br><sub>aplica: VER</sub> | `TAREAS.HISTORIAL` | `/tareas-mantenimiento/historial` | V | V | V | V | V |
@@ -360,6 +360,38 @@ antes, con los cambios deliberados de arriba).
 | DELETE | `api/usuarios/{id}` | `CONFIG.USUARIOS` · BAJA |
 | POST | `api/usuarios/{id}/reset-password` | `CONFIG.USUARIOS` · MODIFICACION |
 
+## Menú de dashboards (T-803, script 43)
+
+Pedido de Emiliano (testeo 23/11): "pocos dashboards claros". La sección **Dashboard** del menú tiene SÓLO:
+
+| Orden | Entrada | Ruta | Opción | Quién la ve (matriz) |
+|---|---|---|---|---|
+| 1 | Dashboard Admin (ex *Reportes*; título de la página también) | `/dashboard/reportes` | `DASHBOARD.REPORTES` | ADMINISTRADOR, MANTENIMIENTO, SUPERVISOR, GERENCIA |
+| 2 | Presupuesto vs. real | `/dashboard/produccion` | `PRODUCCION.PRESUPUESTO_REAL` | todos |
+| 3 | Tablero del turno | `/produccion/tablero` | `PRODUCCION.TABLERO` | SUPERVISOR, OPERARIO |
+| 4 | Tablero de producción (gerencial) | `/produccion/tablero/gerencial` | `PRODUCCION.TABLERO_GERENCIAL` | ADMINISTRADOR, SUPERVISOR, GERENCIA |
+| 5 | Horas programadas (queda donde estaba) | `/configuracion/horas-programadas` | `DASHBOARD.HORAS_PROGRAMADAS` | ADMINISTRADOR, SUPERVISOR |
+
+- Las tres de producción **conservan el código** (`PRODUCCION.*`: lo usan los `[Permiso]` de la API y las filas de
+  `CFG_PermisosRol`); sólo cambian de padre. Por eso el test de consistencia del catálogo admite que esas tres no empiecen
+  con el código de su sección. En *Producción* quedan *Inicio de turno* y *Turnos de producción* (sin duplicados).
+- **"Dashboard de Control" (`/` y `/dashboard`) salió del menú y se quitó la página** (`Pages/Dashboard.razor` y su tarjeta
+  `Shared/PresupuestoRealTurnos.razor`: no las usaba nada más; sus datos están en Dashboard Admin y en Presupuesto vs. real).
+  `/` y `/dashboard` son ahora `Pages/Inicio.razor`, que **redirige según los permisos** (`Shared/RutasInicio`):
+  obligado a turno (operario) → `/produccion/tablero` (sin turno abierto, el layout lo lleva antes a *Inicio de turno*,
+  como siempre); con Dashboard Admin (administrador, mantenimiento, supervisor, gerencia) → `/dashboard/reportes`; si no,
+  tablero del turno, presupuesto vs. real, gerencial, la primera pantalla de su menú o `/detenciones`. La raíz no exige
+  permiso (sólo redirige). El destino por defecto del login no cambió (`/detenciones`, o el tablero para el operario).
+- `DASHBOARD.INICIO` queda **sin ruta** (no sale en el menú) y con sus permisos: sigue habilitando las lecturas de
+  `api/dashboard/*` (junto con Dashboard Admin), así la API no cambia de comportamiento.
+- **Permiso**: Dashboard Admin deja de ser del OPERARIO. `CatalogoPermisos.Quitados` lo declara; el script 43 y la semilla
+  de la API lo sacan **sólo si la fila no se editó desde el configurador** (`ModificadoPorUsuarioId` = `SCRIPT-39-T802` o
+  `SYSTEM-SEED`) y la marcan `SCRIPT-43-T803` (la fila queda en 0, no se borra; el rollback busca esa marca).
+- Script **43** (`43_t803_menu_dashboards.sql` + rollback): actualiza sólo nombre, padre, ruta y orden de las 6 opciones
+  que cambian (no `AccionesAplicables` ni `Activo`). Si se vuelve a correr el 39, 41 o 42 (que reescriben esas opciones),
+  correr otra vez el 43; la API de T-803 igual lo corrige al arrancar con su semilla.
+- Textos e íconos del menú: `Shared/MenuUi.cs` (antes dentro de `NavMenu.razor`).
+
 ## Tablero del operador (T-770)
 
 - `PRODUCCION.TABLERO` (script **41**, también en `CatalogoPermisos.cs` y la semilla): VER para OPERARIO y SUPERVISOR.
@@ -372,9 +404,9 @@ antes, con los cambios deliberados de arriba).
 ### Tablero gerencial (T-770 iteración 2)
 
 - `PRODUCCION.TABLERO_GERENCIAL` (script **42**, también en `CatalogoPermisos.cs` y la semilla): VER para ADMINISTRADOR,
-  SUPERVISOR y GERENCIA. **Sin ruta de menú** a propósito (el menú lo reordena T-803): la pantalla es
-  `/produccion/tablero/gerencial` (la página exige esa opción) y el supervisor tiene el acceso "Otros turnos (gerencial)" desde
-  su tablero. Mismos 4 indicadores que el operador, en sólo lectura, para cualquier línea y turno (en curso o cerrado):
+  SUPERVISOR y GERENCIA. El 42 la cargó sin ruta de menú; desde T-803 (script 43) está en *Dashboard* como
+  "Tablero de producción (gerencial)" con ruta `/produccion/tablero/gerencial` (la página exige esa opción); el supervisor
+  además tiene el acceso "Otros turnos (gerencial)" desde su tablero. Mismos 4 indicadores que el operador, en sólo lectura, para cualquier línea y turno (en curso o cerrado):
   fecha de producción + línea + turno (`GET api/tablero/turnos?fecha=` y `GET api/tablero/turno?turnoProduccionId=`).
 - **Alcance por línea** (en la API, para `lineaId` y `turnoProduccionId`): la regla de T-802 de la corrección de turnos
   (`TableroIndicadoresReglas.AlcanzaLinea`): ADMINISTRADOR y MANTENIMIENTO todas; el resto sus líneas (sin líneas asignadas,
@@ -393,3 +425,8 @@ antes, con los cambios deliberados de arriba).
 - `Script39PermisosTests` (SQL Server): el script carga exactamente el catálogo y la matriz, es idempotente, no pisa lo
   editado, y el rollback se puede correr dos veces y volver a aplicar.
 - `PermisosWebTests`: los códigos de la Web son los del catálogo, cada ruta exige su opción, menú y botones por permiso.
+- T-803: `MenuDashboardsTests` (API entera, SQLite y SQL Server: `api/permisos/mios` por rol trae en Dashboard exactamente
+  los tableros esperados, sin "Dashboard de Control" ni duplicados en Producción; la semilla saca Dashboard Admin al operario
+  sólo si la fila no se editó), `Script43MenuDashboardsTests` (SQL Server: menú = catálogo, idempotente, no pisa lo editado,
+  rollback dos veces y volver a aplicar) y `MenuDashboardsWebTests` (Web: menú por rol con sus textos, el `NavMenu`
+  dibujado sin "Dashboard de Control", y a dónde va `/` por rol).

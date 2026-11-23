@@ -71,5 +71,34 @@ public static class SemillaPermisos
             }
         }
         await context.SaveChangesAsync(cancellationToken);
+
+        await QuitarAsync(context, existentes, roles.Select(r => (r.Id, r.Name ?? string.Empty)).ToList(), ahora, cancellationToken);
+    }
+
+    /// <summary>
+    /// Permisos que una tarea le sacó a la matriz (<see cref="CatalogoPermisos.Quitados"/>; T-803: Dashboard Admin al
+    /// operario). Igual que el script de la tarea: sólo en filas que nadie editó desde el configurador (las dejó el
+    /// script 39 o la semilla) y marcándolas con el usuario de la tarea (así el rollback del script las encuentra).
+    /// </summary>
+    private static async Task QuitarAsync(MantenimientoDbContext context, Dictionary<string, OpcionSistema> opciones,
+        IReadOnlyList<(string Id, string Nombre)> roles, DateTimeOffset ahora, CancellationToken cancellationToken)
+    {
+        var cambio = false;
+        foreach (var q in CatalogoPermisos.Quitados)
+        {
+            var rol = roles.FirstOrDefault(r => string.Equals(r.Nombre, q.Rol, StringComparison.OrdinalIgnoreCase));
+            if (rol.Id == null || !opciones.TryGetValue(q.Codigo, out var opcion))
+                continue;
+            var fila = await context.PermisosRol.FirstOrDefaultAsync(p => p.RoleId == rol.Id && p.OpcionId == opcion.OpcionId, cancellationToken);
+            if (fila == null || !CatalogoPermisos.UsuariosDeCarga.Contains(fila.ModificadoPorUsuarioId) || (fila.Acciones & q.Acciones) == AccionPermiso.Ninguna)
+                continue;
+            var aplicables = CatalogoPermisos.Buscar(q.Codigo)?.Aplicables ?? fila.Acciones;
+            fila.Asignar(ReglasPermisos.Normalizar(fila.Acciones & ~q.Acciones, aplicables));
+            fila.FechaHoraModificacion = ahora;
+            fila.ModificadoPorUsuarioId = q.Usuario;
+            cambio = true;
+        }
+        if (cambio)
+            await context.SaveChangesAsync(cancellationToken);
     }
 }

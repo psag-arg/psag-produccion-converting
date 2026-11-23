@@ -21,6 +21,11 @@ namespace PSAG.Mantenimiento.Application.Services.Implementations;
 /// <item>Si los tramos de un turno suman más minutos que los programados (turno cortado por excepción, cierre tarde),
 /// el objetivo se prorratea sobre los programados. Fuera de programación (0) se usa la duración del tramo.</item>
 /// <item>Al agrupar o filtrar por producto no se informan paradas ni indisponibilidad (son del turno, no del tramo).</item>
+/// <item>T-803 · Microcortes (paradas de cámara que no llegaron al umbral de detención, <see cref="DetencionCamaraReglas.SuperaUmbral(ParadaCamara)"/>,
+/// por su <c>TurnoProduccionId</c>): por turno, día, línea y en el total, todos los del turno; al agrupar o filtrar por
+/// producto, los que EMPEZARON dentro de un tramo de ese producto (las paradas tienen hora, a diferencia de las
+/// detenciones); "Sin producto (a completar)" lleva los de los turnos sin tramos. Null (no 0) si ninguna línea de la fila
+/// tiene cámara de conteo.</item>
 /// </list>
 /// </summary>
 public class IndicadoresService : IIndicadoresService
@@ -51,9 +56,15 @@ public class IndicadoresService : IIndicadoresService
 
     private sealed record TramoCalculado(
         TurnoProduccionProducto Tramo, bool Abierto, decimal MinutosTramo, decimal MinutosObjetivo,
-        IReadOnlyDictionary<string, MagnitudCalculada> Magnitudes, VelocidadTramo? Velocidad);
+        IReadOnlyDictionary<string, MagnitudCalculada> Magnitudes, VelocidadTramo? Velocidad, DateTimeOffset Fin)
+    {
+        public bool Contiene(DateTimeOffset momento) => momento >= Tramo.Desde && momento < Fin;
+    }
 
-    private sealed record TurnoCalculado(TurnoProduccion Turno, int MinutosProgramados, int MinutosParada, IReadOnlyList<TramoCalculado> Tramos);
+    /// <summary>Microcortes: inicio y duración de cada parada de cámara del turno que no llegó al umbral.</summary>
+    private sealed record TurnoCalculado(
+        TurnoProduccion Turno, int MinutosProgramados, int MinutosParada, IReadOnlyList<TramoCalculado> Tramos,
+        bool ConCamara, IReadOnlyList<(DateTimeOffset Inicio, int Segundos)> Microcortes);
 
     private async Task<List<TurnoCalculado>> CalcularAsync(IReadOnlyList<TurnoProduccion> turnos, CancellationToken cancellationToken)
     {
@@ -76,6 +87,12 @@ public class IndicadoresService : IIndicadoresService
         }
         var paradas = await _unitOfWork.Detenciones.GetMinutosQueCuentanPorTurnoAsync(turnos.Select(t => t.TurnoProduccionId).ToList(), cancellationToken);
         var programados = await MinutosProgramadosTurnos.CalcularAsync(_unitOfWork, turnos, cancellationToken);
+        var lineasConCamara = (await _unitOfWork.Camaras.GetListadoAsync(null, incluirInactivas: true, cancellationToken))
+            .Where(c => c.EsConteo).Select(c => c.LineaId).ToHashSet();
+        var microcortes = (await _unitOfWork.ParadasCamara.GetPorTurnosAsync(turnos.Select(t => t.TurnoProduccionId).ToList(), cancellationToken))
+            .Where(p => !DetencionCamaraReglas.SuperaUmbral(p))
+            .GroupBy(p => p.TurnoProduccionId!.Value)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<(DateTimeOffset, int)>)g.Select(p => (p.FechaHoraInicio, p.DuracionSegundos)).ToList());
 
         var resultado = new List<TurnoCalculado>();
         foreach (var tp in turnos)
@@ -123,9 +140,10 @@ public class IndicadoresService : IIndicadoresService
                 var velocidad = camaraMangas == null
                     ? null
                     : IndicadoresProduccionCalculador.VelocidadDelTramo(minutos, camaraMangas.CamaraId, tramo.Desde, fin, tramo.MetrosPorManga);
-                tramos.Add(new TramoCalculado(tramo, abierto, duraciones[i], paraObjetivo[i], magnitudes, velocidad));
+                tramos.Add(new TramoCalculado(tramo, abierto, duraciones[i], paraObjetivo[i], magnitudes, velocidad, fin));
             }
-            resultado.Add(new TurnoCalculado(tp, minutosProgramados, paradas.GetValueOrDefault(tp.TurnoProduccionId), tramos));
+            resultado.Add(new TurnoCalculado(tp, minutosProgramados, paradas.GetValueOrDefault(tp.TurnoProduccionId), tramos,
+                lineasConCamara.Contains(tp.LineaId), microcortes.GetValueOrDefault(tp.TurnoProduccionId) ?? []));
         }
         return resultado;
     }
@@ -192,6 +210,17 @@ public class IndicadoresService : IIndicadoresService
             fila.MinutosProgramados = turnos.Sum(t => t.MinutosProgramados);
             fila.MinutosParadaQueCuentan = turnos.Sum(t => t.MinutosParada);
             fila.Indisponibilidad = IndicadoresProduccionCalculador.Indisponibilidad(fila.MinutosParadaQueCuentan.Value, fila.MinutosProgramados.Value);
+        }
+        if (turnos.Any(t => t.ConCamara))
+        {
+            // Todo el turno, o (por producto) los que empezaron en un tramo incluido; los turnos sin tramos, si se piden.
+            var lista = turnos.SelectMany(t =>
+                incluirParadas || (t.Tramos.Count == 0 && incluirSinTramos)
+                    ? t.Microcortes
+                    : t.Microcortes.Where(m => t.Tramos.Where(tramoIncluido).Any(x => x.Contiene(m.Inicio)))).ToList();
+            fila.Microcortes = lista.Count;
+            fila.SegundosMicrocortes = lista.Sum(m => m.Segundos);
+            fila.MinutosMicrocortes = (int)Math.Round(fila.SegundosMicrocortes.Value / 60m, MidpointRounding.AwayFromZero);
         }
         return fila;
     }

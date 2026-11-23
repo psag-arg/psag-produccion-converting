@@ -7,11 +7,11 @@
 @inject ICatalogosService CatalogosService
 @inject IDetencionesService DetencionesService
 
-<PageTitle>Reportes - PSAG Produccion</PageTitle>
+<PageTitle>Dashboard Admin - PSAG Produccion</PageTitle>
 
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>Reportes de Detenciones</h2>
+        <h2>Dashboard Admin</h2>
         <div class="d-flex gap-2 align-items-center">
             <label class="form-label mb-0 me-2">Línea:</label>
             <select class="form-select form-select-sm" style="width: auto;" @bind="filtroLineaId" @bind:after="@(async () => await CargarReportes())">

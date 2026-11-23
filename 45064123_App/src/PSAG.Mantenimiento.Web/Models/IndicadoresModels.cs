@@ -37,6 +37,11 @@ public class FilaPresupuestoRealDto
     public ComparacionProduccionDto Bolsones { get; set; } = new();
     public ComparacionProduccionDto Eficiencia { get; set; } = new();
     public decimal? VelocidadMetrosMinuto { get; set; }
+
+    // T-803 · Microcortes (null = la línea no tiene cámara de conteo)
+    public int? Microcortes { get; set; }
+    public int? SegundosMicrocortes { get; set; }
+    public int? MinutosMicrocortes { get; set; }
 }
 
 public class PresupuestoRealDto

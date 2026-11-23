@@ -38,7 +38,8 @@ public class PermisosWebTests
     [InlineData("control-proceso/nuevo", OpcionesWeb.ControlProcesoRegistros)]
     [InlineData("inspecciones/hallazgos", OpcionesWeb.InspeccionesNoOk)]
     [InlineData("inspecciones/7", OpcionesWeb.InspeccionesEjecuciones)]
-    [InlineData("", OpcionesWeb.DashboardInicio)]
+    [InlineData("", null)]                       // T-803: la raíz sólo redirige (RutasInicio)
+    [InlineData("dashboard", null)]
     [InlineData("dashboard/produccion", OpcionesWeb.ProduccionPresupuestoReal)]
     [InlineData("produccion/tablero", OpcionesWeb.ProduccionTablero)]
     [InlineData("produccion/tablero/gerencial", OpcionesWeb.ProduccionTableroGerencial)]

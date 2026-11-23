@@ -49,6 +49,9 @@ public interface IParadaCamaraRepository : IRepository<ParadaCamara>
     /// <summary>Paradas que empiezan en [desde, hasta) de las cámaras de la línea (o de todas), de la más reciente a la más vieja, con cámara (y su línea) y turno de producción. Sólo lectura.</summary>
     Task<IReadOnlyList<ParadaCamara>> GetRangoAsync(
         DateTimeOffset desde, DateTimeOffset hasta, int? lineaId = null, CancellationToken cancellationToken = default);
+
+    /// <summary>Paradas de esos turnos de producción, con su cámara (para el umbral). Sin orden. Sólo lectura (T-803: microcortes del presupuesto vs. real).</summary>
+    Task<IReadOnlyList<ParadaCamara>> GetPorTurnosAsync(IReadOnlyCollection<long> turnoProduccionIds, CancellationToken cancellationToken = default);
 }
 
 public interface IAlertaCamaraRepository : IRepository<AlertaCamara>

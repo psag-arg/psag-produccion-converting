@@ -240,6 +240,11 @@ public class FilaPresupuestoRealDto
     public ComparacionProduccionDto Bolsones { get; set; } = new();
     public ComparacionProduccionDto Eficiencia { get; set; } = new();
     public decimal? VelocidadMetrosMinuto { get; set; }
+
+    /// <summary>T-803 · Microcortes (paradas de cámara más cortas que el umbral). Null si la línea no tiene cámara de conteo.</summary>
+    public int? Microcortes { get; set; }
+    public int? SegundosMicrocortes { get; set; }
+    public int? MinutosMicrocortes { get; set; }
 }
 
 /// <summary>GET api/indicadores/produccion: presupuesto vs. real por línea, turno, producto o día en un período.</summary>

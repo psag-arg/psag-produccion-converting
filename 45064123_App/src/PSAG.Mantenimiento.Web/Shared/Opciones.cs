@@ -60,14 +60,12 @@ public static class Opciones
 /// <summary>
 /// Qué opción hay que VER para entrar a cada página (T-802). Las del menú tienen su ruta en el catálogo; acá se suman las
 /// páginas sin entrada de menú (alta, detalle, impresión). Gana el prefijo más largo; las que no están (login, inicio de
-/// sesión) no se controlan.
+/// sesión, la raíz "/" y "/dashboard", que sólo redirigen: ver <see cref="RutasInicio"/>) no se controlan.
 /// </summary>
 public static class RutasPermiso
 {
     private static readonly (string Prefijo, string Opcion)[] Mapa =
     [
-        ("", Opciones.DashboardInicio),
-        ("dashboard", Opciones.DashboardInicio),
         ("dashboard/reportes", Opciones.DashboardReportes),
         ("dashboard/produccion", Opciones.ProduccionPresupuestoReal),
         ("configuracion/horas-programadas", Opciones.DashboardHorasProgramadas),

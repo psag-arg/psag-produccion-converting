@@ -35,8 +35,10 @@ public class Script41TableroTests
 
             var def = CatalogoPermisos.Buscar(Opciones.ProduccionTablero)!;
             var opcion = b.Context.OpcionesSistema.AsNoTracking().Include(o => o.Padre).Single(o => o.Codigo == Opciones.ProduccionTablero);
-            Assert.Equal($"{def.Nombre}|{def.PadreCodigo}|{def.Ruta}|{def.Orden}|{AccionPermisoTexto.AColumna(def.Aplicables)}",
+            // Como la dejó el 41 (T-803, script 43, la pasa a la sección DASHBOARD: ver Script43MenuDashboardsTests)
+            Assert.Equal("Tablero del turno (operador)|PRODUCCION|produccion/tablero|5|VER",
                 $"{opcion.Nombre}|{opcion.Padre?.Codigo}|{opcion.Ruta}|{opcion.Orden}|{opcion.AccionesAplicables}");
+            Assert.Equal(AccionPermisoTexto.AColumna(def.Aplicables), opcion.AccionesAplicables);
             var esperado = MatrizMigrada.Roles.Where(r => def.De(r) != AccionPermiso.Ninguna).Select(r => $"{r}|{(int)def.De(r)}").OrderBy(x => x).ToList();
             Assert.Equal(["OPERARIO|1", "SUPERVISOR|1"], esperado);
             Assert.Equal(esperado, PermisosTablero(b));
@@ -64,6 +66,8 @@ public class Script41TableroTests
         finally
         {
             EsquemaSqlServer.CorrerScript("41_t770_tablero_operador.sql");
+            EsquemaSqlServer.CorrerScript("42_t770_tablero_gerencial.sql");
+            EsquemaSqlServer.CorrerScript("43_t803_menu_dashboards.sql");
         }
     }
 }

@@ -313,6 +313,13 @@ Probar sin instalar: `.\PSAG.Mantenimiento.ConteoCamara.exe vivo --camara T2-CAM
   producto (snapshot en el tramo, prorrateado por minutos) vs. la producción oficial del turno (`PRD_ProduccionesTurno`,
   que se llena con la cámara `CuentaProduccionOficial` al cerrar cada tramo y la valida el supervisor). Las paradas y
   microparadas por cámara siguen en *Paradas y producción (cámara)* (`GET api/conteo-camara/paradas`).
+- **T-803 · Microcortes en el presupuesto vs. real**: `GET api/indicadores/produccion` trae en cada fila (y en el total)
+  `Microcortes`, `SegundosMicrocortes` y `MinutosMicrocortes`: paradas de cámara del `TurnoProduccionId` que no llegaron al
+  umbral (`DetencionCamaraReglas.SuperaUmbral`). Por turno, día, línea y total: todos los del turno. **Por producto** (o
+  filtrando un producto): los que **empezaron dentro de un tramo** de ese producto (las paradas tienen hora); "Sin producto
+  (a completar)" lleva los de los turnos sin tramos. **Null (no 0)** si ninguna línea de la fila tiene cámara de conteo.
+  *Dashboard → Presupuesto vs. real* muestra una sola tabla con esa columna; el detalle por cámara está en el modal
+  "Detalle" del turno.
 
 ## 10. Cámara 8: bolsones para la eficiencia (T-785)
 

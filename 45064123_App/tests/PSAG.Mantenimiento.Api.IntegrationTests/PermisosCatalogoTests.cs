@@ -74,6 +74,9 @@ public class PermisosCatalogoTests
         }
     }
 
+    private static readonly string[] ReubicadasT803 =
+        [Opciones.ProduccionPresupuestoReal, Opciones.ProduccionTablero, Opciones.ProduccionTableroGerencial];
+
     [Fact]
     public void Catalogo_EsConsistente()
     {
@@ -83,7 +86,10 @@ public class PermisosCatalogoTests
         {
             var padre = CatalogoPermisos.Buscar(o.PadreCodigo!);
             Assert.True(padre is { EsSeccion: true }, $"{o.Codigo}: el padre tiene que ser una sección.");
-            Assert.StartsWith(o.PadreCodigo + ".", o.Codigo);
+            // El código empieza con el de su sección, salvo las que T-803 movió al menú DASHBOARD conservando el código
+            // (lo usan los [Permiso] y CFG_PermisosRol).
+            if (!ReubicadasT803.Contains(o.Codigo))
+                Assert.StartsWith(o.PadreCodigo + ".", o.Codigo);
             Assert.NotEqual(AccionPermiso.Ninguna, o.Aplicables);
             foreach (var (rol, acciones) in o.PorRol)
             {
@@ -92,7 +98,11 @@ public class PermisosCatalogoTests
                 Assert.Equal(acciones, ReglasPermisos.Normalizar(acciones, o.Aplicables));
             }
         }
-        Assert.Equal(1, todas.Count(o => o.Ruta == ""));
+        // T-803: la raíz "/" no es una opción (redirige según el usuario); ninguna ruta vacía.
+        Assert.Equal(0, todas.Count(o => o.Ruta == ""));
+        Assert.All(ReubicadasT803, c => Assert.Equal(Opciones.Dashboard, CatalogoPermisos.Buscar(c)!.PadreCodigo));
+        foreach (var q in CatalogoPermisos.Quitados)
+            Assert.Equal(AccionPermiso.Ninguna, CatalogoPermisos.Buscar(q.Codigo)!.De(q.Rol) & q.Acciones);
         Assert.Equal(todas.Where(o => o.Ruta != null).Count(), todas.Where(o => o.Ruta != null).Select(o => o.Ruta).Distinct().Count());
         Assert.True(ReglasPermisos.AdminConservaRoles(RolesSistema.Administrador, CatalogoPermisos.Buscar(Opciones.ConfigRoles)!.De(RolesSistema.Administrador)));
         Assert.Equal([RolesSistema.Operario], CatalogoPermisos.RolesObligadosATurno);

@@ -127,6 +127,22 @@ public class ParadaCamaraRepository : RepositoryBase<ParadaCamara>, IParadaCamar
         // Orden en memoria: SQLite (tests) no ordena DateTimeOffset en la base.
         return lista.OrderByDescending(p => p.FechaHoraInicio).ThenByDescending(p => p.ParadaCamaraId).ToList();
     }
+
+    public async Task<IReadOnlyList<ParadaCamara>> GetPorTurnosAsync(
+        IReadOnlyCollection<long> turnoProduccionIds, CancellationToken cancellationToken = default)
+    {
+        var resultado = new List<ParadaCamara>();
+        // En tandas: SQL Server admite hasta 2100 parámetros por consulta.
+        foreach (var tanda in turnoProduccionIds.Distinct().Chunk(500))
+        {
+            var ids = tanda.Select(id => (long?)id).ToList();
+            resultado.AddRange(await _dbSet.AsNoTracking()
+                .Include(p => p.Camara)
+                .Where(p => ids.Contains(p.TurnoProduccionId))
+                .ToListAsync(cancellationToken));
+        }
+        return resultado;
+    }
 }
 
 public class AlertaCamaraRepository : RepositoryBase<AlertaCamara>, IAlertaCamaraRepository

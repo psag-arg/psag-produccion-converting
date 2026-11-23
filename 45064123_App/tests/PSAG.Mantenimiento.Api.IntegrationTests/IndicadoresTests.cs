@@ -434,6 +434,68 @@ public class IndicadoresTests : IDisposable
         Assert.Equal((10920m, 10050m, 92.0m), (soloSh50.Total.Mangas.Objetivo!.Value, soloSh50.Total.Mangas.Real!.Value, soloSh50.Total.Eficiencia.Porcentaje!.Value));
     }
 
+    /// <summary>Parada de la cámara de mangas (umbral 5 min; <paramref name="supera"/> = llegó al umbral).</summary>
+    private void Parada(long turno, DateTimeOffset inicio, int segundos, bool supera = false)
+    {
+        _context.ParadasCamara.Add(new ParadaCamara
+        {
+            CamaraId = _camaraMangas.CamaraId, TurnoProduccionId = turno, FechaHoraInicio = inicio, FechaHoraFin = inicio.AddSeconds(segundos),
+            DuracionSegundos = segundos, Tipo = TipoParadaCamara.PARADA, Carriles = "1", IdentificadorExterno = $"T803-{turno}-{inicio:HHmm}",
+            UmbralSegundos = 300, SuperaUmbral = supera, FechaHoraCreacion = inicio
+        });
+        _context.SaveChanges();
+        _context.ChangeTracker.Clear();
+    }
+
+    /// <summary>
+    /// T-803 · La tabla unificada trae los microcortes (paradas de cámara que no llegaron al umbral) como columna: por
+    /// turno, día y total, todos los del turno; por producto (o filtrando un producto), los que empezaron en sus tramos.
+    /// Las paradas largas no cuentan. Una línea sin cámara de conteo informa null (nunca 0).
+    /// </summary>
+    [Fact]
+    public async Task PresupuestoVsReal_ColumnaMicrocortes_PorTurnoDiaYProducto()
+    {
+        var (t1, t2, t3) = await DiaCompletoAsync();
+        Parada(t1, H(19, 7), 60);
+        Parada(t1, H(19, 8), 120);
+        Parada(t1, H(19, 9), 600, supera: true);   // parada larga: no es microcorte
+        Parada(t2, H(19, 14), 30);                 // T2, tramo SH 30
+        Parada(t2, H(19, 17), 90);                 // T2, tramo SH 50
+        Parada(t2, H(19, 18), 45);
+        Parada(t3, H(20, 2), 200);                 // T3 (del 19) después de medianoche
+
+        var turnos = await ProduccionAsync("turno");
+        Assert.Equal([2, 3, 1], turnos.Filas.Select(f => f.Microcortes!.Value));
+        Assert.Equal([180, 165, 200], turnos.Filas.Select(f => f.SegundosMicrocortes!.Value));
+        Assert.Equal([3, 3, 3], turnos.Filas.Select(f => f.MinutosMicrocortes!.Value));
+        Assert.Equal((6, 545, 9), (turnos.Total.Microcortes!.Value, turnos.Total.SegundosMicrocortes!.Value, turnos.Total.MinutosMicrocortes!.Value));
+
+        var dia = Assert.Single((await ProduccionAsync("dia")).Filas);
+        Assert.Equal(6, dia.Microcortes);
+        Assert.Equal(6, Assert.Single((await ProduccionAsync("linea")).Filas).Microcortes);
+
+        var productos = await ProduccionAsync("producto");
+        Assert.Equal(["HIGIENICO 30 MTS|3|210", "HIGIENICO 50 MTS|3|335"],
+            productos.Filas.Select(f => $"{f.ProductoNombre}|{f.Microcortes}|{f.SegundosMicrocortes}"));
+        Assert.Equal(6, productos.Total.Microcortes);
+
+        var soloSh50 = await ProduccionAsync("turno", _sh50.ProductoMaestroId);
+        Assert.Equal([2, 1], soloSh50.Filas.Select(f => f.Microcortes!.Value));
+        Assert.Equal(3, soloSh50.Total.Microcortes);
+
+        // Sin cámara de conteo en la línea (la cámara pasa a otra línea): null, no 0
+        var otra = new Linea { Codigo = "F2", Nombre = "Futura 2", Orden = 2, CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin };
+        _context.Add(otra);
+        _context.SaveChanges();
+        var camara = _context.Camaras.Single(c => c.CamaraId == _camaraMangas.CamaraId);
+        camara.LineaId = otra.LineaId;
+        _context.SaveChanges();
+        _context.ChangeTracker.Clear();
+        var sinCamara = await ProduccionAsync("turno");
+        Assert.All(sinCamara.Filas, f => Assert.Null(f.Microcortes));
+        Assert.Null(sinCamara.Total.MinutosMicrocortes);
+    }
+
     [Fact]
     public async Task PresupuestoVsReal_ValidaElFiltro()
     {
