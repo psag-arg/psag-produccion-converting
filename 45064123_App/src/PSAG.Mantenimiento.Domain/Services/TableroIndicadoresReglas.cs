@@ -25,6 +25,26 @@ public sealed record BarraDetencionTipo(int? TipoFallaId, string Nombre, int Min
 public sealed record ResumenDetencionesTipo(
     IReadOnlyList<BarraDetencionTipo> Barras, int MinutosTotal, int MinutosPendientes, int CantidadPendientes, int MinutosNoCuentan);
 
+/// <summary>Cantidad y minutos de una de las cifras del bloque Detenciones del tablero.</summary>
+public readonly record struct CifraDetenciones(int Cantidad, int Minutos);
+
+/// <summary>
+/// T-770 (ajustes 23/11) · Las 4 cifras del bloque Detenciones del tablero, más las programadas aparte.
+/// <list type="bullet">
+/// <item><b>Pendientes</b> de declarar: las que creó la cámara y nadie declaró; minutos desde la parada de cámara
+/// (<see cref="TableroIndicadoresReglas.MinutosPendiente"/>).</item>
+/// <item><b>Declaradas</b>: detenciones ya declaradas (manuales o de cámara) de tipos que cuentan para indicadores, con
+/// sus MinutosEfectivos.</item>
+/// <item><b>Totales</b> = Declaradas + Pendientes: las detenciones "reales" del turno (superaron el umbral o se
+/// cargaron a mano).</item>
+/// <item><b>Microcortes</b>: paradas de cámara que no llegaron al umbral; no crean detención y NO suman en Totales.</item>
+/// <item><b>Programadas</b>: declaradas de tipos que no cuentan (paradas programadas); fuera de Totales, se muestran
+/// aparte y chico.</item>
+/// </list>
+/// </summary>
+public sealed record CifrasDetenciones(
+    CifraDetenciones Pendientes, CifraDetenciones Declaradas, CifraDetenciones Totales, CifraDetenciones Microcortes, CifraDetenciones Programadas);
+
 /// <summary>
 /// T-770 (iteración 2) · Reglas puras de los 4 indicadores de Ferretti en el tablero (eficiencia, producción, velocidad y
 /// detenciones). Los números de presupuesto vs. real siguen saliendo de <c>IndicadoresService</c>; acá sólo lo que el
@@ -189,6 +209,29 @@ public static class TableroIndicadoresReglas
             minutosPendientes,
             pendientes.Count,
             barras.Where(b => !b.Cuenta).Sum(b => b.Minutos));
+    }
+
+    /// <summary>
+    /// Las 4 cifras del bloque Detenciones (ver <see cref="CifrasDetenciones"/>): pendientes, declaradas, totales
+    /// (declaradas + pendientes) y microcortes (aparte, no suman), más las programadas que no cuentan. Los minutos de
+    /// los microcortes son sus segundos redondeados al minuto.
+    /// </summary>
+    public static CifrasDetenciones Cifras(IEnumerable<DetencionTablero> detenciones, int cantidadMicrocortes, int segundosMicrocortes)
+    {
+        var lista = detenciones.ToList();
+        var pendientes = Cifra(lista.Where(d => d.Pendiente));
+        var declaradas = Cifra(lista.Where(d => !d.Pendiente && d.Cuenta));
+        var programadas = Cifra(lista.Where(d => !d.Pendiente && !d.Cuenta));
+        var totales = new CifraDetenciones(pendientes.Cantidad + declaradas.Cantidad, pendientes.Minutos + declaradas.Minutos);
+        var microcortes = new CifraDetenciones(
+            Math.Max(0, cantidadMicrocortes), (int)Math.Round(Math.Max(0, segundosMicrocortes) / 60m, MidpointRounding.AwayFromZero));
+        return new CifrasDetenciones(pendientes, declaradas, totales, microcortes, programadas);
+
+        static CifraDetenciones Cifra(IEnumerable<DetencionTablero> ds)
+        {
+            var l = ds.ToList();
+            return new CifraDetenciones(l.Count, l.Sum(d => d.Minutos));
+        }
     }
 
     /// <summary>

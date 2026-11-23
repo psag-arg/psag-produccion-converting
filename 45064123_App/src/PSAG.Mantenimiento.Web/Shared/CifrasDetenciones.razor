@@ -1,0 +1,49 @@
+@* T-770 (ajustes 23/11) · KPI principal del bloque DETENCIONES: 4 cifras (tiles) con cantidad y minutos.
+   - Pendientes de declarar: las creó la cámara y nadie las declaró (minutos desde la parada de cámara). Tocar → modal
+     para DECLARAR.
+   - Declaradas, Totales (= declaradas + pendientes: las "reales", superan el umbral o se cargaron a mano) y Microcortes
+     (paradas de cámara que no llegan al umbral; NO suman en Totales). Tocar → modal de SOLO LECTURA.
+   Aparte, chico, las programadas que no cuentan. Los números los calcula la API (TableroIndicadoresReglas.Cifras). *@
+
+<div class="row row-cols-2 g-2" data-testid="cifras-detenciones">
+    @foreach (var cifra in Enum.GetValues<TableroUi.Cifra>())
+    {
+        var valor = TableroUi.Valor(Cifras, cifra);
+        var nivel = TableroUi.NivelCifra(Cifras, cifra);
+        var modal = TableroUi.ModalDeCifra(cifra);
+        <div class="col">
+            <button type="button" class="btn w-100 h-100 text-start border-2 p-2 @ClaseBoton(cifra, nivel)"
+                    data-testid="cifra-@cifra.ToString().ToLowerInvariant()" data-modal="@(modal == TableroUi.ModalCifra.Declarar ? "declarar" : "solo-lectura")"
+                    disabled="@(!AlElegir.HasDelegate)" @onclick="@(async () => await AlElegir.InvokeAsync(cifra))">
+                <div class="small fw-semibold text-uppercase">
+                    @if (modal == TableroUi.ModalCifra.Declarar)
+                    {
+                        <i class="bi bi-pencil-square me-1"></i>
+                    }
+                    @TableroUi.TituloCifra(cifra)
+                </div>
+                <div class="d-flex align-items-baseline gap-2 flex-wrap">
+                    <span class="fw-bold fs-1 lh-1 @TableroUi.ClaseNumero(nivel)" data-testid="cifra-cantidad">@valor.Cantidad</span>
+                    <span class="fw-semibold fs-5" data-testid="cifra-minutos">@EficienciaUi.Minutos(valor.Minutos)</span>
+                </div>
+                <div class="small text-body-secondary">@TableroUi.AyudaCifra(cifra)</div>
+            </button>
+        </div>
+    }
+</div>
+@if (TableroUi.TextoProgramadas(Cifras.Programadas) is { } programadas)
+{
+    <div class="small text-body-secondary mt-2" data-testid="cifras-programadas"><i class="bi bi-calendar-check me-1"></i>@programadas</div>
+}
+
+@code {
+    [Parameter, EditorRequired] public CifrasDetencionesTableroDto Cifras { get; set; } = new();
+
+    /// <summary>Tocar una cifra: la página abre el modal que corresponde (TableroUi.ModalDeCifra).</summary>
+    [Parameter] public EventCallback<TableroUi.Cifra> AlElegir { get; set; }
+
+    private static string ClaseBoton(TableroUi.Cifra cifra, TableroUi.Nivel nivel) =>
+        cifra == TableroUi.Cifra.Pendientes
+            ? nivel == TableroUi.Nivel.Mal ? "btn-outline-danger bg-danger-subtle" : "btn-outline-success"
+            : "btn-outline-secondary";
+}

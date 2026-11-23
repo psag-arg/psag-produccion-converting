@@ -123,6 +123,81 @@ public static class TableroUi
         _ => $"Tenés {cantidad} detenciones para declarar."
     };
 
+    // ===================== Temas del tablero (T-770, ajustes 23/11) =====================
+
+    /// <summary>Los 4 temas del tablero: cada uno vive en UN SOLO bloque de la pantalla, con su color de acento.</summary>
+    public enum Tema { Eficiencia, Produccion, Velocidad, Detenciones }
+
+    /// <summary>
+    /// Color de acento del tema (borde superior y encabezado del bloque y de sus modales). Colores de Bootstrap que se ven
+    /// en claro y en oscuro; ninguno es rojo, amarillo ni verde, para no confundirse con el semáforo de la eficiencia
+    /// (rojo &lt; 65, amarillo 65–85, verde &gt; 85), que sigue igual dentro del medidor.
+    /// </summary>
+    public static string ColorTema(Tema tema) => tema switch
+    {
+        Tema.Eficiencia => "var(--bs-purple)",
+        Tema.Produccion => "var(--bs-primary)",
+        Tema.Velocidad => "var(--bs-info)",
+        Tema.Detenciones => "var(--bs-orange)",
+        _ => "var(--bs-secondary)"
+    };
+
+    /// <summary>Nombre corto del tema para data-tema (pruebas y estilos): "eficiencia", "produccion"…</summary>
+    public static string ClaveTema(Tema tema) => tema.ToString().ToLowerInvariant();
+
+    /// <summary>Estilo del borde de acento de un bloque o modal del tema.</summary>
+    public static string EstiloAcento(Tema tema) => $"border-top: 6px solid {ColorTema(tema)} !important;";
+
+    /// <summary>Las 4 cifras del bloque Detenciones.</summary>
+    public enum Cifra { Pendientes, Declaradas, Totales, Microcortes }
+
+    /// <summary>Qué abre cada cifra: las pendientes, el modal para DECLARAR; las otras tres, un modal de SOLO LECTURA.</summary>
+    public enum ModalCifra { Declarar, SoloLectura }
+
+    public static ModalCifra ModalDeCifra(Cifra cifra) => cifra == Cifra.Pendientes ? ModalCifra.Declarar : ModalCifra.SoloLectura;
+
+    /// <summary>Título de la cifra.</summary>
+    public static string TituloCifra(Cifra cifra) => cifra switch
+    {
+        Cifra.Pendientes => "Pendientes de declarar",
+        Cifra.Declaradas => "Declaradas",
+        Cifra.Totales => "Totales",
+        Cifra.Microcortes => "Microcortes",
+        _ => string.Empty
+    };
+
+    /// <summary>Aclaración debajo de la cifra.</summary>
+    public static string AyudaCifra(Cifra cifra) => cifra switch
+    {
+        Cifra.Pendientes => "Tocá para declarar",
+        Cifra.Declaradas => "Ya declaradas",
+        Cifra.Totales => "Declaradas + pendientes",
+        Cifra.Microcortes => "No llegan al umbral · no suman",
+        _ => string.Empty
+    };
+
+    /// <summary>Cantidad y minutos de la cifra.</summary>
+    public static CifraDetencionesDto Valor(CifrasDetencionesTableroDto c, Cifra cifra) => cifra switch
+    {
+        Cifra.Pendientes => c.Pendientes,
+        Cifra.Declaradas => c.Declaradas,
+        Cifra.Totales => c.Totales,
+        Cifra.Microcortes => c.Microcortes,
+        _ => new CifraDetencionesDto()
+    };
+
+    /// <summary>Nivel de la cifra: pendientes en rojo si hay alguna (hay que declararlas); el resto neutro.</summary>
+    public static Nivel NivelCifra(CifrasDetencionesTableroDto c, Cifra cifra) =>
+        cifra == Cifra.Pendientes ? NivelPendientes(c.Pendientes.Cantidad) : Nivel.Neutro;
+
+    /// <summary>"+ 1 programada (30 min, no cuenta)" / "+ 2 programadas (45 min, no cuentan)"; null si no hay.</summary>
+    public static string? TextoProgramadas(CifraDetencionesDto p) => p.Cantidad switch
+    {
+        <= 0 => null,
+        1 => $"+ 1 programada ({EficienciaUi.Minutos(p.Minutos)}, no cuenta)",
+        _ => $"+ {p.Cantidad} programadas ({EficienciaUi.Minutos(p.Minutos)}, no cuentan)"
+    };
+
     /// <summary>"Tango 2 · T2 (13–21) · SH 30 desde 13:05 · Op. Juan".</summary>
     public static string Encabezado(TableroTurnoDto t)
     {

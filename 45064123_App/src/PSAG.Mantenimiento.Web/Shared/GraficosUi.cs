@@ -1,4 +1,5 @@
 using System.Globalization;
+using PSAG.Mantenimiento.Web.Models;
 
 namespace PSAG.Mantenimiento.Web.Shared;
 
@@ -128,6 +129,23 @@ public static class GraficosUi
     {
         var max = minutos.DefaultIfEmpty(0).Max();
         return max <= 0 ? 10 : EscalaRedonda(max);
+    }
+
+    /// <summary>
+    /// Barras del gráfico de detenciones (ajustes 23/11): SOLO las que tienen minutos y cuentan para indicadores (las
+    /// programadas se informan aparte); "Sin declarar" según <paramref name="incluirSinDeclarar"/>.
+    /// </summary>
+    public static IReadOnlyList<BarraTipoFallaDto> BarrasConMinutos(IEnumerable<BarraTipoFallaDto> barras, bool incluirSinDeclarar = true) =>
+        barras.Where(b => b.Minutos > 0 && b.Cuenta && (incluirSinDeclarar || !b.SinDeclarar)).ToList();
+
+    /// <summary>Largo máximo de la etiqueta de un tipo (va en su propio renglón, sobre la barra: entra entera en el ancho).</summary>
+    public const int LargoEtiquetaTipo = 48;
+
+    /// <summary>Nombre del tipo de falla en mayúsculas, recortado con "…" sólo si pasa de <see cref="LargoEtiquetaTipo"/>.</summary>
+    public static string EtiquetaTipo(string nombre)
+    {
+        var n = (nombre ?? string.Empty).Trim().ToUpperInvariant();
+        return n.Length <= LargoEtiquetaTipo ? n : n[..(LargoEtiquetaTipo - 1)].TrimEnd() + "…";
     }
 
     /// <summary>"Obj: 11.200 mangas" / "Sin objetivo".</summary>

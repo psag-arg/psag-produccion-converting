@@ -276,4 +276,50 @@ public class TableroIndicadoresTests : IDisposable
         Assert.False(cerrado.Abierto);
         Assert.Equal(80, cerrado.DetencionesPorTipo.MinutosPendientes);
     }
+
+    [Fact]
+    public async Task Detenciones_CuatroCifras_ConDatosMixtos()
+    {
+        var turno = await TurnoConDatosAsync();
+        // Una detención manual declarada sin tipo todavía (cuenta) y paradas de cámara: 1 real y 3 microcortes (40 + 70 + 50 s)
+        _context.Detenciones.Add(Det("DET-T770-MAN", turno, null, 4));
+        _context.ParadasCamara.AddRange(
+            Parada(turno, H(14), 600, "T770C-REAL", supera: true),
+            Parada(turno, H(15), 40, "T770C-MC1", supera: false),
+            Parada(turno, H(15, 30), 70, "T770C-MC2", supera: false),
+            Parada(turno, H(16, 10), 50, "T770C-MC3", supera: false));
+        _context.SaveChanges();
+        _context.ChangeTracker.Clear();
+
+        var t = await TableroAsync(turno);
+        var c = t.CifrasDetenciones;
+        Assert.Equal((2, 20), (c.Pendientes.Cantidad, c.Pendientes.Minutos));       // 14:00→14:10 + 16:50→17:00 (desde la parada de cámara)
+        Assert.Equal((4, 29), (c.Declaradas.Cantidad, c.Declaradas.Minutos));       // 12 + 8 + 5 + 4 (sin tipo); la programada no
+        Assert.Equal((6, 49), (c.Totales.Cantidad, c.Totales.Minutos));             // declaradas + pendientes
+        Assert.Equal((3, 3), (c.Microcortes.Cantidad, c.Microcortes.Minutos));      // 160 s; no suman en totales
+        Assert.Equal((1, 30), (c.Programadas.Cantidad, c.Programadas.Minutos));     // aparte
+        Assert.Equal(t.DetencionesPorTipo.MinutosTotal, c.Totales.Minutos);
+        Assert.Equal(t.Microcortes.Cantidad, c.Microcortes.Cantidad);
+        Assert.Equal(t.PendientesDeclarar.Count, c.Pendientes.Cantidad);
+
+        // Al declarar una pendiente pasa de Pendientes a Declaradas; Totales igual en cantidad
+        var pen = _context.Detenciones.Single(d => d.Codigo == "DET-T770-PEN1");
+        pen.EstadoActual = EstadoDetencion.REGISTRADA;
+        pen.TipoFallaId = _equipo.TipoFallaId;
+        pen.MinutosDeclarados = pen.MinutosEfectivos = 11;
+        pen.OrigenTiempo = OrigenTiempo.DECLARADO;
+        pen.Descripcion = "Declarada en la prueba";
+        _context.SaveChanges();
+        var despues = (await TableroAsync(turno)).CifrasDetenciones;
+        Assert.Equal((1, 10), (despues.Pendientes.Cantidad, despues.Pendientes.Minutos));
+        Assert.Equal((5, 40), (despues.Declaradas.Cantidad, despues.Declaradas.Minutos));
+        Assert.Equal((6, 50), (despues.Totales.Cantidad, despues.Totales.Minutos));
+    }
+
+    private ParadaCamara Parada(long turno, DateTimeOffset inicio, int segundos, string id, bool supera) => new()
+    {
+        CamaraId = _camaraMangas.CamaraId, TurnoProduccionId = turno, FechaHoraInicio = inicio, FechaHoraFin = inicio.AddSeconds(segundos),
+        DuracionSegundos = segundos, Tipo = TipoParadaCamara.PARADA, Carriles = "1", IdentificadorExterno = id,
+        UmbralSegundos = 300, SuperaUmbral = supera, FechaHoraCreacion = inicio
+    };
 }

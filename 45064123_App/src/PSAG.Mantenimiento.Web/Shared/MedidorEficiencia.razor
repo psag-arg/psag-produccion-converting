@@ -1,6 +1,8 @@
 @* T-770 iteración 2 · 1) EFICIENCIA (lámina 1 de Ferretti): medidor semicircular con aguja, SVG propio (sin librerías).
    Bandas: rojo < 65 %, amarillo 65–85 %, verde > 85 %. La aguja es la eficiencia acumulada del turno contra el objetivo
-   "a la hora"; abajo, el objetivo del turno completo y el avance contra él. *@
+   "a la hora"; abajo, el objetivo del turno completo y el avance contra él.
+   Ajustes 23/11: el viewBox deja margen a los costados para que las etiquetas "0%" y "100%" no se corten; con el turno en
+   curso dice "provisoria" (lo que antes era la tarjeta aparte "Eficiencia parcial"). *@
 
 @{
     var e = Eficiencia;
@@ -8,7 +10,7 @@
     var angulo = GraficosUi.AnguloAguja(e.Estado == "OK" ? e.Porcentaje : null);
     var (px, py) = GraficosUi.Punto(Cx, Cy, 84, angulo);
 }
-<svg viewBox="0 0 220 128" class="w-100 grafico-tablero" role="img" aria-label="Eficiencia @GraficosUi.TextoPorcentaje(e.Porcentaje, e.Estado)" data-testid="medidor-eficiencia">
+<svg viewBox="@ViewBox" class="w-100 grafico-tablero" role="img" aria-label="Eficiencia @GraficosUi.TextoPorcentaje(e.Porcentaje, e.Estado)" data-testid="medidor-eficiencia">
     @foreach (var (desde, hasta, n) in GraficosUi.BandasEficiencia)
     {
         <path d="@GraficosUi.Banda(Cx, Cy, 96, 64, desde, hasta)" style="fill: @GraficosUi.Color(n); opacity: @(n == nivel ? "1" : ".55")" />
@@ -32,6 +34,10 @@
     <div class="text-body-secondary mt-1">
         Real @TableroUi.TextoReal(e.Real) · Obj. a la hora @TableroUi.TextoObjetivo(e.ObjetivoALaHora)
     </div>
+    @if (e.Provisorio && e.Estado == "OK")
+    {
+        <div class="small text-body-secondary" data-testid="eficiencia-provisoria">Provisoria (turno en curso)</div>
+    }
     <div class="small text-body-secondary" data-testid="eficiencia-turno">
         Obj. del turno: @TableroUi.TextoObjetivo(e.ObjetivoTurno) mangas@(e.PorcentajeTurno is { } pt ? $" · avance {GraficosUi.TextoPorcentaje(pt)}" : "")
     </div>
@@ -40,6 +46,14 @@
 @code {
     private const double Cx = 110;
     private const double Cy = 112;
+
+    /// <summary>Margen lateral del dibujo (las etiquetas de 0 % y 100 % quedan a 104 del centro y miden ~20 de ancho).</summary>
+    public const double MargenLateral = 18;
+
+    /// <summary>Ancho visible: los 220 del medidor más el margen a cada lado.</summary>
+    public const double AnchoVisible = 220 + 2 * MargenLateral;
+
+    private static readonly string ViewBox = $"{GraficosUi.N(-MargenLateral)} 0 {GraficosUi.N(AnchoVisible)} 128";
     private static readonly decimal[] Marcas = [0m, 25m, 50m, GraficosUi.EficienciaRojoDebajoDe, GraficosUi.EficienciaVerdeArribaDe, 100m];
 
     [Parameter, EditorRequired] public EficienciaTableroDto Eficiencia { get; set; } = new();
