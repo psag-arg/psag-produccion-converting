@@ -39,8 +39,8 @@ public sealed class MenuDashboardsTests : IDisposable
         p.Opciones.Where(o => o.PadreCodigo == seccion && o.Ruta != null && o.Ver).OrderBy(o => o.Orden).Select(o => o.Ruta!).ToList();
 
     [Theory]
-    [InlineData(RolesSistema.Administrador, "dashboard/reportes|dashboard/produccion|produccion/tablero/gerencial|configuracion/horas-programadas")]
-    [InlineData(RolesSistema.Supervisor, "dashboard/reportes|dashboard/produccion|produccion/tablero|produccion/tablero/gerencial|configuracion/horas-programadas")]
+    [InlineData(RolesSistema.Administrador, "dashboard/reportes|dashboard/produccion|produccion/tablero/gerencial")]
+    [InlineData(RolesSistema.Supervisor, "dashboard/reportes|dashboard/produccion|produccion/tablero|produccion/tablero/gerencial")]
     [InlineData(RolesSistema.Gerencia, "dashboard/reportes|dashboard/produccion|produccion/tablero/gerencial")]
     [InlineData(RolesSistema.Mantenimiento, "dashboard/reportes|dashboard/produccion")]
     [InlineData(RolesSistema.Operario, "dashboard/produccion|produccion/tablero")]
@@ -59,6 +59,39 @@ public sealed class MenuDashboardsTests : IDisposable
         if (reportes != null)
             Assert.Equal("Dashboard Admin", reportes.Nombre);
         Assert.Equal(rol != RolesSistema.Operario, reportes?.Ver == true);
+    }
+
+    /// <summary>
+    /// Script 45 (pedido 24/11): Horas programadas está en MAESTROS (después de Parámetros línea + producto), con la ruta
+    /// nueva, y no en DASHBOARD; los permisos de ADMINISTRADOR y SUPERVISOR siguen (mismo código de opción).
+    /// </summary>
+    [Theory]
+    [InlineData(RolesSistema.Administrador, "maestros/lineas|maestros/equipos|maestros/tipos-falla|maestros/fallas|maestros/reglas-analisis|maestros/control-proceso|maestros/inspecciones|maestros/productos|maestros/parametros-linea-producto|maestros/horas-programadas|maestros/camaras|maestros/calidad")]
+    [InlineData(RolesSistema.Supervisor, "maestros/horas-programadas")]
+    [InlineData(RolesSistema.Gerencia, "")]
+    [InlineData(RolesSistema.Operario, "")]
+    public async Task HorasProgramadas_EnMaestros_ConLosPermisosDeSiempre(string rol, string esperado)
+    {
+        var p = await MiosAsync(rol);
+        Assert.Equal(esperado.Split('|', StringSplitOptions.RemoveEmptyEntries), Menu(p, Opciones.Maestros));
+        Assert.DoesNotContain(Menu(p, Opciones.Dashboard), r => r.Contains("horas-programadas"));
+        var horas = p.Opciones.SingleOrDefault(o => o.Codigo == Opciones.DashboardHorasProgramadas);
+        if (rol is RolesSistema.Administrador or RolesSistema.Supervisor)
+        {
+            Assert.NotNull(horas);
+            Assert.True(horas!.Ver);
+            Assert.True(horas.Alta);
+            Assert.Equal(Opciones.Maestros, horas.PadreCodigo);
+        }
+    }
+
+    [Fact]
+    public async Task HorasProgramadas_LaApiDelCalendarioSigueConElMismoPermiso()
+    {
+        var sup = _api.Cliente("usr-horas-sup", RolesSistema.Supervisor);
+        Assert.Equal(System.Net.HttpStatusCode.OK, (await sup.GetAsync("api/calendario-lineas/lineas")).StatusCode);
+        var gerencia = _api.Cliente("usr-horas-ger", RolesSistema.Gerencia);
+        Assert.Equal(System.Net.HttpStatusCode.Forbidden, (await gerencia.GetAsync("api/calendario-lineas/lineas")).StatusCode);
     }
 
     [Fact]

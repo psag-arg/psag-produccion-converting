@@ -88,7 +88,8 @@ public class PermisosCatalogoTests
             Assert.True(padre is { EsSeccion: true }, $"{o.Codigo}: el padre tiene que ser una sección.");
             // El código empieza con el de su sección, salvo las que T-803 movió al menú DASHBOARD conservando el código
             // (lo usan los [Permiso] y CFG_PermisosRol).
-            if (!ReubicadasT803.Contains(o.Codigo))
+            // Y Horas programadas, que el script 45 pasó a MAESTROS conservando el código DASHBOARD.HORAS_PROGRAMADAS.
+            if (!ReubicadasT803.Contains(o.Codigo) && o.Codigo != Opciones.DashboardHorasProgramadas)
                 Assert.StartsWith(o.PadreCodigo + ".", o.Codigo);
             Assert.NotEqual(AccionPermiso.Ninguna, o.Aplicables);
             foreach (var (rol, acciones) in o.PorRol)
@@ -101,6 +102,7 @@ public class PermisosCatalogoTests
         // T-803: la raíz "/" no es una opción (redirige según el usuario); ninguna ruta vacía.
         Assert.Equal(0, todas.Count(o => o.Ruta == ""));
         Assert.All(ReubicadasT803, c => Assert.Equal(Opciones.Dashboard, CatalogoPermisos.Buscar(c)!.PadreCodigo));
+        Assert.Equal(Opciones.Maestros, CatalogoPermisos.Buscar(Opciones.DashboardHorasProgramadas)!.PadreCodigo);
         foreach (var q in CatalogoPermisos.Quitados)
             Assert.Equal(AccionPermiso.Ninguna, CatalogoPermisos.Buscar(q.Codigo)!.De(q.Rol) & q.Acciones);
         Assert.Equal(todas.Where(o => o.Ruta != null).Count(), todas.Where(o => o.Ruta != null).Select(o => o.Ruta).Distinct().Count());

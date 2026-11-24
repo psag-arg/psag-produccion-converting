@@ -26,9 +26,15 @@ public class Script43MenuDashboardsTests
             .OrderBy(x => x).ToList();
     }
 
+    /// <summary>
+    /// Lo que deja el 43: el catálogo, salvo Horas programadas, que el 45 pasó después a MAESTROS (el 43 publicado la deja en
+    /// DASHBOARD, orden 5, configuracion/horas-programadas).
+    /// </summary>
     private static List<string> MenuCatalogo() =>
         Cambian.Select(c => CatalogoPermisos.Buscar(c)!)
-            .Select(d => $"{d.Codigo}|{d.Nombre}|{d.PadreCodigo}|{d.Ruta ?? "NULL"}|{d.Orden}|{AccionPermisoTexto.AColumna(d.Aplicables)}|True")
+            .Select(d => d.Codigo == Opciones.DashboardHorasProgramadas
+                ? $"{d.Codigo}|{d.Nombre}|{Opciones.Dashboard}|configuracion/horas-programadas|5|{AccionPermisoTexto.AColumna(d.Aplicables)}|True"
+                : $"{d.Codigo}|{d.Nombre}|{d.PadreCodigo}|{d.Ruta ?? "NULL"}|{d.Orden}|{AccionPermisoTexto.AColumna(d.Aplicables)}|True")
             .OrderBy(x => x).ToList();
 
     private static string Fila(BaseDePrueba b, string rol, string codigo)
@@ -105,6 +111,7 @@ public class Script43MenuDashboardsTests
         finally
         {
             EsquemaSqlServer.CorrerScript("43_t803_menu_dashboards.sql");
+            EsquemaSqlServer.CorrerScript("45_horas_programadas_maestros.sql");   // el 45 va después del 43
         }
     }
 }

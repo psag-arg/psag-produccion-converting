@@ -4,7 +4,7 @@ Para Emiliano. Servidor de la app **2k22recimgProd (172.16.18.52)**; base **SQL 
 Rama `agente-psag-conv/turno-automatico` (va **después** de T-806 → T-805 → T-803 → T-770 → T-802 → T-798: necesita los
 scripts 31 a 43 corridos).
 
-> Probado en SQL Server de TEST (`PSAG_Mantenimiento_TEST`, armada con los mismos scripts hasta el **44**): suite de
+> Probado en SQL Server de TEST (`PSAG_Mantenimiento_TEST`, armada con los mismos scripts hasta el **45**): suite de
 > integración completa en verde, el 44 corrido dos veces, rollback dos veces y vuelta a aplicar. Diseño:
 > `docs/diseno/T-798_modelo_produccion.md`, sección 2.6 bis. Permisos: `docs/PERMISOS.md` (Obligado a turno, punto 5).
 
@@ -13,6 +13,7 @@ scripts 31 a 43 corridos).
 | Orden | Archivo | Qué hace | Deshace |
 |---|---|---|---|
 | 1 | `database/44_turno_automatico.sql` | `ABM_Turnos.ToleranciaCierreOperadorMinutos` (30), confirmación del producto heredado (`PRD_TurnosProduccionProductos.ConfirmadoPorUsuarioId`, `FechaHoraConfirmacion`, origen `HEREDADO`) y `DET_Detenciones.DetencionAnteriorId` (paradas que cruzan el cambio de turno). | `44_…_rollback.sql` |
+| 2 | `database/45_horas_programadas_maestros.sql` | Menú: *Horas programadas* pasa de *Dashboard* a *Maestros* (mismo código de opción: los permisos no cambian). | `45_…_rollback.sql` |
 
 - **El job de la API** (`TurnosProduccionJob`, cada minuto; no hay SQL Agent) ahora **abre** a la hora de inicio el turno de
   cada línea programada (sin operador, con el producto del turno anterior como supuesto) y lo **cierra a la hora exacta** de fin.
@@ -49,6 +50,16 @@ sqlcmd -S $srv -d PSAG_Mantenimiento -I -b -Q "SELECT Codigo, HoraInicio, HoraFi
 
 Los turnos activos con 30, el índice = 1 y el CHECK con `HEREDADO`.
 
+### 1b. Script 45 (menú: Horas programadas en Maestros)
+
+```powershell
+sqlcmd -S $srv -d PSAG_Mantenimiento -I -b -f 65001 -i 45_horas_programadas_maestros.sql -o "$log%.txt"
+Get-Content "$log%.txt"
+```
+
+Tiene que decir "Opciones del menú actualizadas: 3" (0 si ya estaba) y listar *Horas programadas* en MAESTROS orden 10
+(`maestros/horas-programadas`). No toca permisos. Se puede correr con la API andando.
+
 ## 2. Publicar API y Web
 
 ```powershell
@@ -76,7 +87,9 @@ a su hora). En el log de la API: "Job de turnos de producción: … abiertos aut
 4. Si la máquina estaba parada en el cambio de turno: la detención del turno anterior termina a la hora de fin y hay otra en
    el turno nuevo ("viene del turno anterior"), que el tablero del turno nuevo muestra como parada.
 5. *Configuración → Turnos*: columna y campo **Tolerancia operario** (0 a 240 min).
-6. Una detención pendiente de cámara (p. ej. `/detenciones/9`): "Duración detectada por cámara: 30 min (18:30 → 19:00)";
+6. Menú: *Horas programadas* aparece en **Maestros** (después de *Parámetros línea + producto*) y ya no en *Dashboard*;
+   el link viejo `/configuracion/horas-programadas` sigue funcionando. Supervisor y administrador la siguen viendo.
+7. Una detención pendiente de cámara (p. ej. `/detenciones/9`): "Duración detectada por cámara: 30 min (18:30 → 19:00)";
    en el listado y en *Mis pendientes*, los minutos con "(detectados, sin declarar)".
 
 ## 4. Volver atrás
@@ -84,6 +97,7 @@ a su hora). En el log de la API: "Job de turnos de producción: … abiertos aut
 Volver a publicar la API y la Web anteriores (T-806) y después, con la API detenida:
 
 ```powershell
+sqlcmd -S $srv -d PSAG_Mantenimiento -I -b -f 65001 -i 45_horas_programadas_maestros_rollback.sql -o "$log\rollback45.txt"
 sqlcmd -S $srv -d PSAG_Mantenimiento -I -b -f 65001 -i 44_turno_automatico_rollback.sql -o "$log\rollback44.txt"
 ```
 

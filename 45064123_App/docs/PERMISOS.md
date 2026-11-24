@@ -156,7 +156,7 @@ V = Ver, A = Alta, M = Modificación, B = Baja; — = nada. "(sin menú)" = func
 | Presupuesto vs. real <br><sub>aplica: VER · T-803: de Producción a Dashboard</sub> | `PRODUCCION.PRESUPUESTO_REAL` | `/dashboard/produccion` | V | V | V | V | V |
 | Tablero del turno <br><sub>aplica: VER · T-770, script 41 · T-803: a Dashboard</sub> | `PRODUCCION.TABLERO` | `/produccion/tablero` | — | — | V | V | — |
 | Tablero de producción (gerencial) <br><sub>aplica: VER · T-770 iteración 2, script 42 · T-803: a Dashboard, con ruta</sub> | `PRODUCCION.TABLERO_GERENCIAL` | `/produccion/tablero/gerencial` | V | — | V | — | V |
-| Horas programadas <br><sub>aplica: VER,ALTA,BAJA</sub> | `DASHBOARD.HORAS_PROGRAMADAS` | `/configuracion/horas-programadas` | V A B | — | V A B | — | — |
+| Horas programadas (en Maestros desde el script 45) <br><sub>aplica: VER,ALTA,BAJA</sub> | `DASHBOARD.HORAS_PROGRAMADAS` | `/maestros/horas-programadas` | V A B | — | V A B | — | — |
 | Inicio (sin menú: lecturas del dashboard) <br><sub>aplica: VER · T-803: sin ruta</sub> | `DASHBOARD.INICIO` | (sin menú) | V | V | V | V | V |
 | **Maestros** | `MAESTROS` | | | | | | |
 | Líneas <br><sub>aplica: VER,ALTA,MOD</sub> | `MAESTROS.LINEAS` | `/maestros/lineas` | V A M | — | — | — | — |
@@ -393,6 +393,12 @@ Pedido de Emiliano (testeo 23/11): "pocos dashboards claros". La sección **Dash
 | 3 | Tablero del turno | `/produccion/tablero` | `PRODUCCION.TABLERO` | SUPERVISOR, OPERARIO |
 | 4 | Tablero de producción (gerencial) | `/produccion/tablero/gerencial` | `PRODUCCION.TABLERO_GERENCIAL` | ADMINISTRADOR, SUPERVISOR, GERENCIA |
 | 5 | Horas programadas (queda donde estaba) | `/configuracion/horas-programadas` | `DASHBOARD.HORAS_PROGRAMADAS` | ADMINISTRADOR, SUPERVISOR |
+
+> **Script 45 (pedido de Emiliano, 24/11): *Horas programadas* pasó a la sección *Maestros*** (orden 10, después de
+> *Parámetros línea + producto*; *Cámaras* y *Calidad* corren un lugar), con ruta `/maestros/horas-programadas`
+> (`/configuracion/horas-programadas` sigue como alias de la página). El **código** queda `DASHBOARD.HORAS_PROGRAMADAS` por
+> compatibilidad: los `[Permiso]` de la API y las filas de `CFG_PermisosRol` no cambian (ADMINISTRADOR y SUPERVISOR la
+> siguen viendo; lo editado desde el configurador se conserva). Si se vuelve a correr el 43, correr otra vez el 45.
 
 - Las tres de producción **conservan el código** (`PRODUCCION.*`: lo usan los `[Permiso]` de la API y las filas de
   `CFG_PermisosRol`); sólo cambian de padre. Por eso el test de consistencia del catálogo admite que esas tres no empiecen

@@ -11,6 +11,7 @@ public static class Opciones
     public const string Dashboard = "DASHBOARD";
     public const string DashboardInicio = "DASHBOARD.INICIO";
     public const string DashboardReportes = "DASHBOARD.REPORTES";
+    /// <summary>Desde el script 45 está en MAESTROS; el código conserva el prefijo DASHBOARD por compatibilidad.</summary>
     public const string DashboardHorasProgramadas = "DASHBOARD.HORAS_PROGRAMADAS";
     public const string Maestros = "MAESTROS";
     public const string MaestrosLineas = "MAESTROS.LINEAS";
@@ -68,6 +69,8 @@ public static class RutasPermiso
     [
         ("dashboard/reportes", Opciones.DashboardReportes),
         ("dashboard/produccion", Opciones.ProduccionPresupuestoReal),
+        // Script 45: Horas programadas está en Maestros; la ruta vieja sigue como alias.
+        ("maestros/horas-programadas", Opciones.DashboardHorasProgramadas),
         ("configuracion/horas-programadas", Opciones.DashboardHorasProgramadas),
         ("maestros/lineas", Opciones.MaestrosLineas),
         ("maestros/equipos", Opciones.MaestrosEquipos),

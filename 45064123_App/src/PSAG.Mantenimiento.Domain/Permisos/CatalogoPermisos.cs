@@ -14,6 +14,7 @@ public static class Opciones
     public const string Dashboard = "DASHBOARD";
     public const string DashboardInicio = "DASHBOARD.INICIO";
     public const string DashboardReportes = "DASHBOARD.REPORTES";
+    /// <summary>Horas programadas: desde el script 45 está en MAESTROS; el código conserva el prefijo DASHBOARD por compatibilidad (permisos ya asignados).</summary>
     public const string DashboardHorasProgramadas = "DASHBOARD.HORAS_PROGRAMADAS";
 
     public const string Maestros = "MAESTROS";
@@ -156,7 +157,7 @@ public static class CatalogoPermisos
             (V, Todos));
 
         // T-803 (script 43): la sección DASHBOARD tiene SÓLO los tableros: Dashboard Admin, Presupuesto vs. real, Tablero del
-        // turno, Tablero de producción (gerencial) y Horas programadas. Las tres de producción conservan su código
+        // turno y Tablero de producción (gerencial) (Horas programadas pasó a MAESTROS con el script 45). Las tres de producción conservan su código
         // (PRODUCCION.*: lo usan los [Permiso] de la API y las filas de CFG_PermisosRol); cambia sólo el padre.
         // "Inicio" (/ y /dashboard, el viejo "Dashboard de Control") sale del menú: la raíz redirige según el usuario
         // (Web: Shared/RutasInicio). La opción queda sin ruta y con los mismos permisos: sigue habilitando las lecturas
@@ -168,8 +169,6 @@ public static class CatalogoPermisos
         Opcion(Opciones.ProduccionTablero, "Tablero del turno", Opciones.Dashboard, "produccion/tablero", 3, (V, [S, O]));
         // T-770 iteración 2 (script 42): el mismo tablero para cualquier línea y turno (en curso o cerrado), sólo lectura.
         Opcion(Opciones.ProduccionTableroGerencial, "Tablero de producción (gerencial)", Opciones.Dashboard, "produccion/tablero/gerencial", 4, (V, [A, S, G]));
-        Opcion(Opciones.DashboardHorasProgramadas, "Horas programadas", Opciones.Dashboard, "configuracion/horas-programadas", 5,
-            (V, [A, S]), (Al, [A, S]), (Ba, [A, S]));
         Opcion(Opciones.DashboardInicio, "Inicio (sin menú: lecturas del dashboard)", Opciones.Dashboard, null, 9, (V, Todos));
 
         Seccion(Opciones.Maestros, "Maestros", 20);
@@ -182,8 +181,15 @@ public static class CatalogoPermisos
         Opcion(Opciones.MaestrosInspecciones, "Planes de inspección", Opciones.Maestros, "maestros/inspecciones", 7, (V, Admin), (Al, Admin), (Mo, Admin));
         Opcion(Opciones.MaestrosProductos, "Productos", Opciones.Maestros, "maestros/productos", 8, (V, Admin), (Al, Admin), (Mo, Admin));
         Opcion(Opciones.MaestrosParametros, "Parámetros línea + producto", Opciones.Maestros, "maestros/parametros-linea-producto", 9, (V, Admin), (Al, Admin), (Mo, Admin));
-        Opcion(Opciones.MaestrosCamaras, "Cámaras", Opciones.Maestros, "maestros/camaras", 10, (V, Admin), (Al, Admin), (Mo, Admin), (Ba, Admin));
-        Opcion(Opciones.MaestrosCalidad, "Calidad (puntos y defectos)", Opciones.Maestros, "maestros/calidad", 11, (V, Admin), (Al, Admin), (Mo, Admin));
+        // Script 45 (pedido de Emiliano 24/11): Horas programadas pasa de DASHBOARD a MAESTROS, junto a los maestros de
+        // producción (después de "Parámetros línea + producto"; Cámaras y Calidad corren un lugar). El CÓDIGO queda
+        // DASHBOARD.HORAS_PROGRAMADAS por compatibilidad: lo usan los [Permiso] de la API y las filas de CFG_PermisosRol
+        // (así no se pierden los permisos ya asignados). Ruta nueva maestros/horas-programadas (la vieja
+        // configuracion/horas-programadas sigue como alias de la página).
+        Opcion(Opciones.DashboardHorasProgramadas, "Horas programadas", Opciones.Maestros, "maestros/horas-programadas", 10,
+            (V, [A, S]), (Al, [A, S]), (Ba, [A, S]));
+        Opcion(Opciones.MaestrosCamaras, "Cámaras", Opciones.Maestros, "maestros/camaras", 11, (V, Admin), (Al, Admin), (Mo, Admin), (Ba, Admin));
+        Opcion(Opciones.MaestrosCalidad, "Calidad (puntos y defectos)", Opciones.Maestros, "maestros/calidad", 12, (V, Admin), (Al, Admin), (Mo, Admin));
 
         Seccion(Opciones.Detenciones, "Detenciones", 30);
         Opcion(Opciones.DetencionesListado, "Ver detenciones", Opciones.Detenciones, "detenciones", 1,

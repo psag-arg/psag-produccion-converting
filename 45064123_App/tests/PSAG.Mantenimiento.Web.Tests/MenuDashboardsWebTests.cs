@@ -41,8 +41,8 @@ public class MenuDashboardsWebTests
     }
 
     [Theory]
-    [InlineData("ADMINISTRADOR", "Dashboard Admin|Presupuesto vs. real|Tablero de producción (gerencial)|Horas programadas")]
-    [InlineData("SUPERVISOR", "Dashboard Admin|Presupuesto vs. real|Tablero del turno|Tablero de producción (gerencial)|Horas programadas")]
+    [InlineData("ADMINISTRADOR", "Dashboard Admin|Presupuesto vs. real|Tablero de producción (gerencial)")]
+    [InlineData("SUPERVISOR", "Dashboard Admin|Presupuesto vs. real|Tablero del turno|Tablero de producción (gerencial)")]
     [InlineData("GERENCIA", "Dashboard Admin|Presupuesto vs. real|Tablero de producción (gerencial)")]
     [InlineData("MANTENIMIENTO", "Dashboard Admin|Presupuesto vs. real")]
     [InlineData("OPERARIO", "Presupuesto vs. real|Tablero del turno")]
@@ -59,6 +59,22 @@ public class MenuDashboardsWebTests
         // Lo movido a DASHBOARD no se duplica en Producción
         Assert.DoesNotContain(MenuUi.ItemsDe(p, Opciones.Produccion), i =>
             i.Codigo is Opciones.ProduccionPresupuestoReal or Opciones.ProduccionTablero or Opciones.ProduccionTableroGerencial);
+    }
+
+    /// <summary>Script 45 (pedido 24/11): Horas programadas está en MAESTROS, después de Parámetros línea + producto.</summary>
+    [Theory]
+    [InlineData("ADMINISTRADOR", "Parámetros línea + producto|Horas programadas|Cámaras")]
+    [InlineData("SUPERVISOR", "Horas programadas")]
+    public void HorasProgramadas_EnMaestros(string rol, string esperado)
+    {
+        var p = PermisosDe(rol);
+        var maestros = MenuUi.ItemsDe(p, Opciones.Maestros).Select(i => i.Texto).ToList();
+        Assert.Contains(esperado, string.Join("|", maestros));
+        Assert.Equal("maestros/horas-programadas", MenuUi.ItemsDe(p, Opciones.Maestros).Single(i => i.Codigo == Opciones.DashboardHorasProgramadas).Ruta);
+        Assert.DoesNotContain(MenuUi.ItemsDe(p, Opciones.Dashboard), i => i.Codigo == Opciones.DashboardHorasProgramadas);
+        // La ruta nueva y la vieja (alias) piden el mismo permiso
+        Assert.Equal(Opciones.DashboardHorasProgramadas, RutasPermiso.OpcionDe("maestros/horas-programadas"));
+        Assert.Equal(Opciones.DashboardHorasProgramadas, RutasPermiso.OpcionDe("configuracion/horas-programadas"));
     }
 
     [Theory]

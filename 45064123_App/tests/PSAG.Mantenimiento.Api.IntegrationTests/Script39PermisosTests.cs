@@ -39,7 +39,8 @@ public class Script39PermisosTests
         EsquemaSqlServer.CorrerScript("39_t802_roles_permisos.sql");
         EsquemaSqlServer.CorrerScript("41_t770_tablero_operador.sql");   // T-770: la opción del tablero (39 + 41 + 42 = catálogo)
         EsquemaSqlServer.CorrerScript("42_t770_tablero_gerencial.sql");
-        EsquemaSqlServer.CorrerScript("43_t803_menu_dashboards.sql");   // T-803: menú de dashboards (39 + 41 + 42 + 43 = catálogo)
+        EsquemaSqlServer.CorrerScript("43_t803_menu_dashboards.sql");   // T-803: menú de dashboards
+        EsquemaSqlServer.CorrerScript("45_horas_programadas_maestros.sql");   // Horas programadas en Maestros (39 + 41 + 42 + 43 + 45 = catálogo)
 
         var opciones = b.Context.OpcionesSistema.AsNoTracking().Include(o => o.Padre).ToList();
         Assert.Equal(
@@ -94,6 +95,7 @@ public class Script39PermisosTests
             EsquemaSqlServer.CorrerScript("41_t770_tablero_operador.sql");
             EsquemaSqlServer.CorrerScript("42_t770_tablero_gerencial.sql");
             EsquemaSqlServer.CorrerScript("43_t803_menu_dashboards.sql");
+            EsquemaSqlServer.CorrerScript("45_horas_programadas_maestros.sql");
             BaseDePrueba.OlvidarOrden();   // cambiaron las tablas: rearmar el orden de borrado
         }
         Assert.Equal(3, b.Context.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS Value FROM sys.tables WHERE name LIKE 'CFG[_]%'").AsEnumerable().First());
