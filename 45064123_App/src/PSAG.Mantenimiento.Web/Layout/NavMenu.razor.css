@@ -85,7 +85,7 @@
     background-color: var(--psag-encabezado-marca);
 }
 
-.nav-section-items .nav-link {
+.nav-section-items ::deep .nav-link {
     color: var(--psag-encabezado-texto);
     margin: 1px .5rem 1px 0;
     border-radius: var(--psag-radio-pill);
@@ -96,13 +96,13 @@
     transition: background-color 0.2s;
 }
 
-.nav-section-items .nav-link:hover {
+.nav-section-items ::deep .nav-link:hover {
     background-color: var(--psag-encabezado-hover);
     color: var(--psag-encabezado-texto);
     text-decoration: none;
 }
 
-.nav-section-items .nav-link.active {
+.nav-section-items ::deep .nav-link.active {
     background-color: var(--psag-encabezado-activo);
     color: var(--psag-encabezado-texto);
     font-weight: 600;
@@ -154,7 +154,7 @@
     }
 
     .nav-section-header,
-    .nav-section-items .nav-link {
+    .nav-section-items ::deep .nav-link {
         min-height: 44px; /* tamaño de toque cómodo */
     }
 }

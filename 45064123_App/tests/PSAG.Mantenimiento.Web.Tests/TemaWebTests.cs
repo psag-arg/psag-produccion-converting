@@ -108,4 +108,14 @@ public class TemaWebTests
         Assert.Contains("prefers-color-scheme: dark", index);
         Assert.Contains("data-bs-theme", index);
     }
+
+    [Fact]
+    public void MenuLateral_EstilosDeLosItems_LleganAlNavLink()
+    {
+        // NavLink es un componente hijo: sin ::deep el CSS aislado no le llega y el ítem
+        // queda con el color de link de Bootstrap (violeta sobre el degradé violeta).
+        var css = File.ReadAllText(Web("Layout", "NavMenu.razor.css"));
+        Assert.DoesNotMatch(@"\.nav-section-items\s+\.nav-link", css);
+        Assert.Matches(@"\.nav-section-items\s+::deep\s+\.nav-link\s*\{[^}]*var\(--psag-encabezado-texto\)", css);
+    }
 }
