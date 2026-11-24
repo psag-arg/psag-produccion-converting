@@ -134,6 +134,9 @@ public class PendienteDeclaracionDto
     public string? CamaraCodigo { get; set; }
     public int MinutosEfectivos { get; set; }
     public string EstadoActualDescripcion { get; set; } = string.Empty;
+    public int? SegundosDetectados { get; set; }
+    public bool ParadaEnCurso { get; set; }
+    public bool VieneDelTurnoAnterior { get; set; }
 }
 
 public class ResponsableOpcionDto

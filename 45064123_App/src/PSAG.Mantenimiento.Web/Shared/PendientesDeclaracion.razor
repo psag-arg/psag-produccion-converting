@@ -28,6 +28,7 @@
                     <th>Turno</th>
                     <th>Parada desde</th>
                     <th>Arranque (cámara)</th>
+                    <th>Minutos</th>
                     <th>Origen</th>
                     <th></th>
                 </tr>
@@ -36,7 +37,13 @@
                 @foreach (var item in Items)
                 {
                     <tr role="button" @onclick="() => Declarar(item.DetencionId)">
-                        <td><strong>@item.Codigo</strong></td>
+                        <td>
+                            <strong>@item.Codigo</strong>
+                            @if (item.VieneDelTurnoAnterior)
+                            {
+                                <span class="badge bg-info-subtle text-info-emphasis ms-1" title="La parada empezó en el turno anterior: esta es la parte de este turno">viene del turno anterior</span>
+                            }
+                        </td>
                         <td>@item.LineaNombre</td>
                         <td>@item.TurnoNombre</td>
                         <td>@(item.FechaHoraParada?.ToString("dd/MM HH:mm") ?? "Sin hora")</td>
@@ -48,6 +55,16 @@
                             else
                             {
                                 <span class="badge bg-danger-subtle text-danger-emphasis">Sigue parada</span>
+                            }
+                        </td>
+                        <td>
+                            @if (item.SegundosDetectados != null)
+                            {
+                                <DuracionDetectada Segundos="item.SegundosDetectados" EnCurso="item.ParadaEnCurso" />
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">@item.MinutosEfectivos min</span>
                             }
                         </td>
                         <td>
@@ -68,7 +85,7 @@
                 @if (!Items.Any())
                 {
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-4">No hay detenciones pendientes de declaración.</td>
+                        <td colspan="8" class="text-center text-muted py-4">No hay detenciones pendientes de declaración.</td>
                     </tr>
                 }
             </tbody>

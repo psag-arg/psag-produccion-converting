@@ -111,6 +111,13 @@ public class DeclaracionDetencionDto
     public string EstadoActualDescripcion { get; set; } = string.Empty;
     public bool PendienteDeclaracion { get; set; }
     public byte[] RowVersion { get; set; } = [];
+    public int? SegundosDetectados { get; set; }
+    public bool ParadaEnCurso { get; set; }
+    public long? ParteAnteriorId { get; set; }
+    public string? ParteAnteriorCodigo { get; set; }
+    public long? ParteSiguienteId { get; set; }
+    public string? ParteSiguienteCodigo { get; set; }
+    public DateTimeOffset? DeclararHasta { get; set; }
 }
 
 public class DeclararDetencionRequest

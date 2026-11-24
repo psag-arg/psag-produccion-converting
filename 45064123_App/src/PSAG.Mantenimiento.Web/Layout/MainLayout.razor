@@ -33,7 +33,18 @@
                     }
                     else
                     {
-                        <span class="me-auto small aviso-bloqueado"><i class="bi bi-lock me-1"></i>Abrí o tomá un turno para empezar</span>
+                        @if (tolerancia is { } sesion)
+                        {
+                            <span class="me-auto small aviso-bloqueado" data-testid="aviso-tolerancia">
+                                <i class="bi bi-hourglass-split me-1"></i>Terminó tu @sesion.TurnoNombre de @sesion.LineaNombre: hasta las
+                                @sesion.ToleranciaHasta.ToString("HH:mm") podés declarar sus detenciones
+                                (<a href="detenciones/pendientes">Mis pendientes</a> · <a href="@PSAG.Mantenimiento.Web.Services.TurnoPropioService.RutaInicioTurno">Inicio de turno</a>).
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="me-auto small aviso-bloqueado"><i class="bi bi-lock me-1"></i>Abrí o tomá un turno para empezar</span>
+                        }
                     }
                     <button class="btn btn-outline-secondary btn-sm me-3" @onclick="ToggleTheme" title="@(isDarkMode ? "Cambiar a modo claro" : "Cambiar a modo oscuro")">
                         <i class="bi @(isDarkMode ? "bi-sun-fill" : "bi-moon-stars-fill")"></i>
@@ -45,7 +56,7 @@
                 </div>
 
                 <article class="content px-4">
-                    @if (bloqueado && !enInicioTurno)
+                    @if (bloqueado && !permitida)
                     {
                         <div class="text-muted small p-3">Abrí o tomá un turno para empezar…</div>
                     }
@@ -73,6 +84,9 @@
     private bool isDarkMode;
     private bool menuAbierto;
     private bool bloqueado;
+    /// <summary>Turno automático: la pantalla actual se puede usar (inicio de turno, o pendientes en la tolerancia).</summary>
+    private bool permitida = true;
+    private PSAG.Mantenimiento.Web.Models.SesionToleranciaDto? tolerancia;
     private bool enInicioTurno;
 
     protected override async Task OnInitializedAsync()
@@ -115,12 +129,18 @@
             if (usuario.Identity?.IsAuthenticated != true)
             {
                 bloqueado = false;
+                permitida = true;
+                tolerancia = null;
                 return;
             }
             var actual = "/" + Navigation.ToBaseRelativePath(Navigation.Uri);
             enInicioTurno = PSAG.Mantenimiento.Web.Services.TurnoPropioService.EsInicioTurno(actual);
-            bloqueado = (await TurnoPropio.ObtenerAsync()).Bloqueado;
-            if (bloqueado && !enInicioTurno && !actual.StartsWith("/login", StringComparison.OrdinalIgnoreCase))
+            var estado = await TurnoPropio.ObtenerAsync();
+            bloqueado = estado.Bloqueado;
+            tolerancia = estado.Turno == null ? estado.Tolerancia : null;
+            permitida = estado.PuedeEstarEn(actual);
+            // Turno automático: sin turno (o sin producto confirmado) sólo inicio de turno; en la tolerancia, también sus pendientes.
+            if (!estado.PuedeEstarEn(actual) && !actual.StartsWith("/login", StringComparison.OrdinalIgnoreCase))
                 Navigation.NavigateTo($"/{PSAG.Mantenimiento.Web.Services.TurnoPropioService.RutaInicioTurno}?volver={Uri.EscapeDataString(actual)}");
         }
         catch (Exception ex)

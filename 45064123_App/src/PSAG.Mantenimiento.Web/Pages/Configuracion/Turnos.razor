@@ -44,6 +44,7 @@
                             <th>Hora Inicio</th>
                             <th>Hora Fin</th>
                             <th>Horas</th>
+                            <th title="Minutos después del fin del turno en que el operario todavía puede declarar las detenciones de su turno">Tolerancia operario</th>
                             <th class="text-center">Activo</th>
                             <th class="text-end">Acciones</th>
                         </tr>
@@ -60,6 +61,7 @@
                                     <td>@turno.HoraInicio.ToString(@"hh\:mm")</td>
                                     <td>@turno.HoraFin.ToString(@"hh\:mm")</td>
                                     <td>@FormatearHoras(turno)</td>
+                                    <td>@turno.ToleranciaCierreOperadorMinutos min</td>
                                     <td class="text-center">
                                         @if (turno.Activo)
                                         {
@@ -89,7 +91,7 @@
                         else
                         {
                             <tr>
-                                <td colspan="8" class="text-center text-muted py-4">No hay turnos cargados.</td>
+                                <td colspan="9" class="text-center text-muted py-4">No hay turnos cargados.</td>
                             </tr>
                         }
                     </tbody>
@@ -138,6 +140,14 @@
                     <div class="mb-3">
                         <label class="form-label">Orden</label>
                         <input type="number" class="form-control" @bind="turnoActual.Orden" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tolerancia del operario (minutos)</label>
+                        <input type="number" min="0" max="240" class="form-control" @bind="turnoActual.ToleranciaCierreOperadorMinutos" data-testid="tolerancia-operario" />
+                        <div class="form-text">
+                            El turno de la máquina cierra a la hora de fin. Durante estos minutos el operario que lo terminó todavía
+                            puede declarar y corregir las detenciones de su turno; después, su sesión se cierra sola.
+                        </div>
                     </div>
                     <div class="form-check">
                         <input type="checkbox" class="form-check-input" id="activo" @bind="turnoActual.Activo" />
@@ -221,7 +231,8 @@
             HoraInicio = turno.HoraInicio,
             HoraFin = turno.HoraFin,
             Orden = turno.Orden,
-            Activo = turno.Activo
+            Activo = turno.Activo,
+            ToleranciaCierreOperadorMinutos = turno.ToleranciaCierreOperadorMinutos
         };
         horaInicioStr = turno.HoraInicio.ToString(@"hh\:mm");
         horaFinStr = turno.HoraFin.ToString(@"hh\:mm");
@@ -253,6 +264,11 @@
         if (ParsearHora(horaInicioStr) is not TimeOnly horaInicio || ParsearHora(horaFinStr) is not TimeOnly horaFin)
         {
             errorMessage = "Escribí la hora como HH:mm, por ejemplo 06:00.";
+            return;
+        }
+        if (turnoActual.ToleranciaCierreOperadorMinutos is < 0 or > 240)
+        {
+            errorMessage = "La tolerancia del operario tiene que estar entre 0 y 240 minutos.";
             return;
         }
         if (horaInicio == horaFin)

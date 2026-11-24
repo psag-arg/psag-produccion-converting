@@ -87,7 +87,7 @@
                                 </div>
                             </td>
                             <td>
-                                <span class="badge @ColorEstado(t?.Estado)">@TextoEstado(t?.Estado)</span>
+                                <span class="badge @ColorEstado(t?.Estado)">@TextoEstado(t?.Estado)@(t is { Estado: "ABIERTO", SinOperador: true } ? " sin operador" : "")</span>
                                 @if (t != null)
                                 {
                                     <div class="small text-muted">
@@ -95,6 +95,10 @@
                                         @(t.FinReal is { } fin ? $" hasta {fin:HH:mm}" : "")
                                         @(t.OrigenApertura == "SISTEMA" && t.Estado != "SIN_APERTURA" ? " · abierto por el sistema" : "")
                                     </div>
+                                    @foreach (var alerta in t.Alertas)
+                                    {
+                                        <div class="small text-warning-emphasis" data-testid="alerta-turno"><i class="bi bi-exclamation-triangle me-1"></i>@alerta</div>
+                                    }
                                 }
                             </td>
                             <td>
@@ -115,6 +119,10 @@
                                 @if (t?.ProductoActual != null)
                                 {
                                     <span>@t.ProductoActual.ProductoNombre</span>
+                                    @if (t.ProductoActual.SinConfirmar)
+                                    {
+                                        <span class="badge text-bg-warning ms-1" title="Heredado del turno anterior: nadie lo confirmó. Corregilo o confirmalo con Corregir producto.">supuesto</span>
+                                    }
                                     <div class="small text-muted">@ObjetivoTexto(t.ProductoActual)</div>
                                 }
                                 else if (t != null && t.ACompletar)
@@ -138,7 +146,8 @@
                                     <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => AbrirOperador(f)">
                                         <i class="bi bi-person me-1"></i>Corregir operador
                                     </button>
-                                    @if (t.Estado == "ABIERTO")
+                                    @* Turno automático: el turno de máquina cierra solo a su hora; "Cerrar" queda sólo si pasó la hora y el job no corrió. *@
+                                    @if (t.Estado == "ABIERTO" && DateTimeOffset.Now >= t.FinProgramado)
                                     {
                                         <button class="btn btn-sm btn-outline-danger" @onclick="() => AbrirCierre(f)">
                                             <i class="bi bi-stop-circle me-1"></i>Cerrar
@@ -173,7 +182,7 @@
                                                 {
                                                     <li class="@(p.Anulado ? "text-decoration-line-through text-muted" : "")">
                                                         @p.Desde.ToString("HH:mm")–@(p.Hasta?.ToString("HH:mm") ?? "…") · <strong>@p.ProductoNombre</strong>
-                                                        · @ObjetivoTexto(p) · @TextoOrigenProducto(p.Origen)
+                                                        · @ObjetivoTexto(p) · @TextoOrigenProducto(p.Origen)@(p.SinConfirmar ? " (sin confirmar)" : p.Origen == "HEREDADO" ? " (confirmado)" : "")
                                                         @if (!string.IsNullOrEmpty(p.Motivo)) { <span class="text-muted"> · @p.Motivo</span> }
                                                     </li>
                                                 }
@@ -659,7 +668,7 @@
         "ABIERTO" => "Abierto",
         "CERRADO" => "Cerrado",
         "CERRADO_AUTOMATICO" => "Cerrado (automático)",
-        "SIN_APERTURA" => "Sin apertura",
+        "SIN_APERTURA" => "Sin apertura (histórico)",
         _ => "Sin registro"
     };
 
@@ -667,6 +676,7 @@
     {
         "LOGIN" => "elegido al entrar",
         "CAMBIO" => "cambio",
+        "HEREDADO" => "heredado del turno anterior",
         _ => "corrección del supervisor"
     };
 

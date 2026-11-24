@@ -206,11 +206,11 @@ public static class TableroUi
         {
             t.LineaNombre,
             ProduccionUi.TextoTurno(t.TurnoCodigo, t.InicioProgramado, t.FinProgramado),
-            t.ProductoNombre is { } p ? $"{p} desde {t.ProductoDesde:HH:mm}" : "Producto a completar",
-            t.OperadorNombre is { } o ? $"Op. {o}" : "Sin operador"
+            t.ProductoNombre is { } p ? $"{p} desde {t.ProductoDesde:HH:mm}" + (t.ProductoSinConfirmar ? " (supuesto, sin confirmar)" : "") : "Producto a completar",
+            t.OperadorNombre is { } o ? $"Op. {o}" : (t.Abierto ? "Abierto sin operador" : "Sin operador")
         };
         if (!t.Abierto)
-            partes.Add(t.Estado == "SIN_APERTURA" ? "Sin apertura" : "Cerrado");
+            partes.Add(ProduccionUi.TextoEstado(t.Estado));
         return string.Join(" · ", partes);
     }
 }

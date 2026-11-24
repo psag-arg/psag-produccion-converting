@@ -55,6 +55,18 @@ public class DetencionDto
     public DateTimeOffset? FechaHoraAnalisis { get; set; }
     public bool EquipoCritico { get; set; }
 
+    // Pedido 24/11: duración detectada por la cámara de una pendiente (MinutosEfectivos es 0 hasta declararla).
+    public int? SegundosDetectados { get; set; }
+    public bool ParadaEnCurso { get; set; }
+    public DateTimeOffset? FechaHoraArranqueDetectada { get; set; }
+
+    // Turno automático (D.12): partes de una parada que cruzó el cambio de turno.
+    public long? DetencionAnteriorId { get; set; }
+    public bool VieneDelTurnoAnterior => DetencionAnteriorId != null;
+    public string? ParteAnteriorCodigo { get; set; }
+    public long? ParteSiguienteId { get; set; }
+    public string? ParteSiguienteCodigo { get; set; }
+
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }
 

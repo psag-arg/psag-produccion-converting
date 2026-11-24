@@ -250,6 +250,43 @@ public sealed class TurnoObligadoApiTests : IDisposable
     }
 
     [Fact]
+    public async Task PendienteDeCamara_DetalleListadoYPendientes_MuestranLosSegundosDetectados_SinTocarLosMinutosEfectivos()
+    {
+        var turno = (await AbrirAsync(OperA, _linea1)).Turno!;
+        long id;
+        using (var ctx = _api.NuevoContexto())
+        {
+            var p = PendienteDeCamara("DET-SEG-0001", _linea1, turno.TurnoProduccionId);
+            p.FechaHoraArranqueDetectada = p.FechaHoraParada!.Value.AddMinutes(30);   // 18:30 → 19:00 = 30 min
+            ctx.Detenciones.Add(p);
+            await ctx.SaveChangesAsync();
+            id = p.DetencionId;
+        }
+        var sup = _api.Cliente("sup-seg", RolesSistema.Supervisor);
+
+        using (var json = JsonDocument.Parse(await sup.GetStringAsync($"api/detenciones/{id}")))
+        {
+            Assert.Equal(1800, json.RootElement.GetProperty("segundosDetectados").GetInt32());
+            Assert.Equal(0, json.RootElement.GetProperty("minutosEfectivos").GetInt32());
+            Assert.False(json.RootElement.GetProperty("paradaEnCurso").GetBoolean());
+            Assert.Equal(JsonValueKind.String, json.RootElement.GetProperty("fechaHoraArranqueDetectada").ValueKind);
+        }
+        using (var json = JsonDocument.Parse(await sup.GetStringAsync($"api/detenciones?lineaId={_linea1}")))
+        {
+            var item = json.RootElement.GetProperty("items").EnumerateArray().Single(i => i.GetProperty("detencionId").GetInt64() == id);
+            Assert.Equal(1800, item.GetProperty("segundosDetectados").GetInt32());
+        }
+        using (var json = JsonDocument.Parse(await sup.GetStringAsync("api/analisis/pendientes")))
+        {
+            var item = json.RootElement.GetProperty("paraDeclarar").EnumerateArray().Single(i => i.GetProperty("detencionId").GetInt64() == id);
+            Assert.Equal(1800, item.GetProperty("segundosDetectados").GetInt32());
+            Assert.Equal(0, item.GetProperty("minutosEfectivos").GetInt32());
+        }
+        using (var json = JsonDocument.Parse(await sup.GetStringAsync($"api/detenciones/{id}/declaracion")))
+            Assert.Equal(1800, json.RootElement.GetProperty("segundosDetectados").GetInt32());
+    }
+
+    [Fact]
     public async Task EntrarSinProducto_400ProductoRequerido_SiLaLineaTieneProductosConObjetivo()
     {
         using (var ctx = _api.NuevoContexto())

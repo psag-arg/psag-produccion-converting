@@ -88,6 +88,27 @@ public static class ProduccionUi
     }
 
     /// <summary>
+    /// Estado legible (fuera de ABIERTO). Turno automático: SIN_APERTURA ya no se genera (queda en turnos viejos).
+    /// </summary>
+    public static string TextoEstado(string estado) => estado switch
+    {
+        "ABIERTO" => "Abierto",
+        "SIN_APERTURA" => "Sin apertura (histórico)",
+        _ => "Cerrado"
+    };
+
+    /// <summary>Turno automático: "Abierto sin operador" si el turno de máquina está abierto y nadie lo tomó.</summary>
+    public static string TextoEstadoTurno(TurnoProduccionDto t) =>
+        t.Estado == "ABIERTO" && t.SinOperador ? "Abierto sin operador" : TextoEstado(t.Estado);
+
+    /// <summary>
+    /// Pedido 24/11: duración detectada por la cámara de una pendiente ("40 s", "30 min"); misma regla que el tablero
+    /// (los segundos los calcula la API con DetencionCamaraReglas.SegundosDetectados). Null si no hay.
+    /// </summary>
+    public static string? TextoDuracionDetectada(int? segundos) =>
+        segundos is not { } s ? null : s < 60 ? $"{Math.Max(0, s)} s" : $"{(int)Math.Round(s / 60m, MidpointRounding.AwayFromZero)} min";
+
+    /// <summary>
     /// Partes de la barra de turno: "Tango 2", "T2 (13–21)", "SH 30 desde 13:05", "Op. Juan", "Eficiencia parcial 81 %
     /// (mangas 4.100 / obj. a la hora 5.060)". Sin indicadores (la API falló) se omite la última.
     /// </summary>
@@ -98,11 +119,13 @@ public static class ProduccionUi
         {
             t.LineaNombre,
             TextoTurno(t.TurnoCodigo, t.InicioProgramado, t.FinProgramado),
-            t.ProductoActual is { } p ? $"{p.ProductoNombre} desde {p.Desde:HH:mm}" : "Producto a completar",
+            t.ProductoActual is { } p
+                ? $"{p.ProductoNombre} desde {p.Desde:HH:mm}" + (p.SinConfirmar ? " (supuesto, sin confirmar)" : "")
+                : "Producto a completar",
             t.OperadorActual is { } o ? $"Op. {o.OperadorNombre ?? o.OperadorUsuarioId}" : "Sin operador"
         };
         if (!abierto)
-            partes.Add(t.Estado == "SIN_APERTURA" ? "Sin apertura" : "Cerrado");
+            partes.Add(TextoEstado(t.Estado));
         if (ind != null)
             partes.Add($"{TextoEficienciaBarra(ind.Eficiencia, abierto)} {TextoMangasBarra(ind.Mangas, abierto)}");
         return partes;

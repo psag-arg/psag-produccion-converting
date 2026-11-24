@@ -12,6 +12,9 @@ public interface ITurnosProduccionService
     Task<TurnosProduccionDiaDto?> GetDiaAsync(DateOnly fecha, int? lineaId = null);
     Task<(TurnoProduccionDto? Resultado, string? Error)> CambiarProductoAsync(long id, CambiarProductoTurnoRequest request);
     Task<(TurnoProduccionDto? Resultado, string? Error)> CerrarAsync(long id, CerrarTurnoProduccionRequest request);
+
+    /// <summary>Turno automático: "Terminar mi turno" (cierra la sesión del operador; el turno de máquina sigue hasta su hora).</summary>
+    Task<(TurnoProduccionDto? Resultado, string? Error)> TerminarMiTurnoAsync(long id);
     Task<(TurnoProduccionDto? Resultado, string? Error)> CorregirOperadorAsync(long id, CorregirOperadorTurnoRequest request);
     Task<(TurnoProduccionDto? Resultado, string? Error)> CorregirProductoAsync(long id, CorregirProductoTurnoRequest request);
 
@@ -61,6 +64,13 @@ public class TurnosProduccionService : ITurnosProduccionService
 
     public Task<(TurnoProduccionDto? Resultado, string? Error)> CerrarAsync(long id, CerrarTurnoProduccionRequest request) =>
         PostTurnoAsync($"{Base}/{id}/cerrar", request, "No se pudo cerrar el turno.");
+
+    public async Task<(TurnoProduccionDto? Resultado, string? Error)> TerminarMiTurnoAsync(long id)
+    {
+        var response = await _httpClient.PostAsync($"{Base}/{id}/terminar", null);
+        var (ok, error) = await ApiErrores.ResultadoAsync(response, "No se pudo terminar tu turno.");
+        return ok ? (await response.Content.ReadFromJsonAsync<TurnoProduccionDto>(), null) : (null, error);
+    }
 
     public Task<(TurnoProduccionDto? Resultado, string? Error)> CorregirOperadorAsync(long id, CorregirOperadorTurnoRequest request) =>
         PostTurnoAsync($"{Base}/{id}/corregir-operador", request, "No se pudo corregir el operador.");

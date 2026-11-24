@@ -164,6 +164,38 @@
                         <hr />
 
                         <div class="row">
+                            @if (detencion.SegundosDetectados is { } segundosDetectados)
+                            {
+                                @* Pedido 24/11: una pendiente tiene 0 minutos efectivos hasta declararla; se muestra lo que vio la cámara. *@
+                                <div class="col-12 mb-3" data-testid="pendiente-camara">
+                                    <div class="fs-5">
+                                        <DuracionDetectada Segundos="segundosDetectados" EnCurso="detencion.ParadaEnCurso" Detalle="true"
+                                                           Desde="detencion.FechaHoraParada" Hasta="detencion.FechaHoraArranqueDetectada" />
+                                    </div>
+                                    <div class="small text-muted">
+                                        Arranque detectado: @(detencion.FechaHoraArranqueDetectada?.ToString("HH:mm") ?? "todavía no (sigue parada)").
+                                        Los minutos efectivos (hoy 0) se fijan al declarar la detención.
+                                    </div>
+                                </div>
+                            }
+                            @if (detencion.VieneDelTurnoAnterior || detencion.ParteSiguienteId != null)
+                            {
+                                @* Turno automático (D.12): la parada cruzó el cambio de turno y quedó en dos detenciones. *@
+                                <div class="col-12 mb-3">
+                                    <div class="alert alert-info py-2 small mb-0" data-testid="partes-parada">
+                                        <i class="bi bi-link-45deg me-1"></i>La parada cruzó el cambio de turno: esta es la parte de este turno
+                                        (cada parte se declara aparte).
+                                        @if (detencion.DetencionAnteriorId is { } anteriorId)
+                                        {
+                                            <span>Viene del turno anterior: <a href="detenciones/@anteriorId">@(detencion.ParteAnteriorCodigo ?? "parte anterior")</a>.</span>
+                                        }
+                                        @if (detencion.ParteSiguienteId is { } siguienteId)
+                                        {
+                                            <span>Sigue en el turno siguiente: <a href="detenciones/@siguienteId">@(detencion.ParteSiguienteCodigo ?? "parte siguiente")</a>.</span>
+                                        }
+                                    </div>
+                                </div>
+                            }
                             <div class="col-md-4 mb-3">
                                 <label class="text-muted small">Minutos Efectivos</label>
                                 <div><span class="badge bg-primary fs-5">@detencion.MinutosEfectivos min</span></div>

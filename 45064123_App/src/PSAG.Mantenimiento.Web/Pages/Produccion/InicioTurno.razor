@@ -15,7 +15,11 @@
    avisa y tiene que confirmar el relevo. Si no hay nada que preguntar, o la API falla, sigue de largo.
    T-802: el obligado a turno (rol con ObligadoATurno) no puede seguir sin tomar un turno: no hay "seguir sin tomar",
    toma UNA línea (un solo turno abierto a la vez) y sigue; sin líneas o sin turno sólo puede cerrar sesión. El turno es
-   el en curso por hora: lo declara al tomarlo. *@
+   el en curso por hora: lo declara al tomarlo.
+   Turno automático: el turno de la máquina ya está abierto (lo abre el sistema a su hora): "tomar" es entrar a ese turno
+   (o abrirlo si no existe). El producto es obligatorio: si el turno ya tiene uno (heredado del turno anterior o cargado) se
+   sugiere y se confirma o se cambia; sin productos con objetivo en la línea, entra igual y avisa al supervisor. Si su turno
+   anterior terminó y está en la tolerancia, puede ir a declarar sus detenciones o terminarlo. *@
 
 <div class="container" style="max-width: 680px;">
     @if (cargando)
@@ -35,6 +39,21 @@
             <div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-2"></i>@propuesta.Aviso</div>
         }
 
+        @if (propuesta.MiSesionEnTolerancia is { } sesion && !sesionTerminada)
+        {
+            <div class="alert alert-info" data-testid="tolerancia">
+                <div class="mb-2">
+                    <i class="bi bi-hourglass-split me-1"></i>Tu <strong>@sesion.TurnoNombre de @sesion.LineaNombre</strong> terminó a las
+                    @sesion.FinTurno.ToString("HH:mm"). Hasta las <strong>@sesion.ToleranciaHasta.ToString("HH:mm")</strong> podés declarar
+                    y corregir sus detenciones (@(sesion.PendientesDeclarar == 1 ? "1 pendiente" : $"{sesion.PendientesDeclarar} pendientes")).
+                </div>
+                <a class="btn btn-sm btn-primary me-2" href="detenciones/pendientes"><i class="bi bi-list-check me-1"></i>Declarar mis pendientes</a>
+                <button class="btn btn-sm btn-outline-secondary" disabled="@enviando" @onclick="@(async () => await TerminarTolerancia(sesion))">
+                    <i class="bi bi-stop-circle me-1"></i>Terminar mi turno
+                </button>
+            </div>
+        }
+
         @foreach (var o in propuesta.Lineas)
         {
             <div class="card mb-3">
@@ -45,7 +64,11 @@
                         <div class="text-success"><i class="bi bi-check-circle me-1"></i>Tomaste el @propuesta.TurnoNombre de @o.LineaNombre.</div>
                         @if (t.Turno?.ProductoActual != null)
                         {
-                            <div class="small text-muted">Producto: @t.Turno.ProductoActual.ProductoNombre@Objetivo(t.Turno.ProductoActual.MangasObjetivoTurno, t.Turno.ProductoActual.BolsonesObjetivoTurno)</div>
+                            <div class="small text-muted">Producto: @t.Turno.ProductoActual.ProductoNombre@Objetivo(t.Turno.ProductoActual.MangasObjetivoTurno, t.Turno.ProductoActual.BolsonesObjetivoTurno)@(t.ProductoConfirmado ? " (confirmado)" : "")</div>
+                        }
+                        @if (t.Alerta != null)
+                        {
+                            <div class="alert alert-warning py-2 small mt-2 mb-0" data-testid="alerta-sin-objetivos"><i class="bi bi-exclamation-triangle me-1"></i>@t.Alerta</div>
                         }
                         @if (t.ReemplazadoNombre != null || t.ReemplazadoUsuarioId != null)
                         {
@@ -60,20 +83,20 @@
                     {
                         <div class="text-muted">El turno ya está cerrado. Si hay que corregirlo, avisale a tu supervisor.</div>
                     }
-                    else if (o.SoyOperadorActual && o.ProductoActualId != null)
+                    else if (o.SoyOperadorActual && (o.Productos.Count == 0 || (o.ProductoActualId != null && !o.ProductoSinConfirmar)))
                     {
-                        <div class="text-success"><i class="bi bi-check-circle me-1"></i>Ya sos el operador de este turno (@o.ProductoActualNombre).</div>
+                        <div class="text-success"><i class="bi bi-check-circle me-1"></i>Ya sos el operador de este turno@(o.ProductoActualNombre != null ? $" ({o.ProductoActualNombre})" : "").</div>
                     }
                     else
                     {
                         <p class="mb-2">
                             @if (o.SoyOperadorActual)
                             {
-                                <span>Ya sos el operador del <strong>@propuesta.TurnoNombre</strong>. Falta elegir el producto.</span>
+                                <span>Ya sos el operador del <strong>@propuesta.TurnoNombre</strong>. Falta @(o.ProductoSinConfirmar ? "confirmar" : "elegir") el producto.</span>
                             }
                             else
                             {
-                                <span><strong>@propuesta.TurnoNombre</strong> de <strong>@o.LineaNombre</strong>: ¿lo tomás?</span>
+                                <span><strong>@propuesta.TurnoNombre</strong> de <strong>@o.LineaNombre</strong>@(o.SinOperador ? " (abierto sin operador)" : ""): ¿entrás?</span>
                             }
                         </p>
                         @if (!o.SoyOperadorActual && o.OperadorActualUsuarioId != null)
@@ -85,9 +108,16 @@
                         }
                         @if (o.Productos.Count > 0)
                         {
-                            <label class="form-label small mb-1">Producto</label>
-                            <select class="form-select mb-2" value="@ProductoElegido(o)" @onchange="@(e => productos[o.LineaId] = int.TryParse(e.Value?.ToString(), out var id) ? id : null)">
-                                <option value="">(elegir después)</option>
+                            @if (o.ProductoActualId != null && o.ProductoSinConfirmar)
+                            {
+                                <div class="alert alert-warning py-2 small mb-2" data-testid="producto-heredado">
+                                    La máquina figura con <strong>@o.ProductoActualNombre</strong> (el producto con que terminó el turno anterior,
+                                    sin confirmar). Confirmalo o elegí el que corresponde.
+                                </div>
+                            }
+                            <label class="form-label small mb-1">Producto *</label>
+                            <select class="form-select mb-2" data-testid="producto-turno" value="@ProductoElegido(o)" @onchange="@(e => productos[o.LineaId] = int.TryParse(e.Value?.ToString(), out var id) ? id : null)">
+                                <option value="" disabled>(elegí el producto)</option>
                                 @foreach (var p in o.Productos)
                                 {
                                     <option value="@p.ProductoMaestroId">@p.Nombre@Objetivo(p.MangasObjetivoTurno, p.BolsonesObjetivoTurno)</option>
@@ -96,10 +126,13 @@
                         }
                         else
                         {
-                            <div class="small text-muted mb-2">La línea no tiene productos habilitados: el turno queda "a completar".</div>
+                            <div class="alert alert-warning py-2 small mb-2" data-testid="sin-objetivos">
+                                <i class="bi bi-exclamation-triangle me-1"></i>@o.LineaNombre no tiene objetivos cargados: avisale al supervisor
+                                (Maestros → Parámetros línea + producto). Podés entrar igual: la máquina trabaja.
+                            </div>
                         }
-                        <button class="btn btn-primary" disabled="@enviando" @onclick="@(async () => await Tomar(o))">
-                            <i class="bi bi-check-lg me-1"></i>@(o.SoyOperadorActual ? "Guardar producto" : o.OperadorActualUsuarioId != null ? "Sí, lo relevo" : "Sí, lo tomo")
+                        <button class="btn btn-primary" disabled="@(enviando || (o.Productos.Count > 0 && ProductoElegido(o) == string.Empty))" @onclick="@(async () => await Tomar(o))">
+                            <i class="bi bi-check-lg me-1"></i>@TextoBoton(o)
                         </button>
                     }
                 </div>
@@ -167,6 +200,45 @@
         cargando = false;
     }
 
+    private bool sesionTerminada;
+
+    /// <summary>Texto del botón: confirma el heredado, guarda el producto o entra (relevando si hay otro).</summary>
+    private string TextoBoton(OpcionTurnoProduccionDto o)
+    {
+        var confirma = o.ProductoSinConfirmar && productos.GetValueOrDefault(o.LineaId) == o.ProductoActualId;
+        if (o.SoyOperadorActual)
+            return confirma ? "Confirmar producto" : "Guardar producto";
+        if (o.OperadorActualUsuarioId != null)
+            return confirma ? "Confirmar y relevar" : "Sí, lo relevo";
+        return confirma ? "Confirmar y entrar" : "Entrar al turno";
+    }
+
+    /// <summary>Turno automático: termina la sesión en tolerancia del turno anterior.</summary>
+    private async Task TerminarTolerancia(SesionToleranciaDto sesion)
+    {
+        enviando = true;
+        error = null;
+        try
+        {
+            var (resultado, mensaje) = await TurnosProduccionService.TerminarMiTurnoAsync(sesion.TurnoProduccionId);
+            if (resultado == null)
+            {
+                error = mensaje;
+                return;
+            }
+            sesionTerminada = true;
+            await TurnoPropio.RefrescarAsync();
+        }
+        catch (Exception)
+        {
+            error = ApiErrores.SinConexion;
+        }
+        finally
+        {
+            enviando = false;
+        }
+    }
+
     private string ProductoElegido(OpcionTurnoProduccionDto o) =>
         productos.TryGetValue(o.LineaId, out var id) && id != null ? id.Value.ToString() : string.Empty;
 
@@ -208,7 +280,8 @@
             tomadas[opcion.LineaId] = resultado;
             await TurnoPropio.RefrescarAsync();
             // El obligado a turno toma una sola línea (un turno abierto a la vez) y sigue.
-            if (propuesta!.ObligadoATurno || (propuesta.Lineas.Count == 1 && resultado.ReemplazadoUsuarioId == null))
+            // Con aviso (línea sin objetivos) se queda para que lo lea.
+            if (resultado.Alerta == null && (propuesta!.ObligadoATurno || (propuesta.Lineas.Count == 1 && resultado.ReemplazadoUsuarioId == null)))
                 Seguir();
         }
         catch (Exception)

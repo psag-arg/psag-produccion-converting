@@ -61,6 +61,9 @@ public class TurnoDto
     public int Orden { get; set; }
     public bool Activo { get; set; }
     public int DuracionMinutos { get; set; }
+
+    /// <summary>Turno automático: minutos después del fin en que el operario todavía declara lo suyo (0–240).</summary>
+    public int ToleranciaCierreOperadorMinutos { get; set; } = 30;
 }
 
 public class MaquinistaDto

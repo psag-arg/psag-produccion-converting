@@ -18,12 +18,33 @@ public interface ITurnoPropioService
     event Action? Cambio;
 }
 
-public sealed record EstadoTurnoPropio(bool Obligado, TurnoProduccionDto? Turno)
+public sealed record EstadoTurnoPropio(bool Obligado, TurnoProduccionDto? Turno, SesionToleranciaDto? Tolerancia = null)
 {
     public static readonly EstadoTurnoPropio Libre = new(false, null);
 
     /// <summary>Obligado a turno sin turno abierto: no puede hacer nada hasta abrir o tomar uno.</summary>
     public bool Bloqueado => Obligado && Turno == null;
+
+    /// <summary>
+    /// Turno automático (C.10): el obligado está en un turno sin producto (o con el heredado sin confirmar) y la línea tiene
+    /// productos con objetivo: tiene que confirmarlo o elegirlo en "Inicio de turno" antes de seguir.
+    /// </summary>
+    public bool FaltaProducto => Obligado && Turno != null && !Turno.SinObjetivos
+                                 && (Turno.ProductoActual == null || Turno.ProductoActual.SinConfirmar);
+
+    /// <summary>
+    /// ¿Puede estar en esta pantalla? Sin obligación, o con turno y producto, en todas. Si no, en "Inicio de turno"; y en la
+    /// tolerancia de su turno anterior, también en sus pendientes y en declarar / ver sus detenciones (la API valida que
+    /// sean de ese turno).
+    /// </summary>
+    public bool PuedeEstarEn(string rutaRelativa)
+    {
+        if (!Obligado || (Turno != null && !FaltaProducto))
+            return true;
+        if (TurnoPropioService.EsInicioTurno(rutaRelativa))
+            return true;
+        return Tolerancia != null && TurnoPropioService.EsRutaDeTolerancia(rutaRelativa);
+    }
 }
 
 public sealed class TurnoPropioService : ITurnoPropioService, IDisposable
@@ -67,10 +88,18 @@ public sealed class TurnoPropioService : ITurnoPropioService, IDisposable
         try
         {
             var response = await _httpClient.GetAsync("api/turnos-produccion/mio");
-            if (response.StatusCode == HttpStatusCode.NoContent)
-                return new EstadoTurnoPropio(true, null);
-            await ApiErrores.AsegurarExitoAsync(response);
-            return new EstadoTurnoPropio(true, await response.Content.ReadFromJsonAsync<TurnoProduccionDto>());
+            TurnoProduccionDto? turno = null;
+            if (response.StatusCode != HttpStatusCode.NoContent)
+            {
+                await ApiErrores.AsegurarExitoAsync(response);
+                turno = await response.Content.ReadFromJsonAsync<TurnoProduccionDto>();
+            }
+            // Turno automático: la tolerancia de su turno anterior (declarar lo suyo después del cierre).
+            SesionToleranciaDto? tolerancia = null;
+            var sesion = await _httpClient.GetAsync("api/turnos-produccion/mio/tolerancia");
+            if (sesion.StatusCode == HttpStatusCode.OK)
+                tolerancia = await sesion.Content.ReadFromJsonAsync<SesionToleranciaDto>();
+            return new EstadoTurnoPropio(true, turno, tolerancia);
         }
         catch
         {
@@ -82,6 +111,20 @@ public sealed class TurnoPropioService : ITurnoPropioService, IDisposable
     /// <summary>¿La ruta (relativa) es la de inicio de turno? Es la única que ve el obligado sin turno.</summary>
     public static bool EsInicioTurno(string rutaRelativa) =>
         rutaRelativa.Split('?', '#')[0].Trim('/').Equals(RutaInicioTurno, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Turno automático: pantallas que el obligado usa en la tolerancia de su turno anterior: Mis pendientes, declarar
+    /// (detenciones/{id}/declarar) y el detalle de una detención (detenciones/{id}).
+    /// </summary>
+    public static bool EsRutaDeTolerancia(string rutaRelativa)
+    {
+        var partes = rutaRelativa.Split('?', '#')[0].Trim('/').Split('/');
+        if (partes.Length < 2 || !partes[0].Equals("detenciones", StringComparison.OrdinalIgnoreCase))
+            return false;
+        if (partes.Length == 2)
+            return partes[1].Equals("pendientes", StringComparison.OrdinalIgnoreCase) || long.TryParse(partes[1], out _);
+        return partes.Length == 3 && long.TryParse(partes[1], out _) && partes[2].Equals("declarar", StringComparison.OrdinalIgnoreCase);
+    }
 
     public void Dispose() => _permisos.Cambiaron -= Invalidar;
 }

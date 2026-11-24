@@ -164,7 +164,14 @@
                                     · @det.LineaNombre · @det.TurnoNombre
                                 </div>
                             </div>
-                            <span class="badge bg-secondary">@det.MinutosEfectivos min</span>
+                            @if (det.SegundosDetectados != null)
+                            {
+                                <DuracionDetectada Segundos="det.SegundosDetectados" EnCurso="det.ParadaEnCurso" />
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">@det.MinutosEfectivos min</span>
+                            }
                         </div>
                         <div class="small mt-1">@(det.EquipoNombre ?? "Sin equipo") · @(det.TipoFallaNombre ?? "sin tipo de falla")</div>
                         <div class="d-flex justify-content-between align-items-center mt-2 gap-2">
@@ -222,7 +229,14 @@
                                 <td>@(det.EquipoNombre ?? "-")</td>
                                 <td>@(det.TipoFallaNombre ?? "-")</td>
                                 <td>
-                                    <span class="badge bg-secondary">@det.MinutosEfectivos min</span>
+                                    @if (det.SegundosDetectados != null)
+                            {
+                                <DuracionDetectada Segundos="det.SegundosDetectados" EnCurso="det.ParadaEnCurso" />
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">@det.MinutosEfectivos min</span>
+                            }
                                 </td>
                                 <td>
                                     <span class="@EstadoUi.BadgeClass(det.EstadoActual, det.AnalisisPendiente)"

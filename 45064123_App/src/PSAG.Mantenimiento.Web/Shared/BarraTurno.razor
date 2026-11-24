@@ -67,9 +67,13 @@
                             <button class="btn btn-sm btn-outline-primary" @onclick="@(async () => await AbrirCambio(item))">
                                 <i class="bi bi-box-seam me-1"></i>Cambiar producto
                             </button>
-                            <button class="btn btn-sm btn-outline-danger" @onclick="() => AbrirCierre(item)">
-                                <i class="bi bi-stop-circle me-1"></i>Cerrar turno
-                            </button>
+                            @if (t.OperadorActual?.OperadorUsuarioId == usuarioId)
+                            {
+                                @* Turno automático (B.8): el operario termina SU turno; el de la máquina sigue hasta su hora. *@
+                                <button class="btn btn-sm btn-outline-danger" data-testid="terminar-mi-turno" @onclick="() => AbrirCierre(item)">
+                                    <i class="bi bi-stop-circle me-1"></i>Terminar mi turno
+                                </button>
+                            }
                         </span>
                     }
                 }
@@ -88,7 +92,7 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">@(dialogo == Dialogo.Cambio ? "Cambiar producto" : "Cerrar turno") · @td.LineaNombre</h5>
+                    <h5 class="modal-title">@(dialogo == Dialogo.Cambio ? "Cambiar producto" : "Terminar mi turno") · @td.LineaNombre</h5>
                     <button type="button" class="btn-close" @onclick="CerrarDialogo"></button>
                 </div>
                 <div class="modal-body">
@@ -110,9 +114,10 @@
                     }
                     else
                     {
-                        <p>¿Cerrar el turno de @td.LineaNombre ahora? Si viene otro operario, también lo puede tomar sin cerrar.</p>
-                        <label class="form-label small mb-1">Observación (opcional)</label>
-                        <textarea class="form-control" rows="2" maxlength="500" @bind="observacion"></textarea>
+                        <p>
+                            ¿Terminás tu turno en @td.LineaNombre? El turno de la máquina sigue abierto hasta las
+                            @td.FinProgramado.ToString("HH:mm") (sin operador, hasta que entre otro) y cierra solo a esa hora.
+                        </p>
                     }
                     @if (errorDialogo != null)
                     {
@@ -122,7 +127,7 @@
                 <div class="modal-footer">
                     <button class="btn btn-secondary" @onclick="CerrarDialogo">Cancelar</button>
                     <button class="btn @(dialogo == Dialogo.Cambio ? "btn-primary" : "btn-danger")" disabled="@enviando" @onclick="@(async () => await Confirmar())">
-                        @(dialogo == Dialogo.Cambio ? "Cambiar" : "Cerrar turno")
+                        @(dialogo == Dialogo.Cambio ? "Cambiar" : "Terminar mi turno")
                     </button>
                 </div>
             </div>
@@ -145,6 +150,7 @@
     private bool visible;
     private bool eligeLinea;
     private bool obligado;
+    private string? usuarioId;
     private List<string> roles = [];
     private List<int> lineasHabilitadas = [];
     private List<(int Id, string Nombre)> lineas = [];
@@ -159,7 +165,6 @@
     private Item? itemDialogo;
     private List<ProductoDto> productos = [];
     private int productoId;
-    private string? observacion;
     private string? errorDialogo;
     private bool enviando;
 
@@ -169,6 +174,7 @@
         {
             var usuario = (await AuthStateProvider.GetAuthenticationStateAsync()).User;
             roles = new[] { "OPERARIO", "SUPERVISOR", "MANTENIMIENTO", "ADMINISTRADOR" }.Where(usuario.IsInRole).ToList();
+            usuarioId = usuario.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             if (roles.Count == 0)
                 return;   // gerencia (sólo lectura) no tiene barra
 
@@ -323,7 +329,6 @@
     {
         itemDialogo = item;
         dialogo = Dialogo.Cierre;
-        observacion = null;
         errorDialogo = null;
         mensaje = null;
     }
@@ -348,18 +353,18 @@
         {
             var r = dialogo == Dialogo.Cambio
                 ? await TurnosService.CambiarProductoAsync(t.TurnoProduccionId, new CambiarProductoTurnoRequest { ProductoMaestroId = productoId })
-                : await TurnosService.CerrarAsync(t.TurnoProduccionId, new CerrarTurnoProduccionRequest { Observacion = observacion });
+                : await TurnosService.TerminarMiTurnoAsync(t.TurnoProduccionId);
             if (r.Resultado == null)
             {
                 errorDialogo = r.Error;
                 return;
             }
             var cerro = dialogo == Dialogo.Cierre;
-            mensaje = dialogo == Dialogo.Cambio ? "Listo: producto cambiado." : "Listo: turno cerrado.";
+            mensaje = dialogo == Dialogo.Cambio ? "Listo: producto cambiado." : "Listo: terminaste tu turno.";
             CerrarDialogo();
             if (cerro && obligado)
             {
-                // T-802: al cerrar su turno, el obligado vuelve a "Inicio de turno".
+                // T-802: al terminar su turno, el obligado vuelve a "Inicio de turno".
                 TurnoPropio.Invalidar();
                 Navigation.NavigateTo($"/{TurnoPropioService.RutaInicioTurno}");
                 return;

@@ -127,6 +127,17 @@
                 </div>
             }
 
+            @* Turno automático (C.11): avisos para el supervisor (sin producto, producto supuesto, línea sin objetivos). *@
+            @if (gerencial)
+            {
+                @foreach (var alerta in t.Alertas)
+                {
+                    <div class="alert alert-warning py-2 d-flex align-items-center gap-2" role="alert" data-testid="alerta-supervisor">
+                        <i class="bi bi-exclamation-triangle fs-5"></i><div>@alerta</div>
+                    </div>
+                }
+            }
+
             @if (!t.SoloLectura && !avisoDescartado && TableroUi.TextoAvisoPendientes(t.PendientesDeclarar.Count) is { } aviso)
             {
                 <div class="alert alert-danger d-flex flex-wrap align-items-center gap-3 fs-5" role="alert" data-testid="aviso-pendientes">
@@ -259,7 +270,21 @@
                                         <span>@(d.FechaHoraParada?.ToString("HH:mm") ?? "-")@(d.FechaHoraArranque is { } a ? $"–{a:HH:mm}" : "")</span>
                                         <span class="badge @(d.PendienteDeclaracion ? "bg-danger-subtle text-danger-emphasis" : "text-bg-secondary")">@d.EstadoActualDescripcion</span>
                                         <span class="text-body-secondary">@(d.EquipoNombre ?? "")@(d.TipoFallaNombre is { } tf ? $" · {tf}" : "")</span>
-                                        <span class="ms-auto fw-bold">@(d.PendienteDeclaracion ? "a declarar" : EficienciaUi.Minutos(d.MinutosEfectivos))</span>
+                                        @if (d.VieneDelTurnoAnterior)
+                                        {
+                                            <span class="badge bg-info-subtle text-info-emphasis" data-testid="viene-turno-anterior">viene del turno anterior</span>
+                                        }
+                                        <span class="ms-auto fw-bold">
+                                            @if (d.PendienteDeclaracion)
+                                            {
+                                                <DuracionDetectada Segundos="d.SegundosDetectados" />
+                                                <span>a declarar</span>
+                                            }
+                                            else
+                                            {
+                                                @EficienciaUi.Minutos(d.MinutosEfectivos)
+                                            }
+                                        </span>
                                     </div>
                                 }
                                 @if (!td.Detenciones.Any(d => d.Cuenta && (totales || !d.PendienteDeclaracion)))

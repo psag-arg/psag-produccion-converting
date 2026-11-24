@@ -53,6 +53,28 @@ else
                 <div class="col-12 col-md-6"><div class="small text-muted">Cámara / cuerpo donde se detectó</div><div class="form-control bg-light">@(detencion.CamaraNombre ?? "-")@(detencion.CuerpoCamaraNombre is { } c ? $" · {c}" : "")</div></div>
             </div>
 
+            @if (detencion.PendienteDeclaracion && detencion.SegundosDetectados != null)
+            {
+                <div class="mb-3">
+                    <DuracionDetectada Segundos="detencion.SegundosDetectados" EnCurso="detencion.ParadaEnCurso" Detalle="true"
+                                       Desde="detencion.FechaHoraParada" Hasta="detencion.FechaHoraArranqueDetectada" />
+                </div>
+            }
+            @if (detencion.ParteAnteriorId != null || detencion.ParteSiguienteId != null)
+            {
+                <div class="alert alert-info py-2 small" data-testid="parte-turno">
+                    <i class="bi bi-link-45deg me-1"></i>La parada cruzó el cambio de turno y quedó en dos detenciones: declarás sólo la de este turno.
+                    @if (detencion.ParteAnteriorCodigo != null)
+                    {
+                        <span>Viene del turno anterior (@detencion.ParteAnteriorCodigo).</span>
+                    }
+                    @if (detencion.DeclararHasta is { } hasta)
+                    {
+                        <span>Siguió en el turno siguiente (@detencion.ParteSiguienteCodigo): declarala hasta las <strong>@hasta.ToString("HH:mm")</strong>.</span>
+                    }
+                </div>
+            }
+
             @if (detencion.PendienteDeclaracion && resultado == null)
             {
                 <h6 class="text-muted text-uppercase small">Lo completás vos</h6>

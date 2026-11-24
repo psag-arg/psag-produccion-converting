@@ -1,0 +1,43 @@
+@* Pedido 24/11 · Duración que detectó la cámara para una detención PENDIENTE de declarar. Los minutos efectivos de una
+   pendiente son 0 hasta que se declara (trampa 2: no se tocan); esto sólo MUESTRA lo que vio la cámara. Los segundos los
+   calcula la API con una sola regla (DetencionCamaraReglas.SegundosDetectados, la misma de los minutos pendientes del
+   tablero); acá sólo se formatean (menos de 1 min en segundos: "40 s", nunca "0 min"). *@
+
+@if (Segundos is { } s)
+{
+    if (Detalle)
+    {
+        <span data-testid="duracion-detectada">
+            Duración detectada por cámara: <strong>@ProduccionUi.TextoDuracionDetectada(s)</strong>
+            @if (Desde is { } d)
+            {
+                <span>(@d.ToString("HH:mm") → @(EnCurso || Hasta == null ? "en curso" : Hasta.Value.ToString("HH:mm")))</span>
+            }
+            else if (EnCurso)
+            {
+                <span>(en curso)</span>
+            }
+        </span>
+    }
+    else
+    {
+        <span class="badge bg-warning-subtle text-warning-emphasis" data-testid="duracion-detectada"
+              title="Minutos que detectó la cámara. Los minutos efectivos se fijan al declarar.">
+            @ProduccionUi.TextoDuracionDetectada(s)@(EnCurso ? " · en curso" : "") <span class="fw-normal">(detectados, sin declarar)</span>
+        </span>
+    }
+}
+
+@code {
+    /// <summary>Segundos detectados (null = no es una pendiente con hora de parada: no se muestra nada).</summary>
+    [Parameter] public int? Segundos { get; set; }
+
+    /// <summary>La parada sigue abierta: la duración crece hasta que la cámara la vea arrancar.</summary>
+    [Parameter] public bool EnCurso { get; set; }
+
+    [Parameter] public DateTimeOffset? Desde { get; set; }
+    [Parameter] public DateTimeOffset? Hasta { get; set; }
+
+    /// <summary>Formato largo del detalle ("Duración detectada por cámara: 30 min (18:30 → 19:00)").</summary>
+    [Parameter] public bool Detalle { get; set; }
+}

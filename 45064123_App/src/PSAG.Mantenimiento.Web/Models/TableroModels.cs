@@ -19,6 +19,11 @@ public class TableroTurnoDto
     public string? OperadorUsuarioId { get; set; }
     public string? OperadorNombre { get; set; }
     public bool SoloLectura { get; set; }
+
+    /// <summary>Turno automático: abierto sin operador / producto supuesto / avisos para el supervisor.</summary>
+    public bool SinOperador { get; set; }
+    public bool ProductoSinConfirmar { get; set; }
+    public List<string> Alertas { get; set; } = [];
     public DateTimeOffset GeneradoEn { get; set; }
     public IndicadoresTurnoDto Indicadores { get; set; } = new();
     public List<MangasHoraDto> MangasPorHora { get; set; } = [];
@@ -86,6 +91,8 @@ public class DetencionTableroDto
     public bool Cuenta { get; set; }
     public bool PendienteDeclaracion { get; set; }
     public string Descripcion { get; set; } = string.Empty;
+    public int? SegundosDetectados { get; set; }
+    public bool VieneDelTurnoAnterior { get; set; }
 }
 
 public class CamaraTableroDto

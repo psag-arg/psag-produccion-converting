@@ -28,6 +28,21 @@ public class TurnoProduccionDto
     /// <summary>Sin tramo de producto (abierto por SISTEMA o sin elegir): hay que completarlo.</summary>
     public bool ACompletar { get; set; }
 
+    /// <summary>Turno automático: el turno de máquina está abierto y nadie es el operador.</summary>
+    public bool SinOperador { get; set; }
+
+    /// <summary>Turno automático: producto heredado del turno anterior, sin confirmar (supuesto).</summary>
+    public bool ProductoSinConfirmar { get; set; }
+
+    /// <summary>Turno automático: la línea no tiene productos con objetivo.</summary>
+    public bool SinObjetivos { get; set; }
+
+    /// <summary>Turno automático: avisos para el supervisor.</summary>
+    public List<string> Alertas { get; set; } = [];
+
+    public int ToleranciaOperadorMinutos { get; set; }
+    public DateTimeOffset? FinToleranciaOperador { get; set; }
+
     public TramoOperadorDto? OperadorActual { get; set; }
     public TramoProductoDto? ProductoActual { get; set; }
 
@@ -72,6 +87,11 @@ public class TramoProductoDto
     public string? Motivo { get; set; }
     public long? AnuladoPorId { get; set; }
     public bool Anulado => AnuladoPorId != null;
+
+    /// <summary>Turno automático: HEREDADO sin confirmar = supuesto.</summary>
+    public string? ConfirmadoPorUsuarioId { get; set; }
+    public DateTimeOffset? FechaHoraConfirmacion { get; set; }
+    public bool SinConfirmar { get; set; }
 }
 
 /// <summary>Producto que se puede elegir en la línea (parámetro vigente y habilitado) con su objetivo vigente.</summary>
@@ -113,6 +133,22 @@ public class PropuestaTurnoProduccionDto
     public string? TurnoNombre { get; set; }
     public DateOnly? FechaProduccion { get; set; }
     public List<OpcionTurnoProduccionDto> Lineas { get; set; } = [];
+
+    /// <summary>Turno automático: turno ya terminado en el que sigue en su tolerancia (declarar lo suyo y terminarlo).</summary>
+    public SesionToleranciaDto? MiSesionEnTolerancia { get; set; }
+}
+
+/// <summary>Turno automático: la sesión del operario en un turno de máquina que ya cerró (GET api/turnos-produccion/mio/tolerancia).</summary>
+public class SesionToleranciaDto
+{
+    public long TurnoProduccionId { get; set; }
+    public int LineaId { get; set; }
+    public string LineaNombre { get; set; } = string.Empty;
+    public string TurnoNombre { get; set; } = string.Empty;
+    public DateOnly FechaProduccion { get; set; }
+    public DateTimeOffset FinTurno { get; set; }
+    public DateTimeOffset ToleranciaHasta { get; set; }
+    public int PendientesDeclarar { get; set; }
 }
 
 public class OpcionTurnoProduccionDto
@@ -140,6 +176,16 @@ public class OpcionTurnoProduccionDto
     public DateTimeOffset? OperadorActualDesde { get; set; }
     public int? ProductoActualId { get; set; }
     public string? ProductoActualNombre { get; set; }
+
+    /// <summary>Turno automático: el producto actual es heredado y nadie lo confirmó (se sugiere: confirmar o cambiar).</summary>
+    public bool ProductoSinConfirmar { get; set; }
+
+    /// <summary>Turno automático: el turno de máquina está abierto sin operador.</summary>
+    public bool SinOperador { get; set; }
+
+    /// <summary>Turno automático: la línea no tiene productos con objetivo (se entra igual, con aviso al supervisor).</summary>
+    public bool SinObjetivos { get; set; }
+
     public List<ProductoHabilitadoDto> Productos { get; set; } = [];
 }
 
@@ -167,6 +213,12 @@ public class AperturaTurnoProduccionDto
 
     /// <summary>Turno anterior de la línea que se cerró (CERRADO_AUTOMATICO) al abrir este.</summary>
     public long? TurnoAnteriorCerradoId { get; set; }
+
+    /// <summary>Turno automático: se confirmó el producto heredado.</summary>
+    public bool ProductoConfirmado { get; set; }
+
+    /// <summary>Turno automático: aviso para el operario (línea sin objetivos).</summary>
+    public string? Alerta { get; set; }
 }
 
 public class CambiarProductoTurnoRequest
