@@ -345,12 +345,63 @@ Igual que en el v1/v2 (2.2 y 2.5 de las versiones anteriores), con los nombres n
 
 **Reglas** (las de 2.5 de la v1, con los turnos globales):
 
+(Desde el turno automático, ver 2.6 bis: el job abre y cierra el turno de máquina; las reglas 1, 3 y 5 quedan reemplazadas.)
+
 1. Se abre en el login (T-783 rehecho) o por SISTEMA si llega un dato sin turno.
 2. Un solo turno abierto por línea. Abrir el siguiente cierra el anterior (`CERRADO_AUTOMATICO`).
 3. Cierre automático a `FinProgramado` + 30 min.
 4. El T3 (21–05) es **un solo turno**, de `FechaProduccion` = día de las 21:00.
 5. `SIN_APERTURA` si el turno está programado y pasó su inicio + 30 min sin apertura.
 6. Fuera de programación: se abre igual, con `MinutosProgramados = 0`.
+
+### 2.6 bis · Turno de máquina vs. sesión del operario (turno automático, 24/11, script 44)
+
+**Concepto (definición de Emiliano).** El TURNO es un evento de la **máquina**, no del operario: a las 05:00 la TANGO 2 empieza
+su turno productivo aunque nadie se loguee. Que un operario entre, salga o sea relevado son **novedades** de ese turno.
+Todo lo que pasa en la máquina a las 13:05 es del T2, aunque nadie del T2 se haya logueado y aunque el del T1 siga en la app.
+Las reglas 1, 3 y 5 de 2.6 quedan reemplazadas por esto.
+
+**A. Turno automático** (`TurnosProduccionJob` → `TurnoProduccionService.ProcesarAsync`, cada minuto; nada de SQL Agent)
+
+| # | Regla | Dónde |
+|---|---|---|
+| A.1 | A la hora de inicio, el job abre el turno de cada línea con ese turno **programado** (minutos > 0): `ABIERTO`, origen `SISTEMA`, `InicioReal = InicioProgramado`, **sin operador**. Ya no se genera `SIN_APERTURA` (los viejos quedan como historia: "Sin apertura (histórico)"). Idempotente. Si el job estuvo parado, abre **sólo el vigente**; los programados de las últimas 24 h que falten se crean ya terminados (`CERRADO_AUTOMATICO`, `FinReal = FinProgramado`). | `AbrirProgramadosAsync`, `TurnoProduccionReglas.CorrespondeAperturaAutomatica` |
+| A.2 | Línea **no programada** en ese turno: no se abre sola. Si llega un dato (cámara, detención), la abre el SISTEMA como siempre (turno extra, sin producto). | `AsegurarTurnoAsync` |
+| A.3 | **Producto heredado**: el turno que abre el sistema (programado) hereda el producto con que terminó el turno anterior de la línea (mirando hasta `TurnosProduccion:DiasHerenciaProducto` = 3 días): tramo nuevo desde el inicio, origen `HEREDADO`, con snapshot del parámetro **vigente a la fecha del turno nuevo**, **sin confirmar** (`ConfirmadoPorUsuarioId` null). Si el producto ya no tiene parámetro vigente y habilitado en la línea, no hereda. | `HeredarProductoAsync` |
+| A.4 | Línea sin productos con objetivo: el turno se abre igual, con la alerta "TANGO 1 no tiene objetivos cargados: Maestros → Parámetros línea + producto". | `TurnoProduccionDto.Alertas`, `TableroTurnoDto.Alertas` |
+
+**B. Cierre del turno de máquina vs. tolerancia del operario**
+
+| # | Regla |
+|---|---|
+| B.5 | El turno de máquina cierra a la hora de fin exacta (`FinReal = FinProgramado`, `CERRADO_AUTOMATICO`) y el siguiente abre en ese mismo instante. Nunca dos ABIERTOS por línea (índice único). Los tramos de **producto** terminan en `FinReal`; el tramo del **operador no** (es su sesión). |
+| B.6 | **Tolerancia del operario**, por turno: `ABM_Turnos.ToleranciaCierreOperadorMinutos` (default 30 = el valor que tenía `ToleranciaCierreAutomaticoMinutos`; 0–240; Configuración → Turnos). Durante la tolerancia el operario del turno que cerró puede declarar y corregir **las detenciones de su turno** y "terminar su turno". Vencida, el job le cierra el tramo (`Hasta = FinReal`) y el obligado vuelve a *Inicio de turno*. `TurnosProduccion:ToleranciaCierreAutomaticoMinutos` queda sólo como margen para corregir tramos y cambiar producto; `ToleranciaSinAperturaMinutos` ya no se usa. |
+| B.7 | **"Lo pisa"**: si el operario entra al turno siguiente y el anterior sigue abierto (el job no corrió), el anterior se cierra con `FinReal = FinProgramado` y se abre el nuevo. **Interpretación**: el operario anterior conserva su tolerancia — vence por tiempo (fin + tolerancia), no por el logueo del otro; no se le corta lo pendiente. |
+| B.8 | "Cerrar turno" pasa a **"Terminar mi turno"** (`POST api/turnos-produccion/{id}/terminar`): cierra SU tramo. Antes de la hora de fin el turno de máquina sigue abierto "sin operador"; en la tolerancia, el tramo termina donde terminó el turno. El operario **no** cierra el turno de máquina antes de hora (`cerrar` responde 400 antes de `FinProgramado`; pasada la hora, si el job no corrió, cierra con `FinReal = FinProgramado`). El cierre anticipado por supervisor **no se agregó** (duda). |
+| B.9 | Obligado a turno (T-802): "abrir/tomar" = entrar al turno ya abierto (o abrirlo si no existe). En la tolerancia opera sólo sobre las detenciones de su turno anterior: `[PermitidoEnTolerancia]` en `TurnoObligatorioFilter` (detalle `docs/PERMISOS.md`). **Decisión**: si un operario en tolerancia entra a otro turno, su sesión anterior termina en ese momento (un turno por operario). |
+
+**C. Operario**
+
+| # | Regla |
+|---|---|
+| C.10 | Producto **obligatorio** al entrar: si el turno tiene producto (heredado o cargado) se sugiere y lo **confirma** (sin tramo nuevo; queda `ConfirmadoPorUsuarioId`) o lo **cambia** (tramo nuevo desde ahora; el heredado queda supuesto para lo que va del turno, y lo ve el supervisor). Sin producto: 400 `PRODUCTO_REQUERIDO`. La API valida parámetro vigente y habilitado para la línea y la fecha. Línea sin productos con objetivo: entra igual (la máquina trabaja) con el aviso "avisale al supervisor". El obligado que ya está en un turno sin producto (casos viejos) vuelve a *Inicio de turno* hasta confirmarlo o elegirlo. |
+| C.11 | Alertas para el supervisor (tablero gerencial y Turnos de producción): "Turno sin producto", "Producto supuesto sin confirmar" y "línea sin objetivos". Se resuelven con `corregir-producto` (con motivo), que funciona sobre turnos abiertos sin operador y cerrados: el tramo de supervisor que **anula** al heredado lo reemplaza (confirmado); si la corrección cierra el heredado vigente en la hora del cambio, el heredado queda confirmado por el supervisor. |
+
+**D. Detenciones que cruzan de turno**
+
+| # | Regla |
+|---|---|
+| D.12 | Una parada de cámara que sigue abierta al cierre del turno de máquina se **corta en dos detenciones vinculadas**: la del T1 termina en el fin del turno (su `FechaHoraArranqueDetectada` = el corte) y se crea otra en el T2 desde esa hora, con `DET_Detenciones.DetencionAnteriorId` → la parte anterior (FK a sí misma, índice único filtrado: una continuación por parte) e `IdentificadorParadaCamara` = el de la parada + `#2`, `#3`… Se hace al cerrar el turno (job, "lo pisa", cierre pasado de hora) y en la **ingesta tardía** (una parada que ya abarca dos turnos llega en dos partes). Si después llega el arranque, actualiza la última parte. Insert-only: no se borra ni se reescribe nada declarado; pendiente = 0 efectivos (trampa 2). Los minutos pendientes de cada parte salen de **su** ventana (parada → arranque detectado/corte, `DetencionCamaraReglas.SegundosDetectados`). El tablero del T2 la muestra desde el arranque ("viene del turno anterior", sigue parada). **Interpretaciones**: la parte siguiente sólo se crea si el turno siguiente existe o está programado (una línea no programada no se abre sola); y sólo si la cámara mandó datos en los últimos 15 min del turno (una parada "abierta" de una cámara que dejó de mandar no se arrastra de turno en turno: ya la avisa SIN_DATOS). Una parada que ya llegó cerrada (está en `CAM_Paradas`) no se continúa. |
+| D.13 | Las dos partes se **declaran por separado** (cada operario la suya; dos pendientes). No se hereda la causa. La parte que siguió en el turno siguiente se declara **hasta el corte** (arranque o minutos más allá del fin del turno: 400). |
+| D.14 | **Microcortes**: la clasificación (microcorte o detención real) se decide con la **duración total** de la parada (no por parte): una parada larga partida no son dos microcortes, y 12:58–13:02 con umbral 5 min es un microcorte. La parada es una sola fila de `CAM_Paradas`, del turno donde empezó. **Decisión**: cada turno se queda con sus segundos (la que cruza se reparte) y la **cantidad cuenta 1 en el turno donde empezó** (0 en el otro; el día suma 1). `ParadasTurnoReglas.DelTurno`, usado por el tablero e `IndicadoresService`. |
+
+**Pedido 24/11 · duración detectada de una pendiente.** Una detención pendiente de declarar tiene `MinutosEfectivos = 0` (no se
+toca); el detalle, el listado, *Mis pendientes*, la declaración y el tablero muestran la **duración detectada por la cámara**
+(parada → arranque detectado, o → ahora si sigue: "en curso"), con **una sola función** (`DetencionCamaraReglas.SegundosDetectados`,
+la misma de los minutos pendientes del tablero) y "(detectados, sin declarar)"; menos de un minuto se muestra en segundos ("40 s").
+
+**Base de datos**: script `44_turno_automatico.sql` (idempotente, con rollback que respalda lo que saca); deploy en
+`deploy/TURNO_AUTOMATICO_DEPLOY.md`.
 
 ### 2.7 Detenciones
 

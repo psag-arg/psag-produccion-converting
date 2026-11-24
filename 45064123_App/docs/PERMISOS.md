@@ -98,8 +98,28 @@ en la matriz migrada, sólo OPERARIO) trabaja siempre dentro de un turno de prod
      de otro turno de producción → 403;
    - *Mis pendientes* (y su contador) muestra sólo las detenciones de su turno; `api/catalogos/lineas` y `turnos` devuelven
      sólo la línea y el turno del turno (los combos de la Web quedan fijos).
-4. **Al cerrar el turno** (o si lo relevan, o vence y lo cierra el sistema) vuelve a quedar bloqueado: la Web vuelve a
-   *Inicio de turno* (al cerrar desde la barra, o con el 409 de la siguiente llamada).
+4. **Al terminar su turno** ("Terminar mi turno") o si lo relevan, vuelve a quedar bloqueado: la Web vuelve a *Inicio de
+   turno* (al terminar desde la barra, o con el 409 de la siguiente llamada).
+5. **Turno automático (script 44): el turno es de la MÁQUINA**; lo abre y lo cierra el sistema a sus horas (ver
+   `docs/diseno/T-798_modelo_produccion.md`, "Turno de máquina vs. sesión del operario"). Para el obligado:
+   - "abrir/tomar" = **entrar** al turno ya abierto de la línea (o abrirlo si no existe, p. ej. línea no programada), con
+     **producto obligatorio**: confirma el sugerido (heredado del turno anterior) o elige otro; sin producto, **400** con
+     extensión `codigo` = `PRODUCTO_REQUERIDO`. Excepción: línea sin productos con objetivo → entra igual con la alerta
+     "avisale al supervisor". Si ya está en un turno sin producto (o con el heredado sin confirmar), la Web lo devuelve a
+     *Inicio de turno* hasta que lo confirme o elija.
+   - **Tolerancia** (`ABM_Turnos.ToleranciaCierreOperadorMinutos`, 30 por defecto, editable en Configuración → Turnos): cuando
+     el turno de máquina cierra (a la hora de fin, o porque entró el del turno siguiente: "lo pisa"), el operario sigue con
+     su sesión hasta el fin + la tolerancia. Mientras tanto, sin turno abierto, **sólo** puede usar las acciones marcadas
+     `[PermitidoEnTolerancia]`, ajustadas a ESE turno (como con turno abierto): ver y declarar sus detenciones
+     (`GET api/detenciones/{id}`, `PUT api/detenciones/{id}`, `POST api/detenciones/{id}/notas`,
+     `GET api/detenciones/{id}/declaracion`, `POST api/detenciones/{id}/declarar`), *Mis pendientes* y su contador
+     (`api/analisis/pendientes`, `pendientes/conteo`), las lecturas de `api/catalogos/*` y `POST api/turnos-produccion/{id}/terminar`.
+     Lo de otro turno → 403 "Fuera de tu turno"; lo demás → 409 TURNO_REQUERIDO. La Web le deja sólo *Inicio de turno*,
+     *Mis pendientes*, declarar y el detalle de la detención, con un aviso arriba ("hasta las HH:mm podés declarar…").
+     Vencida la tolerancia, el job le cierra el tramo: queda bloqueado como cualquier obligado sin turno. Si entra a otro
+     turno, su sesión en tolerancia termina en ese momento (decisión: un solo turno por operario).
+   - El operario **no cierra el turno de máquina**: `POST api/turnos-produccion/{id}/cerrar` responde 400 antes de la hora de
+     fin (sólo sirve si pasó la hora y el job no corrió). El cierre anticipado por supervisor no está (duda abierta).
 
 Reglas de turno (para todos, no sólo obligados; en `TurnoProduccionService`):
 
@@ -344,7 +364,9 @@ antes, con los cambios deliberados de arriba).
 | POST | `api/turnos-produccion/abrir` | `PRODUCCION.OPERACION_TURNO` · ALTA |
 | POST | `api/turnos-produccion/{id:long}/cambiar-producto` | `PRODUCCION.OPERACION_TURNO` · MODIFICACION |
 | POST | `api/turnos-produccion/{id:long}/relevar` | `PRODUCCION.OPERACION_TURNO` · MODIFICACION |
-| POST | `api/turnos-produccion/{id:long}/cerrar` | `PRODUCCION.OPERACION_TURNO` · MODIFICACION |
+| POST | `api/turnos-produccion/{id:long}/cerrar` | `PRODUCCION.OPERACION_TURNO` · MODIFICACION (turno automático: sólo pasada la hora de fin) |
+| POST | `api/turnos-produccion/{id:long}/terminar` | `PRODUCCION.OPERACION_TURNO` · MODIFICACION ("Terminar mi turno"; permitido en la tolerancia) |
+| GET | `api/turnos-produccion/mio/tolerancia` | `PRODUCCION.OPERACION_TURNO` · VER (sin turno obligatorio) |
 | GET | `api/turnos-produccion/actual` | `PRODUCCION.OPERACION_TURNO` · VER |
 | GET | `api/turnos-produccion/mio` | `PRODUCCION.OPERACION_TURNO` · VER |
 | GET | `api/turnos-produccion` | `PRODUCCION.TURNOS` · VER |

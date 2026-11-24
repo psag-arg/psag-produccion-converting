@@ -626,7 +626,7 @@ public class DashboardService : IDashboardService
     /// <summary>
     /// T-798 etapa 5: minutos programados por mes desde los TURNOS DE PRODUCCIÓN (fecha de producción) del año, del mes
     /// desde al mes hasta y hasta hoy: el snapshot de cada turno o, si es 0, el recálculo desde la programación
-    /// (<see cref="MinutosProgramadosTurnos"/>). Un turno programado que nadie abrió entra igual (queda SIN_APERTURA).
+    /// (<see cref="MinutosProgramadosTurnos"/>). Un turno programado que nadie tomó entra igual (el turno automático lo abre sin operador; los SIN_APERTURA viejos, también).
     /// </summary>
     private async Task<Dictionary<int, int>> MinutosProgramadosPorMesDeTurnosAsync(
         int anio, int mesDesde, int mesHasta, int? lineaId, CancellationToken cancellationToken)

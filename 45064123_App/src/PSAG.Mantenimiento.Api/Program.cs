@@ -38,7 +38,7 @@ builder.Services.AddAlmacenImagenesCalidad(configuration, builder.Environment.Co
 var zonaPlanta = ZonaHorariaPlanta.Resolver(configuration);
 builder.Services.AddSingleton(zonaPlanta);
 
-// Turnos de producción (T-798 etapa 2): tolerancias y job de cierre automático / SIN_APERTURA.
+// Turnos de producción (T-798 etapa 2; turno automático): job que abre y cierra el turno de máquina a sus horas y vence la tolerancia del operario.
 builder.Services.AddSingleton(configuration.GetSection(TurnosProduccionOpciones.Seccion).Get<TurnosProduccionOpciones>() ?? new TurnosProduccionOpciones());
 builder.Services.AddHostedService<TurnosProduccionJob>();
 
