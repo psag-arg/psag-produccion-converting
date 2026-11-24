@@ -29,6 +29,15 @@ public class TableroTurnoDto
     /// <summary>Lo mira alguien que no es el operador del turno (supervisor por línea): sin botones de carga.</summary>
     public bool SoloLectura { get; set; }
 
+    /// <summary>Turno automático: el turno de máquina está abierto y nadie es el operador.</summary>
+    public bool SinOperador { get; set; }
+
+    /// <summary>Turno automático: el producto vigente es heredado del turno anterior y nadie lo confirmó.</summary>
+    public bool ProductoSinConfirmar { get; set; }
+
+    /// <summary>Turno automático: avisos para el supervisor (sin producto, producto supuesto, línea sin objetivos).</summary>
+    public List<string> Alertas { get; set; } = [];
+
     /// <summary>Cuándo se armó (hora de planta).</summary>
     public DateTimeOffset GeneradoEn { get; set; }
 
@@ -270,6 +279,12 @@ public class DetencionTableroDto
     public bool Cuenta { get; set; }
     public bool PendienteDeclaracion { get; set; }
     public string Descripcion { get; set; } = string.Empty;
+
+    /// <summary>Pendiente: segundos detectados por la cámara (la misma regla que los minutos pendientes).</summary>
+    public int? SegundosDetectados { get; set; }
+
+    /// <summary>Turno automático (D.12): es la continuación de una parada que empezó en el turno anterior.</summary>
+    public bool VieneDelTurnoAnterior { get; set; }
 }
 
 public class CamaraTableroDto

@@ -13,7 +13,7 @@ namespace PSAG.Mantenimiento.Api.IntegrationTests;
 /// <summary>
 /// T-802 parte 2 · Obligado a turno, con la API entera (WebApplicationFactory) contra SQLite o SQL Server: sin turno el
 /// operario (rol obligado) no puede usar nada de negocio (409), con turno todo se ajusta a su línea / turno / fecha, al
-/// cerrar o ser relevado vuelve a quedar bloqueado, un operario no puede tener dos turnos abiertos, y el alta de usuario
+/// terminar su turno o ser relevado vuelve a quedar bloqueado, un operario no puede tener dos turnos abiertos, y el alta de usuario
 /// pide líneas habilitadas para los roles obligados. Reloj real: la semilla de la API carga T1 05–13, T2 13–21 y T3 21–05,
 /// así que siempre hay un turno en curso.
 /// </summary>
@@ -164,11 +164,110 @@ public sealed class TurnoObligadoApiTests : IDisposable
         var mio = await op.GetFromJsonAsync<TurnoProduccionDto>("api/turnos-produccion/mio");
         Assert.Equal(turno.TurnoProduccionId, mio!.TurnoProduccionId);
 
-        // Cerrar: vuelve a quedar bloqueado
-        var cierre = await op.PostAsJsonAsync($"api/turnos-produccion/{turno.TurnoProduccionId}/cerrar", new { observacion = "fin" });
+        // Turno automático: el operario no cierra el turno de máquina antes de hora (400)...
+        var cerrar = await op.PostAsJsonAsync($"api/turnos-produccion/{turno.TurnoProduccionId}/cerrar", new { observacion = "fin" });
+        Assert.Equal(HttpStatusCode.BadRequest, cerrar.StatusCode);
+        // ...termina SU turno: vuelve a quedar bloqueado (el turno de máquina sigue abierto sin operador)
+        var cierre = await op.PostAsync($"api/turnos-produccion/{turno.TurnoProduccionId}/terminar", null);
         Assert.True(cierre.StatusCode == HttpStatusCode.OK, await cierre.Content.ReadAsStringAsync());
         await TurnoRequerido(await op.GetAsync("api/detenciones"));
         Assert.Equal(HttpStatusCode.NoContent, (await op.GetAsync("api/turnos-produccion/mio")).StatusCode);
+    }
+
+    /// <summary>Detención de cámara pendiente de declarar en ese turno (como la crea la ingesta).</summary>
+    private static Detencion PendienteDeCamara(string codigo, int lineaId, long turnoProduccionId) => new()
+    {
+        Codigo = codigo, LineaId = lineaId, TurnoProduccionId = turnoProduccionId, FechaHoraParada = DateTimeOffset.UtcNow.AddMinutes(-60),
+        FechaHoraArranqueDetectada = DateTimeOffset.UtcNow.AddMinutes(-50), OrigenTiempo = OrigenTiempo.CALCULADO, MinutosEfectivos = 0,
+        Descripcion = string.Empty, EstadoActual = EstadoDetencion.PENDIENTE_JUSTIFICACION, OrigenRegistro = OrigenRegistroDetencion.CAMARA,
+        CreadoPorUsuarioId = "SISTEMA-CAMARA", ModificadoPorUsuarioId = "SISTEMA-CAMARA"
+    };
+
+    private async Task<HttpResponseMessage> DeclararAsync(HttpClient op, long detencionId)
+    {
+        byte[] rowVersion;
+        using (var ctx = _api.NuevoContexto())
+            rowVersion = (await ctx.Detenciones.SingleAsync(d => d.DetencionId == detencionId)).RowVersion;
+        return await op.PostAsJsonAsync($"api/detenciones/{detencionId}/declarar",
+            new { descripcion = "Atasco", minutosDeclarados = 10, rowVersion });
+    }
+
+    [Fact]
+    public async Task Tolerancia_ElOperarioDelTurnoQueCerroDeclaraSusDetenciones_SoloDuranteLaTolerancia()
+    {
+        var turno = (await AbrirAsync(OperA, _linea1)).Turno!;
+        long propia, propia2, ajena;
+        using (var ctx = _api.NuevoContexto())
+        {
+            // El turno de máquina cerró hace 10 min (la tolerancia del turno es de 30): el tramo de A sigue vigente.
+            var t = await ctx.TurnosProduccion.SingleAsync(x => x.TurnoProduccionId == turno.TurnoProduccionId);
+            t.Estado = EstadoTurnoProduccion.CERRADO_AUTOMATICO;
+            t.FinReal = DateTimeOffset.UtcNow.AddMinutes(-10);
+            var otro = new TurnoProduccion
+            {
+                LineaId = _linea2, TurnoId = t.TurnoId, FechaProduccion = t.FechaProduccion, InicioProgramado = t.InicioProgramado,
+                FinProgramado = t.FinProgramado, Estado = EstadoTurnoProduccion.ABIERTO, OrigenApertura = OrigenAperturaTurno.SISTEMA,
+                CreadoPorUsuarioId = "SISTEMA", ModificadoPorUsuarioId = "SISTEMA"
+            };
+            ctx.TurnosProduccion.Add(otro);
+            await ctx.SaveChangesAsync();
+            var p1 = PendienteDeCamara("DET-TOL-0001", _linea1, t.TurnoProduccionId);
+            var p2 = PendienteDeCamara("DET-TOL-0002", _linea1, t.TurnoProduccionId);
+            var p3 = PendienteDeCamara("DET-TOL-0003", _linea2, otro.TurnoProduccionId);
+            ctx.Detenciones.AddRange(p1, p2, p3);
+            await ctx.SaveChangesAsync();
+            (propia, propia2, ajena) = (p1.DetencionId, p2.DetencionId, p3.DetencionId);
+        }
+
+        var op = Operario(OperA);
+        Assert.Equal(HttpStatusCode.NoContent, (await op.GetAsync("api/turnos-produccion/mio")).StatusCode);
+        var sesion = await op.GetFromJsonAsync<SesionToleranciaDto>("api/turnos-produccion/mio/tolerancia");
+        Assert.Equal(turno.TurnoProduccionId, sesion!.TurnoProduccionId);
+        Assert.Equal(2, sesion.PendientesDeclarar);
+
+        // En la tolerancia: ve sus pendientes (sólo las de su turno), abre la declaración y declara
+        using (var json = JsonDocument.Parse(await op.GetStringAsync("api/analisis/pendientes")))
+            Assert.Equal([propia, propia2], json.RootElement.GetProperty("paraDeclarar").EnumerateArray()
+                .Select(p => p.GetProperty("detencionId").GetInt64()).OrderBy(x => x).ToArray());
+        Assert.Equal(HttpStatusCode.OK, (await op.GetAsync($"api/detenciones/{propia}/declaracion")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await op.GetAsync($"api/catalogos/tipos-falla")).StatusCode);
+        var declarada = await DeclararAsync(op, propia);
+        Assert.True(declarada.StatusCode == HttpStatusCode.OK, await declarada.Content.ReadAsStringAsync());
+        // Nada más: lo de otro turno (403) ni lo que no es de su turno (409, a inicio de turno)
+        await FueraDelTurno(await DeclararAsync(op, ajena));
+        await TurnoRequerido(await op.GetAsync("api/detenciones"));
+        await TurnoRequerido(await op.PostAsJsonAsync("api/detenciones", Detencion(_linea1)));
+
+        // Vencida la tolerancia (cerró hace 40 min): ya no declara
+        using (var ctx = _api.NuevoContexto())
+        {
+            var t = await ctx.TurnosProduccion.SingleAsync(x => x.TurnoProduccionId == turno.TurnoProduccionId);
+            t.FinReal = DateTimeOffset.UtcNow.AddMinutes(-40);
+            await ctx.SaveChangesAsync();
+        }
+        await TurnoRequerido(await DeclararAsync(op, propia2));
+        Assert.Equal(HttpStatusCode.NoContent, (await op.GetAsync("api/turnos-produccion/mio/tolerancia")).StatusCode);
+    }
+
+    [Fact]
+    public async Task EntrarSinProducto_400ProductoRequerido_SiLaLineaTieneProductosConObjetivo()
+    {
+        using (var ctx = _api.NuevoContexto())
+        {
+            var producto = new ProductoMaestro { Codigo = "SH-API", Nombre = "SH API", CreadoPorUsuarioId = "admin", ModificadoPorUsuarioId = "admin" };
+            ctx.Add(producto);
+            await ctx.SaveChangesAsync();
+            ctx.Add(new ParametroLineaProducto { LineaId = _linea1, ProductoMaestroId = producto.ProductoMaestroId, VigenteDesde = new DateOnly(2026, 1, 1), MangasObjetivoTurno = 1000 });
+            await ctx.SaveChangesAsync();
+        }
+        var r = await Operario(OperA).PostAsJsonAsync("api/turnos-produccion/abrir", new { lineaId = _linea1 });
+        Assert.Equal(HttpStatusCode.BadRequest, r.StatusCode);
+        var texto = await r.Content.ReadAsStringAsync();
+        Assert.Contains("PRODUCTO_REQUERIDO", texto);
+        Assert.Contains("Producto requerido", texto);
+        // La línea 2 no tiene productos con objetivo: entra igual, con la alerta
+        var sinObjetivos = await AbrirAsync(OperA, _linea2);
+        Assert.Contains("no tiene objetivos cargados", sinObjetivos.Alerta);
     }
 
     [Fact]

@@ -114,6 +114,55 @@ public static class DetencionCamaraReglas
     }
 
     /// <summary>
+    /// Duración DETECTADA por la cámara de una detención pendiente (o de una de sus partes, si la parada cruzó de turno),
+    /// en segundos: desde la parada hasta el arranque detectado (el corte, en la parte de un turno que terminó) o, si la
+    /// máquina sigue parada, hasta <paramref name="siSigueParada"/>. Null sin hora de parada. NO es MinutosEfectivos (que
+    /// en una pendiente es 0 hasta que se declara): es lo que se muestra y lo que el tablero cuenta como "pendiente".
+    /// ÚNICA función para eso (tablero, detalle, listado y Mis pendientes).
+    /// </summary>
+    public static int? SegundosDetectados(DateTimeOffset? parada, DateTimeOffset? arranqueDetectado, DateTimeOffset siSigueParada)
+    {
+        if (parada is not { } p)
+            return null;
+        var fin = arranqueDetectado ?? siSigueParada;
+        return fin <= p ? 0 : (int)Math.Round((fin - p).TotalSeconds, MidpointRounding.AwayFromZero);
+    }
+
+    /// <summary>
+    /// Segundos detectados de una detención: sólo para las PENDIENTES de declaración con hora de parada (null en el resto).
+    /// Si la parada sigue, cuenta hasta ahora (turno abierto) o hasta el fin del turno (ya cerrado: lo que siguió es otra parte).
+    /// </summary>
+    public static int? SegundosDetectados(Detencion detencion, TurnoProduccion? turno, DateTimeOffset ahora) =>
+        detencion.EsPendienteDeclaracion
+            ? SegundosDetectados(detencion.FechaHoraParada, detencion.FechaHoraArranqueDetectada, HastaSiSigueParada(turno, ahora))
+            : null;
+
+    /// <summary>Hasta dónde cuenta una pendiente que sigue parada: ahora con el turno abierto; el fin del turno si ya cerró.</summary>
+    public static DateTimeOffset HastaSiSigueParada(TurnoProduccion? turno, DateTimeOffset ahora) =>
+        turno is { EstaCerrado: true } t ? t.FinReal ?? t.FinProgramado : ahora;
+
+    /// <summary>Los segundos detectados redondeados al minuto (los minutos pendientes del tablero).</summary>
+    public static int MinutosDetectados(int? segundos) =>
+        segundos is { } s && s > 0 ? (int)Math.Round(s / 60m, MidpointRounding.AwayFromZero) : 0;
+
+    /// <summary>Duración legible: menos de un minuto en segundos ("40 s"), si no en minutos ("30 min").</summary>
+    public static string TextoDuracion(int segundos) =>
+        segundos < 60 ? $"{Math.Max(0, segundos)} s" : $"{MinutosDetectados(segundos)} min";
+
+    /// <summary>
+    /// Turno automático: la parte de una parada que sigue en el turno siguiente se declara hasta el corte (el fin del
+    /// turno). Motivo por el que el arranque o los minutos declarados pasan del corte, o null.
+    /// </summary>
+    public static string? MotivoPasaDelCorte(DateTimeOffset? parada, DateTimeOffset corte, DateTimeOffset? arranque, int? minutosDeclarados, string horaCorte)
+    {
+        if (arranque is { } a && a > corte)
+            return $"La parada sigue en el turno siguiente (es otra detención): en esta declará el arranque hasta las {horaCorte}.";
+        if (arranque == null && parada is { } p && minutosDeclarados is { } m && m > Math.Ceiling((corte - p).TotalMinutes))
+            return $"La parada sigue en el turno siguiente (es otra detención): en esta declará los minutos hasta las {horaCorte}.";
+        return null;
+    }
+
+    /// <summary>
     /// Minutos efectivos al declarar: con hora de arranque, la diferencia con la parada (CALCULADO, igual que una
     /// detención manual con horario); si no, los minutos que tipea el operador (DECLARADO).
     /// </summary>

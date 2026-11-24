@@ -26,6 +26,11 @@ public static class DatosAnalisisMapper
         dto.EquipoCritico = detencion.Equipo?.Critico ?? false;
         dto.AnalisisPendiente = AnalisisFallaReglas.EstaAbierto(detencion);
         dto.EstadoAnalisisDescripcion = detencion.ObtenerDescripcionAnalisis();
+        dto.FechaHoraArranqueDetectada = detencion.FechaHoraArranqueDetectada;
+        dto.DetencionAnteriorId = detencion.DetencionAnteriorId;
+        dto.SegundosDetectados = DetencionCamaraReglas.SegundosDetectados(detencion, detencion.TurnoProduccion, DateTimeOffset.UtcNow);
+        dto.ParadaEnCurso = dto.SegundosDetectados != null && detencion.FechaHoraArranqueDetectada == null
+                            && detencion.TurnoProduccion is not { EstaCerrado: true };
         return dto;
     }
 }

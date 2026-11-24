@@ -55,23 +55,35 @@ public class TurnoProduccionReglasTests
     }
 
     [Fact]
-    public void Vencido_RecienPasadoElFinMasLaTolerancia()
+    public void Vencido_TurnoDeMaquinaCierraALaHoraExacta()
     {
         var t = new TurnoProduccion { Estado = EstadoTurnoProduccion.ABIERTO, FinProgramado = H(19, 13) };
-        Assert.False(TurnoProduccionReglas.Vencido(t, H(19, 13, 29), 30));
-        Assert.True(TurnoProduccionReglas.Vencido(t, H(19, 13, 30), 30));
+        Assert.False(TurnoProduccionReglas.Vencido(t, H(19, 12, 59)));
+        Assert.True(TurnoProduccionReglas.Vencido(t, H(19, 13)));
         t.Estado = EstadoTurnoProduccion.CERRADO;
-        Assert.False(TurnoProduccionReglas.Vencido(t, H(19, 20), 30));
+        Assert.False(TurnoProduccionReglas.Vencido(t, H(19, 20)));
     }
 
     [Fact]
-    public void CorrespondeSinApertura_SoloProgramadoSinRegistroYPasadaLaTolerancia()
+    public void CorrespondeAperturaAutomatica_SoloProgramadoSinRegistroYYaEmpezado()
     {
-        Assert.True(TurnoProduccionReglas.CorrespondeSinApertura(480, H(19, 5), H(19, 5, 30), 30, existeRegistro: false));
-        Assert.False(TurnoProduccionReglas.CorrespondeSinApertura(480, H(19, 5), H(19, 5, 29), 30, false));
-        Assert.False(TurnoProduccionReglas.CorrespondeSinApertura(480, H(19, 5), H(19, 6), 30, existeRegistro: true));
-        Assert.False(TurnoProduccionReglas.CorrespondeSinApertura(0, H(19, 5), H(19, 6), 30, false));       // no programado
-        Assert.False(TurnoProduccionReglas.CorrespondeSinApertura(480, H(18, 5), H(19, 6), 30, false));     // hace más de 24 h
+        Assert.True(TurnoProduccionReglas.CorrespondeAperturaAutomatica(480, H(19, 5), H(19, 5), existeRegistro: false));
+        Assert.False(TurnoProduccionReglas.CorrespondeAperturaAutomatica(480, H(19, 5), H(19, 4, 59), false));
+        Assert.False(TurnoProduccionReglas.CorrespondeAperturaAutomatica(480, H(19, 5), H(19, 6), existeRegistro: true));
+        Assert.False(TurnoProduccionReglas.CorrespondeAperturaAutomatica(0, H(19, 5), H(19, 6), false));       // no programado
+        Assert.False(TurnoProduccionReglas.CorrespondeAperturaAutomatica(480, H(18, 5), H(19, 6), false));     // hace más de 24 h
+    }
+
+    [Fact]
+    public void SesionEnTolerancia_HastaElFinMasLaToleranciaDelTurno()
+    {
+        var t = new TurnoProduccion { Estado = EstadoTurnoProduccion.CERRADO_AUTOMATICO, FinProgramado = H(19, 13), FinReal = H(19, 13) };
+        Assert.True(TurnoProduccionReglas.SesionEnTolerancia(t, 30, H(19, 13, 29)));
+        Assert.False(TurnoProduccionReglas.SesionEnTolerancia(t, 30, H(19, 13, 30)));
+        Assert.False(TurnoProduccionReglas.SesionEnTolerancia(t, 0, H(19, 13)));
+        Assert.Equal(H(19, 13, 45), TurnoProduccionReglas.FinTolerancia(t, 45));
+        t.Estado = EstadoTurnoProduccion.ABIERTO;   // abierto no es "tolerancia": es su turno
+        Assert.False(TurnoProduccionReglas.SesionEnTolerancia(t, 30, H(19, 13, 10)));
     }
 
     [Fact]

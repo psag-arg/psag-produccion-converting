@@ -15,7 +15,7 @@ namespace PSAG.Mantenimiento.Api.IntegrationTests;
 
 /// <summary>
 /// T-798 etapa 2 · Turno de producción contra SQLite en memoria: un solo ABIERTO por línea, T3 que cruza medianoche,
-/// SIN_APERTURA, AsegurarTurno (SISTEMA), relevos y cambio de producto con snapshot, cierre automático y producto no
+/// AsegurarTurno (SISTEMA), relevos y cambio de producto con snapshot, cierre automático y producto no
 /// habilitado. Turnos de planta T1 05–13, T2 13–21, T3 21–05; planta UTC-3; reloj fijo y movible.
 /// </summary>
 [Collection(ColeccionBaseDeDatos.Nombre)]
@@ -113,8 +113,19 @@ public class TurnoProduccionTests : IDisposable
         _ => []
     };
 
+    /// <summary>
+    /// Turno automático: el operario entra con producto. Sin indicar, confirma el que tiene el turno abierto de la línea
+    /// (o elige SH 30 si no tiene).
+    /// </summary>
     private async Task<AperturaTurnoProduccionDto> AbrirComoOperario(string usuario, int lineaId, int? productoId = null, bool relevar = false)
     {
+        if (productoId == null)
+        {
+            _context.ChangeTracker.Clear();
+            var abierto = await _context.TurnosProduccion.Include(t => t.Productos)
+                .FirstOrDefaultAsync(t => t.LineaId == lineaId && t.Estado == EstadoTurnoProduccion.ABIERTO);
+            productoId = (abierto == null ? null : TurnoProduccionReglas.ProductoVigente(abierto.Productos)?.ProductoMaestroId) ?? _sh30.ProductoMaestroId;
+        }
         var r = await _servicio.AbrirAsync(lineaId, usuario, OrigenAperturaTurno.LOGIN, productoId, relevar, RolOperario, LineasDe(usuario));
         Assert.True(r.IsSuccess, r.ErrorMessage);
         return r.Value!;
@@ -153,7 +164,10 @@ public class TurnoProduccionTests : IDisposable
         var anterior = turnos.Single(t => t.TurnoProduccionId == t1Tango.Turno.TurnoProduccionId);
         Assert.Equal(EstadoTurnoProduccion.CERRADO_AUTOMATICO, anterior.Estado);
         Assert.Equal(H(19, 13), anterior.FinReal);   // terminó a su hora aunque nadie lo cerró
-        Assert.All(anterior.Operadores, o => Assert.Equal(H(19, 13), o.Hasta));
+        // Turno automático: el tramo del operador sigue (su tolerancia para declarar lo suyo); el job lo cierra al vencer.
+        Assert.All(anterior.Operadores, o => Assert.Null(o.Hasta));
+        Assert.Equal(1, await _servicio.VencerSesionesAsync(H(19, 13, 30)));
+        Assert.All((await Turnos()).Single(t => t.TurnoProduccionId == anterior.TurnoProduccionId).Operadores, o => Assert.Equal(H(19, 13), o.Hasta));
         Assert.All(anterior.Productos, p => Assert.Equal(H(19, 13), p.Hasta));
         Assert.Single(turnos, t => t.LineaId == _tango2.LineaId && t.Estado == EstadoTurnoProduccion.ABIERTO);
         // Futura 2 sigue con su T1 abierto: el índice es por línea.
@@ -214,37 +228,6 @@ public class TurnoProduccionTests : IDisposable
         var t = Assert.Single(await Turnos());
         Assert.Equal(2, t.Operadores.Count);
         AssertSinSuperposicion(t);
-    }
-
-    // ===================== SIN_APERTURA =====================
-
-    [Fact]
-    public async Task SinApertura_SeMarcaYDespuesSeAbre()
-    {
-        // Futura 2 tiene una programación vacía desde el 01/11: no trabaja, no queda SIN_APERTURA.
-        _context.Set<CalendarioLinea>().Add(new CalendarioLinea { LineaId = _futura2.LineaId, VigenteDesde = new DateOnly(2026, 11, 1), CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin });
-        await _context.SaveChangesAsync();
-        _context.ChangeTracker.Clear();
-
-        // 05:29: todavía dentro de la tolerancia del T1 del 19/11.
-        Assert.Equal(2, await _servicio.MarcarSinAperturaAsync(H(19, 5, 29)));   // T2 y T3 del 18/11 de Tango 2
-        Assert.Equal(1, await _servicio.MarcarSinAperturaAsync(H(19, 5, 30)));   // ahora sí el T1 del 19/11
-        Assert.Equal(0, await _servicio.MarcarSinAperturaAsync(H(19, 5, 31)));   // no duplica
-
-        var turnos = await Turnos();
-        Assert.All(turnos, t => Assert.Equal(_tango2.LineaId, t.LineaId));
-        var t1 = turnos.Single(t => t.TurnoId == _t1.TurnoId && t.FechaProduccion == new DateOnly(2026, 11, 19));
-        Assert.Equal(EstadoTurnoProduccion.SIN_APERTURA, t1.Estado);
-        Assert.Null(t1.InicioReal);
-        Assert.Equal(480, t1.MinutosProgramados);
-
-        _reloj = H(19, 6, 10);
-        var abierto = await AbrirComoOperario(Oper1, _tango2.LineaId, _sh30.ProductoMaestroId);
-        Assert.Equal(t1.TurnoProduccionId, abierto.Turno!.TurnoProduccionId);
-        Assert.Equal("ABIERTO", abierto.Turno.Estado);
-        Assert.Equal("LOGIN", abierto.Turno.OrigenApertura);
-        Assert.Equal(H(19, 6, 10), abierto.Turno.InicioReal);
-        Assert.Equal(3, (await Turnos()).Count);
     }
 
     // ===================== AsegurarTurno (SISTEMA) =====================
@@ -419,9 +402,9 @@ public class TurnoProduccionTests : IDisposable
         // Sólo se le pregunta por su turno (le falta el producto), no por otra línea.
         Assert.True(propuesta.Lineas.Single(l => l.LineaId == _tango2.LineaId).SoyOperadorActual);
 
-        // Cerrado el de Tango 2, ya puede tomar el de Futura 2 (relevando)
+        // Terminado SU turno en Tango 2 (el turno de máquina sigue abierto sin operador), ya puede tomar el de Futura 2 (relevando)
         var tango = (await Turnos()).Single(t => t.LineaId == _tango2.LineaId);
-        Assert.True((await _servicio.CerrarAsync(tango.TurnoProduccionId, null, Oper1, RolOperario, [_tango2.LineaId])).IsSuccess);
+        Assert.True((await _servicio.TerminarMiTurnoAsync(tango.TurnoProduccionId, Oper1)).IsSuccess);
         Assert.True((await _servicio.RelevarAsync(futura.Turno.TurnoProduccionId, Oper1, RolOperario, [_futura2.LineaId])).IsSuccess);
     }
 
@@ -454,36 +437,49 @@ public class TurnoProduccionTests : IDisposable
     // ===================== Cierre automático =====================
 
     [Fact]
-    public async Task CierreAutomatico_PasadoElFinMasLaTolerancia()
+    public async Task CierreAutomatico_ALaHoraDeFinExacta_ElOperadorSigueEnSuTolerancia()
     {
         _reloj = H(19, 6);
         var abierto = await AbrirComoOperario(Oper1, _tango2.LineaId, _sh30.ProductoMaestroId);
 
-        Assert.Equal(0, await _servicio.CerrarVencidosAsync(H(19, 13, 29)));
-        Assert.Equal(1, await _servicio.CerrarVencidosAsync(H(19, 13, 30)));
-        Assert.Equal(0, await _servicio.CerrarVencidosAsync(H(19, 13, 31)));
+        _reloj = H(19, 13);
+        Assert.Equal(0, await _servicio.CerrarVencidosAsync(H(19, 12, 59)));
+        Assert.Equal(1, await _servicio.CerrarVencidosAsync(H(19, 13)));
+        Assert.Equal(0, await _servicio.CerrarVencidosAsync(H(19, 13, 1)));
 
         var t = Assert.Single(await Turnos());
         Assert.Equal(abierto.Turno!.TurnoProduccionId, t.TurnoProduccionId);
         Assert.Equal(EstadoTurnoProduccion.CERRADO_AUTOMATICO, t.Estado);
         Assert.Equal(H(19, 13), t.FinReal);
         Assert.Null(t.CerradoPorUsuarioId);
-        Assert.All(t.Operadores, o => Assert.NotNull(o.Hasta));
-        Assert.All(t.Productos, p => Assert.NotNull(p.Hasta));
+        Assert.All(t.Operadores, o => Assert.Null(o.Hasta));   // sesión del operario: tolerancia
+        Assert.All(t.Productos, p => Assert.Equal(H(19, 13), p.Hasta));
+
+        Assert.Equal(0, await _servicio.VencerSesionesAsync(H(19, 13, 29)));
+        Assert.Equal(1, await _servicio.VencerSesionesAsync(H(19, 13, 30)));
+        Assert.All((await Turnos()).Single().Operadores, o => Assert.Equal(H(19, 13), o.Hasta));
     }
 
     [Fact]
-    public async Task CierreManual_Cerrado_YNoSeReabreDesdeElLogin()
+    public async Task CierreManual_AntesDeHoraNo_DespuesALaHoraDeFin_YNoSeReabreDesdeElLogin()
     {
         _reloj = H(19, 6);
         var abierto = await AbrirComoOperario(Oper1, _tango2.LineaId);
         _reloj = H(19, 12, 50);
-        var cerrado = await _servicio.CerrarAsync(abierto.Turno!.TurnoProduccionId, "Fin de turno", Oper1, RolOperario, LineasDe(Oper1));
+        var antes = await _servicio.CerrarAsync(abierto.Turno!.TurnoProduccionId, "Fin de turno", Oper1, RolOperario, LineasDe(Oper1));
+        Assert.Equal("VALIDATION", antes.ErrorCode);
+        Assert.Equal(TurnoProduccionReglas.MensajeTurnoNoTerminado, antes.ErrorMessage);
+
+        // Pasada la hora (el job no corrió): cierra a la hora de fin.
+        _reloj = H(19, 13, 10);
+        var cerrado = await _servicio.CerrarAsync(abierto.Turno.TurnoProduccionId, "Fin de turno", Oper1, RolOperario, LineasDe(Oper1));
         Assert.True(cerrado.IsSuccess, cerrado.ErrorMessage);
         Assert.Equal("CERRADO", cerrado.Value!.Estado);
-        Assert.Equal(H(19, 12, 50), cerrado.Value.FinReal);
+        Assert.Equal(H(19, 13), cerrado.Value.FinReal);
 
-        var reabrir = await _servicio.AbrirAsync(_tango2.LineaId, Oper2, OrigenAperturaTurno.LOGIN, null, true, RolOperario, LineasDe(Oper2));
+        // Un turno cerrado no se reabre desde el login (reloj atrás sólo para probar la regla con el mismo turno).
+        _reloj = H(19, 12, 59);
+        var reabrir = await _servicio.AbrirAsync(_tango2.LineaId, Oper2, OrigenAperturaTurno.LOGIN, _sh30.ProductoMaestroId, true, RolOperario, LineasDe(Oper2));
         Assert.True(reabrir.IsFailure);
     }
 
@@ -574,6 +570,8 @@ public class TurnoProduccionScriptTests
         var rollback = ScriptSql.Texto("34_t798_turnos_produccion_rollback.sql");
         // T-798 etapa 5: PRD_ProduccionesTurno.Motivo la agrega el script 37.
         var script37 = ScriptSql.Texto("37_t798_indicadores.sql");
+        // Turno automático: confirmación del producto heredado (script 44).
+        script37 += ScriptSql.Texto("44_turno_automatico.sql");
 
         var tablas = new[] { typeof(TurnoProduccion), typeof(TurnoProduccionOperador), typeof(TurnoProduccionProducto), typeof(ProduccionTurno) };
         foreach (var tipo in tablas)

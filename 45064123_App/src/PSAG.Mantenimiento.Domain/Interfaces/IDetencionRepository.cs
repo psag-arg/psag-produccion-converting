@@ -117,4 +117,16 @@ public interface IDetencionRepository : IRepository<Detencion>
     /// </summary>
     Task<IReadOnlyList<Detencion>> GetConParadaEntreAsync(
         int lineaId, DateTimeOffset paradaDesde, DateTimeOffset paradaHasta, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Turno automático: la parte siguiente de una parada que cruzó de turno (DetencionAnteriorId = <paramref name="detencionId"/>),
+    /// incluidas las eliminadas, con seguimiento. Null si no tiene.
+    /// </summary>
+    Task<Detencion?> GetContinuacionAsync(long detencionId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Turno automático: detenciones de cámara PENDIENTES de esos turnos cuya parada sigue abierta (sin arranque detectado),
+    /// con seguimiento. Son las que se cortan al cerrar el turno de máquina.
+    /// </summary>
+    Task<IReadOnlyList<Detencion>> GetPendientesAbiertasDeCamaraAsync(IReadOnlyCollection<long> turnoProduccionIds, CancellationToken cancellationToken = default);
 }

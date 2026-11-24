@@ -33,7 +33,7 @@ public class TurnoProduccion : EntityBase
     /// <summary>Snapshot del plan (programación + excepción del día). 0 = fuera de programación.</summary>
     public int MinutosProgramados { get; set; }
 
-    /// <summary>Apertura real. Null en SIN_APERTURA.</summary>
+    /// <summary>Apertura real (el turno automático la pone en InicioProgramado). Null en los SIN_APERTURA históricos.</summary>
     public DateTimeOffset? InicioReal { get; set; }
 
     /// <summary>Cierre real (manual, automático o al abrir el siguiente).</summary>
@@ -42,7 +42,7 @@ public class TurnoProduccion : EntityBase
     public EstadoTurnoProduccion Estado { get; set; } = EstadoTurnoProduccion.ABIERTO;
     public OrigenAperturaTurno OrigenApertura { get; set; }
 
-    /// <summary>Usuario que lo abrió (null si lo abrió el SISTEMA o está SIN_APERTURA).</summary>
+    /// <summary>Usuario que lo abrió (null si lo abrió el SISTEMA: turno automático, dato sin turno o SIN_APERTURA histórico).</summary>
     public string? AbiertoPorUsuarioId { get; set; }
 
     /// <summary>Usuario que lo cerró a mano (null si lo cerró el sistema).</summary>
@@ -129,6 +129,16 @@ public class TurnoProduccionProducto
     public DateTimeOffset FechaHoraRegistro { get; set; }
     public string? Motivo { get; set; }
     public long? AnuladoPorId { get; set; }
+
+    /// <summary>
+    /// Turno automático (script 44): quién confirmó el producto HEREDADO (el operario al entrar o el supervisor al
+    /// corregirlo). Null en un HEREDADO = supuesto, sin confirmar. En los demás orígenes no se usa (el que lo declara lo confirma).
+    /// </summary>
+    public string? ConfirmadoPorUsuarioId { get; set; }
+    public DateTimeOffset? FechaHoraConfirmacion { get; set; }
+
+    /// <summary>Producto supuesto: heredado del turno anterior y todavía sin confirmar.</summary>
+    public bool SinConfirmar => Origen == OrigenTramoProducto.HEREDADO && ConfirmadoPorUsuarioId == null;
 
     // Navegación
     public virtual TurnoProduccion TurnoProduccion { get; set; } = null!;

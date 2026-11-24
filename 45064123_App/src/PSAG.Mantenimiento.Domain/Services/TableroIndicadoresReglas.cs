@@ -139,13 +139,8 @@ public static class TableroIndicadoresReglas
     /// hasta <paramref name="siSigueParada"/> (ahora con el turno abierto; el fin del turno si ya cerró). Redondeo al
     /// minuto; nunca negativo; sin hora de parada, 0.
     /// </summary>
-    public static int MinutosPendiente(DateTimeOffset? parada, DateTimeOffset? arranqueDetectada, DateTimeOffset siSigueParada)
-    {
-        if (parada is not { } p)
-            return 0;
-        var fin = arranqueDetectada ?? siSigueParada;
-        return fin <= p ? 0 : (int)Math.Round((decimal)(fin - p).TotalMinutes, MidpointRounding.AwayFromZero);
-    }
+    public static int MinutosPendiente(DateTimeOffset? parada, DateTimeOffset? arranqueDetectada, DateTimeOffset siSigueParada) =>
+        DetencionCamaraReglas.MinutosDetectados(DetencionCamaraReglas.SegundosDetectados(parada, arranqueDetectada, siSigueParada));
 
     /// <summary>
     /// Detenciones del turno por tipo de falla (maestro ABM_TiposFalla): una barra por cada tipo activo (en su orden, aunque

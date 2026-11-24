@@ -17,6 +17,7 @@ namespace PSAG.Mantenimiento.Api.Controllers;
 [Route("api/[controller]")]
 [ApiController]
 [Authorize]
+[PermitidoEnTolerancia(SoloLectura = true)]
 public class CatalogosController : ApiControllerBase
 {
     private readonly IUnitOfWork _unitOfWork;
@@ -677,7 +678,8 @@ public class CatalogosController : ApiControllerBase
             HoraFin = t.HoraFin,
             Orden = t.Orden,
             Activo = t.Activo,
-            DuracionMinutos = t.DuracionMinutos()
+            DuracionMinutos = t.DuracionMinutos(),
+            ToleranciaCierreOperadorMinutos = t.ToleranciaCierreOperadorMinutos
         }).OrderBy(t => t.Orden);
 
         return Ok(items);
@@ -702,7 +704,8 @@ public class CatalogosController : ApiControllerBase
             HoraFin = turno.HoraFin,
             Orden = turno.Orden,
             Activo = turno.Activo,
-            DuracionMinutos = turno.DuracionMinutos()
+            DuracionMinutos = turno.DuracionMinutos(),
+            ToleranciaCierreOperadorMinutos = turno.ToleranciaCierreOperadorMinutos
         });
     }
 
@@ -731,7 +734,8 @@ public class CatalogosController : ApiControllerBase
             HoraFin = turno.HoraFin,
             Orden = turno.Orden,
             Activo = turno.Activo,
-            DuracionMinutos = turno.DuracionMinutos()
+            DuracionMinutos = turno.DuracionMinutos(),
+            ToleranciaCierreOperadorMinutos = turno.ToleranciaCierreOperadorMinutos
         });
     }
 
@@ -751,6 +755,7 @@ public class CatalogosController : ApiControllerBase
             HoraFin = request.HoraFin,
             Orden = request.Orden,
             Activo = true,
+            ToleranciaCierreOperadorMinutos = request.ToleranciaCierreOperadorMinutos ?? Domain.Entities.Turno.ToleranciaOperadorPorDefecto,
             CreadoPorUsuarioId = CurrentUserId,
             ModificadoPorUsuarioId = CurrentUserId
         };
@@ -773,7 +778,8 @@ public class CatalogosController : ApiControllerBase
             HoraFin = turno.HoraFin,
             Orden = turno.Orden,
             Activo = turno.Activo,
-            DuracionMinutos = turno.DuracionMinutos()
+            DuracionMinutos = turno.DuracionMinutos(),
+            ToleranciaCierreOperadorMinutos = turno.ToleranciaCierreOperadorMinutos
         });
     }
 
@@ -798,7 +804,8 @@ public class CatalogosController : ApiControllerBase
             Nombre = request.Nombre?.Trim() ?? string.Empty,
             HoraInicio = request.HoraInicio,
             HoraFin = request.HoraFin,
-            Activo = request.Activo
+            Activo = request.Activo,
+            ToleranciaCierreOperadorMinutos = request.ToleranciaCierreOperadorMinutos ?? turno.ToleranciaCierreOperadorMinutos
         };
         var error = await ValidarTurnoAsync(propuesto);
         if (error != null)
@@ -810,6 +817,7 @@ public class CatalogosController : ApiControllerBase
         turno.HoraFin = request.HoraFin;
         turno.Orden = request.Orden;
         turno.Activo = request.Activo;
+        turno.ToleranciaCierreOperadorMinutos = propuesto.ToleranciaCierreOperadorMinutos;
         turno.ModificadoPorUsuarioId = CurrentUserId;
         turno.FechaHoraModificacion = DateTimeOffset.UtcNow;
 
@@ -827,7 +835,8 @@ public class CatalogosController : ApiControllerBase
             HoraFin = turno.HoraFin,
             Orden = turno.Orden,
             Activo = turno.Activo,
-            DuracionMinutos = turno.DuracionMinutos()
+            DuracionMinutos = turno.DuracionMinutos(),
+            ToleranciaCierreOperadorMinutos = turno.ToleranciaCierreOperadorMinutos
         });
     }
 
@@ -841,6 +850,8 @@ public class CatalogosController : ApiControllerBase
             motivo = "Completá el código del turno.";
         else if (string.IsNullOrWhiteSpace(turno.Nombre))
             motivo = "Completá el nombre del turno.";
+        else if (turno.ToleranciaCierreOperadorMinutos is < 0 or > Domain.Entities.Turno.ToleranciaOperadorMaxima)
+            motivo = $"La tolerancia del operario tiene que estar entre 0 y {Domain.Entities.Turno.ToleranciaOperadorMaxima} minutos.";
         else if (turno.Activo)
             motivo = TurnoReglas.MotivoHorarioInvalido(turno, await _unitOfWork.Turnos.GetActivosAsync());
 

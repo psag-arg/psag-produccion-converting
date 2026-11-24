@@ -268,13 +268,14 @@ public class TableroIndicadoresTests : IDisposable
         _reloj = H(18);
         Assert.Equal(80, (await TableroAsync(turno)).DetencionesPorTipo.MinutosPendientes);
 
-        // Turno cerrado a las 18: la que sigue parada se cuenta hasta el fin del turno, no hasta ahora
-        var cierre = await _turnos.CerrarAsync(turno, null, Oper1, RolOperario, [_tango2.LineaId]);
-        Assert.True(cierre.IsSuccess, cierre.ErrorMessage);
-        _reloj = H(20);
+        // Turno automático: el turno de máquina cierra a las 21 (no antes). La que sigue parada se corta ahí: su parte en este
+        // turno va hasta las 21 (16:50→21:00 = 250) y lo que sigue es otra detención, en el T3.
+        _reloj = H(21, 5);
+        Assert.Equal(1, await _turnos.CerrarVencidosAsync(H(21, 5)));
+        _reloj = H(22);
         var cerrado = await TableroAsync(turno);
         Assert.False(cerrado.Abierto);
-        Assert.Equal(80, cerrado.DetencionesPorTipo.MinutosPendientes);
+        Assert.Equal(260, cerrado.DetencionesPorTipo.MinutosPendientes);
     }
 
     [Fact]

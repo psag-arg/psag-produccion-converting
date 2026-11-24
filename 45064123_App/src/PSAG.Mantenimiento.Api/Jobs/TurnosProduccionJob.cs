@@ -4,8 +4,11 @@ using PSAG.Mantenimiento.Application.Services.Interfaces;
 namespace PSAG.Mantenimiento.Api.Jobs;
 
 /// <summary>
-/// T-798 etapa 2 · Cada minuto (TurnosProduccion:JobIntervaloSegundos): cierra los turnos de producción vencidos
-/// (FinProgramado + tolerancia → CERRADO_AUTOMATICO) y marca SIN_APERTURA los programados que nadie abrió.
+/// T-798 etapa 2 · Cada minuto (TurnosProduccion:JobIntervaloSegundos). Turno automático (script 44): el turno es de la
+/// MÁQUINA. Cierra a la hora de fin exacta los ABIERTOS (CERRADO_AUTOMATICO, FinReal = FinProgramado; corta las paradas
+/// que siguen abiertas), abre a la hora de inicio el turno de cada línea PROGRAMADA (SISTEMA, sin operador, producto
+/// heredado sin confirmar; si el job estuvo parado, los que faltan de las últimas 24 h se crean ya terminados) y cierra el
+/// tramo del operario cuya tolerancia (ABM_Turnos.ToleranciaCierreOperadorMinutos) venció. Ya no genera SIN_APERTURA.
 /// T-798 etapa 4: también abre la alerta SIN_DATOS de la cámara oficial de cada línea con turno ABIERTO que no manda
 /// minutos hace más de TurnosProduccion:MinutosSinDatosCamara (5).
 /// Un error no detiene el job: se registra y se reintenta en la vuelta siguiente.
@@ -68,13 +71,13 @@ public sealed class TurnosProduccionJob : BackgroundService
             using var scope = _scopeFactory.CreateScope();
             var servicio = scope.ServiceProvider.GetRequiredService<ITurnoProduccionService>();
             var ahora = DateTimeOffset.UtcNow;
-            var cerrados = await servicio.CerrarVencidosAsync(ahora, stoppingToken);
-            var sinApertura = await servicio.MarcarSinAperturaAsync(ahora, stoppingToken);
+            var r = await servicio.ProcesarAsync(ahora, stoppingToken);
             var camaras = scope.ServiceProvider.GetRequiredService<IConteoCamaraService>();
             var sinDatos = await camaras.VigilarSinDatosAsync(ahora, _opciones.MinutosSinDatosCamara, stoppingToken);
-            if (cerrados > 0 || sinApertura > 0 || sinDatos > 0)
-                _logger.LogInformation("Job de turnos de producción: {Cerrados} cerrados por vencimiento, {SinApertura} sin apertura, {SinDatos} alertas de cámara sin datos",
-                    cerrados, sinApertura, sinDatos);
+            if (r.Cerrados > 0 || r.Abiertos > 0 || r.CreadosTerminados > 0 || r.SesionesVencidas > 0 || sinDatos > 0)
+                _logger.LogInformation(
+                    "Job de turnos de producción: {Cerrados} cerrados a la hora, {Abiertos} abiertos automáticamente, {Terminados} creados ya terminados, {Sesiones} sesiones de operario vencidas, {SinDatos} alertas de cámara sin datos",
+                    r.Cerrados, r.Abiertos, r.CreadosTerminados, r.SesionesVencidas, sinDatos);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {

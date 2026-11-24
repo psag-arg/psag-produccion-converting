@@ -307,7 +307,10 @@ public class AnalisisService : IAnalisisService
                 OrigenRegistro = d.OrigenRegistro.ToString(),
                 CamaraCodigo = d.CamaraId is { } c ? camaras.GetValueOrDefault(c) : null,
                 MinutosEfectivos = d.MinutosEfectivos,
-                EstadoActualDescripcion = d.EstadoActual.ObtenerDescripcion()
+                EstadoActualDescripcion = d.EstadoActual.ObtenerDescripcion(),
+                SegundosDetectados = DetencionCamaraReglas.SegundosDetectados(d, d.TurnoProduccion, DateTimeOffset.UtcNow),
+                ParadaEnCurso = d.FechaHoraArranqueDetectada == null && d.TurnoProduccion is not { EstaCerrado: true },
+                VieneDelTurnoAnterior = d.VieneDelTurnoAnterior
             })
             .ToList();
     }

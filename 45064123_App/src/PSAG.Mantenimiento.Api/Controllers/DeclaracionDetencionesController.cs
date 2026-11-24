@@ -38,6 +38,7 @@ public class DeclaracionDetencionesController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [Permiso(Opciones.DetencionesListado, AccionPermiso.Ver)]
     [DelTurno(RecursoDelTurno.Detencion, "id")]
+    [PermitidoEnTolerancia]
     public async Task<IActionResult> GetDeclaracion(long id)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -63,6 +64,7 @@ public class DeclaracionDetencionesController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [Permiso(Opciones.DetencionesListado, AccionPermiso.Alta)]
     [DelTurno(RecursoDelTurno.Detencion, "id")]
+    [PermitidoEnTolerancia]
     public async Task<IActionResult> Declarar(long id, [FromBody] DeclararDetencionRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))

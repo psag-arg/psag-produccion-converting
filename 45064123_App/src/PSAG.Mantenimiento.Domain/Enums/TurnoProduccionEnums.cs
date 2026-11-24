@@ -9,9 +9,13 @@ public enum EstadoTurnoProduccion
     ABIERTO = 1,
     /// <summary>Cerrado a mano (operador o supervisor).</summary>
     CERRADO = 2,
-    /// <summary>Cerrado por el sistema: vencido (FinProgramado + tolerancia), al abrir el turno siguiente o creado ya pasado.</summary>
+    /// <summary>Cerrado por el sistema: a la hora de fin programada (turno automático), al abrir el turno siguiente o creado ya pasado.</summary>
     CERRADO_AUTOMATICO = 3,
-    /// <summary>Programado, pasó su inicio más la tolerancia y nadie lo abrió. Si después alguien lo abre, pasa a ABIERTO.</summary>
+    /// <summary>
+    /// HISTÓRICO (hasta T-798/T-806): programado, pasó su inicio más la tolerancia y nadie lo abrió. Desde el turno
+    /// automático (script 44) ya no se genera: el job abre el turno de máquina ABIERTO "sin operador". Queda para leer
+    /// los registros viejos (si alguien lo toma, pasa a ABIERTO como antes).
+    /// </summary>
     SIN_APERTURA = 4
 }
 
@@ -43,7 +47,13 @@ public enum OrigenTramoProducto
     /// <summary>Cambio de producto durante el turno.</summary>
     CAMBIO = 2,
     /// <summary>Corrección del supervisor (con motivo).</summary>
-    SUPERVISOR = 3
+    SUPERVISOR = 3,
+    /// <summary>
+    /// Turno automático (script 44): al abrirlo el sistema, el turno hereda el producto con que terminó el turno anterior de
+    /// la línea (snapshot del parámetro vigente a la fecha del turno nuevo). Es un SUPUESTO hasta que el operario o el
+    /// supervisor lo confirman (<c>ConfirmadoPorUsuarioId</c>).
+    /// </summary>
+    HEREDADO = 4
 }
 
 /// <summary>Origen del dato oficial de producción (PRD_ProduccionesTurno; se llena en la etapa 5).</summary>

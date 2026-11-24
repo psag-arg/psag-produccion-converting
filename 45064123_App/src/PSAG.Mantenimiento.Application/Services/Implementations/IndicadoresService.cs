@@ -29,7 +29,8 @@ namespace PSAG.Mantenimiento.Application.Services.Implementations;
 /// por su <c>TurnoProduccionId</c>): por turno, día, línea y en el total, todos los del turno; al agrupar o filtrar por
 /// producto, los que EMPEZARON dentro de un tramo de ese producto (las paradas tienen hora, a diferencia de las
 /// detenciones); "Sin producto (a completar)" lleva los de los turnos sin tramos. Null (no 0) si ninguna línea de la fila
-/// tiene cámara de conteo.</item>
+/// tiene cámara de conteo. Turno automático (D.14): la clasificación es por la duración total de la parada; la que cruza el
+/// cambio de turno reparte sus segundos entre los dos turnos y cuenta 1 sólo en el turno donde empezó.</item>
 /// </list>
 /// </summary>
 public class IndicadoresService : IIndicadoresService
@@ -69,7 +70,7 @@ public class IndicadoresService : IIndicadoresService
     /// <summary>Microcortes: inicio y duración de cada parada de cámara del turno que no llegó al umbral.</summary>
     private sealed record TurnoCalculado(
         TurnoProduccion Turno, int MinutosProgramados, int MinutosParada, IReadOnlyList<TramoCalculado> Tramos,
-        bool ConCamara, IReadOnlyList<(DateTimeOffset Inicio, int Segundos)> Microcortes);
+        bool ConCamara, IReadOnlyList<ParadaEnTurno> Microcortes);
 
     private async Task<List<TurnoCalculado>> CalcularAsync(IReadOnlyList<TurnoProduccion> turnos, DateTimeOffset ahora, CancellationToken cancellationToken)
     {
@@ -93,10 +94,21 @@ public class IndicadoresService : IIndicadoresService
         var programados = await MinutosProgramadosTurnos.CalcularAsync(_unitOfWork, turnos, cancellationToken);
         var lineasConCamara = (await _unitOfWork.Camaras.GetListadoAsync(null, incluirInactivas: true, cancellationToken))
             .Where(c => c.EsConteo).Select(c => c.LineaId).ToHashSet();
-        var microcortes = (await _unitOfWork.ParadasCamara.GetPorTurnosAsync(turnos.Select(t => t.TurnoProduccionId).ToList(), cancellationToken))
+        // Turno automático (D.14): microcorte = parada cuya duración TOTAL no llegó al umbral. Cada turno se queda con sus
+        // segundos (la que cruza el cambio de turno se reparte) y la cantidad cuenta 1 en el turno donde empezó.
+        var propias = (await _unitOfWork.ParadasCamara.GetPorTurnosAsync(turnos.Select(t => t.TurnoProduccionId).ToList(), cancellationToken))
             .Where(p => !DetencionCamaraReglas.SuperaUmbral(p))
-            .GroupBy(p => p.TurnoProduccionId!.Value)
-            .ToDictionary(g => g.Key, g => (IReadOnlyList<(DateTimeOffset, int)>)g.Select(p => (p.FechaHoraInicio, p.DuracionSegundos)).ToList());
+            .ToList();
+        var cruzan = (await _unitOfWork.ParadasCamara.GetRangoAsync(
+                turnos.Min(t => t.InicioProgramado).AddSeconds(-DetencionCamaraReglas.SegundosUmbralMaximo),
+                turnos.Max(t => t.InicioProgramado), null, cancellationToken))
+            .Where(p => !DetencionCamaraReglas.SuperaUmbral(p))
+            .ToList();
+        var microcortes = turnos.ToDictionary(t => t.TurnoProduccionId, t => ParadasTurnoReglas.DelTurno(
+            t.TurnoProduccionId, t.InicioProgramado, t.FinProgramado,
+            propias.Where(p => p.TurnoProduccionId == t.TurnoProduccionId)
+                .Concat(cruzan.Where(p => p.Camara.LineaId == t.LineaId && p.TurnoProduccionId != t.TurnoProduccionId))
+                .Select(p => (p.TurnoProduccionId, p.FechaHoraInicio, p.FechaHoraFin, p.DuracionSegundos))));
 
         var resultado = new List<TurnoCalculado>();
         foreach (var tp in turnos)
@@ -248,7 +260,7 @@ public class IndicadoresService : IIndicadoresService
                 incluirParadas || (t.Tramos.Count == 0 && incluirSinTramos)
                     ? t.Microcortes
                     : t.Microcortes.Where(m => t.Tramos.Where(tramoIncluido).Any(x => x.Contiene(m.Inicio)))).ToList();
-            fila.Microcortes = lista.Count;
+            fila.Microcortes = lista.Count(m => m.Cuenta);
             fila.SegundosMicrocortes = lista.Sum(m => m.Segundos);
             fila.MinutosMicrocortes = (int)Math.Round(fila.SegundosMicrocortes.Value / 60m, MidpointRounding.AwayFromZero);
         }

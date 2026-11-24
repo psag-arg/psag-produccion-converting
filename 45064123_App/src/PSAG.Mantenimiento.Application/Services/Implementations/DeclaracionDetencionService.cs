@@ -48,9 +48,20 @@ public class DeclaracionDetencionService : IDeclaracionDetencionService
             ? await _unitOfWork.Camaras.GetByIdAsync(cid, cancellationToken)
             : null;
         Equipo? cuerpo = camara?.EquipoId is { } eid ? await _unitOfWork.Equipos.GetByIdAsync(eid, cancellationToken) : null;
+        // Turno automático (D.12): partes de una parada que cruzó el cambio de turno.
+        var anterior = d.DetencionAnteriorId is { } aid ? await _unitOfWork.Detenciones.GetByIdAsync(aid, cancellationToken) : null;
+        var siguiente = await _unitOfWork.Detenciones.GetContinuacionAsync(d.DetencionId, cancellationToken);
+        var ahora = _ahora();
 
         return Result<DeclaracionDetencionDto>.Success(new DeclaracionDetencionDto
         {
+            SegundosDetectados = DetencionCamaraReglas.SegundosDetectados(d, d.TurnoProduccion, ahora),
+            ParadaEnCurso = d.EsPendienteDeclaracion && d.FechaHoraArranqueDetectada == null && d.TurnoProduccion is not { EstaCerrado: true },
+            ParteAnteriorId = anterior?.DetencionId,
+            ParteAnteriorCodigo = anterior?.Codigo,
+            ParteSiguienteId = siguiente?.DetencionId,
+            ParteSiguienteCodigo = siguiente?.Codigo,
+            DeclararHasta = siguiente != null ? HoraPlanta.En(siguiente.FechaHoraParada, _zonaPlanta) : null,
             DetencionId = d.DetencionId,
             Codigo = d.Codigo,
             LineaId = d.LineaId,
@@ -88,6 +99,15 @@ public class DeclaracionDetencionService : IDeclaracionDetencionService
             detencion, request.Descripcion, arranque, request.MinutosDeclarados, _ahora());
         if (motivo != null)
             return Result<DeclararDetencionResponse>.Failure("VALIDATION", motivo);
+
+        // Turno automático (D.13): si la parada siguió en el turno siguiente (otra detención), esta parte se declara hasta el corte.
+        if (await _unitOfWork.Detenciones.GetContinuacionAsync(detencion.DetencionId, cancellationToken) is { FechaHoraParada: { } corte })
+        {
+            var pasa = DetencionCamaraReglas.MotivoPasaDelCorte(detencion.FechaHoraParada, corte, arranque, request.MinutosDeclarados,
+                $"{HoraPlanta.En(corte, _zonaPlanta):HH:mm}");
+            if (pasa != null)
+                return Result<DeclararDetencionResponse>.Failure("VALIDATION", pasa);
+        }
 
         if (request.EquipoId is { } equipoId)
         {

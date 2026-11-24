@@ -15,6 +15,18 @@ namespace PSAG.Mantenimiento.Api.Autorizacion;
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Class, AllowMultiple = false, Inherited = true)]
 public sealed class SinTurnoObligatorioAttribute : Attribute;
 
+/// <summary>
+/// Turno automático (B.6 / B.9) · Acción que el obligado a turno puede usar durante la TOLERANCIA de su turno anterior (el
+/// turno de máquina ya cerró y todavía no venció ABM_Turnos.ToleranciaCierreOperadorMinutos): declarar y corregir las
+/// detenciones de ese turno, ver sus pendientes y terminar su turno. Todo se ajusta a ESE turno (como con turno abierto).
+/// Con <see cref="SoloLectura"/>, sólo las lecturas (p. ej. los catálogos que usa la pantalla de declarar).
+/// </summary>
+[AttributeUsage(AttributeTargets.Method | AttributeTargets.Class, AllowMultiple = false, Inherited = true)]
+public sealed class PermitidoEnToleranciaAttribute : Attribute
+{
+    public bool SoloLectura { get; init; }
+}
+
 /// <summary>Qué identifica el parámetro de ruta que <see cref="DelTurnoAttribute"/> controla.</summary>
 public enum RecursoDelTurno
 {
@@ -38,7 +50,8 @@ public sealed class DelTurnoAttribute(RecursoDelTurno recurso, string parametro)
 
 /// <summary>Turno abierto del usuario obligado a turno (en el que es el operador vigente).</summary>
 public sealed record TurnoDelUsuario(
-    long TurnoProduccionId, int LineaId, string LineaNombre, int TurnoId, string TurnoNombre, DateOnly FechaProduccion)
+    long TurnoProduccionId, int LineaId, string LineaNombre, int TurnoId, string TurnoNombre, DateOnly FechaProduccion,
+    bool EnTolerancia = false)
 {
     public string Descripcion => $"{TurnoNombre} de {LineaNombre} del {FechaProduccion:dd/MM/yyyy}";
 }
@@ -56,8 +69,9 @@ public static class TurnoObligatorio
     public const string MensajeTurnoRequerido = "Abrí o tomá un turno para empezar (Producción → Inicio de turno).";
     public const string TituloFueraDelTurno = "Fuera de tu turno";
 
-    public static string MensajeFueraDelTurno(TurnoDelUsuario t) =>
-        $"Tenés abierto el {t.Descripcion}: sólo podés trabajar sobre ese turno y esa línea.";
+    public static string MensajeFueraDelTurno(TurnoDelUsuario t) => t.EnTolerancia
+        ? $"Terminó el {t.Descripcion}: en la tolerancia sólo podés declarar y corregir las detenciones de ese turno."
+        : $"Tenés abierto el {t.Descripcion}: sólo podés trabajar sobre ese turno y esa línea.";
 
     /// <summary>Turno del obligado a turno de esta request (lo guarda el filtro); null si no está obligado o no tiene.</summary>
     public static TurnoDelUsuario? De(HttpContext? http) =>
@@ -98,8 +112,13 @@ public sealed class TurnoObligatorioFilter : IAsyncActionFilter
     private static readonly string[] NombresRangoFechas = ["fechaDesde", "fechaHasta", "desde", "hasta"];
 
     private readonly IUnitOfWork _unitOfWork;
+    private readonly Application.Services.Interfaces.ITurnoProduccionService _turnos;
 
-    public TurnoObligatorioFilter(IUnitOfWork unitOfWork) => _unitOfWork = unitOfWork;
+    public TurnoObligatorioFilter(IUnitOfWork unitOfWork, Application.Services.Interfaces.ITurnoProduccionService turnos)
+    {
+        _unitOfWork = unitOfWork;
+        _turnos = turnos;
+    }
 
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
@@ -123,6 +142,24 @@ public sealed class TurnoObligatorioFilter : IAsyncActionFilter
         var tp = (await _unitOfWork.TurnosProduccion.GetAbiertosDeOperadorAsync(usuarioId, http.RequestAborted)).FirstOrDefault();
         if (tp == null)
         {
+            // Turno automático: en la tolerancia de su turno anterior, sólo lo marcado (declarar / corregir sus detenciones,
+            // sus pendientes, terminar su turno), ajustado a ese turno.
+            var permitida = context.ActionDescriptor.EndpointMetadata.OfType<PermitidoEnToleranciaAttribute>().LastOrDefault();
+            if (permitida != null && (!permitida.SoloLectura || HttpMethods.IsGet(http.Request.Method))
+                && await _turnos.ObtenerSesionEnToleranciaAsync(usuarioId, http.RequestAborted) is { } anterior)
+            {
+                var enTolerancia = new TurnoDelUsuario(anterior.TurnoProduccionId, anterior.LineaId, anterior.Linea?.Nombre ?? $"la línea {anterior.LineaId}",
+                    anterior.TurnoId, anterior.Turno?.Nombre ?? "turno", anterior.FechaProduccion, EnTolerancia: true);
+                TurnoObligatorio.Guardar(http, enTolerancia);
+                if (!await DentroDelTurnoAsync(context, enTolerancia))
+                {
+                    context.Result = TurnoObligatorio.Problema(StatusCodes.Status403Forbidden, TurnoObligatorio.TituloFueraDelTurno,
+                        TurnoObligatorio.MensajeFueraDelTurno(enTolerancia), TurnoObligatorio.CodigoFueraDelTurno, http.Request.Path);
+                    return;
+                }
+                await next();
+                return;
+            }
             if (exenta)
             {
                 await next();

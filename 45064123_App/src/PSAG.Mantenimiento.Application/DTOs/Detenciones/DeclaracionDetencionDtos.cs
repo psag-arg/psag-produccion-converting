@@ -33,6 +33,19 @@ public class DeclaracionDetencionDto
     public string EstadoActualDescripcion { get; set; } = string.Empty;
     public bool PendienteDeclaracion { get; set; }
     public byte[] RowVersion { get; set; } = [];
+
+    /// <summary>Segundos detectados por la cámara (DetencionCamaraReglas.SegundosDetectados) y si la parada sigue.</summary>
+    public int? SegundosDetectados { get; set; }
+    public bool ParadaEnCurso { get; set; }
+
+    /// <summary>Turno automático (D.12): parte anterior (viene del turno anterior) y parte siguiente (siguió en el turno siguiente).</summary>
+    public long? ParteAnteriorId { get; set; }
+    public string? ParteAnteriorCodigo { get; set; }
+    public long? ParteSiguienteId { get; set; }
+    public string? ParteSiguienteCodigo { get; set; }
+
+    /// <summary>Si la parada siguió en el turno siguiente, hasta qué hora se declara esta parte (el fin del turno).</summary>
+    public DateTimeOffset? DeclararHasta { get; set; }
 }
 
 /// <summary>

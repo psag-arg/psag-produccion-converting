@@ -116,6 +116,16 @@ public class Detencion : EntityBase
     /// </summary>
     public DateTimeOffset? FechaHoraArranqueDetectada { get; set; }
 
+    /// <summary>
+    /// Turno automático (script 44): parte anterior de una parada de cámara que cruzó el cambio de turno. La parada se
+    /// corta en el fin del turno de máquina: la parte del turno anterior termina a esa hora (su arranque detectado es el
+    /// corte) y esta empieza ahí, en el turno siguiente. Cada parte se declara por separado. Null = no viene de otro turno.
+    /// </summary>
+    public long? DetencionAnteriorId { get; set; }
+
+    /// <summary>Es la continuación de una parada que empezó en el turno anterior.</summary>
+    public bool VieneDelTurnoAnterior => DetencionAnteriorId != null;
+
     // ========== ELIMINACIÓN LÓGICA ==========
 
     /// <summary>
@@ -175,6 +185,7 @@ public class Detencion : EntityBase
     public virtual TurnoProduccion TurnoProduccion { get; set; } = null!;
     public virtual ReglaAnalisis? ReglaAnalisis { get; set; }
     public virtual Camara? Camara { get; set; }
+    public virtual Detencion? DetencionAnterior { get; set; }
     public virtual ICollection<DetencionEstadoHistorial> HistorialEstados { get; set; } = new List<DetencionEstadoHistorial>();
     public virtual ICollection<DetencionNota> Notas { get; set; } = new List<DetencionNota>();
     public virtual ICollection<AnalisisCambio> CambiosAnalisis { get; set; } = new List<AnalisisCambio>();

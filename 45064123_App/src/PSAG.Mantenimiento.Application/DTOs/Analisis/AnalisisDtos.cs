@@ -225,6 +225,15 @@ public class PendienteDeclaracionDto
     public string? CamaraCodigo { get; set; }
     public int MinutosEfectivos { get; set; }
     public string EstadoActualDescripcion { get; set; } = string.Empty;
+
+    /// <summary>Segundos detectados por la cámara (parada → arranque detectado, o → ahora si sigue): MinutosEfectivos es 0 hasta declarar.</summary>
+    public int? SegundosDetectados { get; set; }
+
+    /// <summary>La parada sigue abierta (duración "en curso").</summary>
+    public bool ParadaEnCurso { get; set; }
+
+    /// <summary>Turno automático (D.12): continuación de una parada que empezó en el turno anterior.</summary>
+    public bool VieneDelTurnoAnterior { get; set; }
 }
 
 /// <summary>

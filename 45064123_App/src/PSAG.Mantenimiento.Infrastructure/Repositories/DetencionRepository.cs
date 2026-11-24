@@ -464,4 +464,21 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
 
         return (items, totalCount);
     }
+
+    public Task<Detencion?> GetContinuacionAsync(long detencionId, CancellationToken cancellationToken = default) =>
+        _dbSet.IgnoreQueryFilters().FirstOrDefaultAsync(d => d.DetencionAnteriorId == detencionId, cancellationToken);
+
+    public async Task<IReadOnlyList<Detencion>> GetPendientesAbiertasDeCamaraAsync(
+        IReadOnlyCollection<long> turnoProduccionIds, CancellationToken cancellationToken = default)
+    {
+        if (turnoProduccionIds.Count == 0)
+            return [];
+        return await _dbSet
+            .Where(d => turnoProduccionIds.Contains(d.TurnoProduccionId)
+                        && d.OrigenRegistro == OrigenRegistroDetencion.CAMARA
+                        && d.EstadoActual == EstadoDetencion.PENDIENTE_JUSTIFICACION
+                        && d.FechaHoraArranqueDetectada == null
+                        && d.FechaHoraParada != null)
+            .ToListAsync(cancellationToken);
+    }
 }

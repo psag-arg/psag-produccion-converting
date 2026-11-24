@@ -140,6 +140,17 @@ public class DetencionConfiguration : IEntityTypeConfiguration<Detencion>
         builder.Property(x => x.OperadorUsuarioId)
             .HasMaxLength(450);
 
+        // Turno automático (script 44): parte anterior de una parada que cruzó el cambio de turno.
+        builder.HasOne(x => x.DetencionAnterior)
+            .WithMany()
+            .HasForeignKey(x => x.DetencionAnteriorId)
+            .OnDelete(DeleteBehavior.Restrict);
+        // Una parada se continúa una sola vez por parte (idempotencia del corte: job, ingesta, reintentos).
+        builder.HasIndex(x => x.DetencionAnteriorId)
+            .IsUnique()
+            .HasFilter("[DetencionAnteriorId] IS NOT NULL")
+            .HasDatabaseName("UX_DET_Detenciones_DetencionAnteriorId");
+
         builder.HasOne(x => x.ReglaAnalisis)
             .WithMany()
             .HasForeignKey(x => x.ReglaAnalisisId)

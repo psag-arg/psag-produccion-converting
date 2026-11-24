@@ -86,7 +86,8 @@ public class TurnosProduccionController : ApiControllerBase
             : OrigenAperturaTurno.SUPERVISOR;
         var resultado = await _servicio.AbrirAsync(request.LineaId, CurrentUserId, origen, request.ProductoMaestroId, request.Relevar, Roles, lineas);
         if (resultado.IsFailure)
-            return ProblemaDe(resultado, "No se pudo tomar el turno", "Línea no encontrada", "Sin permiso sobre la línea");
+            return ProblemaDe(resultado, resultado.ErrorCode == Application.Services.Implementations.TurnoProduccionService.CodigoProductoRequerido
+                ? "Producto requerido" : "No se pudo tomar el turno", "Línea no encontrada", "Sin permiso sobre la línea");
 
         var dto = resultado.Value!;
         var nombres = await _userManager.NombresVisiblesAsync(IdsDe(dto.Turno).Append(dto.ReemplazadoUsuarioId));
@@ -121,7 +122,45 @@ public class TurnosProduccionController : ApiControllerBase
         return await RespuestaAsync(resultado);
     }
 
-    /// <summary>Cierre manual del turno (operador de la línea o supervisor).</summary>
+    /// <summary>
+    /// Turno automático (B.8): "Terminar mi turno". Cierra el tramo del operador (su sesión). Antes de la hora de fin, el turno
+    /// de máquina sigue abierto "sin operador"; durante la tolerancia, termina la sesión del turno que ya cerró.
+    /// </summary>
+    [HttpPost("{id:long}/terminar")]
+    [ProducesResponseType(typeof(TurnoProduccionDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.ProduccionOperacionTurno, AccionPermiso.Modificar)]
+    [DelTurno(RecursoDelTurno.TurnoProduccion, "id")]
+    [PermitidoEnTolerancia]
+    public async Task<IActionResult> Terminar(long id)
+    {
+        if (string.IsNullOrEmpty(CurrentUserId))
+            return Unauthorized();
+        var resultado = await _servicio.TerminarMiTurnoAsync(id, CurrentUserId);
+        return await RespuestaAsync(resultado);
+    }
+
+    /// <summary>
+    /// Turno automático (B.6): el turno ya cerrado en el que el usuario sigue en su tolerancia (puede declarar y corregir sus
+    /// detenciones y terminarlo). 204 si no tiene.
+    /// </summary>
+    [HttpGet("mio/tolerancia")]
+    [ProducesResponseType(typeof(SesionToleranciaDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [Permiso(Opciones.ProduccionOperacionTurno, AccionPermiso.Ver)]
+    [SinTurnoObligatorio]
+    public async Task<IActionResult> GetMiTolerancia()
+    {
+        if (string.IsNullOrEmpty(CurrentUserId))
+            return Unauthorized();
+        var dto = await _servicio.ObtenerSesionEnToleranciaDtoAsync(CurrentUserId);
+        return dto == null ? NoContent() : Ok(dto);
+    }
+
+    /// <summary>
+    /// Cierre manual del turno de máquina: sólo después de su hora de fin (si el job no lo cerró); antes, 400 (el operario
+    /// termina SU turno con "terminar"). El cierre anticipado por supervisor no está (duda abierta).
+    /// </summary>
     [HttpPost("{id:long}/cerrar")]
     [ProducesResponseType(typeof(TurnoProduccionDto), StatusCodes.Status200OK)]
     [Permiso(Opciones.ProduccionOperacionTurno, AccionPermiso.Modificar)]

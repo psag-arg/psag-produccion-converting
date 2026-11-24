@@ -25,4 +25,19 @@ public interface ITurnoProduccionRepository : IRepository<TurnoProduccion>
 
     /// <summary>Turnos con fecha de producción en el rango (ambos incluidos), de las líneas indicadas (todas si es null), con detalle.</summary>
     Task<IReadOnlyList<TurnoProduccion>> GetPorFechasAsync(DateOnly desde, DateOnly hasta, IReadOnlyCollection<int>? lineaIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Turno automático: turnos ya CERRADOS en los que el usuario sigue con su tramo de operador vigente (sesión que puede
+    /// estar en tolerancia), con línea y turno de planta, sin tramos. Sólo lectura.
+    /// </summary>
+    Task<IReadOnlyList<TurnoProduccion>> GetCerradosConSesionDeOperadorAsync(string usuarioId, CancellationToken cancellationToken = default);
+
+    /// <summary>Turno automático: turnos CERRADOS con algún tramo de operador vigente (para vencer la tolerancia), con turno de planta y operadores.</summary>
+    Task<IReadOnlyList<TurnoProduccion>> GetCerradosConOperadorVigenteAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Turno automático: el último turno de la línea que empezó antes de <paramref name="antesDe"/> (mirando hasta
+    /// <paramref name="diasAtras"/> días de fecha de producción), con detalle. Para heredar el producto.
+    /// </summary>
+    Task<TurnoProduccion?> GetAnteriorDeLineaAsync(int lineaId, DateOnly fechaProduccion, DateTimeOffset antesDe, int diasAtras, CancellationToken cancellationToken = default);
 }

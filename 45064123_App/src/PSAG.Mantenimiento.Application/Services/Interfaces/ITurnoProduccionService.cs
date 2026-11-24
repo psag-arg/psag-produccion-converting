@@ -7,7 +7,8 @@ namespace PSAG.Mantenimiento.Application.Services.Interfaces;
 
 /// <summary>
 /// Turno de producción (T-798 etapa 2): apertura en el login del operario o por el supervisor, relevos, cambio de
-/// producto, cierre manual y automático, SIN_APERTURA y correcciones del supervisor (insert-only). Los permisos
+/// producto, turno automático (el job abre y cierra el turno de MÁQUINA a sus horas; la sesión del operario tiene su
+/// tolerancia), paradas que cruzan de turno y correcciones del supervisor (insert-only). Los permisos
 /// por línea se validan acá (roles + líneas habilitadas del usuario en ABM_OperadoresLinea).
 /// </summary>
 public interface ITurnoProduccionService
@@ -41,6 +42,36 @@ public interface ITurnoProduccionService
     /// </summary>
     Task<TurnoProduccion?> AsegurarTurnoAsync(int lineaId, DateTimeOffset instante, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Igual, pero con <paramref name="soloSiProgramado"/> no crea un turno fuera de programación (0 min): para continuar
+    /// una parada en el turno siguiente (una línea no programada no se abre sola).
+    /// </summary>
+    Task<TurnoProduccion?> AsegurarTurnoAsync(int lineaId, DateTimeOffset instante, bool soloSiProgramado, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Turno automático (D.12): corta una detención de cámara pendiente cuya parada cruzó el fin del turno de máquina. La
+    /// parte de cada turno termina a la hora de fin (su arranque detectado = el corte) y sigue otra, vinculada
+    /// (DetencionAnteriorId), en el turno siguiente (si está programado o ya existe). Si la parada terminó
+    /// (<paramref name="finParada"/>) dentro del turno de la última parte, le pone el arranque detectado. Idempotente: parte
+    /// de la última parte de la cadena. <paramref name="ahora"/> = hasta cuándo se sabe que la máquina siguió parada (el
+    /// "hasta" de la parada en curso que mandó la cámara, o la hora del cierre del turno). Devuelve cuántas partes nuevas creó.
+    /// </summary>
+    Task<int> ContinuarDetencionAsync(Detencion detencion, DateTimeOffset? finParada, DateTimeOffset? arranque, DateTimeOffset ahora, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Turno automático (B.6): el turno ya cerrado en el que el usuario sigue en su tolerancia (tramo vigente y no pasó
+    /// fin + ABM_Turnos.ToleranciaCierreOperadorMinutos), con línea y turno de planta; null si no hay.
+    /// </summary>
+    Task<TurnoProduccion?> ObtenerSesionEnToleranciaAsync(string usuarioId, CancellationToken cancellationToken = default);
+
+    Task<SesionToleranciaDto?> ObtenerSesionEnToleranciaDtoAsync(string usuarioId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Turno automático (B.8): "Terminar mi turno". Cierra el tramo del operador (SU sesión). Antes de la hora de fin el turno
+    /// de máquina sigue ABIERTO sin operador; en la tolerancia, el tramo termina donde terminó el turno.
+    /// </summary>
+    Task<Result<TurnoProduccionDto>> TerminarMiTurnoAsync(long turnoProduccionId, string usuarioId, CancellationToken cancellationToken = default);
+
     Task<Result<TurnoProduccionDto>> CambiarProductoAsync(
         long turnoProduccionId, CambiarProductoTurnoRequest request, string usuarioId,
         IReadOnlyCollection<string> roles, IReadOnlyCollection<int> lineasAsignadas, CancellationToken cancellationToken = default);
@@ -50,7 +81,10 @@ public interface ITurnoProduccionService
         long turnoProduccionId, string usuarioId, IReadOnlyCollection<string> roles, IReadOnlyCollection<int> lineasAsignadas,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Cierre manual (operador o supervisor): CERRADO.</summary>
+    /// <summary>
+    /// Cierre manual del turno de máquina: sólo después de la hora de fin (si el job no lo cerró): CERRADO con FinReal =
+    /// FinProgramado. Antes de hora, el operario usa <see cref="TerminarMiTurnoAsync"/>.
+    /// </summary>
     Task<Result<TurnoProduccionDto>> CerrarAsync(
         long turnoProduccionId, string? observacion, string usuarioId, IReadOnlyCollection<string> roles,
         IReadOnlyCollection<int> lineasAsignadas, CancellationToken cancellationToken = default);
@@ -71,11 +105,23 @@ public interface ITurnoProduccionService
         long turnoProduccionId, RegistrarProduccionTurnoRequest request, string usuarioId, IReadOnlyCollection<string> roles,
         IReadOnlyCollection<int> lineasAsignadas, CancellationToken cancellationToken = default);
 
-    /// <summary>Cierra los ABIERTO con FinProgramado + tolerancia vencido (CERRADO_AUTOMATICO). Devuelve cuántos cerró.</summary>
+    /// <summary>Una vuelta del job: <see cref="CerrarVencidosAsync"/>, <see cref="AbrirProgramadosAsync"/> y <see cref="VencerSesionesAsync"/>.</summary>
+    Task<ResultadoJobTurnos> ProcesarAsync(DateTimeOffset ahora, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Turno automático (B.5): cierra los ABIERTO cuya hora de fin pasó (CERRADO_AUTOMATICO, FinReal = FinProgramado) y corta
+    /// las paradas que seguían abiertas. Devuelve cuántos cerró.
+    /// </summary>
     Task<int> CerrarVencidosAsync(DateTimeOffset ahora, CancellationToken cancellationToken = default);
 
-    /// <summary>Crea en SIN_APERTURA los turnos programados cuyo inicio + tolerancia pasó sin registro. Devuelve cuántos creó.</summary>
-    Task<int> MarcarSinAperturaAsync(DateTimeOffset ahora, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Turno automático (A.1): abre (SISTEMA, sin operador, producto heredado) el turno vigente de cada línea PROGRAMADA que
+    /// no tenga registro; los programados de las últimas 24 h que falten (job parado) se crean ya terminados. Idempotente.
+    /// </summary>
+    Task<(int Abiertos, int CreadosTerminados)> AbrirProgramadosAsync(DateTimeOffset ahora, CancellationToken cancellationToken = default);
+
+    /// <summary>Turno automático (B.6): cierra los tramos de operador de los turnos cerrados cuya tolerancia venció.</summary>
+    Task<int> VencerSesionesAsync(DateTimeOffset ahora, CancellationToken cancellationToken = default);
 
     /// <summary>El turno ABIERTO de la línea, o el de la hora actual si no hay abierto; null si no hay ninguno.</summary>
     Task<TurnoProduccionDto?> ObtenerActualAsync(int lineaId, CancellationToken cancellationToken = default);

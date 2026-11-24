@@ -112,7 +112,7 @@ public class TurnoProduccionProductoConfiguration : IEntityTypeConfiguration<Tur
     {
         builder.ToTable("PRD_TurnosProduccionProductos", "mnt", t =>
         {
-            t.HasCheckConstraint("CK_PRD_TurnosProduccionProductos_Origen", "[Origen] IN ('LOGIN', 'CAMBIO', 'SUPERVISOR')");
+            t.HasCheckConstraint("CK_PRD_TurnosProduccionProductos_Origen", "[Origen] IN ('LOGIN', 'CAMBIO', 'SUPERVISOR', 'HEREDADO')");
             t.HasCheckConstraint("CK_PRD_TurnosProduccionProductos_Motivo",
                 "[Origen] <> 'SUPERVISOR' OR [Motivo] IS NOT NULL");
             t.HasCheckConstraint("CK_PRD_TurnosProduccionProductos_MinutosTurno", "[MinutosTurnoReferencia] > 0");
@@ -122,6 +122,8 @@ public class TurnoProduccionProductoConfiguration : IEntityTypeConfiguration<Tur
 
         builder.Property(x => x.DeclaradoPorUsuarioId).IsRequired().HasMaxLength(450);
         builder.Property(x => x.Motivo).HasMaxLength(TurnoProduccionProducto.MotivoMaximo);
+        // Turno automático (script 44): confirmación del producto heredado.
+        builder.Property(x => x.ConfirmadoPorUsuarioId).HasMaxLength(450);
         builder.Property(x => x.MetrosPorManga).HasPrecision(9, 2);
         builder.Property(x => x.Origen)
             .IsRequired()

@@ -10,6 +10,9 @@ public class TurnoDto
     public int Orden { get; set; }
     public bool Activo { get; set; }
     public int DuracionMinutos { get; set; }
+
+    /// <summary>Turno automático: minutos después del fin en que el operario todavía declara lo suyo (0–240).</summary>
+    public int ToleranciaCierreOperadorMinutos { get; set; }
 }
 
 public class CrearTurnoRequest
@@ -19,6 +22,9 @@ public class CrearTurnoRequest
     public TimeOnly HoraInicio { get; set; }
     public TimeOnly HoraFin { get; set; }
     public int Orden { get; set; }
+
+    /// <summary>Turno automático: tolerancia del operario (0–240 min). Vacío = 30.</summary>
+    public int? ToleranciaCierreOperadorMinutos { get; set; }
 }
 
 public class ActualizarTurnoRequest
@@ -29,4 +35,7 @@ public class ActualizarTurnoRequest
     public TimeOnly HoraFin { get; set; }
     public int Orden { get; set; }
     public bool Activo { get; set; }
+
+    /// <summary>Turno automático: tolerancia del operario (0–240 min). Vacío = no cambia.</summary>
+    public int? ToleranciaCierreOperadorMinutos { get; set; }
 }

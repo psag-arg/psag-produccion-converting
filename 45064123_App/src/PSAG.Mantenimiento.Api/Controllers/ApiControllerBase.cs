@@ -57,13 +57,17 @@ public abstract class ApiControllerBase : ControllerBase
             _ => (StatusCodes.Status400BadRequest, titulo)
         };
 
-        return StatusCode(status, new ProblemDetails
+        var problema = new ProblemDetails
         {
             Title = tituloFinal,
             Detail = resultado.ErrorMessage,
             Status = status,
             Instance = HttpContext.Request.Path
-        });
+        };
+        // Un código propio (p. ej. PRODUCTO_REQUERIDO) va en la extensión "codigo", como TURNO_REQUERIDO: la Web lo usa.
+        if (resultado.ErrorCode is { } codigo && codigo is not ("NOT_FOUND" or "FORBIDDEN" or "CONCURRENCY" or "CONFLICT" or "VALIDATION" or "ERROR"))
+            problema.Extensions["codigo"] = codigo;
+        return StatusCode(status, problema);
     }
 
     /// <summary>

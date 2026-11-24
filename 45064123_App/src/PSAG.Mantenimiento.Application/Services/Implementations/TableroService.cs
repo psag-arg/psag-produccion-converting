@@ -69,12 +69,26 @@ public class TableroService : ITableroService
             ProductoDesde = tramoAbierto?.Desde,
             OperadorUsuarioId = operador?.OperadorUsuarioId,
             SoloLectura = soloLectura,
+            SinOperador = tp.EstaAbierto && operador == null,
+            ProductoSinConfirmar = TurnoProduccionReglas.ProductoVigente(tp.Productos)?.SinConfirmar == true,
             GeneradoEn = HoraPlanta.En(ahora, _zonaPlanta)!.Value,
             Indicadores = ind
         };
 
+        // Turno automático: avisos para el supervisor (tablero gerencial).
+        var vivos = tp.Productos.Where(p => !p.Anulado).ToList();
+        if (vivos.Count == 0)
+            dto.Alertas.Add("Turno sin producto: corregilo en Turnos de producción (Corregir producto).");
+        foreach (var p in vivos.Where(p => p.SinConfirmar))
+            dto.Alertas.Add($"Producto supuesto sin confirmar: {p.ProductoMaestro?.Nombre ?? "producto"} (heredado del turno anterior).");
+        var parametros = await _unitOfWork.ProductosMaestro.GetParametrosLineaAsync(tp.LineaId, cancellationToken);
+        if (!ParametroLineaProductoVigencia.Vigentes(parametros, tp.FechaProduccion).Any(p => p.Habilitado && p.ProductoMaestro is { Activo: true }))
+            dto.Alertas.Add(TurnoProduccionReglas.MensajeSinObjetivos(ind.LineaNombre));
+
         // Detenciones del turno (el filtro global ya saca las eliminadas)
         var detenciones = await _unitOfWork.Detenciones.GetPorTurnoProduccionAsync(turnoProduccionId, cancellationToken);
+        // Pendiente que sigue parada: hasta ahora con el turno abierto; hasta el fin del turno si ya cerró (una sola regla).
+        var hastaSiSigue = DetencionCamaraReglas.HastaSiSigueParada(tp, ahora);
         dto.Detenciones = detenciones.Select(d => new DetencionTableroDto
         {
             DetencionId = d.DetencionId,
@@ -89,7 +103,9 @@ public class TableroService : ITableroService
             OrigenRegistro = d.OrigenRegistro.ToString(),
             Cuenta = DetencionIndicadores.Cuenta(d),
             PendienteDeclaracion = d.EsPendienteDeclaracion,
-            Descripcion = d.Descripcion
+            Descripcion = d.Descripcion,
+            SegundosDetectados = DetencionCamaraReglas.SegundosDetectados(d, tp, ahora),
+            VieneDelTurnoAnterior = d.VieneDelTurnoAnterior
         }).ToList();
 
         // Cámaras de conteo de la línea
@@ -112,19 +128,36 @@ public class TableroService : ITableroService
                 OrigenRegistro = d.OrigenRegistro.ToString(),
                 CamaraCodigo = d.CamaraId is { } c ? codigos.GetValueOrDefault(c) : null,
                 MinutosEfectivos = d.MinutosEfectivos,
-                EstadoActualDescripcion = d.EstadoActual.ObtenerDescripcion()
+                EstadoActualDescripcion = d.EstadoActual.ObtenerDescripcion(),
+                SegundosDetectados = DetencionCamaraReglas.SegundosDetectados(d, tp, ahora),
+                ParadaEnCurso = d.FechaHoraArranqueDetectada == null && tp.EstaAbierto,
+                VieneDelTurnoAnterior = d.VieneDelTurnoAnterior
             })
             .ToList();
 
-        // Paradas de cámara del turno: reales (superan el umbral) y microcortes
+        // Paradas de cámara del turno: reales (superan el umbral) y microcortes. Turno automático (D.14): también las que
+        // empezaron en el turno anterior y siguieron en este (con sus segundos en este turno); la clasificación es por la
+        // duración TOTAL de la parada y el microcorte cuenta 1 sólo en el turno donde empezó.
         var paradas = (await _unitOfWork.ParadasCamara.GetRangoAsync(
-                inicioTurno.AddHours(-2), (finTurno > tp.FinProgramado ? finTurno : tp.FinProgramado).AddHours(2), tp.LineaId, cancellationToken))
-            .Where(p => p.TurnoProduccionId == turnoProduccionId)
+                inicioTurno.AddHours(-(DetencionCamaraReglas.SegundosUmbralMaximo / 3600 + 2)),
+                (finTurno > tp.FinProgramado ? finTurno : tp.FinProgramado).AddHours(2), tp.LineaId, cancellationToken))
             .OrderBy(p => p.FechaHoraInicio)
             .ToList();
-        var items = paradas.Select(p => ParadaDto(p, detenciones)).ToList();
-        dto.DetencionesReales = Resumen(items.Where(p => p.SuperaUmbral));
-        dto.Microcortes = Resumen(items.Where(p => !p.SuperaUmbral));
+        var items = new List<(ParadaCamaraDto Dto, bool Cuenta)>();
+        foreach (var p in paradas)
+        {
+            var parte = ParadasTurnoReglas.DelTurno(turnoProduccionId, tp.InicioProgramado, tp.FinProgramado,
+                [(p.TurnoProduccionId, p.FechaHoraInicio, p.FechaHoraFin, p.DuracionSegundos)]);
+            if (parte.Count == 0)
+                continue;
+            var item = ParadaDto(p, detenciones);
+            item.DuracionSegundos = parte[0].Segundos;
+            items.Add((item, parte[0].Cuenta));
+        }
+        dto.DetencionesReales = Resumen(items.Where(p => p.Dto.SuperaUmbral).Select(p => p.Dto));
+        var micro = items.Where(p => !p.Dto.SuperaUmbral).ToList();
+        dto.Microcortes = Resumen(micro.Select(p => p.Dto));
+        dto.Microcortes.Cantidad = micro.Count(p => p.Cuenta);
 
         // Mangas por hora (cámara oficial de mangas de la línea)
         var oficialMangas = (await _unitOfWork.Camaras.GetOficialesAsync(cancellationToken))
@@ -174,8 +207,6 @@ public class TableroService : ITableroService
         dto.Velocidad = Velocidad(ind, tramosVivos, minutos, oficialMangas?.CamaraId, inicioTurno, finTurno, tp);
         var tipos = (await _unitOfWork.TiposFalla.GetAllAsync(cancellationToken))
             .Select(t => new TipoFallaTablero(t.TipoFallaId, t.Nombre, t.Orden, t.CuentaParaIndicadores, t.Activo));
-        // Pendiente que sigue parada: hasta ahora con el turno abierto; hasta el fin del turno si ya cerró.
-        var hastaSiSigue = tp.EstaAbierto ? ahora : finTurno;
         var detencionesTablero = detenciones.Select(d => d.EsPendienteDeclaracion
                 ? new DetencionTablero(d.TipoFallaId, TableroIndicadoresReglas.MinutosPendiente(d.FechaHoraParada, d.FechaHoraArranqueDetectada, hastaSiSigue), true, true)
                 : new DetencionTablero(d.TipoFallaId, d.MinutosEfectivos, false, DetencionIndicadores.Cuenta(d)))

@@ -25,6 +25,16 @@ public class Turno : CatalogoBase
 
     public int Orden { get; set; }
 
+    /// <summary>
+    /// Turno automático (script 44): minutos después del fin del turno en que el operario que lo terminó todavía puede
+    /// declarar y corregir las detenciones de SU turno y "terminar su turno" (el turno de máquina ya cerró a la hora).
+    /// Vencida, su tramo de operador se cierra solo. Por defecto 30 (el valor que tenía la configuración).
+    /// </summary>
+    public int ToleranciaCierreOperadorMinutos { get; set; } = ToleranciaOperadorPorDefecto;
+
+    public const int ToleranciaOperadorPorDefecto = 30;
+    public const int ToleranciaOperadorMaxima = 240;
+
     // Navegación
 
     /// <summary>

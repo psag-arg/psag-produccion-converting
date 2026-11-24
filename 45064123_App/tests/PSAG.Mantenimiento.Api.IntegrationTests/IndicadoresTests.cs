@@ -521,7 +521,7 @@ public class IndicadoresTests : IDisposable
         Minutos(H(19, 5), 60, 22.3m);          // 22,3 mangas/min × 30 m = 669 m/min
         Minutos(H(19, 6), 30, 0, 0);           // parada: no entra
         var t1 = await AbrirAsync(H(19, 5), _sh30);
-        await CerrarAsync(t1.TurnoProduccionId, H(19, 6, 30));
+        await CerrarAsync(t1.TurnoProduccionId, H(19, 13));   // turno automático: el turno de máquina cierra a su hora
 
         var ind = await IndicadoresAsync(t1.TurnoProduccionId);
 

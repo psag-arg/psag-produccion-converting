@@ -114,6 +114,7 @@ public class DetencionesController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [Permiso(Opciones.DetencionesListado, AccionPermiso.Ver)]
     [DelTurno(RecursoDelTurno.Detencion, "id")]
+    [PermitidoEnTolerancia]
     public async Task<IActionResult> GetDetencion(long id)
     {
         var detencion = await _unitOfWork.Detenciones.GetByIdWithDetailsAsync(id);
@@ -184,6 +185,14 @@ public class DetencionesController : ApiControllerBase
 
         dto.CreadoPorUsuarioNombre = await NombreMaquinistaAsync(detencion);
         dto.CargadaPorUsuarioNombre = (await _userManager.NombresVisiblesAsync([detencion.CreadoPorUsuarioId])).NombreDe(detencion.CreadoPorUsuarioId);
+        // Turno automático (D.12): la otra parte de una parada que cruzó el cambio de turno.
+        if (detencion.DetencionAnteriorId is { } anteriorId)
+            dto.ParteAnteriorCodigo = (await _unitOfWork.Detenciones.GetByIdAsync(anteriorId))?.Codigo;
+        if (await _unitOfWork.Detenciones.GetContinuacionAsync(detencion.DetencionId) is { } siguiente)
+        {
+            dto.ParteSiguienteId = siguiente.DetencionId;
+            dto.ParteSiguienteCodigo = siguiente.Codigo;
+        }
         if (!detencion.RequiereAnalisis)
         {
             dto.MotivoSinAnalisis = ReglaAnalisisEvaluador.MotivoSinAnalisis(
@@ -441,6 +450,7 @@ public class DetencionesController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [Permiso(Opciones.DetencionesNotas, AccionPermiso.Alta)]
     [DelTurno(RecursoDelTurno.Detencion, "id")]
+    [PermitidoEnTolerancia]
     public async Task<IActionResult> AgregarNota(long id, [FromBody] AgregarNotaDetencionRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -526,6 +536,7 @@ public class DetencionesController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [Permiso(Opciones.DetencionesListado, AccionPermiso.Modificar)]
     [DelTurno(RecursoDelTurno.Detencion, "id")]
+    [PermitidoEnTolerancia]
     public async Task<IActionResult> UpdateDetencion(long id, [FromBody] ActualizarDetencionRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))

@@ -68,19 +68,44 @@ public static class TurnoProduccionReglas
         IEnumerable<CalendarioLinea> programacionDeLaLinea, IEnumerable<TiempoProgramadoDia> excepcionesDeLaLinea) =>
         EficienciaCamaraCalculador.MinutosProgramadosTurno(fechaProduccion, turno, turnos, programacionDeLaLinea, excepcionesDeLaLinea);
 
-    /// <summary>Cierre automático: el turno está ABIERTO y ya pasó FinProgramado + tolerancia.</summary>
-    public static bool Vencido(TurnoProduccion turno, DateTimeOffset ahora, int toleranciaMinutos) =>
-        turno.Estado == EstadoTurnoProduccion.ABIERTO && ahora >= turno.FinProgramado.AddMinutes(toleranciaMinutos);
+    /// <summary>
+    /// Turno automático: el turno de MÁQUINA cierra a la hora de fin programada exacta (ya no espera la tolerancia, que
+    /// ahora es del operario: <see cref="SesionEnTolerancia"/>).
+    /// </summary>
+    public static bool Vencido(TurnoProduccion turno, DateTimeOffset ahora) =>
+        turno.Estado == EstadoTurnoProduccion.ABIERTO && ahora >= turno.FinProgramado;
 
     /// <summary>
-    /// SIN_APERTURA: el turno está programado (minutos &gt; 0), ya pasó su inicio + tolerancia y no hay registro.
-    /// Sólo se miran los turnos que empezaron en las últimas 24 h (si el job estuvo parado, no se rellena el pasado).
+    /// Turno automático: el job abre (o crea ya terminado) el turno de una línea cuando está PROGRAMADO (minutos &gt; 0),
+    /// ya empezó, no hay registro y empezó en las últimas 24 h (si el job estuvo parado más, no se rellena el pasado).
+    /// Una línea no programada no se abre sola (se abre por SISTEMA si llega un dato).
     /// </summary>
-    public static bool CorrespondeSinApertura(int minutosProgramados, DateTimeOffset inicioProgramado, DateTimeOffset ahora, int toleranciaMinutos, bool existeRegistro) =>
+    public static bool CorrespondeAperturaAutomatica(int minutosProgramados, DateTimeOffset inicioProgramado, DateTimeOffset ahora, bool existeRegistro) =>
         !existeRegistro
         && minutosProgramados > 0
-        && ahora >= inicioProgramado.AddMinutes(toleranciaMinutos)
+        && ahora >= inicioProgramado
         && inicioProgramado > ahora.AddHours(-24);
+
+    /// <summary>Hasta cuándo el operario que terminó el turno puede declarar lo suyo: fin real (o programado) + tolerancia del turno.</summary>
+    public static DateTimeOffset FinTolerancia(TurnoProduccion turno, int toleranciaMinutos) =>
+        (turno.FinReal ?? turno.FinProgramado).AddMinutes(Math.Max(0, toleranciaMinutos));
+
+    /// <summary>
+    /// Sesión del operario en tolerancia: el turno de máquina ya cerró, el operario sigue con su tramo vigente (no lo
+    /// terminó ni lo relevaron) y todavía no pasó el fin + la tolerancia. Durante ese rato sólo opera las detenciones de
+    /// ese turno (declarar, corregir) y puede "terminar su turno".
+    /// </summary>
+    public static bool SesionEnTolerancia(TurnoProduccion turno, int toleranciaMinutos, DateTimeOffset ahora) =>
+        turno.EstaCerrado && ahora < FinTolerancia(turno, toleranciaMinutos);
+
+    public const string MensajeProductoRequerido =
+        "Elegí con qué producto está trabajando la línea (o confirmá el que figura) para entrar al turno.";
+
+    public static string MensajeSinObjetivos(string lineaNombre) =>
+        $"{lineaNombre} no tiene objetivos cargados: Maestros → Parámetros línea + producto.";
+
+    public const string MensajeTurnoNoTerminado =
+        "El turno de máquina cierra solo a su hora de fin. Si terminaste, usá \"Terminar mi turno\" (el turno sigue abierto sin operador).";
 
     /// <summary>Estado con que se crea un turno que pide un dato (ingesta, detención): ya terminado → CERRADO_AUTOMATICO.</summary>
     public static EstadoTurnoProduccion EstadoAlAsegurar(DateTimeOffset finProgramado, DateTimeOffset ahora) =>

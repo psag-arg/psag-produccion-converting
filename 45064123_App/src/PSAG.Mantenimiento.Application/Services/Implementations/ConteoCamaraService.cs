@@ -243,11 +243,13 @@ public class ConteoCamaraService : IConteoCamaraService
         IngestaConteoCamaraRespuesta respuesta, CancellationToken cancellationToken)
     {
         var umbral = DetencionCamaraReglas.UmbralSegundos(camara);
-        var candidatas = new Dictionary<string, (DateTimeOffset Inicio, DateTimeOffset? Arranque, bool InicioIncierto)>(StringComparer.Ordinal);
+        // Fin: el de la parada cerrada (null si sigue). Arranque: la sugerencia para el operador (null si el fin es incierto).
+        // Hasta: hasta cuándo se sabe que estuvo parada (el "hasta" de la parada en curso; el fin de la cerrada).
+        var candidatas = new Dictionary<string, (DateTimeOffset Inicio, DateTimeOffset? Fin, DateTimeOffset? Arranque, DateTimeOffset Hasta, bool InicioIncierto)>(StringComparer.Ordinal);
         foreach (var p in enCurso.Where(p => DetencionCamaraReglas.SuperaUmbral(p.Inicio, p.Hasta, umbral)))
-            candidatas[p.IdentificadorExterno.Trim()] = (p.Inicio, null, p.InicioIncierto);
+            candidatas[p.IdentificadorExterno.Trim()] = (p.Inicio, null, null, p.Hasta, p.InicioIncierto);
         foreach (var p in cerradas.Where(p => DetencionCamaraReglas.SuperaUmbral(p.Inicio, p.Fin, umbral)))
-            candidatas[p.IdentificadorExterno.Trim()] = (p.Inicio, p.FinIncierto ? null : p.Fin, p.InicioIncierto);
+            candidatas[p.IdentificadorExterno.Trim()] = (p.Inicio, p.Fin, p.FinIncierto ? null : p.Fin, p.Fin, p.InicioIncierto);
         if (candidatas.Count == 0)
             return;
 
@@ -259,12 +261,9 @@ public class ConteoCamaraService : IConteoCamaraService
             if (existentes.TryGetValue(id, out var existente))
             {
                 respuesta.DetencionesExistentes++;
-                if (c.Arranque is { } arranque && existente.FechaHoraArranqueDetectada == null)
-                {
-                    // Sugerencia para el operador; no toca FechaHoraArranque ni los minutos (los declara él).
-                    existente.FechaHoraArranqueDetectada = arranque;
-                    await _unitOfWork.SaveChangesAsync(cancellationToken);
-                }
+                // Turno automático (D.12): el arranque (sugerencia para el operador; no toca FechaHoraArranque ni los minutos)
+                // va a la ÚLTIMA parte de la parada; si cruzó el fin del turno, se corta y sigue en el turno siguiente.
+                await _turnosProduccion.ContinuarDetencionAsync(existente, c.Fin, c.Arranque, c.Hasta, cancellationToken);
                 continue;
             }
 
@@ -292,7 +291,6 @@ public class ConteoCamaraService : IConteoCamaraService
                 TurnoProduccionId = turnoProduccion.TurnoProduccionId,
                 OperadorUsuarioId = operador?.OperadorUsuarioId,
                 FechaHoraParada = c.Inicio,
-                FechaHoraArranqueDetectada = c.Arranque,
                 // Sin hora de fin ni minutos: los declara el operador. 0 hasta entonces (CHECK >= 0).
                 OrigenTiempo = OrigenTiempo.CALCULADO,
                 MinutosEfectivos = 0,
@@ -318,6 +316,9 @@ public class ConteoCamaraService : IConteoCamaraService
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             existentes[id] = detencion;
             respuesta.DetencionesCreadas++;
+            // Turno automático (D.12): si la parada ya abarca el fin del turno (llegó tarde), se corta en partes por turno;
+            // si no, el arranque detectado queda en esta.
+            respuesta.DetencionesCreadas += await _turnosProduccion.ContinuarDetencionAsync(detencion, c.Fin, c.Arranque, c.Hasta, cancellationToken);
             _logger.LogInformation("Detención automática {Codigo} creada por la cámara {Camara} (parada desde {Inicio:HH:mm:ss})",
                 detencion.Codigo, camara.Codigo, inicioPlanta);
         }

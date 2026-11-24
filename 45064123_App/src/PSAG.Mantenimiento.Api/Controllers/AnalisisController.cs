@@ -200,6 +200,7 @@ public class AnalisisController : ApiControllerBase
     [HttpGet("pendientes")]
     [ProducesResponseType(typeof(MisPendientesDto), StatusCodes.Status200OK)]
     [Permiso(Opciones.DetencionesPendientes, AccionPermiso.Ver)]
+    [PermitidoEnTolerancia]
     public async Task<IActionResult> GetMisPendientes(
         [FromQuery] string? responsableRol = null,
         [FromQuery] string? responsableUsuarioId = null)
@@ -242,6 +243,7 @@ public class AnalisisController : ApiControllerBase
     [HttpGet("pendientes/conteo")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [Permiso(Opciones.DetencionesPendientes, AccionPermiso.Ver)]
+    [PermitidoEnTolerancia]
     public async Task<IActionResult> GetConteoPendientes()
     {
         if (string.IsNullOrEmpty(CurrentUserId))
