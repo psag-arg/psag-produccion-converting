@@ -1,3 +1,4 @@
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.Extensions.Logging;
 using PSAG.Mantenimiento.Application.Common;
 using PSAG.Mantenimiento.Application.DTOs.Calidad;
@@ -9,7 +10,8 @@ using PSAG.Mantenimiento.Domain.Services;
 namespace PSAG.Mantenimiento.Application.Services.Implementations;
 
 /// <summary>
-/// Maestros de calidad (T-611): puntos de control (cámaras) por línea y tipos de defecto.
+/// Maestros de calidad (T-611): puntos de control por línea (cada uno puede usar una cámara del maestro de cámaras,
+/// T-798 etapa 4) y tipos de defecto.
 /// Sólo el administrador los modifica; nunca se borran (se desactivan).
 /// </summary>
 public class CalidadMaestrosService : ICalidadMaestrosService
@@ -21,8 +23,12 @@ public class CalidadMaestrosService : ICalidadMaestrosService
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<CalidadMaestrosService> _logger;
 
-    public CalidadMaestrosService(IUnitOfWork unitOfWork, ILogger<CalidadMaestrosService> logger)
+    /// <summary>Permisos configurables del usuario de la request (T-802); null fuera de una request (tests, jobs): regla por rol.</summary>
+    private readonly IPermisosUsuarioActual? _permisos;
+
+    public CalidadMaestrosService(IUnitOfWork unitOfWork, ILogger<CalidadMaestrosService> logger, IPermisosUsuarioActual? permisos = null)
     {
+        _permisos = permisos;
         _unitOfWork = unitOfWork;
         _logger = logger;
     }
@@ -40,7 +46,7 @@ public class CalidadMaestrosService : ICalidadMaestrosService
         GuardarPuntoControlCalidadRequest request, string usuarioId, IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken = default)
     {
-        if (!CalidadReglas.PuedeAdministrarMaestros(roles))
+        if (!await _permisos.PermiteAsync(Opciones.MaestrosCalidad, AccionPermiso.Alta, () => CalidadReglas.PuedeAdministrarMaestros(roles), cancellationToken))
             return Result<PuntoControlCalidadDto>.Failure("FORBIDDEN", CalidadReglas.MensajeSinPermisoMaestros);
 
         var validacion = await ValidarPuntoAsync(request, null, cancellationToken);
@@ -54,16 +60,7 @@ public class CalidadMaestrosService : ICalidadMaestrosService
             Nombre = request.Nombre.Trim(),
             Descripcion = Limpiar(request.Descripcion),
             Activo = request.Activo,
-            EquipoId = request.EquipoId,
-            NumeroCamara = request.NumeroCamara,
-            CreaDetenciones = request.CreaDetenciones,
-            MinutosUmbralDetencion = request.SegundosUmbralDetencion == null
-                || DetencionCamaraReglas.MotivoUmbralInvalido(request.MinutosUmbralDetencion) == null
-                    ? request.MinutosUmbralDetencion
-                    : DetencionCamaraReglas.MinutosUmbralPorDefecto,
-            SegundosUmbralDetencion = request.SegundosUmbralDetencion,
-            ObjetivoPorHora = request.ObjetivoPorHora,
-            MetodoConteo = MetodoNormalizado(request.MetodoConteo),
+            CamaraId = request.CamaraId,
             CreadoPorUsuarioId = usuarioId,
             ModificadoPorUsuarioId = usuarioId
         };
@@ -73,6 +70,7 @@ public class CalidadMaestrosService : ICalidadMaestrosService
         _logger.LogInformation("Punto de control de calidad {Codigo} creado por usuario {UsuarioId}", punto.Codigo, usuarioId);
 
         punto.Linea = validacion.Value!;
+        punto.Camara = punto.CamaraId is { } camaraId ? await _unitOfWork.Camaras.GetByIdAsync(camaraId, cancellationToken) : null;
         return Result<PuntoControlCalidadDto>.Success(ADto(punto));
     }
 
@@ -80,7 +78,7 @@ public class CalidadMaestrosService : ICalidadMaestrosService
         int puntoControlCalidadId, GuardarPuntoControlCalidadRequest request, string usuarioId, IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken = default)
     {
-        if (!CalidadReglas.PuedeAdministrarMaestros(roles))
+        if (!await _permisos.PermiteAsync(Opciones.MaestrosCalidad, AccionPermiso.Modificar, () => CalidadReglas.PuedeAdministrarMaestros(roles), cancellationToken))
             return Result<PuntoControlCalidadDto>.Failure("FORBIDDEN", CalidadReglas.MensajeSinPermisoMaestros);
 
         var punto = await _unitOfWork.PuntosControlCalidad.GetByIdAsync(puntoControlCalidadId, cancellationToken);
@@ -97,21 +95,14 @@ public class CalidadMaestrosService : ICalidadMaestrosService
         punto.Nombre = request.Nombre.Trim();
         punto.Descripcion = Limpiar(request.Descripcion);
         punto.Activo = request.Activo;
-        punto.EquipoId = request.EquipoId;
-        punto.NumeroCamara = request.NumeroCamara;
-        punto.CreaDetenciones = request.CreaDetenciones;
-        // En segundos (modo prueba) los minutos quedan como estaban: al volver a minutos se cargan de nuevo.
-        if (request.SegundosUmbralDetencion == null)
-            punto.MinutosUmbralDetencion = request.MinutosUmbralDetencion;
-        punto.SegundosUmbralDetencion = request.SegundosUmbralDetencion;
-        punto.ObjetivoPorHora = request.ObjetivoPorHora;
-        punto.MetodoConteo = MetodoNormalizado(request.MetodoConteo);
+        punto.CamaraId = request.CamaraId;
         punto.ModificadoPorUsuarioId = usuarioId;
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Punto de control de calidad {Codigo} actualizado por usuario {UsuarioId}", punto.Codigo, usuarioId);
 
         punto.Linea = validacion.Value!;
+        punto.Camara = punto.CamaraId is { } camaraId ? await _unitOfWork.Camaras.GetByIdAsync(camaraId, cancellationToken) : null;
         return Result<PuntoControlCalidadDto>.Success(ADto(punto));
     }
 
@@ -133,19 +124,15 @@ public class CalidadMaestrosService : ICalidadMaestrosService
         if (linea == null)
             return Result<Linea>.Failure("VALIDATION", "La línea no existe.");
 
-        if (DetencionCamaraReglas.MotivoUmbralInvalido(request.SegundosUmbralDetencion, request.MinutosUmbralDetencion) is { } motivoUmbral)
-            return Result<Linea>.Failure("VALIDATION", motivoUmbral);
-        if (EficienciaCamaraCalculador.MotivoObjetivoInvalido(request.ObjetivoPorHora) is { } motivoObjetivo)
-            return Result<Linea>.Failure("VALIDATION", motivoObjetivo);
-        if (!EficienciaCamaraCalculador.TryNormalizarMetodo(request.MetodoConteo, out _))
-            return Result<Linea>.Failure("VALIDATION", "Qué cuenta la cámara: CARRILES (rollos) o MANGAS, o vacío.");
-        if (request.NumeroCamara is < 1 or > 999)
-            return Result<Linea>.Failure("VALIDATION", "El número de cámara tiene que estar entre 1 y 999.");
-        if (request.EquipoId is { } equipoId)
+        if (request.CamaraId is { } camaraId)
         {
-            var equipo = await _unitOfWork.Equipos.GetByIdAsync(equipoId, cancellationToken);
-            if (equipo == null || equipo.LineaId != request.LineaId)
-                return Result<Linea>.Failure("VALIDATION", "El cuerpo (equipo) tiene que ser de la misma línea que la cámara.");
+            var camara = await _unitOfWork.Camaras.GetByIdAsync(camaraId, cancellationToken);
+            if (camara == null)
+                return Result<Linea>.Failure("VALIDATION", "La cámara no existe.");
+            if (camara.LineaId != request.LineaId)
+                return Result<Linea>.Failure("VALIDATION", "La cámara tiene que ser de la misma línea que el punto de control.");
+            if (!camara.Activo && request.Activo)
+                return Result<Linea>.Failure("VALIDATION", $"La cámara {camara.Codigo} está desactivada. Elegí otra o reactivala en Maestros → Cámaras.");
         }
 
         var codigo = CalidadReglas.NormalizarCodigo(request.Codigo);
@@ -169,7 +156,7 @@ public class CalidadMaestrosService : ICalidadMaestrosService
         GuardarTipoDefectoCalidadRequest request, string usuarioId, IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken = default)
     {
-        if (!CalidadReglas.PuedeAdministrarMaestros(roles))
+        if (!await _permisos.PermiteAsync(Opciones.MaestrosCalidad, AccionPermiso.Alta, () => CalidadReglas.PuedeAdministrarMaestros(roles), cancellationToken))
             return Result<TipoDefectoCalidadDto>.Failure("FORBIDDEN", CalidadReglas.MensajeSinPermisoMaestros);
 
         var motivo = await MotivoTipoInvalidoAsync(request, null, cancellationToken);
@@ -197,7 +184,7 @@ public class CalidadMaestrosService : ICalidadMaestrosService
         int tipoDefectoCalidadId, GuardarTipoDefectoCalidadRequest request, string usuarioId, IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken = default)
     {
-        if (!CalidadReglas.PuedeAdministrarMaestros(roles))
+        if (!await _permisos.PermiteAsync(Opciones.MaestrosCalidad, AccionPermiso.Modificar, () => CalidadReglas.PuedeAdministrarMaestros(roles), cancellationToken))
             return Result<TipoDefectoCalidadDto>.Failure("FORBIDDEN", CalidadReglas.MensajeSinPermisoMaestros);
 
         var tipo = await _unitOfWork.TiposDefectoCalidad.GetByIdAsync(tipoDefectoCalidadId, cancellationToken);
@@ -260,9 +247,6 @@ public class CalidadMaestrosService : ICalidadMaestrosService
         return null;
     }
 
-    private static string? MetodoNormalizado(string? metodo) =>
-        EficienciaCamaraCalculador.TryNormalizarMetodo(metodo, out var normalizado) ? normalizado : null;
-
     private static string? Limpiar(string? texto) => string.IsNullOrWhiteSpace(texto) ? null : texto.Trim();
 
     private static PuntoControlCalidadDto ADto(PuntoControlCalidad p) => new()
@@ -274,16 +258,9 @@ public class CalidadMaestrosService : ICalidadMaestrosService
         Nombre = p.Nombre,
         Descripcion = p.Descripcion,
         Activo = p.Activo,
-        EquipoId = p.EquipoId,
-        EquipoNombre = p.Equipo?.Nombre,
-        NumeroCamara = p.NumeroCamara,
-        CreaDetenciones = p.CreaDetenciones,
-        MinutosUmbralDetencion = p.MinutosUmbralDetencion,
-        SegundosUmbralDetencion = p.SegundosUmbralDetencion,
-        UmbralSegundos = DetencionCamaraReglas.UmbralSegundos(p),
-        UmbralTexto = DetencionCamaraReglas.TextoUmbral(p),
-        ObjetivoPorHora = p.ObjetivoPorHora,
-        MetodoConteo = p.MetodoConteo
+        CamaraId = p.CamaraId,
+        CamaraCodigo = p.Camara?.Codigo,
+        CamaraNombre = p.Camara?.Nombre
     };
 
     private static TipoDefectoCalidadDto ADto(TipoDefectoCalidad t) => new()

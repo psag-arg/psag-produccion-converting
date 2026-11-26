@@ -92,11 +92,11 @@ Inicia o retoma la del día: `{ planInspeccionId, puesto }` (puesto vacío = tod
 ### POST /inspecciones/ejecuciones/guardar
 Autoguardado: `{ ejecucionInspeccionId, rowVersion, resultados: [{ itemPlanInspeccionId, resultado: OK|NO_OK, observacion }] }`. NO OK pide observación y abre un hallazgo en el Panel NO OK (si vuelve a OK, el hallazgo queda resuelto). Todo o nada.
 ### POST /inspecciones/ejecuciones/{id}/cerrar
-Cierra y firma (`usuarioCierreId`). Pide respondidos los puntos que vencen hoy. Política CanCreateDetenciones (firma el operador).
+Cierra y firma (`usuarioCierreId`). Pide respondidos los puntos que vencen hoy. Permiso MODIFICACION de "Inspecciones" (T-802; firma el operador).
 ### GET /inspecciones/no-ok
 ### POST /inspecciones/no-ok/{id}/resolver
 
-### Maestro (CanManageCatalogs): /inspecciones/maestro/...
+### Maestro (permisos de "Planes de inspección", T-802): /inspecciones/maestro/...
 `GET plantilla/{lineaId}`, `POST planes`, `PUT planes/{id}`, `POST puntos`, `PUT puntos/{id}`. Sin DELETE: se desactiva.
 
 ## Catálogos
@@ -192,3 +192,5 @@ Formato RFC 7807 (ProblemDetails):
 - Paginación con tope de 100 registros
 - Concurrencia optimista con RowVersion → 409 Conflict
 - Correlation ID en headers y respuestas
+
+> **Autorización (T-802):** cada endpoint exige un permiso configurable (opción + acción); sin permiso responde 403 con ProblemDetails. Mapa completo en [PERMISOS.md](PERMISOS.md).

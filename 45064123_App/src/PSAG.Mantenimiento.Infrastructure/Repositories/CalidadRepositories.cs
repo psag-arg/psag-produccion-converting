@@ -16,7 +16,7 @@ public class PuntoControlCalidadRepository : RepositoryBase<PuntoControlCalidad>
         bool incluirInactivos = false,
         CancellationToken cancellationToken = default)
     {
-        var query = _dbSet.AsNoTracking().Include(p => p.Linea).Include(p => p.Equipo).AsQueryable();
+        var query = _dbSet.AsNoTracking().Include(p => p.Linea).Include(p => p.Camara).AsQueryable();
         if (lineaId.HasValue)
             query = query.Where(p => p.LineaId == lineaId.Value);
         if (!incluirInactivos)
@@ -130,6 +130,6 @@ public class RegistroCalidadRepository : RepositoryBase<RegistroCalidad>, IRegis
             .Include(r => r.PuntoControl)
             .Include(r => r.Turno)
             .Include(r => r.TipoDefecto)
-            .Include(r => r.Producto)
+            .Include(r => r.ProductoMaestro)
             .Include(r => r.Detencion);
 }

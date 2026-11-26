@@ -9,13 +9,17 @@ main {
     min-width: 0; /* que una tabla o solapas anchas no estiren la página de costado */
 }
 
+/* T-806: colores con los tokens de css/tema.css (barras de título con el degradé del tema). */
 .sidebar {
-    background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%);
+    background-image: var(--psag-encabezado-vertical);
+    color: var(--psag-encabezado-texto);
 }
 
 .top-row {
-    background-color: #f7f7f7;
-    border-bottom: 1px solid #d6d5d5;
+    background: var(--psag-encabezado);
+    color: var(--psag-encabezado-texto);
+    border-bottom: 1px solid var(--psag-borde);
+    box-shadow: var(--psag-sombra-sm);
     justify-content: flex-end;
     height: 3.5rem;
     display: flex;
@@ -30,6 +34,23 @@ main {
 
     .top-row ::deep a:hover, .top-row ::deep .btn-link:hover {
         text-decoration: underline;
+    }
+
+    .top-row .btn-outline-secondary {
+        --bs-btn-color: var(--psag-encabezado-texto);
+        --bs-btn-border-color: var(--psag-encabezado-linea);
+        --bs-btn-hover-color: var(--psag-encabezado-texto);
+        --bs-btn-hover-bg: var(--psag-encabezado-hover);
+        --bs-btn-hover-border-color: var(--psag-encabezado-texto);
+        --bs-btn-active-color: var(--psag-encabezado-texto);
+        --bs-btn-active-bg: var(--psag-encabezado-activo);
+        --bs-btn-active-border-color: var(--psag-encabezado-texto);
+        border-radius: var(--psag-radio-pill);
+    }
+
+    .top-row .nombre-usuario, .top-row .aviso-bloqueado {
+        color: var(--psag-encabezado-texto);
+        font-weight: 500;
     }
 
     .top-row ::deep a:first-child {
@@ -83,7 +104,7 @@ main {
         position: fixed;
         inset: 0;
         z-index: 1040;
-        background-color: rgba(0, 0, 0, 0.45);
+        background-color: var(--psag-velo);
     }
 
     .top-row ::deep a, .top-row ::deep .btn-link {

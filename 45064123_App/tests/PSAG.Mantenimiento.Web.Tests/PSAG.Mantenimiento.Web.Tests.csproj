@@ -20,6 +20,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\PSAG.Mantenimiento.Web\PSAG.Mantenimiento.Web.csproj" />
+    <!-- T-802: para verificar que los códigos de opción de la Web coinciden con el catálogo -->
+    <ProjectReference Include="..\..\src\PSAG.Mantenimiento.Domain\PSAG.Mantenimiento.Domain.csproj" />
   </ItemGroup>
 
 </Project>

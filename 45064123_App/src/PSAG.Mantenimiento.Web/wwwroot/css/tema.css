@@ -1,0 +1,714 @@
+/* =====================================================================================================================
+   T-806 · TEMA de PSAG Producción – Converting (UN solo archivo; todas las pantallas lo heredan)
+   - Modo claro  = "Redondo vivo"      → [data-bs-theme="light"]
+   - Modo oscuro = "Industrial oscuro" → [data-bs-theme="dark"]
+   Trampa 10: los modos son los nativos de Bootstrap 5.3 (data-bs-theme en <html>, toggle en MainLayout). Este archivo
+   define los tokens propios (--psag-*) y los MAPEA a las variables de Bootstrap; los componentes propios (tablero,
+   gráficos SVG, barra de turno, menú, login) usan los tokens. Sin CDN: las fuentes van empaquetadas en wwwroot/fonts.
+   Se carga DESPUÉS de bootstrap.min.css y ANTES de app.css.
+   ===================================================================================================================== */
+
+/* ---------- Fuentes locales (OFL 1.1: ver wwwroot/fonts/OFL-*.txt) ---------- */
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 400; font-display: swap; src: url("../fonts/inter-latin-400-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 400; font-display: swap; src: url("../fonts/inter-latin-ext-400-normal.woff2") format("woff2"); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 500; font-display: swap; src: url("../fonts/inter-latin-500-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 500; font-display: swap; src: url("../fonts/inter-latin-ext-500-normal.woff2") format("woff2"); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 600; font-display: swap; src: url("../fonts/inter-latin-600-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 600; font-display: swap; src: url("../fonts/inter-latin-ext-600-normal.woff2") format("woff2"); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 700; font-display: swap; src: url("../fonts/inter-latin-700-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 700; font-display: swap; src: url("../fonts/inter-latin-ext-700-normal.woff2") format("woff2"); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: "Space Grotesk"; font-style: normal; font-weight: 500; font-display: swap; src: url("../fonts/space-grotesk-latin-500-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Space Grotesk"; font-style: normal; font-weight: 500; font-display: swap; src: url("../fonts/space-grotesk-latin-ext-500-normal.woff2") format("woff2"); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: "Space Grotesk"; font-style: normal; font-weight: 600; font-display: swap; src: url("../fonts/space-grotesk-latin-600-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Space Grotesk"; font-style: normal; font-weight: 600; font-display: swap; src: url("../fonts/space-grotesk-latin-ext-600-normal.woff2") format("woff2"); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: "Space Grotesk"; font-style: normal; font-weight: 700; font-display: swap; src: url("../fonts/space-grotesk-latin-700-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Space Grotesk"; font-style: normal; font-weight: 700; font-display: swap; src: url("../fonts/space-grotesk-latin-ext-700-normal.woff2") format("woff2"); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+
+/* =====================================================================================================================
+   1) TOKENS + MAPEO A BOOTSTRAP · CLARO "Redondo vivo"
+   (:root también, para el instante antes de que el script de index.html ponga data-bs-theme)
+   ===================================================================================================================== */
+:root,
+[data-bs-theme="light"] {
+    /* Tipografía */
+    --psag-fuente-titulos: "Space Grotesk", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    --psag-fuente-texto: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+    /* Superficies y texto */
+    --psag-fondo: #f3f0fb;
+    --psag-fondo-realce: radial-gradient(1200px 300px at 10% -10%, #efe7ff, transparent);
+    --psag-card: #ffffff;
+    --psag-card-rgb: 255, 255, 255;
+    --psag-card-degrade: none;
+    --psag-superficie-2: #f6f3fd;      /* secondary-bg: encabezados de tabla, pistas de barras */
+    --psag-superficie-3: #faf8fe;      /* tertiary-bg: bloques "bg-light", hover */
+    --psag-texto: #241a3a;
+    --psag-texto-rgb: 36, 26, 58;
+    --psag-texto-fuerte: #160f26;
+    --psag-texto-fuerte-rgb: 22, 15, 38;
+    --psag-atenuado: #6f6786;          /* maqueta #7a7290: ajustado para 4.5:1 sobre el fondo (#7a7290 daba 4.0:1) */
+    --psag-atenuado-rgb: 111, 103, 134;
+    --psag-borde: #e6e0f5;
+    --psag-borde-input: #d6cdf0;
+
+    /* Acento y encabezados */
+    --psag-acento: #7b4df0;
+    --psag-acento-rgb: 123, 77, 240;
+    --psag-acento-hover: #6d3ee8;
+    --psag-sobre-acento: #ffffff;
+    --psag-acento-suave: #efe9fe;
+    --psag-acento-borde: #cbb8fa;
+    --psag-acento-texto: #4a25b8;
+    --psag-link: #6d3ee8;              /* acento un punto más oscuro: 5.3:1 también sobre el fondo lavanda */
+    --psag-link-rgb: 109, 62, 232;
+    --psag-link-hover: #5b2fd6;
+    --psag-link-hover-rgb: 91, 47, 214;
+    /* degradé 100deg #7b4df0 → #4d7df0 (maqueta); el final va a #3f6ee6 para que el texto blanco cumpla 4.5:1 */
+    --psag-encabezado: linear-gradient(100deg, #7b4df0, #3f6ee6);
+    --psag-encabezado-vertical: linear-gradient(180deg, #7b4df0, #3f6ee6);
+    --psag-encabezado-texto: #ffffff;
+    --psag-encabezado-texto-suave: rgba(255, 255, 255, .9);
+    --psag-encabezado-linea: rgba(255, 255, 255, .55);
+    --psag-encabezado-hover: rgba(255, 255, 255, .16);
+    --psag-encabezado-activo: rgba(255, 255, 255, .26);
+    --psag-encabezado-marca: rgba(22, 15, 38, .12);
+
+    /* Forma */
+    --psag-radio-card: 18px;
+    --psag-radio: 12px;                /* inputs y botones */
+    --psag-radio-sm: 8px;
+    --psag-radio-pill: 999px;          /* pills, badges, pistas de barras */
+    --psag-sombra-card: 0 10px 26px -14px rgba(90, 60, 180, .45);
+    --psag-sombra-sm: 0 4px 14px -8px rgba(90, 60, 180, .35);
+    --psag-velo: rgba(36, 26, 58, .45);   /* fondo detrás de los modales */
+
+    /* Color por TEMA de KPI (acento del bloque, consistente en toda la app) */
+    --psag-tema-eficiencia: #f43f6b;
+    --psag-tema-produccion: #6246ff;
+    --psag-tema-velocidad: #06b6d4;
+    --psag-tema-detenciones: #ab47ff;
+
+    /* SEMÁFORO de eficiencia (rojo < 65 · amarillo 65–85 · verde > 85) */
+    --psag-semaforo-verde: #12b76a;
+    --psag-semaforo-verde-rgb: 18, 183, 106;
+    --psag-semaforo-amarillo: #f5a524;
+    --psag-semaforo-amarillo-rgb: 245, 165, 36;
+    --psag-semaforo-rojo: #f43f6b;
+    --psag-semaforo-rojo-rgb: 244, 63, 107;
+    --psag-semaforo-verde-texto: #067647;
+    --psag-semaforo-amarillo-texto: #93370d;
+    --psag-semaforo-rojo-texto: #b5113d;
+    --psag-semaforo-verde-suave: #e7f8f0;
+    --psag-semaforo-amarillo-suave: #fef4e4;
+    --psag-semaforo-rojo-suave: #fee8ee;
+    --psag-semaforo-verde-borde: #a7e9c9;
+    --psag-semaforo-amarillo-borde: #fbd9a0;
+    --psag-semaforo-rojo-borde: #fbb6c8;
+    --psag-sobre-estado: #160f26;      /* texto sobre un color de estado lleno (badge/botón): 5.1:1 o más */
+    --psag-requiere-analisis: #fd7e14; /* badge "Requiere análisis" (Bootstrap no trae naranja) */
+    --psag-codigo: #c02d76;
+
+    /* ---- Mapeo a Bootstrap 5.3 ---- */
+    --bs-font-sans-serif: var(--psag-fuente-texto);
+    --bs-body-font-family: var(--psag-fuente-texto);
+    --bs-body-color: var(--psag-texto);
+    --bs-body-color-rgb: var(--psag-texto-rgb);
+    --bs-body-bg: var(--psag-card);          /* superficies (cards, modales, inputs, tablas); el fondo de la app va en body */
+    --bs-body-bg-rgb: var(--psag-card-rgb);
+    --bs-emphasis-color: var(--psag-texto-fuerte);
+    --bs-emphasis-color-rgb: var(--psag-texto-fuerte-rgb);
+    --bs-secondary-color: var(--psag-atenuado);
+    --bs-secondary-color-rgb: var(--psag-atenuado-rgb);
+    --bs-secondary-bg: var(--psag-superficie-2);
+    --bs-secondary-bg-rgb: 246, 243, 253;
+    --bs-tertiary-color: var(--psag-atenuado);
+    --bs-tertiary-color-rgb: var(--psag-atenuado-rgb);
+    --bs-tertiary-bg: var(--psag-superficie-3);
+    --bs-tertiary-bg-rgb: 250, 248, 254;
+    --bs-heading-color: var(--psag-texto-fuerte);
+    --bs-border-color: var(--psag-borde);
+    --bs-border-color-translucent: var(--psag-borde);
+    --bs-link-color: var(--psag-link);
+    --bs-link-color-rgb: var(--psag-link-rgb);
+    --bs-link-hover-color: var(--psag-link-hover);
+    --bs-link-hover-color-rgb: var(--psag-link-hover-rgb);
+    --bs-code-color: var(--psag-codigo);
+    --bs-focus-ring-color: rgba(var(--psag-acento-rgb), .3);
+
+    --bs-primary: var(--psag-acento);
+    --bs-primary-rgb: var(--psag-acento-rgb);
+    --bs-primary-text-emphasis: var(--psag-acento-texto);
+    --bs-primary-bg-subtle: var(--psag-acento-suave);
+    --bs-primary-border-subtle: var(--psag-acento-borde);
+
+    --bs-success: var(--psag-semaforo-verde);
+    --bs-success-rgb: var(--psag-semaforo-verde-rgb);
+    --bs-success-text-emphasis: var(--psag-semaforo-verde-texto);
+    --bs-success-bg-subtle: var(--psag-semaforo-verde-suave);
+    --bs-success-border-subtle: var(--psag-semaforo-verde-borde);
+    --bs-warning: var(--psag-semaforo-amarillo);
+    --bs-warning-rgb: var(--psag-semaforo-amarillo-rgb);
+    --bs-warning-text-emphasis: var(--psag-semaforo-amarillo-texto);
+    --bs-warning-bg-subtle: var(--psag-semaforo-amarillo-suave);
+    --bs-warning-border-subtle: var(--psag-semaforo-amarillo-borde);
+    --bs-danger: var(--psag-semaforo-rojo);
+    --bs-danger-rgb: var(--psag-semaforo-rojo-rgb);
+    --bs-danger-text-emphasis: var(--psag-semaforo-rojo-texto);
+    --bs-danger-bg-subtle: var(--psag-semaforo-rojo-suave);
+    --bs-danger-border-subtle: var(--psag-semaforo-rojo-borde);
+    --bs-form-valid-color: var(--psag-semaforo-verde-texto);
+    --bs-form-valid-border-color: var(--psag-semaforo-verde);
+    --bs-form-invalid-color: var(--psag-semaforo-rojo-texto);
+    --bs-form-invalid-border-color: var(--psag-semaforo-rojo);
+
+    --bs-border-radius: var(--psag-radio);
+    --bs-border-radius-sm: var(--psag-radio-sm);
+    --bs-border-radius-lg: var(--psag-radio-card);
+    --bs-border-radius-xl: calc(var(--psag-radio-card) + 4px);
+    --bs-border-radius-xxl: calc(var(--psag-radio-card) + 10px);
+    --bs-border-radius-2xl: var(--bs-border-radius-xxl);
+    --bs-border-radius-pill: var(--psag-radio-pill);
+    --bs-box-shadow: var(--psag-sombra-card);
+    --bs-box-shadow-sm: var(--psag-sombra-sm);
+    --bs-box-shadow-lg: 0 18px 40px -18px rgba(90, 60, 180, .5);
+}
+
+/* =====================================================================================================================
+   2) TOKENS + MAPEO A BOOTSTRAP · OSCURO "Industrial oscuro"
+   ===================================================================================================================== */
+[data-bs-theme="dark"] {
+    --psag-fondo: #0f1420;
+    --psag-fondo-realce: radial-gradient(1200px 300px at 10% -10%, rgba(19, 42, 74, .55), transparent);
+    --psag-card: #171f2e;
+    --psag-card-rgb: 23, 31, 46;
+    --psag-card-degrade: linear-gradient(180deg, rgba(25, 34, 51, 0), #0d1422 160%);
+    --psag-superficie-2: #1d2638;
+    --psag-superficie-3: #131a28;
+    --psag-texto: #e8eefb;
+    --psag-texto-rgb: 232, 238, 251;
+    --psag-texto-fuerte: #ffffff;
+    --psag-texto-fuerte-rgb: 255, 255, 255;
+    --psag-atenuado: #8b9ab5;
+    --psag-atenuado-rgb: 139, 154, 181;
+    --psag-borde: #263247;
+    --psag-borde-input: #33415a;
+
+    --psag-acento: #36d1dc;
+    --psag-acento-rgb: 54, 209, 220;
+    --psag-acento-hover: #5fdde6;
+    --psag-sobre-acento: #0f1420;
+    --psag-acento-suave: #1d3f4d;
+    --psag-acento-borde: #236674;
+    --psag-acento-texto: #9eeef3;
+    --psag-link: #36d1dc;
+    --psag-link-rgb: 54, 209, 220;
+    --psag-link-hover: #8ae8ee;
+    --psag-link-hover-rgb: 138, 232, 238;
+    --psag-encabezado: linear-gradient(100deg, #132a4a, #0f1420);
+    --psag-encabezado-vertical: linear-gradient(180deg, #132a4a, #0f1420);
+    --psag-encabezado-texto: #eaf2ff;
+    --psag-encabezado-texto-suave: #b9c6dc;
+    --psag-encabezado-linea: #33415a;
+    --psag-encabezado-hover: rgba(54, 209, 220, .10);
+    --psag-encabezado-activo: rgba(54, 209, 220, .20);
+    --psag-encabezado-marca: rgba(0, 0, 0, .25);
+
+    --psag-radio-card: 14px;
+    --psag-radio: 10px;
+    --psag-radio-sm: 7px;
+    --psag-sombra-card: 0 8px 24px -12px rgba(0, 0, 0, .7);
+    --psag-sombra-sm: 0 4px 12px -8px rgba(0, 0, 0, .6);
+    --psag-velo: rgba(0, 0, 0, .6);
+
+    --psag-tema-eficiencia: #ff6b6b;
+    --psag-tema-produccion: #4d8bff;
+    --psag-tema-velocidad: #36d1dc;
+    --psag-tema-detenciones: #b98bff;
+
+    --psag-semaforo-verde: #2ee6a0;
+    --psag-semaforo-verde-rgb: 46, 230, 160;
+    --psag-semaforo-amarillo: #ffcf3f;
+    --psag-semaforo-amarillo-rgb: 255, 207, 63;
+    --psag-semaforo-rojo: #ff6b6b;
+    --psag-semaforo-rojo-rgb: 255, 107, 107;
+    --psag-semaforo-verde-texto: #8ff5cf;
+    --psag-semaforo-amarillo-texto: #ffe28a;
+    --psag-semaforo-rojo-texto: #ffa8a8;
+    --psag-semaforo-verde-suave: #1b4343;
+    --psag-semaforo-amarillo-suave: #413f31;
+    --psag-semaforo-rojo-suave: #412d39;
+    --psag-semaforo-verde-borde: #206f5c;
+    --psag-semaforo-amarillo-borde: #746635;
+    --psag-semaforo-rojo-borde: #743d46;
+    --psag-sobre-estado: #0f1420;
+    --psag-requiere-analisis: #ff9a4d;
+    --psag-codigo: #e685b5;
+
+    --bs-body-color: var(--psag-texto);
+    --bs-body-color-rgb: var(--psag-texto-rgb);
+    --bs-body-bg: var(--psag-card);
+    --bs-body-bg-rgb: var(--psag-card-rgb);
+    --bs-emphasis-color: var(--psag-texto-fuerte);
+    --bs-emphasis-color-rgb: var(--psag-texto-fuerte-rgb);
+    --bs-secondary-color: var(--psag-atenuado);
+    --bs-secondary-color-rgb: var(--psag-atenuado-rgb);
+    --bs-secondary-bg: var(--psag-superficie-2);
+    --bs-secondary-bg-rgb: 29, 38, 56;
+    --bs-tertiary-color: var(--psag-atenuado);
+    --bs-tertiary-color-rgb: var(--psag-atenuado-rgb);
+    --bs-tertiary-bg: var(--psag-superficie-3);
+    --bs-tertiary-bg-rgb: 19, 26, 40;
+    --bs-heading-color: var(--psag-texto-fuerte);
+    --bs-border-color: var(--psag-borde);
+    --bs-border-color-translucent: var(--psag-borde);
+    --bs-link-color: var(--psag-link);
+    --bs-link-color-rgb: var(--psag-link-rgb);
+    --bs-link-hover-color: var(--psag-link-hover);
+    --bs-link-hover-color-rgb: var(--psag-link-hover-rgb);
+    --bs-code-color: var(--psag-codigo);
+    --bs-focus-ring-color: rgba(var(--psag-acento-rgb), .35);
+
+    --bs-primary: var(--psag-acento);
+    --bs-primary-rgb: var(--psag-acento-rgb);
+    --bs-primary-text-emphasis: var(--psag-acento-texto);
+    --bs-primary-bg-subtle: var(--psag-acento-suave);
+    --bs-primary-border-subtle: var(--psag-acento-borde);
+
+    --bs-success: var(--psag-semaforo-verde);
+    --bs-success-rgb: var(--psag-semaforo-verde-rgb);
+    --bs-success-text-emphasis: var(--psag-semaforo-verde-texto);
+    --bs-success-bg-subtle: var(--psag-semaforo-verde-suave);
+    --bs-success-border-subtle: var(--psag-semaforo-verde-borde);
+    --bs-warning: var(--psag-semaforo-amarillo);
+    --bs-warning-rgb: var(--psag-semaforo-amarillo-rgb);
+    --bs-warning-text-emphasis: var(--psag-semaforo-amarillo-texto);
+    --bs-warning-bg-subtle: var(--psag-semaforo-amarillo-suave);
+    --bs-warning-border-subtle: var(--psag-semaforo-amarillo-borde);
+    --bs-danger: var(--psag-semaforo-rojo);
+    --bs-danger-rgb: var(--psag-semaforo-rojo-rgb);
+    --bs-danger-text-emphasis: var(--psag-semaforo-rojo-texto);
+    --bs-danger-bg-subtle: var(--psag-semaforo-rojo-suave);
+    --bs-danger-border-subtle: var(--psag-semaforo-rojo-borde);
+    --bs-form-valid-color: var(--psag-semaforo-verde-texto);
+    --bs-form-valid-border-color: var(--psag-semaforo-verde);
+    --bs-form-invalid-color: var(--psag-semaforo-rojo-texto);
+    --bs-form-invalid-border-color: var(--psag-semaforo-rojo);
+
+    --bs-border-radius: var(--psag-radio);
+    --bs-border-radius-sm: var(--psag-radio-sm);
+    --bs-border-radius-lg: var(--psag-radio-card);
+    --bs-border-radius-xl: calc(var(--psag-radio-card) + 4px);
+    --bs-border-radius-xxl: calc(var(--psag-radio-card) + 10px);
+    --bs-border-radius-2xl: var(--bs-border-radius-xxl);
+    --bs-box-shadow: var(--psag-sombra-card);
+    --bs-box-shadow-sm: var(--psag-sombra-sm);
+    --bs-box-shadow-lg: 0 16px 36px -14px rgba(0, 0, 0, .75);
+}
+
+/* =====================================================================================================================
+   3) BASE: fondo de la app y tipografía
+   ===================================================================================================================== */
+html {
+    transition: background-color .3s ease, color .3s ease;
+}
+
+body {
+    background: var(--psag-fondo-realce), var(--psag-fondo);
+    background-attachment: fixed;
+    color: var(--bs-body-color);
+    font-family: var(--psag-fuente-texto);
+}
+
+h1, h2, h3, h4, h5, h6,
+.h1, .h2, .h3, .h4, .h5, .h6,
+.display-1, .display-2, .display-3, .display-4, .display-5, .display-6,
+.modal-title, .card-header, .navbar-brand, .kpi-numero, .fs-1, .fs-2 {
+    font-family: var(--psag-fuente-titulos);
+    letter-spacing: -.01em;
+}
+
+/* Números que se alinean en columnas */
+.table, .kpi-numero, .grafico-tablero, .list-group, .badge, .tabular,
+input[type="number"], [data-testid^="cifra-"] {
+    font-variant-numeric: tabular-nums;
+}
+
+/* =====================================================================================================================
+   4) COMPONENTES DE BOOTSTRAP (sus variables se declaran en el propio componente: se re-mapean acá)
+   ===================================================================================================================== */
+
+/* Cards */
+.card {
+    --bs-card-border-color: var(--psag-borde);
+    --bs-card-border-radius: var(--psag-radio-card);
+    --bs-card-inner-border-radius: calc(var(--psag-radio-card) - 1px);
+    --bs-card-cap-bg: rgba(var(--psag-acento-rgb), .06);
+    --bs-card-box-shadow: var(--psag-sombra-card);
+    box-shadow: var(--psag-sombra-card);
+}
+
+.card:not([class*="bg-"]) {
+    background-image: var(--psag-card-degrade);
+}
+
+.card-header {
+    font-weight: 600;
+    border-bottom-color: var(--psag-borde);
+}
+
+/* Modales */
+.modal {
+    --bs-modal-border-color: var(--psag-borde);
+    --bs-modal-border-radius: var(--psag-radio-card);
+    --bs-modal-inner-border-radius: calc(var(--psag-radio-card) - 1px);
+    --bs-modal-box-shadow: var(--bs-box-shadow-lg);
+    --bs-modal-header-border-color: transparent;
+    --bs-modal-footer-border-color: var(--psag-borde);
+}
+
+.modal-content {
+    background-image: var(--psag-card-degrade);
+    overflow: hidden;
+}
+
+.modal-header {
+    background: var(--psag-encabezado);
+    color: var(--psag-encabezado-texto);
+}
+
+    .modal-header .modal-title {
+        color: inherit;
+        font-weight: 600;
+    }
+
+    .modal-header .btn-close {
+        filter: var(--bs-btn-close-white-filter);
+        opacity: .85;
+    }
+
+/* Botones */
+.btn {
+    --bs-btn-font-weight: 500;
+}
+
+.btn-primary {
+    --bs-btn-color: var(--psag-sobre-acento);
+    --bs-btn-bg: var(--psag-acento);
+    --bs-btn-border-color: var(--psag-acento);
+    --bs-btn-hover-color: var(--psag-sobre-acento);
+    --bs-btn-hover-bg: var(--psag-acento-hover);
+    --bs-btn-hover-border-color: var(--psag-acento-hover);
+    --bs-btn-focus-shadow-rgb: var(--psag-acento-rgb);
+    --bs-btn-active-color: var(--psag-sobre-acento);
+    --bs-btn-active-bg: var(--psag-acento-hover);
+    --bs-btn-active-border-color: var(--psag-acento-hover);
+    --bs-btn-disabled-color: var(--psag-sobre-acento);
+    --bs-btn-disabled-bg: var(--psag-acento);
+    --bs-btn-disabled-border-color: var(--psag-acento);
+    box-shadow: var(--psag-sombra-sm);
+}
+
+.btn-outline-primary {
+    --bs-btn-color: var(--psag-link);
+    --bs-btn-border-color: var(--psag-acento);
+    --bs-btn-hover-color: var(--psag-sobre-acento);
+    --bs-btn-hover-bg: var(--psag-acento);
+    --bs-btn-hover-border-color: var(--psag-acento);
+    --bs-btn-focus-shadow-rgb: var(--psag-acento-rgb);
+    --bs-btn-active-color: var(--psag-sobre-acento);
+    --bs-btn-active-bg: var(--psag-acento);
+    --bs-btn-active-border-color: var(--psag-acento);
+    --bs-btn-disabled-color: var(--psag-link);
+    --bs-btn-disabled-border-color: var(--psag-acento);
+}
+
+.btn-secondary {
+    --bs-btn-color: var(--psag-card);
+    --bs-btn-bg: var(--psag-atenuado);
+    --bs-btn-border-color: var(--psag-atenuado);
+    --bs-btn-hover-color: var(--psag-card);
+    --bs-btn-hover-bg: var(--psag-texto);
+    --bs-btn-hover-border-color: var(--psag-texto);
+    --bs-btn-focus-shadow-rgb: var(--psag-atenuado-rgb);
+    --bs-btn-active-color: var(--psag-card);
+    --bs-btn-active-bg: var(--psag-texto);
+    --bs-btn-active-border-color: var(--psag-texto);
+    --bs-btn-disabled-color: var(--psag-card);
+    --bs-btn-disabled-bg: var(--psag-atenuado);
+    --bs-btn-disabled-border-color: var(--psag-atenuado);
+}
+
+.btn-outline-secondary {
+    --bs-btn-color: var(--psag-texto);
+    --bs-btn-border-color: var(--psag-borde-input);
+    --bs-btn-hover-color: var(--psag-texto-fuerte);
+    --bs-btn-hover-bg: var(--psag-superficie-2);
+    --bs-btn-hover-border-color: var(--psag-acento-borde);
+    --bs-btn-focus-shadow-rgb: var(--psag-acento-rgb);
+    --bs-btn-active-color: var(--psag-texto-fuerte);
+    --bs-btn-active-bg: var(--psag-acento-suave);
+    --bs-btn-active-border-color: var(--psag-acento);
+    --bs-btn-disabled-color: var(--psag-atenuado);
+    --bs-btn-disabled-border-color: var(--psag-borde);
+}
+
+/* Botones de estado: el color lleno es el del semáforo; el texto, oscuro (contraste ≥ 5:1 en los dos temas) */
+.btn-success, .btn-warning, .btn-danger {
+    --bs-btn-color: var(--psag-sobre-estado);
+    --bs-btn-hover-color: var(--psag-sobre-estado);
+    --bs-btn-active-color: var(--psag-sobre-estado);
+    --bs-btn-disabled-color: var(--psag-sobre-estado);
+}
+
+.btn-success {
+    --bs-btn-bg: var(--psag-semaforo-verde);
+    --bs-btn-border-color: var(--psag-semaforo-verde);
+    --bs-btn-hover-bg: var(--psag-semaforo-verde-borde);
+    --bs-btn-hover-border-color: var(--psag-semaforo-verde);
+    --bs-btn-active-bg: var(--psag-semaforo-verde-borde);
+    --bs-btn-active-border-color: var(--psag-semaforo-verde);
+    --bs-btn-disabled-bg: var(--psag-semaforo-verde);
+    --bs-btn-disabled-border-color: var(--psag-semaforo-verde);
+    --bs-btn-focus-shadow-rgb: var(--psag-semaforo-verde-rgb);
+}
+
+.btn-warning {
+    --bs-btn-bg: var(--psag-semaforo-amarillo);
+    --bs-btn-border-color: var(--psag-semaforo-amarillo);
+    --bs-btn-hover-bg: var(--psag-semaforo-amarillo-borde);
+    --bs-btn-hover-border-color: var(--psag-semaforo-amarillo);
+    --bs-btn-active-bg: var(--psag-semaforo-amarillo-borde);
+    --bs-btn-active-border-color: var(--psag-semaforo-amarillo);
+    --bs-btn-disabled-bg: var(--psag-semaforo-amarillo);
+    --bs-btn-disabled-border-color: var(--psag-semaforo-amarillo);
+    --bs-btn-focus-shadow-rgb: var(--psag-semaforo-amarillo-rgb);
+}
+
+.btn-danger {
+    --bs-btn-bg: var(--psag-semaforo-rojo);
+    --bs-btn-border-color: var(--psag-semaforo-rojo);
+    --bs-btn-hover-bg: var(--psag-semaforo-rojo-borde);
+    --bs-btn-hover-border-color: var(--psag-semaforo-rojo);
+    --bs-btn-active-bg: var(--psag-semaforo-rojo-borde);
+    --bs-btn-active-border-color: var(--psag-semaforo-rojo);
+    --bs-btn-disabled-bg: var(--psag-semaforo-rojo);
+    --bs-btn-disabled-border-color: var(--psag-semaforo-rojo);
+    --bs-btn-focus-shadow-rgb: var(--psag-semaforo-rojo-rgb);
+}
+
+.btn-outline-success {
+    --bs-btn-color: var(--psag-semaforo-verde-texto);
+    --bs-btn-border-color: var(--psag-semaforo-verde);
+    --bs-btn-hover-color: var(--psag-sobre-estado);
+    --bs-btn-hover-bg: var(--psag-semaforo-verde);
+    --bs-btn-hover-border-color: var(--psag-semaforo-verde);
+    --bs-btn-active-color: var(--psag-sobre-estado);
+    --bs-btn-active-bg: var(--psag-semaforo-verde);
+    --bs-btn-active-border-color: var(--psag-semaforo-verde);
+    --bs-btn-disabled-color: var(--psag-semaforo-verde-texto);
+    --bs-btn-disabled-border-color: var(--psag-semaforo-verde);
+    --bs-btn-focus-shadow-rgb: var(--psag-semaforo-verde-rgb);
+}
+
+.btn-outline-warning {
+    --bs-btn-color: var(--psag-semaforo-amarillo-texto);
+    --bs-btn-border-color: var(--psag-semaforo-amarillo);
+    --bs-btn-hover-color: var(--psag-sobre-estado);
+    --bs-btn-hover-bg: var(--psag-semaforo-amarillo);
+    --bs-btn-hover-border-color: var(--psag-semaforo-amarillo);
+    --bs-btn-active-color: var(--psag-sobre-estado);
+    --bs-btn-active-bg: var(--psag-semaforo-amarillo);
+    --bs-btn-active-border-color: var(--psag-semaforo-amarillo);
+    --bs-btn-disabled-color: var(--psag-semaforo-amarillo-texto);
+    --bs-btn-disabled-border-color: var(--psag-semaforo-amarillo);
+    --bs-btn-focus-shadow-rgb: var(--psag-semaforo-amarillo-rgb);
+}
+
+.btn-outline-danger {
+    --bs-btn-color: var(--psag-semaforo-rojo-texto);
+    --bs-btn-border-color: var(--psag-semaforo-rojo);
+    --bs-btn-hover-color: var(--psag-sobre-estado);
+    --bs-btn-hover-bg: var(--psag-semaforo-rojo);
+    --bs-btn-hover-border-color: var(--psag-semaforo-rojo);
+    --bs-btn-active-color: var(--psag-sobre-estado);
+    --bs-btn-active-bg: var(--psag-semaforo-rojo);
+    --bs-btn-active-border-color: var(--psag-semaforo-rojo);
+    --bs-btn-disabled-color: var(--psag-semaforo-rojo-texto);
+    --bs-btn-disabled-border-color: var(--psag-semaforo-rojo);
+    --bs-btn-focus-shadow-rgb: var(--psag-semaforo-rojo-rgb);
+}
+
+/* Foco visible con el acento */
+.btn:focus-visible, .btn-link.nav-link:focus, .form-control:focus, .form-select:focus, .form-check-input:focus {
+    box-shadow: 0 0 0 .1rem var(--bs-body-bg), 0 0 0 .25rem rgba(var(--psag-acento-rgb), .55);
+}
+
+/* Formularios */
+.form-control, .form-select {
+    border-color: var(--psag-borde-input);
+}
+
+    .form-control:focus, .form-select:focus {
+        border-color: var(--psag-acento);
+    }
+
+.form-check-input {
+    border-color: var(--psag-borde-input);
+}
+
+    .form-check-input:checked {
+        background-color: var(--psag-acento);
+        border-color: var(--psag-acento);
+    }
+
+[data-bs-theme="dark"] .form-check-input:checked[type="checkbox"] {
+    --bs-form-check-bg-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%230f1420' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='m6 10 3 3 6-6'/%3e%3c/svg%3e");
+}
+
+/* Badges y pills */
+.badge {
+    --bs-badge-border-radius: var(--psag-radio-pill);
+    --bs-badge-font-weight: 600;
+}
+
+.badge.bg-success, .text-bg-success,
+.badge.bg-warning, .text-bg-warning,
+.badge.bg-danger, .text-bg-danger {
+    color: var(--psag-sobre-estado) !important;
+}
+
+.badge.bg-primary, .text-bg-primary, .bg-primary.text-white {
+    color: var(--psag-sobre-acento) !important;
+}
+
+.rounded-pill {
+    border-radius: var(--psag-radio-pill) !important;
+}
+
+/* En claro, el texto "de estado" usa la variante oscura (el color vivo del semáforo no llega a 4.5:1 sobre blanco).
+   El color vivo sigue en fondos, bordes y gráficos. */
+[data-bs-theme="light"] .text-success { color: var(--psag-semaforo-verde-texto) !important; }
+[data-bs-theme="light"] .text-warning { color: var(--psag-semaforo-amarillo-texto) !important; }
+[data-bs-theme="light"] .text-danger { color: var(--psag-semaforo-rojo-texto) !important; }
+
+/* "bg-light" de Bootstrap no cambia con el modo oscuro: se usa como superficie suave (badges aparte) */
+.bg-light:not(.badge) {
+    background-color: var(--psag-superficie-3) !important;
+}
+
+/* Tablas */
+.table {
+    --bs-table-border-color: var(--psag-borde);
+}
+
+.table-light {
+    --bs-table-color: var(--psag-texto-fuerte);
+    --bs-table-bg: var(--psag-superficie-2);
+    --bs-table-border-color: var(--psag-borde);
+    --bs-table-striped-bg: var(--psag-superficie-2);
+    --bs-table-striped-color: var(--psag-texto-fuerte);
+    --bs-table-active-bg: var(--psag-acento-suave);
+    --bs-table-active-color: var(--psag-texto-fuerte);
+    --bs-table-hover-bg: var(--psag-acento-suave);
+    --bs-table-hover-color: var(--psag-texto-fuerte);
+}
+
+    .table-light th, thead.table-light th {
+        font-family: var(--psag-fuente-titulos);
+        font-weight: 600;
+    }
+
+.table-hover > tbody > tr:hover > * {
+    --bs-table-bg-state: rgba(var(--psag-acento-rgb), .07);
+}
+
+/* Solapas, paginado, listas y barras de progreso */
+.nav-tabs .nav-link.active {
+    color: var(--psag-link);
+    font-weight: 600;
+    box-shadow: inset 0 3px 0 var(--psag-acento);
+}
+
+.pagination {
+    --bs-pagination-active-color: var(--psag-sobre-acento);
+    --bs-pagination-active-bg: var(--psag-acento);
+    --bs-pagination-active-border-color: var(--psag-acento);
+    --bs-pagination-focus-box-shadow: 0 0 0 .25rem rgba(var(--psag-acento-rgb), .3);
+}
+
+.list-group {
+    --bs-list-group-active-color: var(--psag-sobre-acento);
+    --bs-list-group-active-bg: var(--psag-acento);
+    --bs-list-group-active-border-color: var(--psag-acento);
+}
+
+.progress, .progress-stacked {
+    --bs-progress-bar-bg: var(--psag-acento);
+    --bs-progress-bar-color: var(--psag-sobre-acento);
+    --bs-progress-border-radius: var(--psag-radio-pill);
+}
+
+.alert {
+    --bs-alert-border-radius: var(--psag-radio);
+}
+
+/* =====================================================================================================================
+   5) COMPONENTES PROPIOS
+   ===================================================================================================================== */
+
+/* Fondo detrás de los modales (los modales de Blazor lo ponen en línea con style="background-color: var(--psag-velo)") */
+.psag-velo {
+    background-color: var(--psag-velo);
+}
+
+/* Tablero (T-770): punto de color del tema junto al título del bloque / modal */
+.psag-tema-punto {
+    display: inline-block;
+    flex: none;
+    width: .65rem;
+    height: .65rem;
+    border-radius: 50%;
+    vertical-align: middle;
+}
+
+.modal-header .psag-tema-punto {
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, .85);
+}
+
+/* Gráficos SVG del tablero: textos con la tipografía de números */
+.grafico-tablero text {
+    font-family: var(--psag-fuente-titulos);
+}
+
+/* Validación de formularios de Blazor */
+.valid.modified:not([type=checkbox]) {
+    outline: 1px solid var(--psag-semaforo-verde);
+}
+
+.invalid {
+    outline: 1px solid var(--psag-semaforo-rojo);
+}
+
+.validation-message {
+    color: var(--bs-form-invalid-color);
+}
+
+/* Pantalla de carga de Blazor */
+.loading-progress circle {
+    stroke: var(--psag-borde);
+}
+
+    .loading-progress circle:last-child {
+        stroke: var(--psag-acento);
+    }
+
+.loading-progress-text {
+    color: var(--psag-texto);
+    font-family: var(--psag-fuente-titulos);
+}
+
+/* Botón Dictar mientras escucha */
+@keyframes dictado-pulso {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(var(--psag-semaforo-rojo-rgb), .6); }
+    50% { box-shadow: 0 0 0 .45rem rgba(var(--psag-semaforo-rojo-rgb), 0); }
+}

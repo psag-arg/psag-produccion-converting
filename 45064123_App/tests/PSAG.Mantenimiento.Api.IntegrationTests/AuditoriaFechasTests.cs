@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using PSAG.Mantenimiento.Domain.Entities;
 using PSAG.Mantenimiento.Domain.Enums;
@@ -7,32 +6,26 @@ using PSAG.Mantenimiento.Infrastructure.Data;
 namespace PSAG.Mantenimiento.Api.IntegrationTests;
 
 /// <summary>
-/// Fechas de auditoría completadas por MantenimientoDbContext al guardar (SQLite en memoria).
+/// Fechas de auditoría completadas por MantenimientoDbContext al guardar (base de prueba: SQLite en memoria o SQL Server).
 /// </summary>
+[Collection(ColeccionBaseDeDatos.Nombre)]
 public class AuditoriaFechasTests : IDisposable
 {
     private const string Usuario = "usuario-test";
 
-    private readonly SqliteConnection _conexion;
+    private readonly BaseDePrueba _base;
     private readonly MantenimientoDbContext _context;
 
     public AuditoriaFechasTests()
     {
-        _conexion = new SqliteConnection("DataSource=:memory:");
-        _conexion.Open();
-
-        var options = new DbContextOptionsBuilder<MantenimientoDbContext>()
-            .UseSqlite(_conexion)
-            .Options;
-
-        _context = new MantenimientoDbContext(options);
-        _context.Database.EnsureCreated();
+        _base = BaseDePrueba.Crear();
+        _context = _base.Context;
     }
 
     public void Dispose()
     {
         _context.Dispose();
-        _conexion.Dispose();
+        _base.Dispose();
     }
 
     private static Linea NuevaLinea(string codigo) => new()
@@ -114,8 +107,7 @@ public class AuditoriaFechasTests : IDisposable
         {
             Codigo = "DET-TEST-000001",
             LineaId = linea.LineaId,
-            TurnoId = turno.TurnoId,
-            Fecha = DateOnly.FromDateTime(DateTime.UtcNow),
+            TurnoProduccionId = _context.TurnoProduccionId(linea.LineaId, turno.TurnoId, DateOnly.FromDateTime(DateTime.UtcNow)),
             MinutosEfectivos = 30,
             OrigenTiempo = OrigenTiempo.DECLARADO,
             Descripcion = "Prueba de auditoría",

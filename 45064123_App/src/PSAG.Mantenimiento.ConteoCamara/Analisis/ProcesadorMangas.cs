@@ -1,22 +1,31 @@
 namespace PSAG.Mantenimiento.ConteoCamara.Analisis;
 
 /// <summary>
-/// Cámara 10 (rebobinadora Futura 2 / Tango 2). Dos señales, medidas como movimiento medio (diferencia absoluta
+/// Cámara 10 (rebobinadora Futura 2 / Tango 2) y, sin rodillo ni paradas, cámara 8 (bolsones, T-785: cada bolsón
+/// que cruza la zona "Mesa" es un paso). Dos señales, medidas como movimiento medio (diferencia absoluta
 /// entre dos cuadros seguidos) dentro de una zona:
 /// <list type="bullet">
 /// <item><b>Mesa</b>: cada manga que la cruza da un pulso. Se cuentan con histéresis (sube de UmbralPasoAlto,
 /// baja de UmbralPasoBajo) y una separación mínima, así un pulso cuenta una vez.</item>
 /// <item><b>Rodillo</b>: girando tiene movimiento constante; quieto, cero.</item>
 /// </list>
-/// Estado de cada ventana de 10 s: PARADA si el rodillo estuvo quieto la mayor parte; si no, SIN_MANGAS (se
-/// informa como ACUMULACION del "carril" 1) si no pasó ninguna manga; si no, MARCHA. El empalme no es parada:
-/// el rodillo sigue y siguen pasando mangas, más espaciadas. Una ventana suelta sin mangas no abre parada
-/// (histéresis de DetectorParadas: 2 ventanas) y lo que dura menos que el umbral de la cámara es un microcorte.
+/// Estado de cada ventana de 10 s (para los minutos): PARADA si el rodillo estuvo quieto la mayor parte; si no,
+/// SIN_MANGAS (se informa como ACUMULACION del "carril" 1) si no pasó ninguna manga; si no, MARCHA. Regla E (13/11,
+/// limpieza con aire que tapaba las zonas): la ventana es MARCHA sólo si el rodillo giró casi toda la ventana
+/// (FraccionRodilloGiraParaMarcha). El empalme no es parada: el rodillo sigue y siguen pasando mangas, más espaciadas.
 /// Las mangas van a los minutos como "rollos" del carril 1.
-/// Reglas de la parada (13/11, limpieza con aire que tapaba las zonas): E) la ventana es MARCHA sólo si el rodillo
-/// giró casi toda la ventana (FraccionRodilloGiraParaMarcha); A) cerrar una parada pide 60 s de marcha
-/// (Analisis:VentanasParaConfirmarArranque); F) con la parada abierta las mangas no se cuentan salvo que se
-/// confirme el arranque (DescontarMangasEnParada): esas ventanas se retienen hasta saberlo.
+/// <para>
+/// Las paradas salen de uno de dos detectores, según <c>Mangas:DetectorParadas</c> (T-804):
+/// <list type="bullet">
+/// <item><b>VENTANAS</b> (default, productivo): <see cref="DetectorParadas"/> sobre las ventanas, con histéresis (2
+/// ventanas para abrir) y las reglas A (Analisis:VentanasParaConfirmarArranque: 60 s de marcha para cerrar) y F
+/// (DescontarMangasEnParada: con la parada abierta las mangas no se cuentan salvo que se confirme el arranque; esas
+/// ventanas se retienen hasta saberlo). Lo que dura menos que el umbral de la cámara es un microcorte.</item>
+/// <item><b>MANGAS</b> (T-784, para probar): <see cref="DetectorParadasMangas"/>, cuadro a cuadro, cada microparada
+/// con su inicio y fin reales. Las mangas se cuentan siempre (la regla F no aplica) y las ventanas no se retienen.</item>
+/// </list>
+/// Sin paradas (cámara 8, bolsones, T-785) no corre ningún detector: sólo cuenta.
+/// </para>
 /// </summary>
 public sealed class ProcesadorMangas : IAnalizadorCuadros
 {
@@ -24,7 +33,9 @@ public sealed class ProcesadorMangas : IAnalizadorCuadros
 
     private readonly OpcionesMangas _o;
     private readonly ISalidaConteo _salida;
-    private readonly DetectorParadas _detector;
+    // Uno solo (o ninguno, sin paradas): VENTANAS → _detector; MANGAS → _detectorMangas.
+    private readonly DetectorParadas? _detector;
+    private readonly DetectorParadasMangas? _detectorMangas;
     private readonly AcumuladorMinutos _minutos;
     private readonly int _ancho;
     private readonly int _alto;
@@ -50,9 +61,13 @@ public sealed class ProcesadorMangas : IAnalizadorCuadros
     // Regla F: ventanas cerradas que todavía no se mandan (arranque sin confirmar) y si llegaron con la parada abierta.
     private readonly List<(ResultadoVentana Ventana, bool AbiertaAntes)> _retenidas = [];
 
-    public ProcesadorMangas(OpcionesConteo opciones, ISalidaConteo salida)
+    /// <param name="detectarParadas">false en la cámara 8 (bolsones, T-785): sólo cuenta; las paradas las da la 10.</param>
+    public ProcesadorMangas(OpcionesConteo opciones, ISalidaConteo salida, bool detectarParadas = true)
     {
         _o = opciones.Mangas;
+        if (!DetectoresParadas.EsValido(_o.DetectorParadas))
+            throw new InvalidOperationException(
+                $"ConteoCamara:Mangas:DetectorParadas = '{_o.DetectorParadas}' no existe (VENTANAS o MANGAS).");
         _salida = salida;
         _ancho = opciones.Fuente.AnchoDecodificado;
         _alto = opciones.Fuente.AltoDecodificado;
@@ -61,12 +76,19 @@ public sealed class ProcesadorMangas : IAnalizadorCuadros
             ?? throw new InvalidOperationException("Falta la zona de la mesa (ConteoCamara:Mangas:Mesa).");
         _rodillo = _o.UsarRodillo && _o.Rodillo != null ? Escalar(_o.Rodillo, _o, _ancho, _alto) : null;
         _muestrasPorVentana = Math.Max(2, (int)Math.Round(opciones.Analisis.SegundosVentana * Fps));
-        _detector = new DetectorParadas(opciones.Analisis, TipoParada.SIN_MANGAS);
+        if (detectarParadas && DetectoresParadas.EsMangas(_o.DetectorParadas))
+            _detectorMangas = new DetectorParadasMangas(_o, opciones.Analisis);
+        else if (detectarParadas)
+            _detector = new DetectorParadas(opciones.Analisis, TipoParada.SIN_MANGAS);
         _minutos = new AcumuladorMinutos([Carril]);
         _anterior = new byte[_ancho * _alto];
     }
 
     public double Fps { get; }
+
+    /// <summary>Detector en uso: VENTANAS, MANGAS o null si la cámara no detecta paradas (cámara 8).</summary>
+    public string? Detector => _detector != null ? DetectoresParadas.Ventanas
+        : _detectorMangas != null ? DetectoresParadas.Mangas : null;
 
     /// <summary>Total de mangas contadas (ya entregadas a los minutos) desde que arrancó (para el resumen).</summary>
     public long MangasTotales { get; private set; }
@@ -108,6 +130,8 @@ public sealed class ProcesadorMangas : IAnalizadorCuadros
             _sumaMesa = _sumaRodillo = 0;
         }
 
+        var mangaEnEsteCuadro = false;
+        bool? rodilloQuieto = null;
         if (_hayAnterior)
         {
             var mesa = Movimiento(cuadro, _anterior, _ancho, _mesa);
@@ -118,6 +142,7 @@ public sealed class ProcesadorMangas : IAnalizadorCuadros
                 _enPaso = true;
                 _ultimaManga = hora;
                 _pasosVentana++;
+                mangaEnEsteCuadro = true;
             }
             else if (_enPaso && mesa <= _o.UmbralPasoBajo)
                 _enPaso = false;
@@ -127,9 +152,12 @@ public sealed class ProcesadorMangas : IAnalizadorCuadros
                 var rod = Movimiento(cuadro, _anterior, _ancho, r);
                 _sumaRodillo += rod;
                 _cuadrosConRodillo++;
-                if (rod < _o.UmbralRodilloGira) _cuadrosRodilloQuieto++;
+                rodilloQuieto = rod < _o.UmbralRodilloGira;
+                if (rodilloQuieto == true) _cuadrosRodilloQuieto++;
             }
         }
+        if (_detectorMangas?.Cuadro(hora, mangaEnEsteCuadro, rodilloQuieto) is { } parada)
+            _salida.Parada(parada);
         cuadro[.._anterior.Length].CopyTo(_anterior);
         _hayAnterior = true;
         _cuadros++;
@@ -158,6 +186,15 @@ public sealed class ProcesadorMangas : IAnalizadorCuadros
         ]);
         _cuadros = 0;
 
+        if (_detector == null)
+        {
+            // MANGAS (T-784) o sin paradas: la ventana sale como vino; la parada en curso, si la hay, es la del detector por cuadros.
+            _retenidas.Add((ventana, false));
+            Entregar(_retenidas.Count, dentroDeParada: false);
+            if (_detectorMangas?.Abierta is { } enCurso) _salida.ParadaEnCurso(enCurso);
+            return;
+        }
+
         var abiertaAntes = _detector.Detenida == true;
         var parada = _detector.Procesar(ventana);
         if (parada != null) _salida.Parada(parada);
@@ -178,7 +215,7 @@ public sealed class ProcesadorMangas : IAnalizadorCuadros
     private void Entregar(int cuantas, bool dentroDeParada)
     {
         if (cuantas <= 0) return;
-        var tipo = _detector.Abierta?.Tipo == TipoParada.PARADA ? EstadoCarril.PARADA : EstadoCarril.ACUMULACION;
+        var tipo = _detector?.Abierta?.Tipo == TipoParada.PARADA ? EstadoCarril.PARADA : EstadoCarril.ACUMULACION;
         var minutos = new List<ConteoMinuto>();
         foreach (var (original, abiertaAntes) in _retenidas.Take(cuantas))
         {
@@ -206,10 +243,10 @@ public sealed class ProcesadorMangas : IAnalizadorCuadros
         _hayAnterior = false;
         _enPaso = false;
         _ultimaManga = null;
-        // Un arranque a medio confirmar: el detector cierra (o suspende) la parada donde empezó ese arranque, así
-        // que esas ventanas quedan fuera de la parada y se cuentan como vinieron.
+        // Un arranque a medio confirmar (VENTANAS): el detector cierra (o suspende) la parada donde empezó ese
+        // arranque, así que esas ventanas quedan fuera de la parada y se cuentan como vinieron.
         Entregar(_retenidas.Count, dentroDeParada: false);
-        var parada = _detector.CortarSenal(final);
+        var parada = _detector?.CortarSenal(final) ?? _detectorMangas?.CortarSenal(final);
         if (parada != null) _salida.Parada(parada);
         if (!final) return;
         var minutos = _minutos.Vaciar();

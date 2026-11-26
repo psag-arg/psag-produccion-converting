@@ -5,7 +5,9 @@ public enum TipoAlertaVideo
     /// <summary>Cuadros idénticos: la cámara o el grabador repiten la misma imagen (el reloj no avanza).</summary>
     CONGELADA,
     /// <summary>No llegan cuadros del grabador.</summary>
-    SIN_VIDEO
+    SIN_VIDEO,
+    /// <summary>T-798 etapa 4: la cámara está habilitada en Maestros → Cámaras pero el servicio no tiene su calibración.</summary>
+    SIN_CONFIGURACION
 }
 
 /// <summary>Alerta de video. Sin <see cref="Fin"/> está abierta; se vuelve a mandar con fin al cerrarse.</summary>

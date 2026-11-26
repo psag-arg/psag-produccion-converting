@@ -1,0 +1,241 @@
+@page "/configuracion/roles"
+@using PSAG.Mantenimiento.Web.Models
+@inject IPermisosService PermisosService
+@attribute [Authorize]
+
+<PageTitle>Roles y permisos - PSAG</PageTitle>
+
+@* T-802: qué ve (menú + API) y qué puede (VER / ALTA / MODIFICACIÓN / BAJA) cada rol, y si está obligado a declarar turno. *@
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h3 class="mb-0"><i class="bi bi-shield-lock me-2"></i>Roles y permisos</h3>
+    @if (rol != null)
+    {
+        <SiPermiso Opcion="@Opciones.ConfigRoles" Accion="AccionPermiso.Modificar">
+            <button class="btn btn-primary" disabled="@(guardando || !hayCambios)" @onclick="@(async () => await Guardar())">
+                <i class="bi bi-save me-1"></i>@(guardando ? "Guardando…" : "Guardar")
+            </button>
+        </SiPermiso>
+    }
+</div>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="alert alert-danger">@error</div>
+}
+@if (!string.IsNullOrEmpty(aviso))
+{
+    <div class="alert alert-success">@aviso</div>
+}
+
+@if (config == null)
+{
+    <p class="text-muted">Cargando…</p>
+}
+else
+{
+    <div class="row g-3">
+        <div class="col-12 col-md-3">
+            <div class="list-group">
+                @foreach (var r in config.Roles)
+                {
+                    <button type="button" class="list-group-item list-group-item-action @(r.RoleId == rol?.RoleId ? "active" : "")"
+                            @onclick="() => Elegir(r)">
+                        @r.Nombre
+                        @if (r.ObligadoATurno)
+                        {
+                            <span class="badge bg-info ms-1" title="Obligado a declarar turno">turno</span>
+                        }
+                    </button>
+                }
+            </div>
+            <p class="small text-muted mt-2">
+                Lo que un rol no ve no aparece en el menú y la API lo rechaza. Un usuario con varios roles tiene la suma de sus permisos.
+                Los cambios valen desde la próxima operación de cada usuario (el menú se actualiza al volver a entrar).
+            </p>
+        </div>
+
+        @if (rol != null)
+        {
+            <div class="col-12 col-md-9">
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="obligado" @bind="rol.ObligadoATurno" @bind:after="Marcar" />
+                            <label class="form-check-label" for="obligado">
+                                Obligado a declarar turno <span class="text-muted small">(operador de máquina: al entrar tiene que tomar el turno de su línea)</span>
+                            </label>
+                        </div>
+                        <label class="form-label small mb-1" for="descripcion">Descripción</label>
+                        <input id="descripcion" class="form-control form-control-sm" maxlength="300" @bind="rol.Descripcion" @bind:after="Marcar" />
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>Opción</th>
+                                <th class="text-center">Ver</th>
+                                <th class="text-center">Alta</th>
+                                <th class="text-center">Modificar</th>
+                                <th class="text-center">Baja</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var seccion in config.Opciones.Where(o => o.PadreCodigo == null).OrderBy(o => o.Orden))
+                            {
+                                <tr class="table-light">
+                                    <td colspan="5" class="fw-semibold">@seccion.Nombre</td>
+                                </tr>
+                                @foreach (var o in config.Opciones.Where(x => x.PadreCodigo == seccion.Codigo).OrderBy(x => x.Orden))
+                                {
+                                    var p = Permiso(o.Codigo);
+                                    <tr>
+                                        <td class="ps-4">
+                                            @o.Nombre
+                                            @if (o.Ruta == null)
+                                            {
+                                                <span class="badge text-bg-secondary ms-1" title="No es una pantalla del menú: habilita una función">función</span>
+                                            }
+                                        </td>
+                                        <td class="text-center">@Tilde(o, p, AccionPermiso.Ver)</td>
+                                        <td class="text-center">@Tilde(o, p, AccionPermiso.Alta)</td>
+                                        <td class="text-center">@Tilde(o, p, AccionPermiso.Modificar)</td>
+                                        <td class="text-center">@Tilde(o, p, AccionPermiso.Baja)</td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                @if (rol.Nombre == "ADMINISTRADOR")
+                {
+                    <p class="small text-muted">El ADMINISTRADOR no puede quedarse sin Ver y Modificar en "Roles y permisos".</p>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private ConfiguracionPermisosDto? config;
+    private RolPermisosDto? rol;
+    private bool guardando;
+    private bool hayCambios;
+    private string? error;
+    private string? aviso;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            config = await PermisosService.GetConfiguracionAsync();
+            if (config.Roles.Count > 0)
+                Elegir(config.Roles[0]);
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+    }
+
+    private void Elegir(RolPermisosDto r)
+    {
+        rol = r;
+        hayCambios = false;
+        aviso = null;
+        error = null;
+    }
+
+    private void Marcar() => hayCambios = true;
+
+    private PermisoOpcionDto Permiso(string codigo)
+    {
+        var p = rol!.Permisos.FirstOrDefault(x => x.Codigo == codigo);
+        if (p == null)
+        {
+            p = new PermisoOpcionDto { Codigo = codigo };
+            rol.Permisos.Add(p);
+        }
+        return p;
+    }
+
+    private static bool Aplica(OpcionCatalogoDto o, AccionPermiso a) => a switch
+    {
+        AccionPermiso.Ver => o.AplicaVer,
+        AccionPermiso.Alta => o.AplicaAlta,
+        AccionPermiso.Modificar => o.AplicaModificar,
+        _ => o.AplicaBaja
+    };
+
+    private static bool Valor(PermisoOpcionDto p, AccionPermiso a) => a switch
+    {
+        AccionPermiso.Ver => p.Ver,
+        AccionPermiso.Alta => p.Alta,
+        AccionPermiso.Modificar => p.Modificar,
+        _ => p.Baja
+    };
+
+    private RenderFragment Tilde(OpcionCatalogoDto o, PermisoOpcionDto p, AccionPermiso a) => __builder =>
+    {
+        if (!Aplica(o, a))
+        {
+            <input class="form-check-input" type="checkbox" disabled title="No aplica" />
+            return;
+        }
+        <input class="form-check-input" type="checkbox" checked="@Valor(p, a)"
+               @onchange="@(e => Cambiar(o, p, a, e.Value is true))" />
+    };
+
+    /// <summary>Si saca Ver, se sacan las otras; si tilda otra, se tilda Ver (cuando la opción tiene Ver).</summary>
+    private void Cambiar(OpcionCatalogoDto o, PermisoOpcionDto p, AccionPermiso a, bool valor)
+    {
+        switch (a)
+        {
+            case AccionPermiso.Ver: p.Ver = valor; break;
+            case AccionPermiso.Alta: p.Alta = valor; break;
+            case AccionPermiso.Modificar: p.Modificar = valor; break;
+            case AccionPermiso.Baja: p.Baja = valor; break;
+        }
+        if (o.AplicaVer)
+        {
+            if (a == AccionPermiso.Ver && !valor)
+                p.Alta = p.Modificar = p.Baja = false;
+            else if (a != AccionPermiso.Ver && valor)
+                p.Ver = true;
+        }
+        hayCambios = true;
+        aviso = null;
+    }
+
+    private async Task Guardar()
+    {
+        if (rol == null) return;
+        guardando = true;
+        error = null;
+        aviso = null;
+        try
+        {
+            var (resultado, err) = await PermisosService.GuardarRolAsync(rol.RoleId, new GuardarPermisosRolRequest
+            {
+                ObligadoATurno = rol.ObligadoATurno,
+                Descripcion = rol.Descripcion,
+                Permisos = rol.Permisos
+            });
+            if (resultado == null)
+            {
+                error = err;
+                return;
+            }
+            var i = config!.Roles.FindIndex(r => r.RoleId == resultado.RoleId);
+            config.Roles[i] = resultado;
+            rol = resultado;
+            hayCambios = false;
+            aviso = $"Permisos de {resultado.Nombre} guardados.";
+        }
+        finally
+        {
+            guardando = false;
+        }
+    }
+}

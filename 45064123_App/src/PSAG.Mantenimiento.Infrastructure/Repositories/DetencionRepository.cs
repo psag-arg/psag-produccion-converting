@@ -14,14 +14,50 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
     {
     }
 
+    /// <summary>
+    /// T-798 etapa 3: la fecha de producción y el turno salen del turno de producción, y la clasificación para
+    /// indicadores del tipo de falla. Las listas en memoria (dashboard, reportes) los necesitan cargados.
+    /// </summary>
+    private IQueryable<Detencion> ConTurnoYTipo() => _dbSet
+        .Include(d => d.TurnoProduccion).ThenInclude(t => t.Turno)
+        .Include(d => d.TipoFalla);
+
+    public override async Task<IEnumerable<Detencion>> GetAllAsync(CancellationToken cancellationToken = default) =>
+        await ConTurnoYTipo().ToListAsync(cancellationToken);
+
+    public override async Task<IEnumerable<Detencion>> FindAsync(Expression<Func<Detencion, bool>> predicate, CancellationToken cancellationToken = default) =>
+        await ConTurnoYTipo().Where(predicate).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Detencion>> GetPorTurnoProduccionAsync(long turnoProduccionId, CancellationToken cancellationToken = default) =>
+        (await ConTurnoYTipo()
+            .Include(d => d.Equipo)
+            .Where(d => d.TurnoProduccionId == turnoProduccionId)
+            .ToListAsync(cancellationToken))
+            .OrderBy(d => d.FechaHoraParada ?? d.FechaHoraCreacion)
+            .ToList();
+
+    public async Task<IReadOnlyDictionary<long, int>> GetMinutosQueCuentanPorTurnoAsync(
+        IReadOnlyCollection<long> turnoProduccionIds, CancellationToken cancellationToken = default)
+    {
+        if (turnoProduccionIds.Count == 0)
+            return new Dictionary<long, int>();
+        var filas = await _dbSet.AsNoTracking()
+            .Where(d => turnoProduccionIds.Contains(d.TurnoProduccionId))
+            .Where(DetencionIndicadores.CuentaExpr)
+            .GroupBy(d => d.TurnoProduccionId)
+            .Select(g => new { TurnoProduccionId = g.Key, Minutos = g.Sum(d => d.MinutosEfectivos) })
+            .ToListAsync(cancellationToken);
+        return filas.ToDictionary(f => f.TurnoProduccionId, f => f.Minutos);
+    }
+
     public async Task<Detencion?> GetByCodigoAsync(string codigo, CancellationToken cancellationToken = default)
     {
         return await _dbSet
             .Include(d => d.Linea)
+            .Include(d => d.TurnoProduccion).ThenInclude(t => t.Turno)
             .Include(d => d.Equipo)
             .Include(d => d.TipoFalla)
             .Include(d => d.DetalleFalla)
-            .Include(d => d.Turno)
             .FirstOrDefaultAsync(d => d.Codigo == codigo, cancellationToken);
     }
 
@@ -36,10 +72,10 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
     {
         return await _dbSet
             .Include(d => d.Linea)
+            .Include(d => d.TurnoProduccion).ThenInclude(t => t.Turno)
             .Include(d => d.Equipo)
             .Include(d => d.TipoFalla)
             .Include(d => d.DetalleFalla)
-            .Include(d => d.Turno)
             .Include(d => d.HistorialEstados.OrderByDescending(h => h.FechaHora))
             .Include(d => d.Notas.OrderByDescending(n => n.FechaHora))
             .AsSplitQuery()
@@ -50,10 +86,10 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
     {
         return await _dbSet
             .Include(d => d.Linea)
+            .Include(d => d.TurnoProduccion).ThenInclude(t => t.Turno)
             .Include(d => d.Equipo)
             .Include(d => d.TipoFalla)
             .Include(d => d.DetalleFalla)
-            .Include(d => d.Turno)
             .Include(d => d.HistorialEstados.OrderByDescending(h => h.FechaHora))
             .Include(d => d.Notas.OrderByDescending(n => n.FechaHora))
             .Include(d => d.CambiosAnalisis.OrderByDescending(c => c.FechaHora))
@@ -74,9 +110,9 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
         return await _dbSet
             .Include(d => d.Equipo)
             .Include(d => d.TipoFalla)
-            .Include(d => d.Turno)
+            .Include(d => d.TurnoProduccion).ThenInclude(t => t.Turno)
             .Where(d => d.LineaId == lineaId)
-            .OrderByDescending(d => d.Fecha)
+            .OrderByDescending(d => d.TurnoProduccion.FechaProduccion)
             .ThenByDescending(d => d.FechaHoraCreacion)
             .ToListAsync(cancellationToken);
     }
@@ -85,11 +121,11 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
     {
         return await _dbSet
             .Include(d => d.Linea)
+            .Include(d => d.TurnoProduccion).ThenInclude(t => t.Turno)
             .Include(d => d.Equipo)
             .Include(d => d.TipoFalla)
-            .Include(d => d.Turno)
             .Where(d => d.EstadoActual == estado)
-            .OrderByDescending(d => d.Fecha)
+            .OrderByDescending(d => d.TurnoProduccion.FechaProduccion)
             .ThenByDescending(d => d.FechaHoraCreacion)
             .ToListAsync(cancellationToken);
     }
@@ -98,11 +134,11 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
     {
         return await _dbSet
             .Include(d => d.Linea)
+            .Include(d => d.TurnoProduccion).ThenInclude(t => t.Turno)
             .Include(d => d.Equipo)
             .Include(d => d.TipoFalla)
-            .Include(d => d.Turno)
             .Where(d => d.EstadoActual != EstadoDetencion.CERRADA)
-            .OrderByDescending(d => d.Fecha)
+            .OrderByDescending(d => d.TurnoProduccion.FechaProduccion)
             .ThenByDescending(d => d.FechaHoraCreacion)
             .ToListAsync(cancellationToken);
     }
@@ -114,12 +150,12 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
     {
         return await _dbSet
             .Include(d => d.Linea)
+            .Include(d => d.TurnoProduccion).ThenInclude(t => t.Turno)
             .Include(d => d.Equipo)
             .Include(d => d.TipoFalla)
             .Include(d => d.DetalleFalla)
-            .Include(d => d.Turno)
-            .Where(d => d.Fecha >= desde && d.Fecha <= hasta)
-            .OrderByDescending(d => d.Fecha)
+            .Where(d => d.TurnoProduccion.FechaProduccion >= desde && d.TurnoProduccion.FechaProduccion <= hasta)
+            .OrderByDescending(d => d.TurnoProduccion.FechaProduccion)
             .ThenByDescending(d => d.FechaHoraCreacion)
             .ToListAsync(cancellationToken);
     }
@@ -132,11 +168,11 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
     {
         return await _dbSet
             .Include(d => d.Linea)
+            .Include(d => d.TurnoProduccion).ThenInclude(t => t.Turno)
             .Include(d => d.Equipo)
             .Include(d => d.TipoFalla)
             .Include(d => d.DetalleFalla)
-            .Include(d => d.Turno)
-            .Where(d => d.LineaId == lineaId && d.TurnoId == turnoId && d.Fecha == fecha)
+            .Where(d => d.LineaId == lineaId && d.TurnoProduccion.TurnoId == turnoId && d.TurnoProduccion.FechaProduccion == fecha)
             .OrderByDescending(d => d.FechaHoraCreacion)
             .ToListAsync(cancellationToken);
     }
@@ -166,6 +202,16 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
         return $"DET-{fecha}-{siguienteNumero:D6}";
     }
 
+    public async Task<IReadOnlyList<Detencion>> GetConParadaEntreAsync(
+        int lineaId, DateTimeOffset paradaDesde, DateTimeOffset paradaHasta, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet.AsNoTracking()
+            .Include(d => d.TurnoProduccion).ThenInclude(t => t.Turno)
+            .Where(d => d.LineaId == lineaId && d.FechaHoraParada != null
+                && d.FechaHoraParada >= paradaDesde && d.FechaHoraParada <= paradaHasta)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Detencion>> GetPorParadasCamaraAsync(IReadOnlyCollection<string> identificadores, CancellationToken cancellationToken = default)
     {
         if (identificadores.Count == 0)
@@ -176,22 +222,10 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<int>> GetUsuarioLineaIdsEnUsoAsync(IReadOnlyCollection<int> usuarioLineaIds, CancellationToken cancellationToken = default)
-    {
-        if (usuarioLineaIds.Count == 0)
-            return [];
-        return await _dbSet
-            .IgnoreQueryFilters()
-            .Where(d => d.UsuarioLineaId != null && usuarioLineaIds.Contains(d.UsuarioLineaId.Value))
-            .Select(d => d.UsuarioLineaId!.Value)
-            .Distinct()
-            .ToListAsync(cancellationToken);
-    }
-
     public async Task<IReadOnlyList<int>> GetLineasConDetencionesAsync(DateOnly desde, DateOnly hasta, CancellationToken cancellationToken = default)
     {
         return await _dbSet
-            .Where(d => d.Fecha >= desde && d.Fecha <= hasta)
+            .Where(d => d.TurnoProduccion.FechaProduccion >= desde && d.TurnoProduccion.FechaProduccion <= hasta)
             .Select(d => d.LineaId)
             .Distinct()
             .ToListAsync(cancellationToken);
@@ -201,10 +235,11 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
     {
         return await _dbSet
             .Include(d => d.Linea)
+            .Include(d => d.TurnoProduccion).ThenInclude(t => t.Turno)
             .Include(d => d.Equipo)
             .Include(d => d.TipoFalla)
             .Where(AnalisisFallaReglas.EstaAbiertoExpr)
-            .OrderBy(d => d.Fecha)
+            .OrderBy(d => d.TurnoProduccion.FechaProduccion)
             .ThenBy(d => d.DetencionId)
             .ToListAsync(cancellationToken);
     }
@@ -216,9 +251,10 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
     {
         return await AnalisisAbiertosAsignadosA(usuarioId, roles)
             .Include(d => d.Linea)
+            .Include(d => d.TurnoProduccion).ThenInclude(t => t.Turno)
             .Include(d => d.Equipo)
             .Include(d => d.TipoFalla)
-            .OrderBy(d => d.Fecha)
+            .OrderBy(d => d.TurnoProduccion.FechaProduccion)
             .ThenBy(d => d.DetencionId)
             .ToListAsync(cancellationToken);
     }
@@ -246,6 +282,7 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
     {
         return await _dbSet
             .Include(d => d.Linea)
+            .Include(d => d.TurnoProduccion).ThenInclude(t => t.Turno)
             .Include(d => d.Equipo)
             .Include(d => d.TipoFalla)
             .Where(d => d.RequiereAnalisis
@@ -267,11 +304,12 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
     {
         return await QuerySoluciones(busqueda, lineaId, equipoId, tipoFallaId, excluirDetencionId)
             .Include(d => d.Linea)
+            .Include(d => d.TurnoProduccion).ThenInclude(t => t.Turno)
             .Include(d => d.Equipo)
             .Include(d => d.TipoFalla)
             .Include(d => d.AdjuntosAnalisis.OrderBy(a => a.AnalisisAdjuntoId))
             .AsSplitQuery()
-            .OrderByDescending(d => d.Fecha)
+            .OrderByDescending(d => d.TurnoProduccion.FechaProduccion)
             .ThenByDescending(d => d.DetencionId)
             .Take(limite)
             .ToListAsync(cancellationToken);
@@ -345,15 +383,16 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
         string? ordenarPor = null,
         bool ordenDescendente = true,
         int? minutosMinimos = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        OrigenRegistroDetencion? origenRegistro = null)
     {
         IQueryable<Detencion> query = incluirEliminadas ? _dbSet.IgnoreQueryFilters() : _dbSet;
         query = query
             .Include(d => d.Linea)
+            .Include(d => d.TurnoProduccion).ThenInclude(t => t.Turno)
             .Include(d => d.Equipo)
             .Include(d => d.TipoFalla)
-            .Include(d => d.DetalleFalla)
-            .Include(d => d.Turno);
+            .Include(d => d.DetalleFalla);
 
         // Aplicar filtros
         if (lineaId.HasValue)
@@ -372,16 +411,19 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
             query = query.Where(d => d.DetalleFallaId == detalleFallaId.Value);
 
         if (turnoId.HasValue)
-            query = query.Where(d => d.TurnoId == turnoId.Value);
+            query = query.Where(d => d.TurnoProduccion.TurnoId == turnoId.Value);
 
         if (fechaDesde.HasValue)
-            query = query.Where(d => d.Fecha >= fechaDesde.Value);
+            query = query.Where(d => d.TurnoProduccion.FechaProduccion >= fechaDesde.Value);
 
         if (fechaHasta.HasValue)
-            query = query.Where(d => d.Fecha <= fechaHasta.Value);
+            query = query.Where(d => d.TurnoProduccion.FechaProduccion <= fechaHasta.Value);
 
         if (minutosMinimos.HasValue)
             query = query.Where(d => d.MinutosEfectivos >= minutosMinimos.Value);
+
+        if (origenRegistro.HasValue)
+            query = query.Where(d => d.OrigenRegistro == origenRegistro.Value);
 
         if (analisisPendiente.HasValue)
         {
@@ -411,8 +453,8 @@ public class DetencionRepository : RepositoryBase<Detencion>, IDetencionReposito
             "tipofalla" => ordenDescendente ? query.OrderByDescending(d => d.TipoFalla!.Nombre) : query.OrderBy(d => d.TipoFalla!.Nombre),
             "minutos" => ordenDescendente ? query.OrderByDescending(d => d.MinutosEfectivos) : query.OrderBy(d => d.MinutosEfectivos),
             _ => ordenDescendente
-                ? query.OrderByDescending(d => d.Fecha).ThenByDescending(d => d.FechaHoraCreacion)
-                : query.OrderBy(d => d.Fecha).ThenBy(d => d.FechaHoraCreacion)
+                ? query.OrderByDescending(d => d.TurnoProduccion.FechaProduccion).ThenByDescending(d => d.FechaHoraCreacion)
+                : query.OrderBy(d => d.TurnoProduccion.FechaProduccion).ThenBy(d => d.FechaHoraCreacion)
         };
 
         var items = await query

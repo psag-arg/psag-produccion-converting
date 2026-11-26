@@ -8,7 +8,7 @@ public class HallazgoNoOkConfiguration : IEntityTypeConfiguration<HallazgoNoOk>
 {
     public void Configure(EntityTypeBuilder<HallazgoNoOk> builder)
     {
-        builder.ToTable("HallazgosNoOk", "mnt");
+        builder.ToTable("INS_HallazgosNoOk", "mnt");
 
         builder.HasKey(h => h.HallazgoNoOkId);
 

@@ -5,7 +5,7 @@
 @attribute [Authorize]
 @inject IConteoCamaraService ConteoCamaraService
 @inject ICatalogosService CatalogosService
-@inject ICalidadService CalidadService
+@inject ICamarasService CamarasService
 
 <PageTitle>Paradas por cámara - PSAG Produccion</PageTitle>
 
@@ -14,8 +14,8 @@
         <h2 class="mb-0">Paradas y producción según la cámara</h2>
         <small class="text-muted">
             Todas las paradas que detectan las cámaras (también los microcortes) y si tienen una detención cargada.
-            La cámara 09 (cortadora) solo informa. La cámara 10 (rebobinadora) crea sola la detención cuando la parada
-            llega al umbral de Maestros → Calidad (5 min por defecto) y queda pendiente de declaración.
+            Las cámaras que crean detenciones (Maestros → Cámaras) dan de alta sola la detención cuando la parada llega
+            a su umbral (5 min por defecto) y queda pendiente de declaración; las demás solo informan.
         </small>
     </div>
 
@@ -42,11 +42,11 @@
                 </div>
                 <div class="col-6 col-md-2">
                     <label class="form-label">Cámara</label>
-                    <select class="form-select" @bind="puntoId" @bind:after="@(async () => await Buscar())" data-testid="filtro-camara">
+                    <select class="form-select" @bind="camaraId" @bind:after="@(async () => await Buscar())" data-testid="filtro-camara">
                         <option value="">Todas</option>
                         @foreach (var c in camaras)
                         {
-                            <option value="@c.PuntoControlCalidadId">@c.Codigo</option>
+                            <option value="@c.CamaraId">@c.Codigo</option>
                         }
                     </select>
                 </div>
@@ -57,6 +57,14 @@
                         <option value="60">1 min o más</option>
                         <option value="180">3 min o más</option>
                         <option value="600">10 min o más</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label">Umbral</label>
+                    <select class="form-select" @bind="umbral" @bind:after="@(async () => await Buscar())" title="Microparadas: no llegaron al umbral de detención de la cámara (no se piden declarar)">
+                        <option value="">Todas</option>
+                        <option value="si">Llegaron al umbral</option>
+                        <option value="no">Microparadas</option>
                     </select>
                 </div>
                 <div class="col-12 col-md-2">
@@ -78,14 +86,15 @@
     {
         <div class="alert @(a.Activa ? "alert-danger" : "alert-secondary") py-2" data-testid="alerta-camara">
             <i class="bi bi-camera-video-off me-1"></i>
-            <strong>@a.TipoDescripcion</strong> · @a.PuntoControlCodigo (@a.LineaNombre) desde @a.FechaHoraInicio.ToString("dd/MM HH:mm:ss")&nbsp;
+            <strong>@a.TipoDescripcion</strong> · @a.CamaraCodigo (@a.LineaNombre) desde @a.FechaHoraInicio.ToString("dd/MM HH:mm:ss")&nbsp;
             @if (a.FechaHoraFin is { } fin)
             {
                 <span>hasta @fin.ToString("HH:mm:ss") (resuelta).</span>
             }
             else
             {
-                <span>· sigue activa: no se detectan paradas de esa cámara mientras dure.</span>
+                <span>· sigue activa.</span>
+                @if (!string.IsNullOrEmpty(a.Detalle)) { <span class="small ms-1">@a.Detalle</span> }
             }
         </div>
     }
@@ -156,7 +165,7 @@
                                     <td>@p.LineaNombre</td>
                                     <td>@p.TurnoNombre</td>
                                     <td>@TipoTexto(p.Tipo)</td>
-                                    <td class="font-monospace small">@p.PuntoControlCodigo</td>
+                                    <td class="font-monospace small">@p.CamaraCodigo</td>
                                     <td>@p.Carriles</td>
                                     <td>
                                         @switch (p.Cruce)
@@ -166,16 +175,20 @@
                                                 <span class="small ms-1">@string.Join(", ", p.CodigosDetencion)</span>
                                                 break;
                                             case "POSIBLE":
-                                                <span class="badge text-bg-warning" title="Hay una detención del mismo día y turno sin horario: puede ser esta">Posible</span>
+                                                <span class="badge text-bg-warning" title="Hay una detención del mismo turno de producción sin horario: puede ser esta">Posible</span>
                                                 <span class="small ms-1">@string.Join(", ", p.CodigosDetencion)</span>
                                                 break;
                                             default:
                                                 <span class="badge text-bg-danger">Sin detención</span>
                                                 break;
                                         }
-                                        @if (p.SuperaUmbral)
+                                        @if (p.CreaDetencion)
                                         {
                                             <span class="badge bg-info-subtle text-info-emphasis ms-1" title="Llegó al umbral (@(p.UmbralTexto ?? "de la cámara")): la cámara crea la detención automática">Automática</span>
+                                        }
+                                        else if (!p.SuperaUmbral)
+                                        {
+                                            <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1" title="No llegó al umbral (@(p.UmbralTexto ?? "de la cámara")): queda registrada, no se pide declarar">Microparada</span>
                                         }
                                     </td>
                                 </tr>
@@ -192,8 +205,8 @@
             {
                 <text>Día de planta: de @produccion.Inicio.ToString("dd/MM HH:mm") a @produccion.Fin.ToString("dd/MM HH:mm") (el turno noche es del día en que empieza, como en la eficiencia).</text>
             }
-            Cámara 09: rollos estimados por la frecuencia de paso en cada carril. Cámara 10: mangas contadas al cruzar la mesa.
-            Cada cámara va por separado: rollos y mangas no se suman. Validar contra el contador de la máquina antes de usarlo como dato oficial.
+            Cada cámara cuenta en su magnitud (rollos por carril, mangas, bolsones...) y va por separado: no se suman.
+            Los totales por turno son por turno de producción. Validar contra el contador de la máquina antes de usarlo como dato oficial.
         </small>
         @if (produccion.Camaras.Count == 0)
         {
@@ -201,11 +214,12 @@
         }
         @foreach (var cam in produccion.Camaras)
         {
-            var esMangas = cam.Unidad == "mangas";
+            var unCarril = cam.Carriles.Count <= 1;
             <h6 class="mt-3" data-testid="produccion-camara">
                 <span class="font-monospace">@cam.Codigo</span> @cam.Nombre
                 @if (!string.IsNullOrEmpty(cam.LineaNombre)) { <span class="text-muted">· @cam.LineaNombre</span> }
                 <span class="text-muted">· @cam.Total.ToString("N0") @cam.Unidad</span>
+                @if (cam.CuentaProduccionOficial) { <span class="badge text-bg-primary ms-1" title="Cuenta la producción oficial de su magnitud en la línea">Oficial</span> }
             </h6>
             @if (cam.Turnos.Count > 0)
             {
@@ -228,7 +242,7 @@
                                 <th>Hora</th>
                                 @foreach (var c in cam.Carriles)
                                 {
-                                    <th class="text-end">@(esMangas ? "Mangas" : $"Carril {c}")</th>
+                                    <th class="text-end">@(unCarril ? char.ToUpper(cam.Unidad[0]) + cam.Unidad[1..] : $"Carril {c}")</th>
                                 }
                                 <th class="text-end">Total</th>
                                 <th class="text-end" title="Minutos-carril en marcha sobre minutos-carril con video">En marcha</th>
@@ -241,9 +255,9 @@
                                     <td>@h.Hora.ToString("dd/MM HH:mm")</td>
                                     @foreach (var c in cam.Carriles)
                                     {
-                                        <td class="text-end">@(h.RollosPorCarril.TryGetValue(c, out var r) ? r.ToString("N0") : "-")</td>
+                                        <td class="text-end">@(h.CantidadPorCarril.TryGetValue(c, out var r) ? r.ToString("N0") : "-")</td>
                                     }
-                                    <td class="text-end fw-semibold">@h.TotalRollos.ToString("N0")</td>
+                                    <td class="text-end fw-semibold">@h.Total.ToString("N0")</td>
                                     <td class="text-end">@(h.MinutosCarrilConDatos > 0 ? (100.0 * h.MinutosCarrilMarcha / h.MinutosCarrilConDatos).ToString("0") + " %" : "-")</td>
                                 </tr>
                             }
@@ -253,7 +267,7 @@
                                 <td>Día</td>
                                 @foreach (var c in cam.Carriles)
                                 {
-                                    <td class="text-end">@cam.Horas.Sum(h => h.RollosPorCarril.GetValueOrDefault(c)).ToString("N0")</td>
+                                    <td class="text-end">@cam.Horas.Sum(h => h.CantidadPorCarril.GetValueOrDefault(c)).ToString("N0")</td>
                                 }
                                 <td class="text-end">@cam.Total.ToString("N0")</td>
                                 <td></td>
@@ -270,11 +284,12 @@
     private DateTime desde = DateTime.Today.AddDays(-7);
     private DateTime hasta = DateTime.Today;
     private int? lineaId;
-    private int? puntoId;
-    private List<PuntoControlCalidadDto> camaras = [];
+    private int? camaraId;
+    private List<CamaraDto> camaras = [];
     private List<AlertaCamaraDto> alertas = [];
     private int segundosMinimos = 60;
     private bool soloSinDetencion = true;
+    private string umbral = "";   // T-784: "" todas, "si" llegaron al umbral, "no" microparadas
     private bool isLoading = true;
     private string? error;
     private List<LineaDto> lineas = [];
@@ -286,7 +301,7 @@
         try
         {
             lineas = await CatalogosService.GetLineasAsync();
-            camaras = await CalidadService.GetPuntosControlAsync(incluirInactivos: false);
+            camaras = (await CamarasService.GetCamarasAsync(incluirInactivas: false)).Where(c => c.Funcion == "CONTEO").ToList();
         }
         catch (Exception ex)
         {
@@ -303,8 +318,9 @@
         {
             var d = DateOnly.FromDateTime(desde);
             var h = DateOnly.FromDateTime(hasta);
-            var paradas = ConteoCamaraService.GetParadasAsync(d, h, lineaId, soloSinDetencion, segundosMinimos, puntoId);
-            var prod = ConteoCamaraService.GetProduccionAsync(h, lineaId, puntoId);
+            var paradas = ConteoCamaraService.GetParadasAsync(d, h, lineaId, soloSinDetencion, segundosMinimos, camaraId,
+                umbral switch { "si" => true, "no" => false, _ => null });
+            var prod = ConteoCamaraService.GetProduccionAsync(h, lineaId, camaraId);
             var al = ConteoCamaraService.GetAlertasAsync(lineaId, horas: 24);
             resultado = await paradas;
             produccion = await prod;

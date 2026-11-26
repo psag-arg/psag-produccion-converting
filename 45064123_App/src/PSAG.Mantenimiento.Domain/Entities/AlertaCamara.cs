@@ -3,16 +3,15 @@ using PSAG.Mantenimiento.Domain.Enums;
 namespace PSAG.Mantenimiento.Domain.Entities;
 
 /// <summary>
-/// Alerta de cámara congelada o sin video (T-610). La abre el servicio de cámara cuando deja de tener imagen
-/// confiable y la cierra (FechaHoraFin) cuando vuelve. Nunca se borra. Mientras está abierta no se detectan
-/// paradas, así que no se crean detenciones falsas.
+/// Alerta de cámara (T-610): congelada o sin video (las abre y cierra el servicio de cámara), sin configuración
+/// local (la manda el servicio) o sin datos con el turno abierto (la abre el job de la API; T-798 etapa 4). Se cierra
+/// (FechaHoraFin) cuando vuelve la imagen o llegan minutos. Nunca se borra.
 /// </summary>
 public class AlertaCamara
 {
     public long AlertaCamaraId { get; set; }
 
-    public int PuntoControlCalidadId { get; set; }
-    public int LineaId { get; set; }
+    public int CamaraId { get; set; }
 
     public TipoAlertaCamara Tipo { get; set; }
 
@@ -21,7 +20,7 @@ public class AlertaCamara
     /// <summary>Null mientras sigue la alerta.</summary>
     public DateTimeOffset? FechaHoraFin { get; set; }
 
-    /// <summary>Punto + tipo + inicio. Único: un reenvío no duplica, sólo completa el fin.</summary>
+    /// <summary>Cámara + tipo + inicio. Único: un reenvío no duplica, sólo completa el fin.</summary>
     public string IdentificadorExterno { get; set; } = string.Empty;
 
     public string? Detalle { get; set; }
@@ -32,6 +31,5 @@ public class AlertaCamara
     public bool Activa => FechaHoraFin == null;
 
     // Navegación
-    public virtual PuntoControlCalidad PuntoControl { get; set; } = null!;
-    public virtual Linea Linea { get; set; } = null!;
+    public virtual Camara Camara { get; set; } = null!;
 }

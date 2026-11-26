@@ -1,3 +1,5 @@
+using PSAG.Mantenimiento.Api.Autorizacion;
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -11,7 +13,7 @@ namespace PSAG.Mantenimiento.Api.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
-[Authorize(Roles = "ADMINISTRADOR")]
+[Authorize]
 public class UsuariosController : ApiControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;
@@ -33,6 +35,7 @@ public class UsuariosController : ApiControllerBase
 
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<UsuarioDto>), StatusCodes.Status200OK)]
+    [Permiso(AccionPermiso.Ver, Opciones.ConfigUsuarios, Opciones.ConfigMaquinistas, Opciones.MaestrosReglasAnalisis)]
     public async Task<IActionResult> GetUsuarios()
     {
         var users = await _userManager.Users.ToListAsync();
@@ -41,7 +44,7 @@ public class UsuariosController : ApiControllerBase
         foreach (var user in users)
         {
             var roles = await _userManager.GetRolesAsync(user);
-            var lineas = await _unitOfWork.UsuariosLineas.FindAsync(ul => ul.UsuarioId == user.Id);
+            var lineas = await _unitOfWork.OperadoresLinea.FindAsync(ul => ul.UsuarioId == user.Id);
             var lineasInfo = new List<LineaAsignadaDto>();
 
             foreach (var ul in lineas)
@@ -77,6 +80,7 @@ public class UsuariosController : ApiControllerBase
     [HttpGet("{id}")]
     [ProducesResponseType(typeof(UsuarioDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.ConfigUsuarios, AccionPermiso.Ver)]
     public async Task<IActionResult> GetUsuario(string id)
     {
         var user = await _userManager.FindByIdAsync(id);
@@ -84,7 +88,7 @@ public class UsuariosController : ApiControllerBase
             return NotFound();
 
         var roles = await _userManager.GetRolesAsync(user);
-        var lineas = await _unitOfWork.UsuariosLineas.FindAsync(ul => ul.UsuarioId == user.Id);
+        var lineas = await _unitOfWork.OperadoresLinea.FindAsync(ul => ul.UsuarioId == user.Id);
         var lineasInfo = new List<LineaAsignadaDto>();
 
         foreach (var ul in lineas)
@@ -117,6 +121,7 @@ public class UsuariosController : ApiControllerBase
     [HttpPost]
     [ProducesResponseType(typeof(UsuarioDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.ConfigUsuarios, AccionPermiso.Alta)]
     public async Task<IActionResult> CreateUsuario([FromBody] CrearUsuarioRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -134,9 +139,10 @@ public class UsuariosController : ApiControllerBase
             });
         }
 
-        if (DetencionCargaReglas.OperarioSinLineas(request.Roles, request.LineasAsignadas.Count))
+        request.LineasAsignadas = request.LineasAsignadas.Distinct().ToList();
+        if (await LineasInvalidasAsync(request.Roles, request.LineasAsignadas, true) is { } errorLineas)
         {
-            return OperarioSinLinea();
+            return errorLineas;
         }
 
         var user = new ApplicationUser
@@ -176,14 +182,14 @@ public class UsuariosController : ApiControllerBase
         // Asignar lineas
         foreach (var lineaId in request.LineasAsignadas)
         {
-            var usuarioLinea = new Domain.Entities.UsuarioLinea
+            var usuarioLinea = new Domain.Entities.OperadorLinea
             {
                 UsuarioId = user.Id,
                 LineaId = lineaId,
                 FechaAsignacion = DateTimeOffset.UtcNow,
                 AsignadoPorUsuarioId = CurrentUserId
             };
-            await _unitOfWork.UsuariosLineas.AddAsync(usuarioLinea);
+            await _unitOfWork.OperadoresLinea.AddAsync(usuarioLinea);
         }
 
         if (request.LineasAsignadas.Any())
@@ -194,7 +200,7 @@ public class UsuariosController : ApiControllerBase
         _logger.LogInformation("Usuario {UserName} creado por {UserId}", user.UserName, CurrentUserId);
 
         var roles = await _userManager.GetRolesAsync(user);
-        var lineas = await _unitOfWork.UsuariosLineas.FindAsync(ul => ul.UsuarioId == user.Id);
+        var lineas = await _unitOfWork.OperadoresLinea.FindAsync(ul => ul.UsuarioId == user.Id);
         var lineasInfo = new List<LineaAsignadaDto>();
 
         foreach (var ul in lineas)
@@ -228,6 +234,7 @@ public class UsuariosController : ApiControllerBase
     [ProducesResponseType(typeof(UsuarioDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.ConfigUsuarios, AccionPermiso.Modificar)]
     public async Task<IActionResult> UpdateUsuario(string id, [FromBody] ActualizarUsuarioRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -238,29 +245,16 @@ public class UsuariosController : ApiControllerBase
             return NotFound();
 
         // Un usuario inactivo se puede guardar igual (por ejemplo, para darlo de baja).
-        if (request.Activo && DetencionCargaReglas.OperarioSinLineas(request.Roles, request.LineasAsignadas.Count))
+        request.LineasAsignadas = request.LineasAsignadas.Distinct().ToList();
+        if (await LineasInvalidasAsync(request.Roles, request.LineasAsignadas, request.Activo) is { } errorLineas)
         {
-            return OperarioSinLinea();
+            return errorLineas;
         }
 
-        // Una línea que el usuario usó como maquinista en alguna detención no se le puede quitar (la FK de
-        // Detenciones.UsuarioLineaId lo impide). Se revisa antes de guardar nada: o se guarda todo o nada.
-        var lineasActuales = (await _unitOfWork.UsuariosLineas.FindAsync(ul => ul.UsuarioId == id)).ToList();
+        // T-798 etapa 3: la detención guarda el usuario (OperadorUsuarioId), no la habilitación: quitar una línea ya no
+        // choca con las detenciones históricas (siguen mostrando a su operador).
+        var lineasActuales = (await _unitOfWork.OperadoresLinea.FindAsync(ul => ul.UsuarioId == id)).ToList();
         var aQuitar = lineasActuales.Where(ul => !request.LineasAsignadas.Contains(ul.LineaId)).ToList();
-        var enUso = await _unitOfWork.Detenciones.GetUsuarioLineaIdsEnUsoAsync(aQuitar.Select(ul => ul.UsuarioLineaId).ToList());
-        if (enUso.Count > 0)
-        {
-            var nombres = new List<string>();
-            foreach (var ul in aQuitar.Where(ul => enUso.Contains(ul.UsuarioLineaId)))
-                nombres.Add((await _unitOfWork.Lineas.GetByIdAsync(ul.LineaId))?.Nombre ?? $"línea {ul.LineaId}");
-            return BadRequest(new ProblemDetails
-            {
-                Title = "No se puede quitar la línea",
-                Detail = $"No se puede quitar {string.Join(", ", nombres)}: el usuario tiene detenciones registradas como maquinista en esa línea. "
-                    + "Dejala asignada (si ya no trabaja ahí, desactivá el usuario o cambiale el turno en Configuración → Maquinistas).",
-                Status = StatusCodes.Status400BadRequest
-            });
-        }
 
         user.Email = request.Email;
         user.NombreCompleto = request.NombreCompleto;
@@ -297,13 +291,13 @@ public class UsuariosController : ApiControllerBase
         // Remover lineas que ya no estan (ninguna está en uso: se revisó arriba)
         foreach (var ul in aQuitar)
         {
-            _unitOfWork.UsuariosLineas.DeleteAsync(ul);
+            _unitOfWork.OperadoresLinea.DeleteAsync(ul);
         }
 
         // Agregar nuevas lineas
         foreach (var lineaId in request.LineasAsignadas.Where(id => !lineasActualesIds.Contains(id)))
         {
-            await _unitOfWork.UsuariosLineas.AddAsync(new Domain.Entities.UsuarioLinea
+            await _unitOfWork.OperadoresLinea.AddAsync(new Domain.Entities.OperadorLinea
             {
                 UsuarioId = user.Id,
                 LineaId = lineaId,
@@ -318,7 +312,7 @@ public class UsuariosController : ApiControllerBase
 
         // Recargar datos
         var roles = await _userManager.GetRolesAsync(user);
-        var lineas = await _unitOfWork.UsuariosLineas.FindAsync(ul => ul.UsuarioId == user.Id);
+        var lineas = await _unitOfWork.OperadoresLinea.FindAsync(ul => ul.UsuarioId == user.Id);
         var lineasInfo = new List<LineaAsignadaDto>();
 
         foreach (var ul in lineas)
@@ -350,6 +344,7 @@ public class UsuariosController : ApiControllerBase
 
     [HttpGet("roles")]
     [ProducesResponseType(typeof(IEnumerable<string>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.ConfigUsuarios, AccionPermiso.Ver)]
     public async Task<IActionResult> GetRoles()
     {
         var roles = await _roleManager.Roles.Select(r => r.Name).ToListAsync();
@@ -363,6 +358,7 @@ public class UsuariosController : ApiControllerBase
     [ProducesResponseType(typeof(EliminarUsuarioResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.ConfigUsuarios, AccionPermiso.Baja)]
     public async Task<IActionResult> DeleteUsuario(string id)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -387,11 +383,10 @@ public class UsuariosController : ApiControllerBase
         // Verificamos detenciones que es lo mas importante para trazabilidad
         var tieneDetenciones = await _unitOfWork.Detenciones.ExistsAsync(d => d.CreadoPorUsuarioId == id);
 
-        // También cuenta ser el maquinista de una detención (por ejemplo, una que creó la cámara): esas
-        // asignaciones no se pueden borrar (FK Detenciones.UsuarioLineaId), así que se desactiva.
-        var asignaciones = (await _unitOfWork.UsuariosLineas.FindAsync(ul => ul.UsuarioId == id)).ToList();
-        var esMaquinistaDeDetenciones = (await _unitOfWork.Detenciones.GetUsuarioLineaIdsEnUsoAsync(
-            asignaciones.Select(a => a.UsuarioLineaId).ToList())).Count > 0;
+        // También cuenta ser el operador de una detención (por ejemplo, una que creó la cámara): se desactiva para no
+        // perder la trazabilidad.
+        var asignaciones = (await _unitOfWork.OperadoresLinea.FindAsync(ul => ul.UsuarioId == id)).ToList();
+        var esMaquinistaDeDetenciones = await _unitOfWork.Detenciones.ExistsAsync(d => d.OperadorUsuarioId == id);
 
         bool tieneMovimientos = tieneDetenciones || esMaquinistaDeDetenciones;
 
@@ -426,7 +421,7 @@ public class UsuariosController : ApiControllerBase
             // Primero eliminar asignaciones de lineas
             foreach (var asignacion in asignaciones)
             {
-                _unitOfWork.UsuariosLineas.DeleteAsync(asignacion);
+                _unitOfWork.OperadoresLinea.DeleteAsync(asignacion);
             }
             await _unitOfWork.SaveChangesAsync();
 
@@ -457,6 +452,7 @@ public class UsuariosController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.ConfigUsuarios, AccionPermiso.Modificar)]
     public async Task<IActionResult> ResetPassword(string id, [FromBody] ResetPasswordRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -487,12 +483,68 @@ public class UsuariosController : ApiControllerBase
         return NoContent();
     }
 
-    private BadRequestObjectResult OperarioSinLinea() => BadRequest(new ProblemDetails
+    /// <summary>
+    /// Roles obligados a turno (CFG_RolesConfiguracion.ObligadoATurno, T-802): la pantalla de Usuarios pide las líneas
+    /// habilitadas cuando se elige alguno.
+    /// </summary>
+    [HttpGet("roles-obligados-turno")]
+    [ProducesResponseType(typeof(IEnumerable<string>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.ConfigUsuarios, AccionPermiso.Ver)]
+    public async Task<IActionResult> GetRolesObligadosATurno()
     {
-        Title = "Operario sin línea",
-        Detail = DetencionCargaReglas.MensajeOperarioSinLinea,
-        Status = StatusCodes.Status400BadRequest
-    });
+        var roles = await _roleManager.Roles.Select(r => r.Name).ToListAsync();
+        var obligados = new List<string>();
+        foreach (var rol in roles.Where(r => r != null).Select(r => r!))
+            if (await ObligadoATurnoAsync([rol]))
+                obligados.Add(rol);
+        return Ok(obligados.OrderBy(r => r));
+    }
+
+    /// <summary>
+    /// T-802 · Alta de usuario en un solo circuito: las líneas habilitadas se cargan con el usuario. Tienen que existir;
+    /// si algún rol elegido está obligado a turno (y el usuario queda activo), hace falta al menos una. El que es sólo
+    /// operario también necesita líneas para cargar detenciones (regla de antes).
+    /// </summary>
+    private async Task<IActionResult?> LineasInvalidasAsync(IList<string> roles, IList<int> lineas, bool activo)
+    {
+        foreach (var lineaId in lineas)
+        {
+            if (await _unitOfWork.Lineas.GetByIdAsync(lineaId) == null)
+                return BadRequest(new ProblemDetails
+                {
+                    Title = "Línea inexistente",
+                    Detail = $"La línea {lineaId} no existe.",
+                    Status = StatusCodes.Status400BadRequest
+                });
+        }
+        if (!activo || lineas.Count > 0)
+            return null;
+        if (await ObligadoATurnoAsync(roles))
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Faltan las líneas habilitadas",
+                Detail = TurnoObligatorioReglas.MensajeObligadoSinLineas,
+                Status = StatusCodes.Status400BadRequest
+            });
+        if (DetencionCargaReglas.OperarioSinLineas(roles, 0))
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Operario sin línea",
+                Detail = DetencionCargaReglas.MensajeOperarioSinLinea,
+                Status = StatusCodes.Status400BadRequest
+            });
+        return null;
+    }
+
+    /// <summary>Alguno de los roles está obligado a turno (configurable; fuera de una request, la regla migrada: OPERARIO).</summary>
+    private async Task<bool> ObligadoATurnoAsync(IEnumerable<string> roles)
+    {
+        var servicio = HttpContext?.RequestServices?.GetService(typeof(Application.Services.Interfaces.IPermisosService))
+            as Application.Services.Interfaces.IPermisosService;
+        if (servicio == null)
+            return roles.Any(r => CatalogoPermisos.RolesObligadosATurno.Contains(r.ToUpperInvariant()));
+        return (await servicio.ObtenerDeRolesAsync(roles)).ObligadoATurno;
+    }
 }
 
 public class ResetPasswordRequest

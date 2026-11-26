@@ -15,6 +15,7 @@ using PSAG.Mantenimiento.ConteoCamara.Video;
 //   simular --raw X.raw@2026-11-14T09:53:38-03:00 [--raw Y.raw@...] [--saltar N]
 //           --variante antes:Mangas:UmbralPasoAlto=12;Mangas:SegundosMinimosEntrePasos=1.2 --variante despues
 //           [--ref eventos.txt] [--tramo "A=2026-11-14T10:10/2026-11-14T10:26"] [--ventanas salida.csv]
+//       Detector de paradas: el del appsettings (VENTANAS, reglas A/E/F); para probar T-784: --variante t784:Mangas:DetectorParadas=MANGAS
 //       Cada variante es la configuración de T2-CAM10 del appsettings.json (--config, por defecto el del servicio)
 //       con los cambios indicados (claves relativas a la cámara). Todas corren sobre los mismos cuadros, en una
 //       pasada. Los raw se encadenan sin cortar la señal (son tramos seguidos del mismo video).
@@ -103,6 +104,9 @@ int Simular()
         var o = v.Opciones;
         Console.WriteLine();
         Console.WriteLine($"=== {v.Nombre}  " + (v.Cambios.Count == 0 ? "(appsettings)" : string.Join("; ", v.Cambios.Select(c => $"{c.Key}={c.Value}"))));
+        Console.WriteLine($"    Detector {o.Mangas.DetectorParadas}" + (DetectoresParadas.EsMangas(o.Mangas.DetectorParadas)
+            ? $" (T-784: SinMangas {o.Mangas.SegundosSinMangasParaParada} s, Reanudar {o.Mangas.MangasParaReanudar}, RodilloQuietoTipo {o.Mangas.SegundosRodilloQuietoParaParada} s; regla F no aplica)"
+            : ""));
         Console.WriteLine($"    PasoAlto {o.Mangas.UmbralPasoAlto} PasoBajo {o.Mangas.UmbralPasoBajo} EntrePasos {o.Mangas.SegundosMinimosEntrePasos} " +
                           $"RodilloGira {o.Mangas.UmbralRodilloGira} FraccionQuieto {o.Mangas.FraccionRodilloQuieto} FraccionGiraMarcha {o.Mangas.FraccionRodilloGiraParaMarcha} " +
                           $"VentanasConfirmar {o.Analisis.VentanasParaConfirmar} VentanasArranque {o.Analisis.VentanasParaConfirmarArranque} DescontarEnParada {o.Mangas.DescontarMangasEnParada}");
@@ -151,12 +155,12 @@ static OpcionesConteo Camara10(string ruta, IDictionary<string, string> cambios)
 {
     var baseConf = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(ruta)).Build();
     var indice = baseConf.GetSection("ConteoCamara:Camaras").GetChildren()
-        .First(c => string.Equals(c["PuntoControl"], "T2-CAM10", StringComparison.OrdinalIgnoreCase)).Key;
+        .First(c => string.Equals(c["Camara"] ?? c["PuntoControl"], "T2-CAM10", StringComparison.OrdinalIgnoreCase)).Key;
     var conf = new ConfigurationBuilder()
         .AddConfiguration(baseConf)
         .AddInMemoryCollection(cambios.Select(c => KeyValuePair.Create($"ConteoCamara:Camaras:{indice}:{c.Key}", (string?)c.Value)))
         .Build();
-    return OpcionesConteo.CargarCamaras(conf).First(c => c.PuntoControl == "T2-CAM10");
+    return OpcionesConteo.CargarCamaras(conf).First(c => c.Camara == "T2-CAM10");
 }
 
 internal sealed class Captura : ISalidaConteo

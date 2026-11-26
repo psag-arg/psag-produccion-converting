@@ -11,8 +11,11 @@ public sealed class OpcionesConteo
 {
     public const string Seccion = "ConteoCamara";
 
-    /// <summary>Código del punto de control (Maestros → Calidad) que identifica la cámara. Define la línea.</summary>
-    public string PuntoControl { get; set; } = "T2-CAM09";
+    /// <summary>
+    /// Código de la cámara (Maestros → Cámaras, T-798 etapa 4). Define la línea. Es la clave con la API: la cámara
+    /// corre sólo si está habilitada allá (GET api/camaras/configuracion) y tiene esta calibración local.
+    /// </summary>
+    public string Camara { get; set; } = "T2-CAM09";
 
     /// <summary>
     /// CARRILES: brillo de los carriles de rollitos a la salida de la cortadora (cámara 09).
@@ -20,8 +23,17 @@ public sealed class OpcionesConteo
     /// </summary>
     public string Metodo { get; set; } = MetodosConteo.Carriles;
 
-    /// <summary>Apagada, el servicio no la lee (las herramientas sí, con --camara). Para dejarla lista sin permiso en el NVR.</summary>
-    public bool Activa { get; set; } = true;
+    /// <summary>
+    /// T-798 etapa 4: el appsettings traía "Activa" (ya no se usa: la habilitación está en Maestros → Cámaras). Si
+    /// viene, se ignora y el servicio lo avisa en el log.
+    /// </summary>
+    public bool ActivaIgnorada { get; set; }
+
+    /// <summary>La entrada de la cámara define su propia ruta o canal del grabador (si no, el canal sale de la API).</summary>
+    public bool RutaPropia { get; set; }
+
+    /// <summary>Si la cámara informa paradas, según Maestros → Cámaras (null = sin dato de la API: según el método).</summary>
+    public bool? DetectaParadas { get; set; }
 
     public OpcionesFuente Fuente { get; set; } = new();
     public OpcionesZonas Zonas { get; set; } = new();
@@ -32,10 +44,14 @@ public sealed class OpcionesConteo
 
     public bool EsMangas => string.Equals(Metodo, MetodosConteo.Mangas, StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>T-785: cámara 8, cuenta bolsones (pasos por una zona, como las mangas) y no detecta paradas.</summary>
+    public bool EsBolsones => string.Equals(Metodo, MetodosConteo.Bolsones, StringComparison.OrdinalIgnoreCase);
+
     /// <summary>
-    /// Cámaras que corre el servicio. Sin "ConteoCamara:Camaras" es una sola, la de la sección (como hasta ahora,
-    /// cámara 09). Con la lista, cada cámara arranca de la sección común (Fuente, Api, Analisis, Vigilancia) y
-    /// pisa lo que defina; si no define su carpeta de pendientes, usa una subcarpeta con su código.
+    /// Calibraciones locales de las cámaras (qué sabe analizar el servicio). Sin "ConteoCamara:Camaras" es una sola,
+    /// la de la sección (como hasta ahora, cámara 09). Con la lista, cada cámara arranca de la sección común (Fuente,
+    /// Api, Analisis, Vigilancia) y pisa lo que defina; si no define su carpeta de pendientes, usa una subcarpeta con su
+    /// código. Cuáles corren lo decide la API (Maestros → Cámaras → Habilitada), no este archivo.
     /// </summary>
     public static List<OpcionesConteo> CargarCamaras(IConfiguration configuracion)
     {
@@ -45,6 +61,9 @@ public sealed class OpcionesConteo
         {
             var unica = new OpcionesConteo();
             seccion.Bind(unica);
+            unica.Camara = CodigoDe(seccion) ?? unica.Camara;
+            unica.ActivaIgnorada = seccion.GetSection("Activa").Exists();
+            unica.RutaPropia = seccion.GetSection("Fuente:RutaRtsp").Exists() || seccion.GetSection("Fuente:Canal").Exists();
             return [unica];
         }
 
@@ -60,15 +79,43 @@ public sealed class OpcionesConteo
             if (!camara.GetSection(nameof(Zonas)).Exists())
                 seccion.GetSection(nameof(Zonas)).Bind(o.Zonas);
             camara.Bind(o);
+            o.Camara = CodigoDe(camara) ?? o.Camara;
+            o.ActivaIgnorada = camara.GetSection("Activa").Exists();
+            o.RutaPropia = camara.GetSection("Fuente:RutaRtsp").Exists() || camara.GetSection("Fuente:Canal").Exists();
             // La cámara de la sección común (la 09 de siempre) conserva su carpeta: no quedan lotes huérfanos al actualizar.
-            var esLaDeSiempre = string.Equals(o.PuntoControl, seccion[nameof(PuntoControl)], StringComparison.OrdinalIgnoreCase);
+            var esLaDeSiempre = string.Equals(o.Camara, CodigoDe(seccion), StringComparison.OrdinalIgnoreCase);
             if (camara.GetSection("Api:CarpetaPendientes").Value == null && !esLaDeSiempre)
-                o.Api.CarpetaPendientes = Path.Combine(o.Api.CarpetaPendientes, o.PuntoControl);
+                o.Api.CarpetaPendientes = Path.Combine(o.Api.CarpetaPendientes, o.Camara);
             lista.Add(o);
         }
-        if (lista.Select(c => c.PuntoControl.ToUpperInvariant()).Distinct().Count() != lista.Count)
-            throw new InvalidOperationException("Hay dos cámaras con el mismo PuntoControl en ConteoCamara:Camaras.");
+        if (lista.Select(c => c.Camara.ToUpperInvariant()).Distinct().Count() != lista.Count)
+            throw new InvalidOperationException("Hay dos cámaras con el mismo código (Camara) en ConteoCamara:Camaras.");
         return lista;
+    }
+
+    /// <summary>
+    /// Código de la cámara de una sección: "Camara" o, en un appsettings viejo (el appsettings.local.json del servidor),
+    /// "PuntoControl", que era el código del punto de control y la migración conservó. Si vienen los dos, gana "Camara".
+    /// </summary>
+    private static string? CodigoDe(IConfigurationSection seccion) =>
+        !string.IsNullOrWhiteSpace(seccion[nameof(Camara)]) ? seccion[nameof(Camara)]
+        : !string.IsNullOrWhiteSpace(seccion["PuntoControl"]) ? seccion["PuntoControl"]
+        : null;
+
+    /// <summary>Opciones de la API de la sección común (UrlBase, clave, carpeta de pendientes): para pedir la configuración.</summary>
+    public static OpcionesApi CargarApiComun(IConfiguration configuracion)
+    {
+        var api = new OpcionesApi();
+        configuracion.GetSection(Seccion).GetSection(nameof(Api)).Bind(api);
+        return api;
+    }
+
+    /// <summary>Copia (para aplicarle lo que dice la API sin tocar la calibración cargada del archivo).</summary>
+    public OpcionesConteo Copiar()
+    {
+        var copia = (OpcionesConteo)MemberwiseClone();
+        copia.Fuente = (OpcionesFuente)Fuente.Copiar();
+        return copia;
     }
 }
 
@@ -76,6 +123,24 @@ public static class MetodosConteo
 {
     public const string Carriles = "CARRILES";
     public const string Mangas = "MANGAS";
+
+    /// <summary>Pasos de bolsones por una zona (cámara 8, T-785). Mismo contador que las mangas, sin paradas.</summary>
+    public const string Bolsones = "BOLSONES";
+}
+
+/// <summary>T-804: detectores de paradas de la cámara de mangas (<see cref="OpcionesMangas.DetectorParadas"/>).</summary>
+public static class DetectoresParadas
+{
+    /// <summary>Ventanas de 10 s con histéresis y reglas A/E/F (default, validado con video del 13 y 14/11).</summary>
+    public const string Ventanas = "VENTANAS";
+
+    /// <summary>Cuadro a cuadro por mangas y rodillo (T-784). Activable por parámetro para probar.</summary>
+    public const string Mangas = "MANGAS";
+
+    public static bool EsMangas(string? valor) => string.Equals(valor?.Trim(), Mangas, StringComparison.OrdinalIgnoreCase);
+
+    public static bool EsValido(string? valor) =>
+        string.Equals(valor?.Trim(), Ventanas, StringComparison.OrdinalIgnoreCase) || EsMangas(valor);
 }
 
 /// <summary>Rectángulo en px de la imagen original de la cámara (se escala a la resolución decodificada).</summary>
@@ -137,6 +202,27 @@ public sealed class OpcionesMangas
     /// cuentan sólo si se confirma el arranque (Analisis:VentanasParaConfirmarArranque).
     /// </summary>
     public bool DescontarMangasEnParada { get; set; } = true;
+
+    /// <summary>
+    /// T-804: con qué detector salen las paradas de la cámara de mangas (<see cref="DetectoresParadas"/>).
+    /// VENTANAS (default, productivo desde el 19/11): histéresis de ventanas de 10 s de <see cref="Analisis.DetectorParadas"/>
+    /// con las reglas A, E y F. MANGAS (T-784, para probar): <see cref="Analisis.DetectorParadasMangas"/>, cuadro a cuadro,
+    /// con SegundosSinMangasParaParada, MangasParaReanudar y SegundosRodilloQuietoParaParada; ahí la regla F no aplica
+    /// (las mangas se cuentan siempre). Sin paradas (cámara 8) da lo mismo: sólo cuenta.
+    /// </summary>
+    public string DetectorParadas { get; set; } = DetectoresParadas.Ventanas;
+
+    /// <summary>
+    /// Sólo con DetectorParadas = MANGAS (T-784): segundos sin mangas, o con el rodillo quieto seguido, para dar la
+    /// máquina por parada. Tiene que ser más que la separación del empalme (mangas cada ~7 s con la máquina más lenta).
+    /// </summary>
+    public double SegundosSinMangasParaParada { get; set; } = 10;
+
+    /// <summary>Sólo con MANGAS: mangas seguidas (a menos de SegundosSinMangasParaParada una de otra) para dar la máquina por reanudada.</summary>
+    public int MangasParaReanudar { get; set; } = 2;
+
+    /// <summary>Sólo con MANGAS: segundos seguidos con el rodillo quieto durante la parada para que sea de tipo PARADA (si no, SIN_MANGAS).</summary>
+    public double SegundosRodilloQuietoParaParada { get; set; } = 5;
 }
 
 /// <summary>
@@ -160,6 +246,8 @@ public sealed class OpcionesVigilancia
 
 public sealed class OpcionesFuente
 {
+    public OpcionesFuente Copiar() => (OpcionesFuente)MemberwiseClone();
+
     /// <summary>ffmpeg.exe portable. Relativo a la carpeta del servicio o absoluto.</summary>
     public string RutaFfmpeg { get; set; } = @"ffmpeg\ffmpeg.exe";
 
@@ -168,8 +256,17 @@ public sealed class OpcionesFuente
 
     public int PuertoRtsp { get; set; } = 554;
 
-    /// <summary>Canal 09 en vivo, stream principal.</summary>
+    /// <summary>Canal 09 en vivo, stream principal. Si hay <see cref="Canal"/>, manda el canal.</summary>
     public string RutaRtsp { get; set; } = "/Streaming/Channels/901";
+
+    /// <summary>
+    /// T-785: número de cámara del grabador Hikvision (8, 9, 10...). Si está, la ruta es la del stream principal de
+    /// ese canal (/Streaming/Channels/{Canal}01) y no hace falta escribir RutaRtsp. Se configura por cámara.
+    /// </summary>
+    public int? Canal { get; set; }
+
+    /// <summary>Ruta RTSP que se usa: la del canal si está configurado; si no, RutaRtsp.</summary>
+    public string RutaEfectiva => Canal is > 0 ? $"/Streaming/Channels/{Canal}01" : RutaRtsp;
 
     /// <summary>Resolución a la que ffmpeg entrega los cuadros (gris, 1 byte por píxel).</summary>
     public int AnchoDecodificado { get; set; } = 640;
@@ -262,4 +359,7 @@ public sealed class OpcionesApi
     public string CarpetaPendientes { get; set; } = "pendientes";
 
     public int SegundosEntreEnvios { get; set; } = 30;
+
+    /// <summary>Cada cuántos minutos se vuelve a pedir la lista de cámaras habilitadas (GET api/camaras/configuracion).</summary>
+    public int MinutosRefrescoConfiguracion { get; set; } = 5;
 }

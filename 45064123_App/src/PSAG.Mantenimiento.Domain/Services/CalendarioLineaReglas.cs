@@ -15,10 +15,18 @@ public static class CalendarioLineaReglas
     public static bool PuedeEditar(IEnumerable<string> roles, IEnumerable<int> lineasAsignadas, int lineaId)
     {
         var lista = roles.ToList();
-        if (lista.Contains(RolesSistema.Administrador))
-            return true;
+        return PuedeEditar(lista.Contains(RolesSistema.Administrador) || lista.Contains(RolesSistema.Supervisor), lista, lineasAsignadas, lineaId);
+    }
 
-        return lista.Contains(RolesSistema.Supervisor) && lineasAsignadas.Contains(lineaId);
+    /// <summary>
+    /// T-802: el permiso ("Horas programadas", ALTA/BAJA) es configurable; el alcance por línea queda en el código:
+    /// el administrador, todas las líneas; el resto, sólo las asignadas.
+    /// </summary>
+    public static bool PuedeEditar(bool permiso, IEnumerable<string> roles, IEnumerable<int> lineasAsignadas, int lineaId)
+    {
+        if (!permiso)
+            return false;
+        return roles.Contains(RolesSistema.Administrador) || lineasAsignadas.Contains(lineaId);
     }
 
     /// <summary>

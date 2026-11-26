@@ -9,6 +9,7 @@
 @inject ICatalogosService CatalogosService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
+@inject IPermisosService PermisosService
 
 <PageTitle>Tareas de mantenimiento - PSAG Produccion</PageTitle>
 
@@ -205,7 +206,7 @@
 @* Modal Nueva tarea *@
 @if (showModal)
 {
-    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: var(--psag-velo);">
         <div class="modal-dialog modal-lg modal-fullscreen-sm-down modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
@@ -317,7 +318,7 @@
 @* Confirmación de cierre *@
 @if (tareaACerrar != null)
 {
-    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: var(--psag-velo);">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
@@ -404,8 +405,10 @@
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
-        puedeCargar = TareaMantenimientoOpciones.PuedeCargar(user.IsInRole);
-        puedeGestionar = TareaMantenimientoOpciones.PuedeGestionar(user.IsInRole);
+        // T-802: cargar = ALTA y programar/cerrar = MODIFICACION de "Pendientes y programadas"
+        var permisos = await PermisosService.ObtenerAsync();
+        puedeCargar = permisos.Tiene(Opciones.TareasPendientes, AccionPermiso.Alta);
+        puedeGestionar = permisos.Tiene(Opciones.TareasPendientes, AccionPermiso.Modificar);
         var esSoloOperario = RolesCarga.SoloOperario(user.IsInRole);
 
         // Catálogos y tareas no dependen entre sí: se piden juntos.

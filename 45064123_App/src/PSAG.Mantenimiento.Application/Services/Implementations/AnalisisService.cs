@@ -1,3 +1,4 @@
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.Extensions.Logging;
 using PSAG.Mantenimiento.Application.Common;
 using PSAG.Mantenimiento.Application.DTOs.Analisis;
@@ -28,8 +29,12 @@ public class AnalisisService : IAnalisisService
     {
     }
 
-    public AnalisisService(IUnitOfWork unitOfWork, TimeZoneInfo zonaPlanta, ILogger<AnalisisService> logger)
+    /// <summary>Permisos configurables del usuario de la request (T-802); null fuera de una request (tests, jobs): regla por rol.</summary>
+    private readonly IPermisosUsuarioActual? _permisos;
+
+    public AnalisisService(IUnitOfWork unitOfWork, TimeZoneInfo zonaPlanta, ILogger<AnalisisService> logger, IPermisosUsuarioActual? permisos = null)
     {
+        _permisos = permisos;
         _unitOfWork = unitOfWork;
         _zonaPlanta = zonaPlanta;
         _logger = logger;
@@ -45,7 +50,7 @@ public class AnalisisService : IAnalisisService
         if (detencion == null)
             return Result<AnalisisDetencionDto>.Failure("NOT_FOUND", "Detención no encontrada.");
 
-        return Result<AnalisisDetencionDto>.Success(await ArmarDtoAsync(_unitOfWork, detencion, usuarioId, roles, cancellationToken));
+        return Result<AnalisisDetencionDto>.Success(await ArmarDtoAsync(_unitOfWork, detencion, usuarioId, roles, cancellationToken, await EditaCerradoAsync(roles, cancellationToken)));
     }
 
     public async Task<Result<AnalisisDetencionDto>> GuardarBorradorAsync(
@@ -75,7 +80,7 @@ public class AnalisisService : IAnalisisService
         _logger.LogInformation("Análisis de la detención {DetencionId} guardado como borrador por usuario {UsuarioId}",
             detencionId, usuarioId);
 
-        return Result<AnalisisDetencionDto>.Success(await ArmarDtoAsync(_unitOfWork, detencion, usuarioId, roles, cancellationToken));
+        return Result<AnalisisDetencionDto>.Success(await ArmarDtoAsync(_unitOfWork, detencion, usuarioId, roles, cancellationToken, await EditaCerradoAsync(roles, cancellationToken)));
     }
 
     public async Task<Result<AnalisisDetencionDto>> CerrarAsync(
@@ -109,7 +114,7 @@ public class AnalisisService : IAnalisisService
         _logger.LogInformation("Análisis de la detención {DetencionId} cerrado por usuario {UsuarioId}",
             detencionId, usuarioId);
 
-        return Result<AnalisisDetencionDto>.Success(await ArmarDtoAsync(_unitOfWork, detencion, usuarioId, roles, cancellationToken));
+        return Result<AnalisisDetencionDto>.Success(await ArmarDtoAsync(_unitOfWork, detencion, usuarioId, roles, cancellationToken, await EditaCerradoAsync(roles, cancellationToken)));
     }
 
     public async Task<Result<MisPendientesDto>> ObtenerMisPendientesAsync(
@@ -166,7 +171,7 @@ public class AnalisisService : IAnalisisService
             CerradasEsteMes = cerradasEsteMes,
             DemoraPromedioDias = visibles.Count == 0
                 ? null
-                : visibles.Average(d => (double)(hoy.DayNumber - d.Fecha.DayNumber)),
+                : visibles.Average(d => (double)(hoy.DayNumber - d.TurnoProduccion.FechaProduccion.DayNumber)),
             Responsables = responsables
         };
 
@@ -217,7 +222,7 @@ public class AnalisisService : IAnalisisService
             Total = total,
             Limite = LimiteSoluciones,
             Items = items,
-            PuedeEditar = AnalisisEdicionReglas.PuedeEditarCerrado(roles)
+            PuedeEditar = await EditaCerradoAsync(roles, cancellationToken)
         });
     }
 
@@ -277,8 +282,8 @@ public class AnalisisService : IAnalisisService
             .ToDictionary(l => l.LineaId, l => l.Nombre);
         var nombresTurnos = (await _unitOfWork.Turnos.GetAllAsync(cancellationToken))
             .ToDictionary(t => t.TurnoId, t => t.Nombre);
-        var camaras = (await _unitOfWork.PuntosControlCalidad.GetAllAsync(cancellationToken))
-            .ToDictionary(p => p.PuntoControlCalidadId, p => p.Codigo);
+        var camaras = (await _unitOfWork.Camaras.GetAllAsync(cancellationToken))
+            .ToDictionary(c => c.CamaraId, c => c.Codigo);
 
         var pendientes = lineasIds == null
             ? await _unitOfWork.Detenciones.FindAsync(d => d.EstadoActual == EstadoDetencion.PENDIENTE_JUSTIFICACION, cancellationToken)
@@ -287,20 +292,20 @@ public class AnalisisService : IAnalisisService
                 cancellationToken);
 
         return pendientes
-            .OrderBy(d => d.Fecha)
+            .OrderBy(d => d.TurnoProduccion.FechaProduccion)
             .ThenBy(d => d.DetencionId)
             .Select(d => new PendienteDeclaracionDto
             {
                 DetencionId = d.DetencionId,
                 Codigo = d.Codigo,
-                Fecha = d.Fecha,
+                Fecha = d.TurnoProduccion.FechaProduccion,
                 LineaNombre = nombresLineas.GetValueOrDefault(d.LineaId, string.Empty),
-                TurnoNombre = nombresTurnos.GetValueOrDefault(d.TurnoId, string.Empty),
+                TurnoNombre = nombresTurnos.GetValueOrDefault(d.TurnoProduccion.TurnoId, string.Empty),
                 FechaHoraParada = d.FechaHoraParada,
                 FechaHoraArranque = d.FechaHoraArranque,
                 FechaHoraArranqueDetectada = d.FechaHoraArranqueDetectada,
                 OrigenRegistro = d.OrigenRegistro.ToString(),
-                CamaraCodigo = d.PuntoControlCalidadId is { } p ? camaras.GetValueOrDefault(p) : null,
+                CamaraCodigo = d.CamaraId is { } c ? camaras.GetValueOrDefault(c) : null,
                 MinutosEfectivos = d.MinutosEfectivos,
                 EstadoActualDescripcion = d.EstadoActual.ObtenerDescripcion()
             })
@@ -315,19 +320,26 @@ public class AnalisisService : IAnalisisService
     }
 
     private Task<int[]> LineasDelUsuarioAsync(string usuarioId, CancellationToken cancellationToken) =>
-        _unitOfWork.UsuariosLineas.GetLineaIdsAsync(usuarioId, cancellationToken);
+        _unitOfWork.OperadoresLinea.GetLineaIdsAsync(usuarioId, cancellationToken);
 
     /// <summary>
     /// DTO del análisis a partir de una detención ya cargada con GetByIdConAnalisisAsync.
     /// AnalisisEdicionService lo usa después de guardar, sin volver a leer la detención.
     /// </summary>
+    /// <summary>"Corregir análisis cerrado" (T-802): permiso configurable; sin request, la regla por rol (administrador y supervisor).</summary>
+    private Task<bool> EditaCerradoAsync(IReadOnlyCollection<string> roles, CancellationToken cancellationToken) =>
+        _permisos.PermiteAsync(Opciones.DetencionesAnalisisCerrado, AccionPermiso.Modificar,
+            () => AnalisisEdicionReglas.PuedeEditarCerrado(roles), cancellationToken);
+
     internal static async Task<AnalisisDetencionDto> ArmarDtoAsync(
         IUnitOfWork unitOfWork,
         Detencion detencion,
         string usuarioId,
         IReadOnlyCollection<string> roles,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool? puedeEditarCerrado = null)
     {
+        var editaCerrado = puedeEditarCerrado ?? AnalisisEdicionReglas.PuedeEditarCerrado(roles);
         var dto = new AnalisisDetencionDto
         {
             DetencionId = detencion.DetencionId,
@@ -348,8 +360,8 @@ public class AnalisisService : IAnalisisService
                 && (detencion.EstadoActual == EstadoDetencion.REGISTRADA || detencion.EstadoActual == EstadoDetencion.EN_SEGUIMIENTO)
                 && AnalisisFallaReglas.PuedeEditar(detencion, usuarioId, roles),
             PuedeEditarCerrado = detencion.EstadoActual == EstadoDetencion.CERRADA
-                && AnalisisEdicionReglas.PuedeEditarCerrado(roles),
-            PuedeAdjuntar = AnalisisEdicionReglas.PuedeAdjuntar(detencion, usuarioId, roles),
+                && editaCerrado,
+            PuedeAdjuntar = AnalisisEdicionReglas.PuedeAdjuntar(detencion, usuarioId, roles, editaCerrado),
             Adjuntos = detencion.AdjuntosAnalisis
                 .OrderBy(a => a.AnalisisAdjuntoId)
                 .Select(MapearAdjunto)
@@ -454,7 +466,7 @@ public class AnalisisService : IAnalisisService
     {
         DetencionId = detencion.DetencionId,
         Codigo = detencion.Codigo,
-        Fecha = detencion.Fecha,
+        Fecha = detencion.TurnoProduccion.FechaProduccion,
         LineaNombre = detencion.Linea?.Nombre ?? string.Empty,
         EquipoNombre = detencion.Equipo?.Nombre,
         EquipoCritico = detencion.Equipo?.Critico ?? false,
@@ -464,7 +476,7 @@ public class AnalisisService : IAnalisisService
         EstadoActualDescripcion = detencion.EstadoActual.ObtenerDescripcion(),
         EstadoAnalisisDescripcion = detencion.ObtenerDescripcionAnalisis(),
         DiasEsperando = AnalisisFallaReglas.EstaAbierto(detencion)
-            ? hoy.DayNumber - detencion.Fecha.DayNumber
+            ? hoy.DayNumber - detencion.TurnoProduccion.FechaProduccion.DayNumber
             : null,
         ResponsableRol = detencion.ResponsableRol,
         ResponsableUsuarioId = detencion.ResponsableUsuarioId,
@@ -477,7 +489,7 @@ public class AnalisisService : IAnalisisService
     {
         DetencionId = detencion.DetencionId,
         Codigo = detencion.Codigo,
-        Fecha = detencion.Fecha,
+        Fecha = detencion.TurnoProduccion.FechaProduccion,
         LineaNombre = detencion.Linea?.Nombre ?? string.Empty,
         EquipoNombre = detencion.Equipo?.Nombre,
         TipoFallaNombre = detencion.TipoFalla?.Nombre,

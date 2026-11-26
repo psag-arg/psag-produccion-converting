@@ -11,7 +11,7 @@ public class PuntoControlCalidadConfiguration : IEntityTypeConfiguration<PuntoCo
 {
     public void Configure(EntityTypeBuilder<PuntoControlCalidad> builder)
     {
-        builder.ToTable("PuntosControlCalidad", "mnt");
+        builder.ToTable("CAL_PuntosControl", "mnt");
 
         builder.HasKey(x => x.PuntoControlCalidadId);
 
@@ -26,19 +26,12 @@ public class PuntoControlCalidadConfiguration : IEntityTypeConfiguration<PuntoCo
             .HasForeignKey(x => x.LineaId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // Cámara asociada (T-610, script 26)
-        builder.Property(x => x.CreaDetenciones).IsRequired().HasDefaultValue(false);
-        builder.Property(x => x.MinutosUmbralDetencion).IsRequired().HasDefaultValue(5);
-        // Umbral en segundos para pruebas (script 30). Vacío = se usan los minutos.
-        builder.Property(x => x.SegundosUmbralDetencion);
-
-        // Eficiencia (script 28): objetivo por hora y qué cuenta la cámara. Vacíos = sin cargar.
-        builder.Property(x => x.ObjetivoPorHora).HasPrecision(10, 2);
-        builder.Property(x => x.MetodoConteo).HasMaxLength(20);
-        builder.HasOne(x => x.Equipo)
+        // T-798 etapa 4: el punto usa una cámara del maestro único (opcional). Los datos de la cámara ya no están acá.
+        builder.HasOne(x => x.Camara)
             .WithMany()
-            .HasForeignKey(x => x.EquipoId)
+            .HasForeignKey(x => x.CamaraId)
             .OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(x => x.CamaraId).HasDatabaseName("IX_CAL_PuntosControl_CamaraId");
 
         builder.HasIndex(x => x.Codigo).IsUnique();
         builder.HasIndex(x => x.LineaId);
@@ -49,7 +42,7 @@ public class TipoDefectoCalidadConfiguration : IEntityTypeConfiguration<TipoDefe
 {
     public void Configure(EntityTypeBuilder<TipoDefectoCalidad> builder)
     {
-        builder.ToTable("TiposDefectoCalidad", "mnt");
+        builder.ToTable("CAL_TiposDefecto", "mnt");
 
         builder.HasKey(x => x.TipoDefectoCalidadId);
 
@@ -68,7 +61,7 @@ public class RegistroCalidadConfiguration : IEntityTypeConfiguration<RegistroCal
 {
     public void Configure(EntityTypeBuilder<RegistroCalidad> builder)
     {
-        builder.ToTable("RegistrosCalidad", "mnt", t =>
+        builder.ToTable("CAL_Registros", "mnt", t =>
         {
             t.HasCheckConstraint("CK_RegistrosCalidad_Origen",
                 "[Origen] IN ('AUTOMATICO', 'MANUAL')");
@@ -114,8 +107,11 @@ public class RegistroCalidadConfiguration : IEntityTypeConfiguration<RegistroCal
         builder.HasOne(x => x.Linea).WithMany().HasForeignKey(x => x.LineaId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.PuntoControl).WithMany().HasForeignKey(x => x.PuntoControlCalidadId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.Turno).WithMany().HasForeignKey(x => x.TurnoId).OnDelete(DeleteBehavior.Restrict);
+        // T-798 etapa 3: NULL en los registros anteriores; se completa al crear.
+        builder.HasOne(x => x.TurnoProduccion).WithMany().HasForeignKey(x => x.TurnoProduccionId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(x => x.TurnoProduccionId);
         builder.HasOne(x => x.TipoDefecto).WithMany().HasForeignKey(x => x.TipoDefectoCalidadId).OnDelete(DeleteBehavior.Restrict);
-        builder.HasOne(x => x.Producto).WithMany().HasForeignKey(x => x.ProductoId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.ProductoMaestro).WithMany().HasForeignKey(x => x.ProductoMaestroId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.Detencion).WithMany().HasForeignKey(x => x.DetencionId).OnDelete(DeleteBehavior.Restrict);
 
         // Índices: la grilla filtra por fecha y, dentro, por línea / estado.
@@ -134,7 +130,7 @@ public class RegistroCalidadRevisionConfiguration : IEntityTypeConfiguration<Reg
 {
     public void Configure(EntityTypeBuilder<RegistroCalidadRevision> builder)
     {
-        builder.ToTable("RegistrosCalidadRevisiones", "mnt", t =>
+        builder.ToTable("CAL_RegistrosRevisiones", "mnt", t =>
         {
             t.HasCheckConstraint("CK_RegistrosCalidadRevisiones_EstadoAnterior",
                 "[EstadoAnterior] IN ('PENDIENTE', 'CONFIRMADO', 'FALSO_POSITIVO')");

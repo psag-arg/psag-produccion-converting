@@ -17,8 +17,8 @@ public class DeclaracionDetencionDto
     public DateTimeOffset? FechaHoraArranqueDetectada { get; set; }
 
     public string OrigenRegistro { get; set; } = string.Empty;
-    public string? PuntoControlCodigo { get; set; }
-    public string? PuntoControlNombre { get; set; }
+    public string? CamaraCodigo { get; set; }
+    public string? CamaraNombre { get; set; }
 
     /// <summary>Cuerpo que mira la cámara. La pantalla lo trae elegido como equipo y el operador lo puede cambiar.</summary>
     public string? CuerpoCamaraNombre { get; set; }

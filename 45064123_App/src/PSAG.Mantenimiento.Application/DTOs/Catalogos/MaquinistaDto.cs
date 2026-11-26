@@ -1,5 +1,9 @@
 namespace PSAG.Mantenimiento.Application.DTOs.Catalogos;
 
+/// <summary>
+/// Habilitación de un usuario en una línea (ABM_OperadoresLinea), sólo lectura (T-802): se carga desde el alta del
+/// usuario (Configuración → Usuarios). No tiene turno: el turno lo declara el operario al abrirlo.
+/// </summary>
 public class MaquinistaDto
 {
     public int UsuarioLineaId { get; set; }
@@ -8,20 +12,5 @@ public class MaquinistaDto
     public string EmailUsuario { get; set; } = string.Empty;
     public int LineaId { get; set; }
     public string LineaNombre { get; set; } = string.Empty;
-    public int? TurnoId { get; set; }
-    public string? TurnoNombre { get; set; }
     public DateTimeOffset FechaAsignacion { get; set; }
-}
-
-public class CrearMaquinistaRequest
-{
-    public string UsuarioId { get; set; } = string.Empty;
-    public int LineaId { get; set; }
-    public int? TurnoId { get; set; }
-}
-
-public class ActualizarMaquinistaRequest
-{
-    public int LineaId { get; set; }
-    public int? TurnoId { get; set; }
 }

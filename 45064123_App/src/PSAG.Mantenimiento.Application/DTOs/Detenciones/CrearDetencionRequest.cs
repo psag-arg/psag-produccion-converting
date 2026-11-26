@@ -9,6 +9,11 @@ public class CrearDetencionRequest
     public int? EquipoId { get; set; }
     public int? TipoFallaId { get; set; }
     public int? DetalleFallaId { get; set; }
+
+    /// <summary>
+    /// Fecha de la hora desde (la Web la sigue mandando). T-798 etapa 3: NO se guarda; la fecha de producción y el
+    /// turno salen del turno de producción en que cae la hora desde (o el momento de la carga, sin horas).
+    /// </summary>
     public DateOnly Fecha { get; set; }
 
     /// <summary>
@@ -46,9 +51,14 @@ public class CrearDetencionRequest
     public string Descripcion { get; set; } = string.Empty;
 
     /// <summary>
-    /// UsuarioLineaId del maquinista asignado.
-    /// Opcional: Si se proporciona, se usa este maquinista/turno.
-    /// Si no, se busca la asignación del usuario actual.
+    /// Maquinista elegido a mano (admin/supervisor): el USUARIO (T-798 etapa 3). Tiene que estar habilitado en la línea.
+    /// Si no viene, el operador es el del turno de producción a la hora de la parada o, si no hay, quien carga.
+    /// </summary>
+    public string? OperadorUsuarioId { get; set; }
+
+    /// <summary>
+    /// Compatibilidad: la Web anterior mandaba la habilitación (ABM_OperadoresLinea). Se convierte a su usuario.
+    /// Si vienen los dos, manda <see cref="OperadorUsuarioId"/>.
     /// </summary>
     public int? UsuarioLineaId { get; set; }
 

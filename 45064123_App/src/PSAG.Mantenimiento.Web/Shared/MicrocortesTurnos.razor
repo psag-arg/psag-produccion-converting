@@ -1,0 +1,74 @@
+@* T-798 etapa 6 · Microcortes por turno de cada cámara (se habían perdido del Dashboard en la etapa 5). Recibe las
+   paradas de api/conteo-camara/paradas y las agrupa por turno de producción y cámara: las que llegaron al umbral de
+   detención y los microcortes (más cortos que el umbral). *@
+@using PSAG.Mantenimiento.Web.Models
+
+@if (Error != null)
+{
+    <div class="text-danger small">@Error</div>
+}
+else if (Paradas == null)
+{
+    <div class="text-muted small">Cargando paradas...</div>
+}
+else
+{
+    var filas = ProduccionUi.MicrocortesPorTurno(Paradas);
+    @if (filas.Count == 0)
+    {
+        <p class="text-muted small mb-0">Las cámaras no detectaron paradas@(ConTurno ? " en este turno" : " en el período").</p>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-1">
+                <thead>
+                    <tr>
+                        @if (!ConTurno) { <th>Turno</th> }
+                        <th>Cámara</th>
+                        <th class="text-end" title="Paradas más cortas que el umbral de detención">Microcortes</th>
+                        <th class="text-end">Min. microcortes</th>
+                        <th class="text-end" title="Paradas que llegaron al umbral (crean o deberían tener una detención)">Paradas largas</th>
+                        <th class="text-end">Min. paradas largas</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var f in filas)
+                    {
+                        <tr>
+                            @if (!ConTurno)
+                            {
+                                <td>@NombreTurno(f)</td>
+                            }
+                            <td><span class="font-monospace">@f.CamaraCodigo</span> <span class="small text-muted d-none d-md-inline">@f.LineaNombre</span></td>
+                            <td class="text-end fw-semibold">@f.Microcortes</td>
+                            <td class="text-end">@EficienciaUi.Minutos(f.MinutosMicrocortes)</td>
+                            <td class="text-end">@f.Paradas</td>
+                            <td class="text-end">@EficienciaUi.Minutos(f.MinutosParadas)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="small text-muted">
+            Microcortes: paradas de la cámara más cortas que su umbral de detención (con el umbral del momento en que pasaron).
+            <a href="paradas-camara">Ver cada parada</a>
+        </div>
+    }
+}
+
+@code {
+    /// <summary>Paradas a agrupar (null mientras carga).</summary>
+    [Parameter] public List<ParadaCamaraDto>? Paradas { get; set; }
+
+    [Parameter] public string? Error { get; set; }
+
+    /// <summary>Las paradas son de un solo turno: no se muestra la columna Turno.</summary>
+    [Parameter] public bool ConTurno { get; set; }
+
+    private string NombreTurno(ProduccionUi.MicrocortesTurnoCamara f)
+    {
+        var primera = Paradas!.Where(p => p.TurnoProduccionId == f.TurnoProduccionId && p.CamaraId == f.CamaraId).Min(p => p.FechaHoraInicio);
+        return f.TurnoProduccionId == null ? "Sin turno" : $"{primera:dd/MM} · {f.TurnoNombre}";
+    }
+}

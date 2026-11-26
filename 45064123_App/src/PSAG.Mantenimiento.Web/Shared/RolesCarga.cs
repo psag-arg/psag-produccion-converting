@@ -43,6 +43,19 @@ public static class RolesCarga
         det.EstadoActual == PendienteDeclaracion
         && PuedeCargarDetencion(det, tieneRol, lineasAsignadas);
 
+    /// <summary>
+    /// T-802: el permiso (MODIFICACION de "Ver detenciones") viene de la configuración de roles; lo que queda por rol es el
+    /// alcance del que es sólo operario (sus líneas).
+    /// </summary>
+    public static bool PuedeEditar(DetencionDto det, bool permisoModificar, bool soloOperario, IEnumerable<int> lineasAsignadas) =>
+        det.EstadoActual is not ("CERRADA" or PendienteDeclaracion)
+        && !det.Eliminada && permisoModificar && (!soloOperario || lineasAsignadas.Contains(det.LineaId));
+
+    /// <summary>T-802: declarar es ALTA de "Ver detenciones"; el alcance por línea del operario sigue igual.</summary>
+    public static bool PuedeDeclarar(DetencionDto det, bool permisoAlta, bool soloOperario, IEnumerable<int> lineasAsignadas) =>
+        det.EstadoActual == PendienteDeclaracion
+        && !det.Eliminada && permisoAlta && (!soloOperario || lineasAsignadas.Contains(det.LineaId));
+
     private static bool PuedeCargarDetencion(DetencionDto det, Func<string, bool> tieneRol, IEnumerable<int> lineasAsignadas) =>
         !det.Eliminada
         && PuedeCargar(tieneRol)

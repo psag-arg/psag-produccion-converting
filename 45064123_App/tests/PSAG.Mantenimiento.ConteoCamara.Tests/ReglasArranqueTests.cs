@@ -336,8 +336,8 @@ public class ConfiguracionReglasCamaraTests
     {
         var ruta = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
         var camaras = OpcionesConteo.CargarCamaras(new ConfigurationBuilder().AddJsonFile(ruta).Build());
-        var c09 = camaras.Single(c => c.PuntoControl == "T2-CAM09");
-        var c10 = camaras.Single(c => c.PuntoControl == "T2-CAM10");
+        var c09 = camaras.Single(c => c.Camara == "T2-CAM09");
+        var c10 = camaras.Single(c => c.Camara == "T2-CAM10");
 
         Assert.Equal(0, c09.Analisis.VentanasParaConfirmarArranque);
         Assert.Equal(2, c09.Analisis.VentanasParaConfirmar);
@@ -348,6 +348,9 @@ public class ConfiguracionReglasCamaraTests
         Assert.True(c10.Mangas.DescontarMangasEnParada);
         Assert.Equal(c10.Mangas.UmbralPasoAlto, new OpcionesMangas().UmbralPasoAlto);
         Assert.Equal(c10.Mangas.SegundosMinimosEntrePasos, new OpcionesMangas().SegundosMinimosEntrePasos);
+        Assert.Equal(15, c10.Mangas.UmbralPasoAlto);
+        Assert.Equal(2.0, c10.Mangas.SegundosMinimosEntrePasos);
+        Assert.Equal(DetectoresParadas.Ventanas, c10.Mangas.DetectorParadas);   // T-804: A/E/F es lo productivo
     }
 
     [Fact]
@@ -357,9 +360,10 @@ public class ConfiguracionReglasCamaraTests
         var local = """{ "ConteoCamara": { "Api": { "UrlBase": "http://x" }, "Camaras": [ { "PuntoControl": "T2-CAM09" }, { "PuntoControl": "T2-CAM10", "Activa": true } ] } }""";
         var conf = new ConfigurationBuilder().AddJsonFile(ruta)
             .AddJsonStream(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(local))).Build();
-        var c10 = OpcionesConteo.CargarCamaras(conf).Single(c => c.PuntoControl == "T2-CAM10");
-        Assert.True(c10.Activa);
+        var c10 = OpcionesConteo.CargarCamaras(conf).Single(c => c.Camara == "T2-CAM10");
+        Assert.True(c10.ActivaIgnorada);                             // T-798: "Activa" ya no se usa (Maestros → Cámaras)
         Assert.Equal(6, c10.Analisis.VentanasParaConfirmarArranque);
         Assert.True(c10.Mangas.DescontarMangasEnParada);
+        Assert.Equal(DetectoresParadas.Ventanas, c10.Mangas.DetectorParadas);
     }
 }

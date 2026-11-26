@@ -4,37 +4,62 @@
 @inject PSAG.Mantenimiento.Web.Services.IAuthService AuthService
 @inject PSAG.Mantenimiento.Web.Services.IThemeService ThemeService
 @inject NavigationManager Navigation
+@inject PSAG.Mantenimiento.Web.Services.ITurnoPropioService TurnoPropio
 @implements IDisposable
 
 <div class="page">
     <AuthorizeView>
         <Authorized>
-            <div class="sidebar @(menuAbierto ? "abierto" : "")" id="menu-lateral">
-                <NavMenu />
-            </div>
-            @if (menuAbierto)
+            @* T-802: el obligado a turno sin turno no ve el menú: sólo "Inicio de turno" (y cerrar sesión). *@
+            @if (!bloqueado)
             {
-                <div class="sidebar-fondo" @onclick="() => menuAbierto = false"></div>
+                <div class="sidebar @(menuAbierto ? "abierto" : "")" id="menu-lateral">
+                    <NavMenu />
+                </div>
+                @if (menuAbierto)
+                {
+                    <div class="sidebar-fondo" @onclick="() => menuAbierto = false"></div>
+                }
             }
 
             <main>
                 <div class="top-row px-3 px-md-4">
-                    <button class="btn btn-outline-secondary btn-sm boton-menu me-auto" @onclick="() => menuAbierto = !menuAbierto"
-                            aria-controls="menu-lateral" aria-expanded="@(menuAbierto ? "true" : "false")" title="Menú">
-                        <i class="bi bi-list"></i> Menú
-                    </button>
+                    @if (!bloqueado)
+                    {
+                        <button class="btn btn-outline-secondary btn-sm boton-menu me-auto" @onclick="() => menuAbierto = !menuAbierto"
+                                aria-controls="menu-lateral" aria-expanded="@(menuAbierto ? "true" : "false")" title="Menú">
+                            <i class="bi bi-list"></i> Menú
+                        </button>
+                    }
+                    else
+                    {
+                        <span class="me-auto small aviso-bloqueado"><i class="bi bi-lock me-1"></i>Abrí o tomá un turno para empezar</span>
+                    }
                     <button class="btn btn-outline-secondary btn-sm me-3" @onclick="ToggleTheme" title="@(isDarkMode ? "Cambiar a modo claro" : "Cambiar a modo oscuro")">
                         <i class="bi @(isDarkMode ? "bi-sun-fill" : "bi-moon-stars-fill")"></i>
                     </button>
-                    <span class="me-3 text-dark nombre-usuario">@context.User.Identity?.Name</span>
+                    <span class="me-3 nombre-usuario">@context.User.Identity?.Name</span>
                     <button class="btn btn-outline-secondary btn-sm" @onclick="Logout">
                         Cerrar sesión
                     </button>
                 </div>
 
                 <article class="content px-4">
-                    <PSAG.Mantenimiento.Web.Shared.AvisoFinTurno />
-                    @Body
+                    @if (bloqueado && !enInicioTurno)
+                    {
+                        <div class="text-muted small p-3">Abrí o tomá un turno para empezar…</div>
+                    }
+                    else
+                    {
+                        @if (!bloqueado)
+                        {
+                            <PSAG.Mantenimiento.Web.Shared.BarraTurno />
+                            <PSAG.Mantenimiento.Web.Shared.AvisoFinTurno />
+                        }
+                        <PSAG.Mantenimiento.Web.Shared.ControlPermiso>
+                            @Body
+                        </PSAG.Mantenimiento.Web.Shared.ControlPermiso>
+                    }
                 </article>
             </main>
         </Authorized>
@@ -47,18 +72,61 @@
 @code {
     private bool isDarkMode;
     private bool menuAbierto;
+    private bool bloqueado;
+    private bool enInicioTurno;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         Navigation.LocationChanged += AlNavegar;
+        TurnoPropio.Cambio += AlCambiarTurno;
+        AuthStateProvider.AuthenticationStateChanged += AlCambiarSesion;
+        await EvaluarTurnoAsync();
     }
 
     // En el celular el menú tapa la pantalla: se cierra solo al elegir una opción.
-    private void AlNavegar(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    private async void AlNavegar(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
-        if (!menuAbierto) return;
         menuAbierto = false;
-        InvokeAsync(StateHasChanged);
+        await EvaluarTurnoAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void AlCambiarTurno()
+    {
+        await EvaluarTurnoAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void AlCambiarSesion(Task<AuthenticationState> _)
+    {
+        await EvaluarTurnoAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// T-802: obligado a turno sin turno abierto = bloqueado. Sólo puede estar en "Inicio de turno"; cualquier otra
+    /// pantalla lo lleva ahí (con la pantalla pedida para volver después).
+    /// </summary>
+    private async Task EvaluarTurnoAsync()
+    {
+        try
+        {
+            var usuario = (await AuthStateProvider.GetAuthenticationStateAsync()).User;
+            if (usuario.Identity?.IsAuthenticated != true)
+            {
+                bloqueado = false;
+                return;
+            }
+            var actual = "/" + Navigation.ToBaseRelativePath(Navigation.Uri);
+            enInicioTurno = PSAG.Mantenimiento.Web.Services.TurnoPropioService.EsInicioTurno(actual);
+            bloqueado = (await TurnoPropio.ObtenerAsync()).Bloqueado;
+            if (bloqueado && !enInicioTurno && !actual.StartsWith("/login", StringComparison.OrdinalIgnoreCase))
+                Navigation.NavigateTo($"/{PSAG.Mantenimiento.Web.Services.TurnoPropioService.RutaInicioTurno}?volver={Uri.EscapeDataString(actual)}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Turno propio: {ex.Message}");
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -94,5 +162,7 @@
     {
         ThemeService.OnThemeChanged -= OnThemeChanged;
         Navigation.LocationChanged -= AlNavegar;
+        TurnoPropio.Cambio -= AlCambiarTurno;
+        AuthStateProvider.AuthenticationStateChanged -= AlCambiarSesion;
     }
 }

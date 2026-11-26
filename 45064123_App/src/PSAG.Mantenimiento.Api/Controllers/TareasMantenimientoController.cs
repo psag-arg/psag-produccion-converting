@@ -1,3 +1,5 @@
+using PSAG.Mantenimiento.Api.Autorizacion;
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -19,11 +21,6 @@ namespace PSAG.Mantenimiento.Api.Controllers;
 [Authorize]
 public class TareasMantenimientoController : ApiControllerBase
 {
-    /// <summary>Mismos roles que TareaMantenimientoReglas.RolesCarga.</summary>
-    public const string RolesCarga = RolesSistema.Operario + "," + RolesSistema.Supervisor + "," + RolesSistema.Administrador;
-
-    /// <summary>Mismos roles que TareaMantenimientoReglas.RolesGestion.</summary>
-    public const string RolesGestion = RolesSistema.Mantenimiento + "," + RolesSistema.Supervisor + "," + RolesSistema.Administrador;
 
     private readonly ITareaMantenimientoService _tareaService;
     private readonly UserManager<ApplicationUser> _userManager;
@@ -44,6 +41,7 @@ public class TareasMantenimientoController : ApiControllerBase
     /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<TareaMantenimientoDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.TareasPendientes, AccionPermiso.Ver)]
     public async Task<IActionResult> GetActivas([FromQuery] TareasActivasFiltroRequest filtro)
     {
         var resultado = await _tareaService.ObtenerActivasAsync(filtro);
@@ -60,6 +58,7 @@ public class TareasMantenimientoController : ApiControllerBase
     /// </summary>
     [HttpGet("historial")]
     [ProducesResponseType(typeof(PagedResult<TareaMantenimientoDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.TareasHistorial, AccionPermiso.Ver)]
     public async Task<IActionResult> GetHistorial([FromQuery] TareasHistorialFiltroRequest filtro)
     {
         var resultado = await _tareaService.ObtenerHistorialAsync(filtro, _zonaPlanta);
@@ -75,10 +74,10 @@ public class TareasMantenimientoController : ApiControllerBase
     /// Informar una tarea nueva. Queda PENDIENTE.
     /// </summary>
     [HttpPost]
-    [Authorize(Roles = RolesCarga)]
     [ProducesResponseType(typeof(TareaMantenimientoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [Permiso(Opciones.TareasPendientes, AccionPermiso.Alta)]
     public async Task<IActionResult> Crear([FromBody] CrearTareaMantenimientoRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -97,11 +96,11 @@ public class TareasMantenimientoController : ApiControllerBase
     /// Programar una o varias tareas pendientes (todas o ninguna).
     /// </summary>
     [HttpPost("programar")]
-    [Authorize(Roles = RolesGestion)]
     [ProducesResponseType(typeof(IEnumerable<TareaMantenimientoDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.TareasPendientes, AccionPermiso.Modificar)]
     public async Task<IActionResult> Programar([FromBody] ProgramarTareasRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -120,11 +119,11 @@ public class TareasMantenimientoController : ApiControllerBase
     /// Cerrar una tarea programada. Guarda usuario y fecha de cierre y la pasa al historial.
     /// </summary>
     [HttpPost("{id:long}/cerrar")]
-    [Authorize(Roles = RolesGestion)]
     [ProducesResponseType(typeof(TareaMantenimientoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.TareasPendientes, AccionPermiso.Modificar)]
     public async Task<IActionResult> Cerrar(long id)
     {
         if (string.IsNullOrEmpty(CurrentUserId))

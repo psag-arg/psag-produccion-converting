@@ -2,7 +2,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
-@attribute [Authorize(Roles = "ADMINISTRADOR")]
+@attribute [Authorize]
 @inject ICatalogosService CatalogosService
 @inject IInspeccionPlantillaService PlantillaService
 
@@ -12,9 +12,11 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <h3 class="mb-0">Planes de inspección</h3>
+        <SiPermiso Opcion="@Opciones.MaestrosInspecciones" Accion="AccionPermiso.Alta">
         <button class="btn btn-primary" @onclick="NuevoPlan" disabled="@(lineaId == 0)">
             <i class="bi bi-plus-circle me-2"></i>Nuevo plan (equipo)
         </button>
+        </SiPermiso>
     </div>
 
     <p class="text-muted">
@@ -68,9 +70,11 @@
                         }
                     </div>
                     <div>
+                        <SiPermiso Opcion="@Opciones.MaestrosInspecciones" Accion="AccionPermiso.Modificar">
                         <button class="btn btn-sm btn-outline-primary me-1" title="Editar plan" @onclick="() => EditarPlan(planLocal)">
                             <i class="bi bi-pencil"></i>
                         </button>
+                        </SiPermiso>
                         <button class="btn btn-sm btn-primary" @onclick="() => NuevoItem(planLocal)">
                             <i class="bi bi-plus-circle me-1"></i>Punto
                         </button>
@@ -112,9 +116,11 @@
                                             <span class="badge @(item.Activo ? "bg-success" : "bg-secondary")">@(item.Activo ? "Activo" : "Inactivo")</span>
                                         </td>
                                         <td class="text-end">
+                                            <SiPermiso Opcion="@Opciones.MaestrosInspecciones" Accion="AccionPermiso.Modificar">
                                             <button class="btn btn-sm btn-outline-primary" title="Editar punto" @onclick="() => EditarItem(itemLocal)">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
+                                            </SiPermiso>
                                         </td>
                                     </tr>
                                 }
@@ -130,7 +136,7 @@
 @* Modal de plan *@
 @if (planActual != null)
 {
-    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: var(--psag-velo);">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
@@ -200,7 +206,7 @@
 @* Modal de punto *@
 @if (itemActual != null)
 {
-    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: var(--psag-velo);">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">

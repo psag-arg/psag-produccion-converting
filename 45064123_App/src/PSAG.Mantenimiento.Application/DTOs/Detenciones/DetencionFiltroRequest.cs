@@ -32,4 +32,7 @@ public class DetencionFiltroRequest : PaginationParams
     public bool? SoloCerrados { get; set; }
     public int? DuracionMinimaMinutos { get; set; }
     public int? DuracionMaximaMinutos { get; set; }
+
+    /// <summary>T-786: MANUAL o CAMARA. Null = todas.</summary>
+    public string? OrigenRegistro { get; set; }
 }

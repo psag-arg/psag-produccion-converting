@@ -14,7 +14,8 @@ using PSAG.Mantenimiento.ConteoCamara.Video;
 
 // T-610 · Conteo de producción y paradas por cámara: 09 (carriles de la cortadora) y 10 (mangas y rodillo de
 // la rebobinadora). Con varias cámaras en ConteoCamara:Camaras, las herramientas usan --camara CODIGO (o la primera).
-//   (sin argumentos)                    servicio (lo corre NSSM): todas las cámaras configuradas
+//   (sin argumentos)                    servicio (lo corre NSSM): las cámaras habilitadas en Maestros → Cámaras
+//                                       (GET api/camaras/configuracion) que tienen calibración local
 //   procesar --archivo X.mp4 --inicio 2026-10-28T10:15:00-03:00 [--json salida.json] [--eco] [--enviar]
 //   vivo --segundos 300 [--json salida.json]          prueba en vivo contra el NVR, sin mandar a la API
 //   foto --salida foto.jpg [--archivo X.mp4 --segundo 30]  foto a resolución completa (NVR o video)
@@ -31,7 +32,7 @@ var configuracion = new ConfigurationBuilder()
     .Build();
 var camaras = OpcionesConteo.CargarCamaras(configuracion);
 var opciones = argumentos.Valor("camara") is { } codigoCamara
-    ? camaras.FirstOrDefault(c => string.Equals(c.PuntoControl, codigoCamara, StringComparison.OrdinalIgnoreCase))
+    ? camaras.FirstOrDefault(c => string.Equals(c.Camara, codigoCamara, StringComparison.OrdinalIgnoreCase))
       ?? throw new ArgumentException($"No hay una cámara {codigoCamara} en ConteoCamara:Camaras.")
     : camaras[0];
 var zona = ZonaPlanta(configuracion["ConteoCamara:ZonaHoraria"]);
@@ -43,6 +44,7 @@ if (argumentos.Comando is null or "servicio")
     builder.Logging.ClearProviders();
     builder.Logging.AddSimpleConsole(o => { o.SingleLine = true; o.TimestampFormat = "yyyy-MM-dd HH:mm:ss "; });
     builder.Services.AddSingleton<IReadOnlyList<OpcionesConteo>>(camaras);
+    builder.Services.AddSingleton(OpcionesConteo.CargarApiComun(configuracion));
     builder.Services.AddSingleton(zona);
     builder.Services.AddHttpClient("api", c =>
     {
@@ -116,14 +118,14 @@ async Task<int> VivoAsync()
     var resumen = new ResumenConsola(eco: true);
     var procesador = Analizadores.Crear(opciones, resumen);
     var relojCuadros = new RelojCuadros(opciones.Fuente.Fps, zona);
-    Console.WriteLine($"En vivo desde {credenciales} {opciones.Fuente.RutaRtsp} durante {segundos} s (sólo lectura, una conexión)...");
+    Console.WriteLine($"En vivo desde {credenciales} {opciones.Fuente.RutaEfectiva} durante {segundos} s (sólo lectura, una conexión)...");
 
     using var limite = CancellationTokenSource.CreateLinkedTokenSource(cancelar.Token);
     limite.CancelAfter(TimeSpan.FromSeconds(segundos));
     var reloj = Stopwatch.StartNew();
     try
     {
-        await foreach (var cuadro in fuente.LeerAsync(credenciales.UrlRtsp(opciones.Fuente.PuertoRtsp, opciones.Fuente.RutaRtsp), esRtsp: true, ct: limite.Token))
+        await foreach (var cuadro in fuente.LeerAsync(credenciales.UrlRtsp(opciones.Fuente.PuertoRtsp, opciones.Fuente.RutaEfectiva), esRtsp: true, ct: limite.Token))
         {
             var (hora, reanclado) = relojCuadros.Siguiente();
             if (reanclado) procesador.CortarSenal(final: false);
@@ -167,7 +169,7 @@ async Task<int> FotoAsync()
     {
         var credenciales = CredencialesNvr.Leer(opciones.Fuente.ArchivoCredenciales);
         var fuente = new FuenteFfmpeg(opciones.Fuente, logger, credenciales.Ocultar);
-        await fuente.FotoAsync(credenciales.UrlRtsp(opciones.Fuente.PuertoRtsp, opciones.Fuente.RutaRtsp), esRtsp: true, salida, null, cancelar.Token);
+        await fuente.FotoAsync(credenciales.UrlRtsp(opciones.Fuente.PuertoRtsp, opciones.Fuente.RutaEfectiva), esRtsp: true, salida, null, cancelar.Token);
     }
     Console.WriteLine($"Foto guardada en {salida}. Siguiente paso: calibrar --foto \"{salida}\"");
     return 0;
@@ -207,7 +209,7 @@ async Task<int> SugerirAsync()
         limite.CancelAfter(TimeSpan.FromSeconds(segundos));
         try
         {
-            await foreach (var cuadro in fuente.LeerAsync(credenciales.UrlRtsp(opciones.Fuente.PuertoRtsp, opciones.Fuente.RutaRtsp), esRtsp: true, ct: limite.Token))
+            await foreach (var cuadro in fuente.LeerAsync(credenciales.UrlRtsp(opciones.Fuente.PuertoRtsp, opciones.Fuente.RutaEfectiva), esRtsp: true, ct: limite.Token))
                 sugeridor.Cuadro(cuadro);
         }
         catch (OperationCanceledException) { }

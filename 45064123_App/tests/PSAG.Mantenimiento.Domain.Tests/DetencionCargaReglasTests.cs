@@ -4,15 +4,24 @@ namespace PSAG.Mantenimiento.Domain.Tests;
 
 public class DetencionCargaReglasTests
 {
-    // Con horas manda la hora; si no, el turno del maquinista; un maquinista elegido sin turno ni horas no se resuelve.
+    // T-798 etapa 3: el elegido a mano manda; si no, el operador del turno; si no, quien carga si está habilitado.
     [Theory]
-    [InlineData(true, true, false, FuenteTurno.HoraInicio)]
-    [InlineData(false, true, false, null)]
-    [InlineData(false, true, true, FuenteTurno.Maquinista)]
-    [InlineData(false, false, false, FuenteTurno.HoraActual)]
-    public void ElegirFuenteTurno_SegunHorasYMaquinista(bool conHoras, bool maquinistaElegido, bool maquinistaTieneTurno, FuenteTurno? esperado)
+    [InlineData("elegido", "turno", "carga", true, "elegido")]
+    [InlineData(null, "turno", "carga", true, "turno")]
+    [InlineData(null, null, "carga", true, "carga")]
+    [InlineData(null, null, "carga", false, null)]
+    public void ElegirOperador_ElegidoTurnoYQuienCarga(string? elegido, string? delTurno, string? carga, bool habilitado, string? esperado)
     {
-        Assert.Equal(esperado, DetencionCargaReglas.ElegirFuenteTurno(conHoras, maquinistaElegido, maquinistaTieneTurno));
+        Assert.Equal(esperado, DetencionCargaReglas.ElegirOperador(elegido, delTurno, carga, habilitado));
+    }
+
+    [Fact]
+    public void InstanteTurno_HoraDesdeOAhora()
+    {
+        var parada = new DateTimeOffset(2026, 11, 20, 2, 0, 0, TimeSpan.FromHours(-3));
+        var ahora = parada.AddHours(5);
+        Assert.Equal(parada, DetencionCargaReglas.InstanteTurno(parada, ahora));
+        Assert.Equal(ahora, DetencionCargaReglas.InstanteTurno(null, ahora));
     }
 
     [Fact]

@@ -1,0 +1,316 @@
+@page "/maestros/parametros-linea-producto"
+@using Microsoft.AspNetCore.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize]
+@inject IMaestrosProduccionService MaestrosService
+@inject ICatalogosService CatalogosService
+
+<PageTitle>Parámetros línea + producto - PSAG Produccion</PageTitle>
+
+@* T-798 etapa 6 · PRESUPUESTO: qué producto se puede hacer en cada línea (habilitado) y su objetivo por turno, con
+   vigencia. Rige la fila con la fecha "desde" más nueva que ya empezó. Cada tramo de turno guarda una copia del
+   objetivo al empezar: cambiar acá no modifica turnos pasados. Sin borrar: para dejar de producir un producto se
+   carga una vigencia nueva sin habilitar. *@
+<div class="container-fluid">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <h3 class="mb-0">Parámetros línea + producto</h3>
+        <SiPermiso Opcion="@Opciones.MaestrosParametros" Accion="AccionPermiso.Alta">
+        <button class="btn btn-primary" @onclick="Nuevo"><i class="bi bi-plus-circle me-2"></i>Nuevo parámetro</button>
+        </SiPermiso>
+    </div>
+    <p class="text-muted">
+        Es el <strong>presupuesto</strong>: objetivo de mangas y bolsones por turno de cada producto en cada línea.
+        Para cambiar un objetivo desde una fecha, usá <em>Nueva vigencia</em> (queda el historial). Bolsones vacío = no se mide.
+    </p>
+
+    <div class="d-flex flex-wrap gap-2 align-items-end mb-2">
+        <div>
+            <label class="form-label small mb-1">Línea</label>
+            <select class="form-select form-select-sm" @bind="lineaFiltro" @bind:after="@(async () => await Cargar())">
+                <option value="0">Todas</option>
+                @foreach (var l in lineas)
+                {
+                    <option value="@l.LineaId">@l.Nombre</option>
+                }
+            </select>
+        </div>
+        <div class="form-check form-switch ms-2">
+            <input class="form-check-input" type="checkbox" role="switch" id="verHistorial" @bind="verHistorial" />
+            <label class="form-check-label small" for="verHistorial">Ver vigencias reemplazadas</label>
+        </div>
+    </div>
+
+    @if (mensaje != null)
+    {
+        <div class="alert alert-success alert-dismissible py-2">@mensaje<button type="button" class="btn-close" @onclick="() => mensaje = null"></button></div>
+    }
+
+    @if (cargando)
+    {
+        <div class="text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Cargando...</span></div></div>
+    }
+    else if (errorCarga != null)
+    {
+        <div class="alert alert-danger">@errorCarga</div>
+    }
+    else
+    {
+        var filas = parametros.Where(p => verHistorial || p.EstadoVigencia != "REEMPLAZADA").ToList();
+        <div class="card">
+            <div class="card-body p-0 table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Línea</th>
+                            <th>Producto</th>
+                            <th>Desde</th>
+                            <th class="text-center">Habilitado</th>
+                            <th class="text-end">Mangas por turno</th>
+                            <th class="text-end">Bolsones por turno</th>
+                            <th class="text-end d-none d-md-table-cell">Min. turno ref.</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (filas.Count == 0)
+                        {
+                            <tr><td colspan="8" class="text-center text-muted py-4">No hay parámetros cargados.</td></tr>
+                        }
+                        @foreach (var p in filas)
+                        {
+                            <tr class="@(p.EstadoVigencia == "REEMPLAZADA" ? "text-muted" : "")">
+                                <td>@p.LineaNombre</td>
+                                <td>
+                                    <strong>@p.ProductoNombre</strong>
+                                    @if (!p.ProductoActivo) { <span class="badge bg-secondary ms-1">producto inactivo</span> }
+                                </td>
+                                <td class="text-nowrap">
+                                    @p.VigenteDesde.ToString("dd/MM/yyyy")
+                                    <span class="badge @ClaseVigencia(p.EstadoVigencia) ms-1">@TextoVigencia(p.EstadoVigencia)</span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge @(p.Habilitado ? "text-bg-success" : "text-bg-light border")">@(p.Habilitado ? "Sí" : "No")</span>
+                                </td>
+                                <td class="text-end">@(p.MangasObjetivoTurno?.ToString("N0") ?? "Sin objetivo")</td>
+                                <td class="text-end">@(p.BolsonesObjetivoTurno?.ToString("N0") ?? "No se mide")</td>
+                                <td class="text-end d-none d-md-table-cell">@p.MinutosTurnoReferencia</td>
+                                <td class="text-end text-nowrap">
+                                    @if (p.EstadoVigencia != "REEMPLAZADA")
+                                    {
+                                        <button class="btn btn-sm btn-outline-primary me-1" title="Cargar una vigencia nueva con estos valores" @onclick="() => NuevaVigencia(p)">
+                                            <i class="bi bi-calendar-plus me-1"></i><span class="d-none d-lg-inline">Nueva vigencia</span>
+                                        </button>
+                                    }
+                                    <button class="btn btn-sm btn-outline-secondary" title="Corregir esta fila" @onclick="() => Editar(p)"><i class="bi bi-pencil"></i></button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@if (actual != null)
+{
+    <div class="modal d-block" tabindex="-1" style="background-color: var(--psag-velo);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@tituloModal</h5>
+                    <button type="button" class="btn-close" @onclick="() => actual = null"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-2">
+                        <div class="col-sm-6">
+                            <label class="form-label small mb-1">Línea *</label>
+                            <select class="form-select" @bind="actual.LineaId" disabled="@(actual.ParametroLineaProductoId != 0 || esNuevaVigencia)">
+                                <option value="0">(elegir)</option>
+                                @foreach (var l in lineas)
+                                {
+                                    <option value="@l.LineaId">@l.Nombre</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label small mb-1">Producto *</label>
+                            <select class="form-select" @bind="actual.ProductoMaestroId" disabled="@(actual.ParametroLineaProductoId != 0 || esNuevaVigencia)">
+                                <option value="0">(elegir)</option>
+                                @foreach (var pr in productos)
+                                {
+                                    <option value="@pr.ProductoMaestroId">@pr.Nombre</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label small mb-1">Rige desde *</label>
+                            <input type="date" class="form-control" @bind="actual.VigenteDesde" />
+                        </div>
+                        <div class="col-sm-6 d-flex align-items-end">
+                            <div class="form-check mb-2">
+                                <input type="checkbox" class="form-check-input" id="habilitado" @bind="actual.Habilitado" />
+                                <label class="form-check-label" for="habilitado">Se puede producir en la línea</label>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small mb-1">Mangas por turno</label>
+                            <input type="number" min="0" class="form-control" @bind="actual.MangasObjetivoTurno" />
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small mb-1">Bolsones por turno</label>
+                            <input type="number" min="0" class="form-control" @bind="actual.BolsonesObjetivoTurno" />
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small mb-1">Min. del turno</label>
+                            <input type="number" min="1" class="form-control" @bind="actual.MinutosTurnoReferencia" />
+                        </div>
+                        <div class="col-12 form-text mt-0">
+                            Vacío = sin objetivo (mangas) o no se mide (bolsones): se muestra "sin datos", nunca 0 %.
+                            Los objetivos son para un turno de @actual.MinutosTurnoReferencia min; se reparten por los minutos de cada producto.
+                        </div>
+                    </div>
+                    @if (errorModal != null)
+                    {
+                        <div class="alert alert-danger mt-3 mb-0">@errorModal</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => actual = null">Cancelar</button>
+                    <button class="btn btn-primary" disabled="@guardando" @onclick="@(async () => await Guardar())">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<LineaDto> lineas = [];
+    private List<ProductoMaestroDto> productos = [];
+    private List<ParametroLineaProductoDto> parametros = [];
+    private int lineaFiltro;
+    private bool verHistorial;
+    private bool cargando = true;
+    private string? errorCarga;
+    private string? mensaje;
+
+    private ParametroLineaProductoDto? actual;
+    private bool esNuevaVigencia;
+    private string tituloModal = string.Empty;
+    private string? errorModal;
+    private bool guardando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            lineas = await CatalogosService.GetLineasAsync();
+            productos = await MaestrosService.GetProductosAsync();
+        }
+        catch (Exception)
+        {
+            errorCarga = ApiErrores.SinConexion;
+        }
+        await Cargar();
+    }
+
+    private async Task Cargar()
+    {
+        cargando = true;
+        try
+        {
+            parametros = await MaestrosService.GetParametrosAsync(lineaFiltro > 0 ? lineaFiltro : null);
+            errorCarga = null;
+        }
+        catch (Exception ex)
+        {
+            errorCarga = ex is HttpRequestException ? ex.Message : ApiErrores.SinConexion;
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private static DateOnly Hoy() => DateOnly.FromDateTime(DateTime.Today);
+
+    private static string TextoVigencia(string estado) => estado switch
+    {
+        "VIGENTE" => "rige hoy",
+        "FUTURA" => "futura",
+        _ => "reemplazada"
+    };
+
+    private static string ClaseVigencia(string estado) => estado switch
+    {
+        "VIGENTE" => "text-bg-primary",
+        "FUTURA" => "text-bg-info",
+        _ => "text-bg-light border"
+    };
+
+    private void Nuevo()
+    {
+        errorModal = null;
+        esNuevaVigencia = false;
+        tituloModal = "Nuevo parámetro";
+        actual = new ParametroLineaProductoDto { LineaId = lineaFiltro, VigenteDesde = Hoy(), Habilitado = true, MinutosTurnoReferencia = 480 };
+    }
+
+    private void NuevaVigencia(ParametroLineaProductoDto p)
+    {
+        errorModal = null;
+        esNuevaVigencia = true;
+        tituloModal = $"Nueva vigencia · {p.LineaNombre}, {p.ProductoNombre}";
+        actual = Copia(p);
+        actual.ParametroLineaProductoId = 0;
+        actual.VigenteDesde = p.VigenteDesde >= Hoy() ? p.VigenteDesde.AddDays(1) : Hoy();
+    }
+
+    private void Editar(ParametroLineaProductoDto p)
+    {
+        errorModal = null;
+        esNuevaVigencia = false;
+        tituloModal = $"Corregir · {p.LineaNombre}, {p.ProductoNombre}";
+        actual = Copia(p);
+    }
+
+    private static ParametroLineaProductoDto Copia(ParametroLineaProductoDto p) => new()
+    {
+        ParametroLineaProductoId = p.ParametroLineaProductoId, LineaId = p.LineaId, LineaNombre = p.LineaNombre,
+        ProductoMaestroId = p.ProductoMaestroId, ProductoNombre = p.ProductoNombre, VigenteDesde = p.VigenteDesde,
+        Habilitado = p.Habilitado, MangasObjetivoTurno = p.MangasObjetivoTurno, BolsonesObjetivoTurno = p.BolsonesObjetivoTurno,
+        MinutosTurnoReferencia = p.MinutosTurnoReferencia
+    };
+
+    private async Task Guardar()
+    {
+        errorModal = null;
+        if (actual!.LineaId == 0 || actual.ProductoMaestroId == 0)
+        {
+            errorModal = "Elegí la línea y el producto.";
+            return;
+        }
+        guardando = true;
+        try
+        {
+            var (valor, error) = await MaestrosService.GuardarParametroAsync(actual);
+            if (valor == null)
+            {
+                errorModal = error;
+                return;
+            }
+            mensaje = $"Guardado: {valor.LineaNombre}, {valor.ProductoNombre} desde el {valor.VigenteDesde:dd/MM/yyyy}.";
+            actual = null;
+            await Cargar();
+        }
+        catch (Exception)
+        {
+            errorModal = ApiErrores.SinConexion;
+        }
+        finally
+        {
+            guardando = false;
+        }
+    }
+}

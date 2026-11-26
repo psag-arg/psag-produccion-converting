@@ -1,6 +1,5 @@
 using System.Reflection;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using PSAG.Mantenimiento.Api.Controllers;
@@ -17,6 +16,7 @@ namespace PSAG.Mantenimiento.Api.IntegrationTests;
 /// <summary>
 /// Tareas de mantenimiento contra SQLite en memoria: permisos por rol, línea asignada y ciclo de estados.
 /// </summary>
+[Collection(ColeccionBaseDeDatos.Nombre)]
 public class TareaMantenimientoServiceTests : IDisposable
 {
     private const string Admin = "admin";
@@ -29,7 +29,7 @@ public class TareaMantenimientoServiceTests : IDisposable
     private static readonly string[] RolSupervisor = ["SUPERVISOR"];
     private static readonly string[] RolGerencia = ["GERENCIA"];
 
-    private readonly SqliteConnection _conexion;
+    private readonly BaseDePrueba _base;
     private readonly MantenimientoDbContext _context;
     private readonly TareaMantenimientoService _service;
     private readonly Linea _lineaAsignada;
@@ -39,10 +39,8 @@ public class TareaMantenimientoServiceTests : IDisposable
 
     public TareaMantenimientoServiceTests()
     {
-        _conexion = new SqliteConnection("DataSource=:memory:");
-        _conexion.Open();
-        _context = new MantenimientoDbContext(new DbContextOptionsBuilder<MantenimientoDbContext>().UseSqlite(_conexion).Options);
-        _context.Database.EnsureCreated();
+        _base = BaseDePrueba.Crear();
+        _context = _base.Context;
 
         _lineaAsignada = new Linea { Codigo = "T2", Nombre = "Tango 2", CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin };
         _otraLinea = new Linea { Codigo = "F2", Nombre = "Futura 2", CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin };
@@ -52,7 +50,7 @@ public class TareaMantenimientoServiceTests : IDisposable
         _equipo = new Equipo { LineaId = _lineaAsignada.LineaId, Codigo = "GOF", Nombre = "Gofrador", CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin };
         _equipoOtraLinea = new Equipo { LineaId = _otraLinea.LineaId, Codigo = "EMP", Nombre = "Empaquetadora", CreadoPorUsuarioId = Admin, ModificadoPorUsuarioId = Admin };
         _context.AddRange(_equipo, _equipoOtraLinea);
-        _context.Add(new UsuarioLinea { UsuarioId = Operario, LineaId = _lineaAsignada.LineaId, AsignadoPorUsuarioId = Admin, FechaAsignacion = DateTimeOffset.UtcNow });
+        _context.Add(new OperadorLinea { UsuarioId = Operario, LineaId = _lineaAsignada.LineaId, AsignadoPorUsuarioId = Admin, FechaAsignacion = DateTimeOffset.UtcNow });
         _context.SaveChanges();
 
         _service = new TareaMantenimientoService(new UnitOfWork(_context), NullLogger<TareaMantenimientoService>.Instance);
@@ -61,7 +59,7 @@ public class TareaMantenimientoServiceTests : IDisposable
     public void Dispose()
     {
         _context.Dispose();
-        _conexion.Dispose();
+        _base.Dispose();
     }
 
     private CrearTareaMantenimientoRequest Pedido(string criticidad = "ALTA", int? lineaId = null, int? equipoId = null) => new()
@@ -269,10 +267,8 @@ public class TareaMantenimientoServiceTests : IDisposable
     [InlineData(nameof(TareasMantenimientoController.Cerrar), "Gestion")]
     public void Controller_RolesDeCadaAccion_CoincidenConLasReglas(string accion, string tipo)
     {
-        var atributo = typeof(TareasMantenimientoController).GetMethod(accion)!
-            .GetCustomAttributes<AuthorizeAttribute>()
-            .Single(a => a.Roles != null);
-        var roles = atributo.Roles!.Split(',').OrderBy(r => r);
+        // T-802: el atributo es [Permiso(opción, acción)] y los roles salen de la matriz migrada.
+        var roles = MatrizMigrada.RolesConPermiso(typeof(TareasMantenimientoController).GetMethod(accion)!).OrderBy(r => r);
         var esperados = (tipo == "Carga" ? TareaMantenimientoReglas.RolesCarga : TareaMantenimientoReglas.RolesGestion).OrderBy(r => r);
 
         Assert.Equal(esperados, roles);

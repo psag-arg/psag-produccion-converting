@@ -1,3 +1,5 @@
+using PSAG.Mantenimiento.Api.Autorizacion;
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PSAG.Mantenimiento.Application.Common;
@@ -26,37 +28,27 @@ public class ConteoCamaraController : ApiControllerBase
     [HttpGet("paradas")]
     [ProducesResponseType(typeof(ParadasCamaraResultado), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(AccionPermiso.Ver, Opciones.CalidadParadasCamara, Opciones.ProduccionTurnos, Opciones.ProduccionPresupuestoReal, Opciones.DetencionesListado)]
     public async Task<IActionResult> GetParadas([FromQuery] ParadasCamaraFiltroRequest filtro)
     {
         var resultado = await _servicio.ObtenerParadasAsync(filtro);
         return resultado.IsFailure ? ErrorResult(resultado) : Ok(resultado.Value);
     }
 
-    /// <summary>Rollos por hora y carril de un día de planta.</summary>
+    /// <summary>Cantidad por hora, carril y turno de producción de un día de planta (en la magnitud de cada cámara).</summary>
     [HttpGet("produccion")]
     [ProducesResponseType(typeof(ProduccionCamaraDto), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetProduccion([FromQuery] DateOnly fecha, [FromQuery] int? lineaId, [FromQuery] int? puntoControlCalidadId)
+    [Permiso(AccionPermiso.Ver, Opciones.CalidadParadasCamara, Opciones.ProduccionTurnos, Opciones.ProduccionPresupuestoReal, Opciones.DetencionesListado)]
+    public async Task<IActionResult> GetProduccion([FromQuery] DateOnly fecha, [FromQuery] int? lineaId, [FromQuery] int? camaraId)
     {
-        var resultado = await _servicio.ObtenerProduccionAsync(fecha, lineaId, puntoControlCalidadId);
+        var resultado = await _servicio.ObtenerProduccionAsync(fecha, lineaId, camaraId);
         return resultado.IsFailure ? ErrorResult(resultado) : Ok(resultado.Value);
     }
 
-    /// <summary>
-    /// Eficiencia por turno de las cámaras que cuentan producción, en un día de planta (Dashboard): contadas,
-    /// objetivo (objetivo por hora x horas programadas del turno), %, minutos de parada y microcortes.
-    /// Sin objetivo cargado el % viene vacío (estado SIN_OBJETIVO), nunca 0.
-    /// </summary>
-    [HttpGet("eficiencia")]
-    [ProducesResponseType(typeof(EficienciaCamaraDiaDto), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetEficiencia([FromQuery] DateOnly fecha, [FromQuery] int? lineaId)
-    {
-        var resultado = await _servicio.ObtenerEficienciaAsync(fecha, lineaId);
-        return resultado.IsFailure ? ErrorResult(resultado) : Ok(resultado.Value);
-    }
-
-    /// <summary>Alertas de cámara congelada o sin video: abiertas y las cerradas en las últimas <c>horas</c> (24 por defecto).</summary>
+    /// <summary>Alertas de cámara (congelada, sin video, sin datos, sin configuración): abiertas y las cerradas en las últimas <c>horas</c> (24 por defecto).</summary>
     [HttpGet("alertas")]
     [ProducesResponseType(typeof(IReadOnlyList<AlertaCamaraDto>), StatusCodes.Status200OK)]
+    [Permiso(AccionPermiso.Ver, Opciones.CalidadParadasCamara, Opciones.ProduccionTurnos, Opciones.ProduccionPresupuestoReal, Opciones.DetencionesListado)]
     public async Task<IActionResult> GetAlertas([FromQuery] int? lineaId, [FromQuery] int horas = 24) =>
         Ok(await _servicio.ObtenerAlertasAsync(lineaId, horas));
 

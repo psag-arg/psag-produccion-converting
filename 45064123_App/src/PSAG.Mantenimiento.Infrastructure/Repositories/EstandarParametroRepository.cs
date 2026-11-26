@@ -17,7 +17,7 @@ public class EstandarParametroRepository : RepositoryBase<EstandarParametro>, IE
         CancellationToken cancellationToken = default)
     {
         return await _context.EstandaresParametro
-            .Where(e => e.Activo && e.LineaId == lineaId && e.ProductoId == productoId)
+            .Where(e => e.Activo && e.LineaId == lineaId && e.ProductoMaestroId == productoId)
             .Include(e => e.Parametro)
                 .ThenInclude(p => p.GrupoParametro)
             .OrderBy(e => e.Parametro.GrupoParametro.Orden)
@@ -36,7 +36,7 @@ public class EstandarParametroRepository : RepositoryBase<EstandarParametro>, IE
             .FirstOrDefaultAsync(e =>
                 e.Activo &&
                 e.LineaId == lineaId &&
-                e.ProductoId == productoId &&
+                e.ProductoMaestroId == productoId &&
                 e.ParametroId == parametroId,
                 cancellationToken);
     }

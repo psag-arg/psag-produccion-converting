@@ -45,6 +45,8 @@ New-Item -ItemType Directory -Path $deployTarget -Force | Out-Null
 # Copiar scripts PowerShell
 Copy-Item -Path (Join-Path $scriptPath "*.ps1") -Destination $deployTarget -Force
 Copy-Item -Path (Join-Path $scriptPath "README.md") -Destination $deployTarget -Force
+# Procedimientos y consultas de deploy por tarea (p. ej. T-798_DEPLOY.md, T-798_verificacion.sql)
+Copy-Item -Path (Join-Path $scriptPath "T-*") -Destination $deployTarget -Force -ErrorAction SilentlyContinue
 
 # Copiar scripts SQL
 $databaseSource = Join-Path $projectRoot "database"

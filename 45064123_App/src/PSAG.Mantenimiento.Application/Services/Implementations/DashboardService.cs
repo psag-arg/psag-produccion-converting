@@ -79,7 +79,7 @@ public class DashboardService : IDashboardService
         var detenciones = await _unitOfWork.Detenciones.GetAllAsync(cancellationToken);
 
         var query = detenciones
-            .Where(d => d.Fecha >= fechaDesde && d.Fecha <= fechaHasta);
+            .Where(d => d.TurnoProduccion.FechaProduccion >= fechaDesde && d.TurnoProduccion.FechaProduccion <= fechaHasta);
 
         if (lineasPermitidas != null)
             query = query.Where(d => lineasPermitidas.Contains(d.LineaId));
@@ -94,7 +94,7 @@ public class DashboardService : IDashboardService
             query = query.Where(d => d.TipoFallaId == filtro.TipoFallaId.Value);
 
         if (filtro.TurnoId.HasValue)
-            query = query.Where(d => d.TurnoId == filtro.TurnoId.Value);
+            query = query.Where(d => d.TurnoProduccion.TurnoId == filtro.TurnoId.Value);
 
         var lista = query.ToList();
 
@@ -103,7 +103,8 @@ public class DashboardService : IDashboardService
             TotalDetenciones = lista.Count,
             DetencionesAbiertas = lista.Count(d => d.EstadoActual != EstadoDetencion.CERRADA),
             DetencionesCerradas = lista.Count(d => d.EstadoActual == EstadoDetencion.CERRADA),
-            MinutosTotalesParada = lista.Sum(d => d.MinutosEfectivos),
+            // Minutos de parada: sólo los que cuentan para indicadores (T-798 2.7; las programadas se listan igual).
+            MinutosTotalesParada = lista.MinutosQueCuentan(),
             TiempoPromedioResolucionMinutos = lista.Count > 0 ? lista.Average(d => d.MinutosEfectivos) : 0
         };
 
@@ -131,7 +132,7 @@ public class DashboardService : IDashboardService
         var lineas = await _unitOfWork.Lineas.GetAllAsync(cancellationToken);
 
         var query = detenciones
-            .Where(d => d.Fecha >= fechaDesde && d.Fecha <= fechaHasta);
+            .Where(d => d.TurnoProduccion.FechaProduccion >= fechaDesde && d.TurnoProduccion.FechaProduccion <= fechaHasta);
 
         if (lineasPermitidas != null)
             query = query.Where(d => lineasPermitidas.Contains(d.LineaId));
@@ -146,7 +147,7 @@ public class DashboardService : IDashboardService
                 LineaId = g.Key,
                 LineaNombre = lineas.FirstOrDefault(l => l.LineaId == g.Key)?.Nombre ?? "Desconocida",
                 CantidadDetenciones = g.Count(),
-                MinutosTotalesParada = g.Sum(d => d.MinutosEfectivos)
+                MinutosTotalesParada = g.MinutosQueCuentan()
             })
             .OrderByDescending(x => x.MinutosTotalesParada)
             .ToList();
@@ -166,7 +167,7 @@ public class DashboardService : IDashboardService
         var tiposFalla = await _unitOfWork.TiposFalla.GetAllAsync(cancellationToken);
 
         var query = detenciones
-            .Where(d => d.Fecha >= fechaDesde && d.Fecha <= fechaHasta && d.TipoFallaId.HasValue);
+            .Where(d => d.TurnoProduccion.FechaProduccion >= fechaDesde && d.TurnoProduccion.FechaProduccion <= fechaHasta && d.TipoFallaId.HasValue);
 
         if (lineasPermitidas != null)
             query = query.Where(d => lineasPermitidas.Contains(d.LineaId));
@@ -204,7 +205,7 @@ public class DashboardService : IDashboardService
         var detallesFalla = await _unitOfWork.DetallesFalla.GetAllAsync(cancellationToken);
 
         var query = detenciones
-            .Where(d => d.Fecha >= fechaDesde && d.Fecha <= fechaHasta && d.DetalleFallaId.HasValue);
+            .Where(d => d.TurnoProduccion.FechaProduccion >= fechaDesde && d.TurnoProduccion.FechaProduccion <= fechaHasta && d.DetalleFallaId.HasValue);
 
         if (lineasPermitidas != null)
             query = query.Where(d => lineasPermitidas.Contains(d.LineaId));
@@ -241,7 +242,7 @@ public class DashboardService : IDashboardService
         var detenciones = await _unitOfWork.Detenciones.GetAllAsync(cancellationToken);
 
         var query = detenciones
-            .Where(d => d.Fecha >= fechaDesde && d.Fecha <= fechaHasta);
+            .Where(d => d.TurnoProduccion.FechaProduccion >= fechaDesde && d.TurnoProduccion.FechaProduccion <= fechaHasta);
 
         if (lineasPermitidas != null)
             query = query.Where(d => lineasPermitidas.Contains(d.LineaId));
@@ -250,12 +251,12 @@ public class DashboardService : IDashboardService
             query = query.Where(d => d.LineaId == filtro.LineaId.Value);
 
         var resultado = query
-            .GroupBy(d => d.Fecha)
+            .GroupBy(d => d.TurnoProduccion.FechaProduccion)
             .Select(g => new TendenciaDetencionesDto
             {
                 Fecha = g.Key,
                 CantidadDetenciones = g.Count(),
-                MinutosTotalesParada = g.Sum(d => d.MinutosEfectivos)
+                MinutosTotalesParada = g.MinutosQueCuentan()
             })
             .OrderBy(x => x.Fecha)
             .ToList();
@@ -298,7 +299,7 @@ public class DashboardService : IDashboardService
                     ? tiposFalla.FirstOrDefault(t => t.TipoFallaId == d.TipoFallaId.Value)?.Nombre
                     : null,
                 Estado = d.ObtenerDescripcionAnalisis() ?? d.EstadoActual.ObtenerDescripcion(),
-                Fecha = d.Fecha,
+                Fecha = d.TurnoProduccion.FechaProduccion,
                 MinutosEfectivos = d.MinutosEfectivos,
                 Prioridad = d.MinutosEfectivos > 60 ? "Alta" : d.MinutosEfectivos > 30 ? "Media" : "Baja"
             })
@@ -321,7 +322,7 @@ public class DashboardService : IDashboardService
         var lineas = await _unitOfWork.Lineas.GetAllAsync(cancellationToken);
 
         var query = detenciones
-            .Where(d => d.Fecha >= fechaDesde && d.Fecha <= fechaHasta && d.EquipoId.HasValue);
+            .Where(d => d.TurnoProduccion.FechaProduccion >= fechaDesde && d.TurnoProduccion.FechaProduccion <= fechaHasta && d.EquipoId.HasValue);
 
         if (lineasPermitidas != null)
             query = query.Where(d => lineasPermitidas.Contains(d.LineaId));
@@ -420,7 +421,7 @@ public class DashboardService : IDashboardService
 
         var parametros = await _unitOfWork.Parametros.GetAllAsync(cancellationToken);
         var lineas = await _unitOfWork.Lineas.GetAllAsync(cancellationToken);
-        var productos = await _unitOfWork.Productos.GetAllAsync(cancellationToken);
+        var productos = await _unitOfWork.ProductosMaestro.GetAllAsync(cancellationToken);
 
         var query = registros.AsEnumerable();
 
@@ -440,7 +441,7 @@ public class DashboardService : IDashboardService
                     ParametroId = detalle.ParametroId,
                     ParametroNombre = parametro?.Nombre ?? "Desconocido",
                     LineaNombre = lineas.FirstOrDefault(l => l.LineaId == registro.LineaId)?.Nombre ?? "Desconocida",
-                    ProductoNombre = productos.FirstOrDefault(p => p.ProductoId == registro.ProductoId)?.Nombre ?? "Desconocido",
+                    ProductoNombre = productos.FirstOrDefault(p => p.ProductoMaestroId == registro.ProductoMaestroId)?.Nombre ?? "Desconocido",
                     ValorCapturado = detalle.ValorReal!.Value,
                     ValorEstandar = decimal.TryParse(detalle.ValorEstandarSnapshot, out var est) ? est : null,
                     ToleranciaInferior = null,
@@ -622,6 +623,31 @@ public class DashboardService : IDashboardService
         return Result<IReadOnlyList<TiempoProgramadoDiaDto>>.Success(delMes);
     }
 
+    /// <summary>
+    /// T-798 etapa 5: minutos programados por mes desde los TURNOS DE PRODUCCIÓN (fecha de producción) del año, del mes
+    /// desde al mes hasta y hasta hoy: el snapshot de cada turno o, si es 0, el recálculo desde la programación
+    /// (<see cref="MinutosProgramadosTurnos"/>). Un turno programado que nadie abrió entra igual (queda SIN_APERTURA).
+    /// </summary>
+    private async Task<Dictionary<int, int>> MinutosProgramadosPorMesDeTurnosAsync(
+        int anio, int mesDesde, int mesHasta, int? lineaId, CancellationToken cancellationToken)
+    {
+        if (anio is < 1 or > 9999 || mesDesde is < 1 or > 12 || mesHasta < mesDesde)
+            return new Dictionary<int, int>();
+        var desde = new DateOnly(anio, mesDesde, 1);
+        var finRango = new DateOnly(anio, Math.Min(mesHasta, 12), 1).AddMonths(1).AddDays(-1);
+        var hasta = TiempoProgramadoReporte.HastaHoy(anio, Hoy);
+        if (finRango < hasta)
+            hasta = finRango;
+        if (hasta < desde)
+            return new Dictionary<int, int>();
+
+        var turnos = await _unitOfWork.TurnosProduccion.GetPorFechasAsync(desde, hasta, lineaId is { } l ? [l] : null, cancellationToken);
+        var minutos = await MinutosProgramadosTurnos.CalcularAsync(_unitOfWork, turnos, cancellationToken);
+        return turnos
+            .GroupBy(t => t.FechaProduccion.Month)
+            .ToDictionary(g => g.Key, g => g.Sum(t => minutos.GetValueOrDefault(t.TurnoProduccionId)));
+    }
+
     public async Task<Result<IndisponibilidadReporteDto>> ObtenerIndisponibilidadAsync(
         ReporteFiltroRequest filtro,
         CancellationToken cancellationToken = default)
@@ -633,7 +659,6 @@ public class DashboardService : IDashboardService
         var detenciones = await _unitOfWork.Detenciones.GetAllAsync(cancellationToken);
         var tiposFalla = await _unitOfWork.TiposFalla.GetAllAsync(cancellationToken);
         var lineas = await _unitOfWork.Lineas.GetAllAsync(cancellationToken);
-        var turnos = await _unitOfWork.Turnos.GetAllAsync(cancellationToken);
 
         // Filtrar por linea si se especifica
         var query = detenciones.AsEnumerable();
@@ -641,12 +666,11 @@ public class DashboardService : IDashboardService
             query = query.Where(d => d.LineaId == filtro.LineaId.Value);
 
         // Filtrar por anio
-        query = query.Where(d => d.Fecha.Year == anio && d.Fecha.Month >= mesDesde && d.Fecha.Month <= mesHasta);
+        query = query.Where(d => d.TurnoProduccion.FechaProduccion.Year == anio && d.TurnoProduccion.FechaProduccion.Month >= mesDesde && d.TurnoProduccion.FechaProduccion.Month <= mesHasta);
 
         var detencionesLista = query.ToList();
 
-        var minutosProgramadosPorMes = TiempoProgramadoReporte.MinutosPorMes(
-            await CargarTiempoProgramadoAsync(lineas, turnos, anio, filtro.LineaId, cancellationToken));
+        var minutosProgramadosPorMes = await MinutosProgramadosPorMesDeTurnosAsync(anio, mesDesde, mesHasta, filtro.LineaId, cancellationToken);
 
         var reporte = new IndisponibilidadReporteDto
         {
@@ -658,13 +682,14 @@ public class DashboardService : IDashboardService
         };
 
         var meses = TiempoProgramadoReporte.MesesDelReporte(
-            anio, mesDesde, mesHasta, detencionesLista.Select(d => d.Fecha.Month),
+            anio, mesDesde, mesHasta, detencionesLista.Select(d => d.TurnoProduccion.FechaProduccion.Month),
             minutosProgramadosPorMes, Hoy);
 
         // Agrupar por mes
         foreach (var mes in meses)
         {
-            var detencionesDelMes = detencionesLista.Where(d => d.Fecha.Month == mes).ToList();
+            // Indisponibilidad: sólo las detenciones que cuentan para indicadores (DetencionIndicadores, T-798 2.10).
+            var detencionesDelMes = detencionesLista.Where(d => d.TurnoProduccion.FechaProduccion.Month == mes).QueCuentan().ToList();
             var minutosProgramados = minutosProgramadosPorMes.GetValueOrDefault(mes);
 
             var mensual = new IndisponibilidadMensualDto
@@ -769,13 +794,14 @@ public class DashboardService : IDashboardService
 
         // Filtrar por linea y anio; los meses salen de todas las detenciones y los eventos, de los fallos mayores
         var delAnio = detenciones.AsEnumerable()
-            .Where(d => d.Fecha.Year == anio && d.Fecha.Month >= mesDesde && d.Fecha.Month <= mesHasta);
+            .Where(d => d.TurnoProduccion.FechaProduccion.Year == anio && d.TurnoProduccion.FechaProduccion.Month >= mesDesde && d.TurnoProduccion.FechaProduccion.Month <= mesHasta);
 
         if (filtro.LineaId.HasValue)
             delAnio = delAnio.Where(d => d.LineaId == filtro.LineaId.Value);
 
         var detencionesDelAnio = delAnio.ToList();
-        var fallosMayores = detencionesDelAnio.Where(d => d.MinutosEfectivos >= umbralMinutos).ToList();
+        // El indicador % es contra el tiempo programado: sólo las que cuentan para indicadores (T-798 2.10).
+        var fallosMayores = detencionesDelAnio.QueCuentan().Where(d => d.MinutosEfectivos >= umbralMinutos).ToList();
 
         var minutosProgramadosPorMes = TiempoProgramadoReporte.MinutosPorMes(
             await CargarTiempoProgramadoAsync(lineas, turnos, anio, filtro.LineaId, cancellationToken));
@@ -791,13 +817,13 @@ public class DashboardService : IDashboardService
         };
 
         var meses = TiempoProgramadoReporte.MesesDelReporte(
-            anio, mesDesde, mesHasta, detencionesDelAnio.Select(d => d.Fecha.Month),
+            anio, mesDesde, mesHasta, detencionesDelAnio.Select(d => d.TurnoProduccion.FechaProduccion.Month),
             minutosProgramadosPorMes, Hoy);
 
         // Agrupar por mes
         foreach (var mes in meses)
         {
-            var fallosDelMes = fallosMayores.Where(d => d.Fecha.Month == mes).ToList();
+            var fallosDelMes = fallosMayores.Where(d => d.TurnoProduccion.FechaProduccion.Month == mes).ToList();
             var minutosProgramados = minutosProgramadosPorMes.GetValueOrDefault(mes);
 
             var mensual = new FallosMayoresMensualDto
@@ -895,13 +921,13 @@ public class DashboardService : IDashboardService
 
         // Filtrar
         var query = detenciones.AsEnumerable()
-            .Where(d => d.Fecha >= fechaDesde && d.Fecha <= fechaHasta);
+            .Where(d => d.TurnoProduccion.FechaProduccion >= fechaDesde && d.TurnoProduccion.FechaProduccion <= fechaHasta);
 
         if (filtro.LineaId.HasValue)
             query = query.Where(d => d.LineaId == filtro.LineaId.Value);
 
         if (filtro.TurnoId.HasValue)
-            query = query.Where(d => d.TurnoId == filtro.TurnoId.Value);
+            query = query.Where(d => d.TurnoProduccion.TurnoId == filtro.TurnoId.Value);
 
         var lista = query.ToList();
         var totalMinutos = lista.Sum(d => d.MinutosEfectivos);

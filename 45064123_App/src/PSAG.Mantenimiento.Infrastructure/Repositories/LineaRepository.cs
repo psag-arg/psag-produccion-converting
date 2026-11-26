@@ -22,7 +22,7 @@ public class LineaRepository : RepositoryBase<Linea>, ILineaRepository
 
     public async Task<IEnumerable<Linea>> GetLineasPorUsuarioAsync(string usuarioId, CancellationToken cancellationToken = default)
     {
-        return await _context.UsuariosLineas
+        return await _context.OperadoresLinea
             .Where(ul => ul.UsuarioId == usuarioId)
             .Select(ul => ul.Linea)
             .Where(l => l.Activo)

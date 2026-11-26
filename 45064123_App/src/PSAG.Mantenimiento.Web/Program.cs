@@ -52,7 +52,20 @@ builder.Services.AddScoped<IInspeccionPlantillaService, InspeccionPlantillaServi
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<ICalidadService, CalidadService>();
 builder.Services.AddScoped<IConteoCamaraService, ConteoCamaraService>();
+builder.Services.AddScoped<ICamarasService, CamarasService>();
 builder.Services.AddScoped<IDeclaracionDetencionService, DeclaracionDetencionService>();
+builder.Services.AddScoped<ITurnosProduccionService, TurnosProduccionService>();
+builder.Services.AddScoped<IIndicadoresService, IndicadoresService>();
+builder.Services.AddScoped<IMaestrosProduccionService, MaestrosProduccionService>();
+// Roles y permisos configurables (T-802): menú, páginas y botones según GET api/permisos/mios
+builder.Services.AddScoped<IPermisosService, PermisosService>();
+// Obligado a turno (T-802): turno propio del usuario; sin turno, sólo "Inicio de turno"
+builder.Services.AddScoped<ITurnoPropioService, TurnoPropioService>();
+
+// Tablero del operador (T-770): api/tablero/turno; los avisos en línea (SignalR) los arma la pantalla
+builder.Services.AddScoped<ITableroService, TableroService>();
+// T-805: la barra de turno y el tablero comparten los indicadores del turno en pantalla (mismos números)
+builder.Services.AddScoped<IndicadoresEnPantalla>();
 
 // Servicio de temas
 builder.Services.AddScoped<IThemeService, ThemeService>();

@@ -1,0 +1,49 @@
+@* T-770 iteración 2 · 4) DETENCIONES (lámina 4 de Ferretti): barras horizontales por tipo de falla (maestro
+   ABM_TiposFalla) con los minutos acumulados del turno. Las pendientes son la barra "Sin declarar" (minutos desde la
+   parada de cámara). SVG propio.
+   Ajustes 23/11: vive dentro de los modales de Totales y Declaradas (ya no en el bloque); SOLO los tipos con minutos
+   (nada de 13 tipos en 0) y sólo los que cuentan (las programadas van aparte); el nombre va en su propio renglón,
+   arriba de la barra, para que no se pise con el valor. *@
+
+@{
+    var barras = GraficosUi.BarrasConMinutos(Detenciones.Barras, IncluirSinDeclarar);
+    var maximo = GraficosUi.EscalaDetenciones(barras.Select(b => b.Minutos));
+    var alto = 4 + barras.Count * Fila + 22;
+}
+@if (barras.Count == 0)
+{
+    <div class="text-body-secondary" data-testid="barras-detenciones-vacio">No hay minutos de detención en el turno.</div>
+}
+else
+{
+    <svg viewBox="0 0 @Ancho @alto" class="w-100 grafico-tablero" role="img" aria-label="Detenciones por tipo de falla" data-testid="barras-detenciones">
+        @foreach (var m in GraficosUi.Marcas(maximo, 4))
+        {
+            var x = AnchoPlot * GraficosUi.Proporcion(m, maximo);
+            <line x1="@GraficosUi.N(x)" x2="@GraficosUi.N(x)" y1="4" y2="@(alto - 18)" stroke-width="1" style="stroke: var(--bs-border-color)" />
+            <g><text x="@GraficosUi.N(x)" y="@(alto - 4)" text-anchor="@(m == 0 ? "start" : "middle")" font-size="11" style="fill: var(--bs-secondary-color)">@GraficosUi.TextoMarca(m)</text></g>
+        }
+        @{ var i = 0; }
+        @foreach (var b in barras)
+        {
+            var y = 4 + i * Fila;
+            var color = b.SinDeclarar ? GraficosUi.Color(TableroUi.Nivel.Mal) : TableroUi.ColorTema(TableroUi.Tema.Detenciones);
+            var ancho = Math.Max(2, AnchoPlot * GraficosUi.Proporcion(b.Minutos, maximo));
+            <g data-testid="barra-tipo"><text x="0" y="@(y + 13)" font-size="13" font-weight="@(b.SinDeclarar ? "700" : "600")" style="fill: @(b.SinDeclarar ? "var(--bs-danger-text-emphasis)" : "var(--bs-body-color)")">@GraficosUi.EtiquetaTipo(b.Nombre)<tspan font-weight="400" style="fill: var(--bs-secondary-color)"> · @b.Cantidad</tspan></text></g>
+            <rect x="0" y="@(y + 18)" width="@GraficosUi.N(ancho)" height="18" rx="9" style="fill: @color" />
+            <g><text x="@GraficosUi.N(ancho + 6)" y="@(y + 32)" font-size="13" font-weight="700" style="fill: var(--bs-body-color)">@GraficosUi.TextoMinutos(b.Minutos)</text></g>
+            i++;
+        }
+    </svg>
+}
+
+@code {
+    private const double Ancho = 480;
+    private const double AnchoPlot = 400;
+    private const int Fila = 44;
+
+    [Parameter, EditorRequired] public DetencionesTipoTableroDto Detenciones { get; set; } = new();
+
+    /// <summary>Incluir la barra "Sin declarar" (en Totales sí; en Declaradas no).</summary>
+    [Parameter] public bool IncluirSinDeclarar { get; set; } = true;
+}

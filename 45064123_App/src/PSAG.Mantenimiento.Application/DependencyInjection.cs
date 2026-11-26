@@ -33,7 +33,20 @@ public static class DependencyInjection
 
         // Conteo de producción y paradas por cámara (T-610)
         services.AddScoped<IConteoCamaraService, ConteoCamaraService>();
+        services.AddScoped<ICamaraService, CamaraService>();   // maestro de cámaras (T-798 etapa 4)
         services.AddScoped<IDeclaracionDetencionService, DeclaracionDetencionService>();
+
+        // Turno de producción (T-798 etapa 2). TurnosProduccionOpciones la registra la API desde appsettings.
+        services.AddScoped<ITurnoProduccionService, TurnoProduccionService>();
+
+        // Indicadores: presupuesto vs. real desde el turno y el parámetro (T-798 etapa 5)
+        services.AddScoped<IIndicadoresService, IndicadoresService>();
+
+        // Tablero del operador (T-770): todo el turno en proceso en una llamada
+        services.AddScoped<ITableroService, TableroService>();
+
+        // Maestros de producción: productos + SKU y parametrización línea + producto (T-798 etapa 6)
+        services.AddScoped<IMaestrosProduccionService, MaestrosProduccionService>();
 
         // Dashboard consolidado
         services.AddScoped<IDashboardService, DashboardService>();

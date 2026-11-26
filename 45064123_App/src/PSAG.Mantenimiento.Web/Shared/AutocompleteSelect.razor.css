@@ -15,7 +15,7 @@
 
 .autocomplete-item:hover {
     background-color: var(--bs-primary);
-    color: white;
+    color: var(--psag-sobre-acento);
 }
 
 @keyframes slideDown {

@@ -9,7 +9,7 @@ public class TareaMantenimientoConfiguration : IEntityTypeConfiguration<TareaMan
 {
     public void Configure(EntityTypeBuilder<TareaMantenimiento> builder)
     {
-        builder.ToTable("TareasMantenimiento", "mnt", t =>
+        builder.ToTable("MNT_Tareas", "mnt", t =>
         {
             t.HasCheckConstraint("CK_TareasMantenimiento_TipoTarea",
                 "[TipoTarea] IN ('MECANICA', 'ELECTRICA', 'ELECTRONICA')");

@@ -21,7 +21,7 @@ PSAG.Mantenimiento.ConteoCamara (servicio NSSM "PSAG_ConteoCamara")
    minutos por carril + paradas con histéresis
    lotes cada 30 s → carpeta pendientes\ → POST api/conteo-camara/ingesta (X-Clave-Ingesta)
                                    │
-API (PSAG_Mantenimiento_API) → mnt.ConteosCamaraMinuto, mnt.ParadasCamara (script 25)
+API (PSAG_Mantenimiento_API) → mnt.CAM_ConteosMinuto, mnt.CAM_Paradas (scripts 25 y 36; ex ConteosCamaraMinuto / ParadasCamara)
 ```
 
 **Método** (validado en la prueba de factibilidad, informe `T-610_pruebas_camara_cortadora.md`): cada rollo que pasa
@@ -84,12 +84,13 @@ Parámetros principales (`appsettings.json` → `ConteoCamara`):
 
 | Clave | Valor | Para qué |
 |---|---|---|
-| `PuntoControl` | `T2-CAM09` | código del punto de control (Maestros → Calidad) que define la línea |
+| `Camara` | `T2-CAM09` | código de la cámara (Maestros → Cámaras) que define la línea. T-798 etapa 4: antes `PuntoControl` (se sigue leyendo) |
 | `Fuente:RutaRtsp` | `/Streaming/Channels/901` | canal 09 en vivo |
+| `Fuente:Canal` | (vacío) | T-785: número de cámara del grabador; si está, la ruta es `/Streaming/Channels/{Canal}01` y manda sobre `RutaRtsp` |
 | `Fuente:AnchoDecodificado` × `AltoDecodificado` @ `Fps` | 640 × 480 @ 10 | lo justo para el método |
 | `Analisis:FrecuenciaNominalHz` | 2.78 | velocidad normal; cambiarla si cambia el formato/velocidad |
 | `Analisis:VentanasParaConfirmar` | 2 | histéresis (20 s) |
-| `Analisis:SegundosMinimosParada` | 20 | paradas más cortas no se informan (quedan en los minutos) |
+| `Analisis:SegundosMinimosParada` | 20 | cámara 09: paradas más cortas no se informan (quedan en los minutos). La 10 no lo usa (T-784) |
 | `Api:UrlBase` | `http://localhost:5188` | la API en el mismo servidor |
 
 ## 4. Instalación offline en el servidor de Producción (2k22recimgProd, 172.16.18.52)
@@ -109,7 +110,7 @@ El servidor tiene que llegar al NVR `172.16.9.67:554` (RTSP/TCP). Verificar ante
 1. Base: correr `database\25_t610_conteo_camara.sql` (requiere el 23). `sqlcmd -S localhost\SQLEXPRESS -I -b -f 65001 -i 25_t610_conteo_camara.sql`.
 2. API: publicar la versión de esta rama (`02-Publicar-Aplicacion.ps1`) y reiniciar `PSAG_Mantenimiento_API` y IIS.
    Si todavía no tiene `Calidad__ClaveIngesta`, configurarla (ver `docs/CALIDAD.md`).
-3. Web → Maestros → Calidad → Cámaras: dar de alta **`T2-CAM09`** en la línea Tango 2 (o el bloque comentado del script 25).
+3. Web → Maestros → Cámaras: dar de alta **`T2-CAM09`** en la línea Tango 2 y dejarla **Habilitada** (T-798 etapa 4; ver la sección 11).
 4. Crear `C:\PSAG\secretos\nvr.env` con las tres líneas `NVR=172.16.9.67`, `NVR_USER=...`, `NVR_PASS=...`.
 5. Descomprimir el ZIP en una carpeta temporal y, desde ahí: `.\06-Instalar-ConteoCamara.ps1`
    - copia a `C:\PSAG\ConteoCamara` (conserva `zonas-camara.json` y `appsettings.local.json` si ya existían),
@@ -147,9 +148,9 @@ Las fotos y videos quedan en el servidor: no se mandan a ningún servicio extern
 
 ```json
 {
-  "puntoControl": "T2-CAM09",
+  "camara": "T2-CAM09",
   "minutos": [
-    { "minuto": "2026-10-30T08:16:00-03:00", "carril": 1, "rollos": 166.7, "segundosMarcha": 60,
+    { "minuto": "2026-10-30T08:16:00-03:00", "carril": 1, "cantidad": 166.7, "segundosMarcha": 60,
       "segundosParada": 0, "segundosAcumulacion": 0, "segundosSinSenal": 0, "estado": "MARCHA" }
   ],
   "paradas": [
@@ -174,7 +175,10 @@ y `GET api/conteo-camara/produccion?fecha&lineaId`.
   no cuenta objetos: con paso regular es exacto, en acumulación es aproximado).
 - En **acumulación** (curva llena, rollos a los tirones) la frecuencia es ambigua: esas ventanas se marcan
   `ACUMULACION` y el conteo de esos minutos es aproximado (en la prueba del 25/10, ±7 % entre métodos).
-- Resolución de 10 s: paradas de menos de 20 s no se informan como parada (sí quedan en los segundos de cada minuto).
+- Cámara 09: resolución de 10 s; paradas de menos de 20 s no se informan como parada (sí quedan en los segundos de cada
+  minuto). La cámara 10, con el detector por defecto (`VENTANAS`), tampoco informa paradas de menos de 20 s y junta
+  microparadas con arranques de menos de 60 s (regla A); con `MANGAS` (T-784, sección 8.1.2) las detecta cuadro a cuadro
+  y no descarta ninguna.
 - Si cambia la velocidad nominal (otro formato) ajustar `FrecuenciaNominalHz`; si no, las ventanas lentas se ven como acumulación.
 - Si se apaga el servicio de golpe (no por NSSM) se pierden hasta ~30 s de datos en memoria; un minuto partido por un
   reinicio queda con lo del primer envío (el segundo se toma como repetido).
@@ -199,13 +203,25 @@ Cada ventana de 10 s queda en:
 | `ACUMULACION` → tipo de parada **`SIN_MANGAS`** | el rodillo gira pero no pasó ninguna manga en la ventana |
 | `MARCHA` | el rodillo giró en al menos el 90 % de la ventana y pasó al menos una manga |
 
-Las paradas usan el mismo detector con histéresis que la 09: 2 ventanas (20 s) para **abrir** una parada, pero 6
-ventanas (60 s) de marcha para **cerrarla** (regla A). Las **mangas** se cuentan con histéresis 15/4 y 2,0 s mínimo
-entre mangas y van a `mnt.ConteosCamaraMinuto` como "rollos" del carril 1; la API las suma por turno
-(`GET api/conteo-camara/produccion?puntoControlCalidadId=...` → `turnos`). Con una parada abierta no se cuentan
-(regla F).
+Las **mangas** se cuentan con histéresis 15/4 y 2,0 s mínimo entre mangas y van a `mnt.CAM_ConteosMinuto` (columna
+`Cantidad`, ex `Rollos`) en el carril 1; la API las cuelga del turno de producción y la producción oficial sale de los
+indicadores (T-798, sección 11).
 
-#### 8.1.1 Reglas de parada y ajuste del conteo (19/11/2026)
+**Detector de paradas (T-804)**: la cámara de mangas tiene dos, elegibles por cámara con `Mangas:DetectorParadas`:
+
+| Valor | Detector | Estado |
+|---|---|---|
+| `VENTANAS` (**default**) | `DetectorParadas`: histéresis de ventanas de 10 s, con las reglas A, E y F (8.1.1) | **productivo** desde el 19/11, validado con video del 13 y 14/11 |
+| `MANGAS` | `DetectorParadasMangas`: cuadro a cuadro por mangas y rodillo (T-784, 8.1.2) | en el código, **activable para probar** |
+
+Sin el parámetro (o con un `appsettings.local.json` del servidor que no lo trae) queda `VENTANAS`. Un valor que no es
+ninguno de los dos no deja arrancar la cámara (error en el log). Con una cámara que no detecta paradas (la 8 de bolsones,
+o Maestros → Cámaras sin "detecta paradas") no corre ningún detector: sólo cuenta, con cualquiera de los dos valores.
+
+Con `VENTANAS` usa el mismo detector con histéresis que la 09: 2 ventanas (20 s) para **abrir** una parada, pero 6
+ventanas (60 s) de marcha para **cerrarla** (regla A). Con una parada abierta las mangas no se cuentan (regla F).
+
+#### 8.1.1 Detector `VENTANAS` (default): reglas de parada y ajuste del conteo (19/11/2026)
 
 Caso que las motivó, **13/11 11:08-11:23**: una sola parada real (rodillo quieto 11:08:21, vuelve a girar 11:21:58).
 Entre 11:10 y 11:14 un operario limpió la mesa con aire comprimido y tapó las zonas: el sistema vio "marcha" de 20 y
@@ -222,7 +238,7 @@ tercera parte) en vez de 11:08.
 `UmbralRodilloGira` queda en 6: en el 13/11 daba lo mismo con 4, 6 u 8. Fps y zonas sin cambios.
 
 **Validación** con la cadena real del servicio (`tools/ValidarConteoCamara`: FuenteFfmpeg → VigilanteVideo →
-ProcesadorMangas → DetectorParadas → AcumuladorMinutos) sobre video grabado:
+ProcesadorMangas → DetectorParadas → AcumuladorMinutos, detector `VENTANAS`) sobre video grabado:
 
 | Día / tramo | Real | Antes | Después |
 |---|---|---|---|
@@ -242,11 +258,44 @@ ritmo normal, ~20 por arranque de 50 s). La parada puede empezar hasta una venta
 rodillo quieto desde 11:08:21). Los minutos de un arranque se mandan hasta 60 s más tarde (se retienen hasta
 confirmarlo); el cierre de la parada llega 40 s más tarde que antes, con la misma hora de fin.
 
+#### 8.1.2 Detector `MANGAS` (T-784, opcional, para probar)
+
+Las paradas no salen de las ventanas sino de las mangas, cuadro a cuadro, para que cada microparada quede con su inicio
+y fin reales (la histéresis de 2 ventanas junta microparadas seguidas y descarta las de menos de 20 s: caso del 13/11,
+11:08 a 11:14). Se activa por cámara en `Camaras[T2-CAM10]`:
+
+```json
+"Mangas": { "DetectorParadas": "MANGAS", "SegundosSinMangasParaParada": 10, "MangasParaReanudar": 2, "SegundosRodilloQuietoParaParada": 5 }
+```
+
+(en el servidor, en `appsettings.local.json`, dentro del elemento de la 10 de `ConteoCamara:Camaras`; reiniciar el
+servicio). Para volver, `"DetectorParadas": "VENTANAS"` o sacar la clave.
+
+| | Regla | Parámetro (`Mangas:`) |
+|---|---|---|
+| Para | 10 s o más sin mangas, o con el rodillo quieto 10 s seguidos | `SegundosSinMangasParaParada` = 10 |
+| Inicio | la última manga que salió (o el primer cuadro con el rodillo quieto) | |
+| Arranca | 2 mangas seguidas a menos de 10 s una de otra; el **fin** es la primera. Una manga suelta no corta la parada | `MangasParaReanudar` = 2 |
+| Tipo | `PARADA` si el rodillo estuvo quieto 5 s seguidos durante la parada; si no, `SIN_MANGAS` | `SegundosRodilloQuietoParaParada` = 5 |
+| Mínimo | no hay: todo lo que cumple la definición se informa; el umbral de detención lo aplica la API | |
+
+Corte de video o imagen congelada con la parada abierta: queda suspendida y, si el video vuelve antes de 120 s con la
+máquina todavía parada, sigue la misma (mismo identificador). Si al volver ya estaba produciendo, o el corte fue más
+largo, se cierra donde se perdió el video con `FinIncierto`. Las ventanas de 10 s siguen dando el estado de cada minuto
+(con la regla E). El conteo es el mismo (15/4 y 2,0 s).
+
+**Con `MANGAS` no aplican las reglas A ni F**: un arranque corto (o la limpieza con aire del 13/11) cierra la parada y
+las mangas se cuentan siempre, también con la parada abierta (las ventanas no se retienen). Adaptar F a este detector
+pide retener las ventanas hasta saber si el arranque se confirma con otra lógica de confirmación por mangas; queda para
+cuando se pruebe en planta. **No se validó con video**: antes de pasarlo a una cámara productiva, correr
+`ValidarConteoCamara simular ... --variante ventanas --variante t784:Mangas:DetectorParadas=MANGAS` sobre los videos
+del 13 y 14/11 y comparar.
+
 **Por qué las dos señales (OR):** en el 02-03/11 se vieron paradas con el rodillo girando y sin mangas (09:55, 05:20,
 22:10, 23:15: todo quieto menos el rodillo) y paradas con el rodillo quieto (02:28 a 02:36, 23:10). Mirar sólo el
 rodillo pierde las primeras; mirar sólo las mangas no distingue el tipo. **Empalme**: el rodillo sigue y las mangas
-salen más espaciadas pero siguen saliendo, así que no se abre parada; si alguna vez dejan de salir más de 20 s queda
-como microcorte (sólo log). Recién a los 5 minutos se crea la detención.
+salen más espaciadas (cada ~7 s) pero siguen saliendo, así que no se abre parada; si dejan de salir dos ventanas seguidas
+(`VENTANAS`) o 10 s o más (`MANGAS`) queda como microparada (registrada, sin detención). Recién al umbral (5 minutos) se crea la detención.
 
 Validar un cambio de parámetros con video grabado (en la PC de desarrollo, no en el servidor):
 `ValidarConteoCamara decodificar --video c10.ps --ffmpeg ffmpeg.exe --salida c10.raw` y después
@@ -258,16 +307,18 @@ Validar un cambio de parámetros con video grabado (en la PC de desarrollo, no e
 1. Mientras la máquina sigue parada, cada lote lleva la parada **en curso** (`paradasEnCurso`: inicio y última hora
    vista). Cuando llega al umbral del punto de control (`MinutosUmbralDetencion`, 5 por defecto) y el punto tiene
    `CreaDetenciones`, la API da de alta la detención **sin esperar el arranque**. Para probar en planta el umbral se
-   puede cargar en segundos (`SegundosUmbralDetencion`, 30 a 14400, script 30; manda sobre los minutos si tiene
-   valor). El umbral efectivo lo decide `DetencionCamaraReglas.UmbralSegundos`.
+   puede cargar en segundos (T-798: un solo campo `CAM_Camaras.UmbralDetencionSegundos`, 30 a 14400, Maestros → Cámaras; el script 36 migró
+   segundos o minutos × 60). El umbral efectivo lo decide `DetencionCamaraReglas.UmbralSegundos`.
 2. La detención nace en `PENDIENTE_JUSTIFICACION` ("Pendiente de declaración"), `OrigenRegistro = CAMARA`, con
    línea (la del punto), fecha y turno de la hora de parada, `FechaHoraParada` y **maquinista del turno**. Quedan
    vacíos el equipo, el tipo y detalle de falla, la descripción, la hora de arranque y los minutos (0).
-3. **Idempotente**: `IdentificadorParadaCamara` (punto + inicio UTC) es único en `mnt.Detenciones`. Un reenvío o la
+3. **Idempotente**: `IdentificadorParadaCamara` (punto + inicio UTC) es único en `mnt.DET_Detenciones`. Un reenvío o la
    misma parada cerrada no la duplican; una detención eliminada no se vuelve a crear.
 4. Cuando la máquina arranca, la parada cerrada guarda el arranque visto en `FechaHoraArranqueDetectada`. Es **sólo
    una sugerencia**: la hora de arranque la declara el operador (botón "Usar la de la cámara").
-5. Las paradas de menos que el umbral quedan sólo en `mnt.ParadasCamara` (log de microcortes).
+5. Todas las paradas quedan en `mnt.CAM_Paradas`, micro y grandes, con el umbral efectivo de ese momento
+   (`UmbralSegundos`) y la marca `SuperaUmbral` (T-784; columnas creadas por el script 31 de T-798). Es un snapshot: si después cambia el umbral, la
+   marca no cambia. Las que no llegan al umbral son **microparadas**: no crean detención ni se le piden declarar.
 
 **Maquinista** (`DetencionCamaraReglas.ElegirMaquinista`): la asignación de la línea para el turno de la parada; si
 hay dos (error de carga), la asignada más recientemente y se deja escrito en el historial; si no hay, la única
@@ -288,13 +339,16 @@ de turno**: banner en todas las pantallas cuando faltan 30 min o menos y hay pen
   esos cuadros se descartan antes de analizarlos: **no hay parada ni detención falsa**. Se abre una alerta `CONGELADA`
   y se cierra cuando la imagen cambia 1 s seguido (un cuadro clave del códec no la cierra).
 - **Sin video**: 60 s sin cuadros del NVR abren una alerta `SIN_VIDEO` ("pérdida de conexión de cámara"); se cierra
-  con el primer cuadro. Las alertas se guardan en `mnt.AlertasCamara` y se ven en Mis pendientes y en Paradas (cámara).
+  con el primer cuadro. Las alertas se guardan en `mnt.CAM_Alertas` y se ven en Mis pendientes y en Paradas (cámara).
 
 ### 8.4 Configuración (`appsettings.json` → `ConteoCamara:Camaras`)
 
 La sección común (`Fuente`, `Analisis`, `Vigilancia`, `Api`) vale para todas; cada cámara pisa lo suyo. La 09 sigue
 leyendo sus carriles de `zonas-camara.json` y conserva la carpeta `pendientes\`; las demás usan `pendientes\<código>`.
-La 10 viene **apagada** (`"Activa": false`) hasta que el usuario del servicio tenga permiso sobre el canal 10. Para
+> **T-798 etapa 4**: `Activa` ya no existe (si viene, se ignora y se loguea): la habilitación está en Maestros →
+> Cámaras. Los ejemplos de abajo con `PuntoControl`/`Activa` son históricos; ver la sección 11.
+
+La 10 venía **apagada** (`"Activa": false`) hasta que el usuario del servicio tenga permiso sobre el canal 10. Para
 encenderla, en `appsettings.local.json` del servidor:
 
 ```json
@@ -304,9 +358,14 @@ encenderla, en `appsettings.local.json` del servidor:
 Probar sin instalar: `.\PSAG.Mantenimiento.ConteoCamara.exe vivo --camara T2-CAM10 --segundos 120` o
 `procesar --camara T2-CAM10 --archivo c10.mp4 --inicio 2026-11-03T02:25:00-03:00 --eco`.
 
-**Umbral, cuerpo y número de cámara**: Web → Maestros → Calidad → editar `T2-CAM10` → *Cámara asociada*.
+**Umbral, cuerpo y número de cámara**: Web → Maestros → Cámaras → editar `T2-CAM10` (T-798 etapa 4).
 
 ## 9. Eficiencia por turno en el Dashboard (reunión 03/11, script 28)
+
+> **T-798 etapa 4**: `ObjetivoPorHora` se quitó de las cámaras. La tarjeta del Dashboard pasa a "Producción por cámara"
+> y muestra contadas, minutos con datos, paradas y microcortes **sin objetivo ni %**; un turno sin minutos dice
+> "Sin datos" (nunca 0). El objetivo y la eficiencia vuelven en la etapa 5 desde `PRD_ParametrosLineaProducto`. Lo que
+> sigue describe el cálculo anterior.
 
 - **Fórmula** [8:31]: eficiencia = contadas en el turno / objetivo del turno; objetivo = `ObjetivoPorHora` (Maestros →
   Calidad → cámara) x horas programadas del turno.
@@ -318,9 +377,123 @@ Probar sin instalar: `.\PSAG.Mantenimiento.ConteoCamara.exe vivo --camara T2-CAM
   `TurnoId` materializado dentro de esa ventana (no se recalcula el turno).
 - **Sin objetivo** (`ObjetivoPorHora` vacío): estado `SIN_OBJETIVO`, el % viene vacío y el Dashboard dice "Falta cargar
   el objetivo" (nunca 0 %). Objetivo 0 (turno no programado): `NO_PROGRAMADO`, sin dividir por cero.
-- **Paradas y microcortes**: minutos de todas las paradas de la cámara recortadas al turno; microcortes = paradas que
-  empezaron en el turno y duraron menos que el umbral efectivo (`SegundosUmbralDetencion` o `MinutosUmbralDetencion`).
+- **Paradas y microcortes**: minutos de todas las paradas de la cámara recortadas al turno (`MinutosParada`), y de
+  ellos los de microparadas (`MinutosMicroparadas`, T-784); microcortes = paradas que empezaron en el turno y no
+  llegaron al umbral **guardado al registrarlas** (`SuperaUmbral`; las anteriores al script 31 de T-798 se comparan con el umbral
+  actual). Los reportes deciden si toman las microparadas. *Paradas y producción (cámara)* filtra por umbral.
 - **Unidad**: `MetodoConteo` del punto (`CARRILES` = rollos, `MANGAS` = mangas). Vacío: 1 carril con datos = mangas,
   más = rollos.
-- **API**: `GET api/conteo-camara/eficiencia?fecha=YYYY-MM-DD&lineaId=` (el Dashboard pide hoy y ayer). Aparecen las
-  cámaras con conteo en esos días o con objetivo o método cargado.
+- **API** (histórica): `GET api/conteo-camara/eficiencia`. **T-798 etapa 5: se quitó.** La eficiencia sale de los
+  indicadores (`GET api/indicadores/turno/{id}` y `GET api/indicadores/produccion`): objetivo del parámetro línea +
+  producto (snapshot en el tramo, prorrateado por minutos) vs. la producción oficial del turno (`PRD_ProduccionesTurno`,
+  que se llena con la cámara `CuentaProduccionOficial` al cerrar cada tramo y la valida el supervisor). Las paradas y
+  microparadas por cámara siguen en *Paradas y producción (cámara)* (`GET api/conteo-camara/paradas`).
+- **T-803 · Microcortes en el presupuesto vs. real**: `GET api/indicadores/produccion` trae en cada fila (y en el total)
+  `Microcortes`, `SegundosMicrocortes` y `MinutosMicrocortes`: paradas de cámara del `TurnoProduccionId` que no llegaron al
+  umbral (`DetencionCamaraReglas.SuperaUmbral`). Por turno, día, línea y total: todos los del turno. **Por producto** (o
+  filtrando un producto): los que **empezaron dentro de un tramo** de ese producto (las paradas tienen hora); "Sin producto
+  (a completar)" lleva los de los turnos sin tramos. **Null (no 0)** si ninguna línea de la fila tiene cámara de conteo.
+  *Dashboard → Presupuesto vs. real* muestra una sola tabla con esa columna; el detalle por cámara está en el modal
+  "Detalle" del turno.
+
+## 10. Cámara 8: bolsones para la eficiencia (T-785)
+
+Ferretti (16/11, punto 1): la eficiencia cuenta **mangas** (cámara 10) y **bolsones** (cámara 8). La cámara 8 reemplaza a
+la 09 en la eficiencia. IT habilitó la cámara 8 en el grabador el 10/11.
+
+- **Método `BOLSONES`**: el mismo contador de pasos que las mangas (movimiento medio en la zona `Mangas:Mesa`, con
+  histéresis `UmbralPasoAlto`/`UmbralPasoBajo` y `SegundosMinimosEntrePasos`), sin rodillo y **sin paradas**: las paradas
+  y las detenciones las da la cámara 10. Los bolsones van a `mnt.CAM_ConteosMinuto` de la cámara `T2-CAM08` (carril 1).
+- **Canal sin fijarlo en el código**: `Fuente:Canal = 8` en la entrada de la cámara (`appsettings.json`, o
+  `appsettings.local.json` en el servidor). El repo la trae **apagada** (`"Activa": false`), como la 10 al principio.
+- **API y Dashboard**: con el punto `T2-CAM08` (método *Bolsones*, objetivo por hora de bolsones), la eficiencia por turno
+  muestra la cámara 10 en mangas y la 8 en bolsones, cada una con su objetivo. La producción del turno
+  (`GET api/conteo-camara/produccion`) también sale por cámara, con su unidad.
+- **Reemplazo de la 09**: el tilde *Cuenta para la eficiencia* (`IncluirEnEficiencia`) se quitó en T-798 (etapa 1).
+  Lo reemplaza `CAM_Camaras.CuentaProduccionOficial` en la etapa 4 (cámaras unificadas). Hasta entonces, para sacar
+  la 09 de la eficiencia se le borran el objetivo y el método (o se la desactiva).
+
+### 10.1 Para probar con la cámara real (Francisco)
+
+Desde `C:\PSAG\ConteoCamara`, con la versión nueva instalada y el usuario del NVR con permiso sobre el canal 8:
+
+1. Foto: `.\PSAG.Mantenimiento.ConteoCamara.exe foto --camara T2-CAM08 --salida C:\temp\cam08.jpg`.
+   - Anotar la resolución de la foto. Si no es 2560x1440, poner `Mangas:AnchoImagen` y `AltoImagen` de la 8.
+2. En la foto, elegir un rectángulo por donde cruza **cada bolsón una sola vez**: una franja de la cinta, sin gente ni
+   máquinas que se muevan. Cargarlo en `Mangas:Mesa` (X, Y, Ancho, Alto, en píxeles de la foto) en `appsettings.local.json`:
+
+   ```json
+   { "ConteoCamara": { "Camaras": [ { "PuntoControl": "T2-CAM09" }, { "PuntoControl": "T2-CAM10" },
+     { "PuntoControl": "T2-CAM08", "Activa": true, "Mangas": { "Mesa": { "X": 0, "Y": 0, "Ancho": 0, "Alto": 0 } } } ] } }
+   ```
+
+   Las cámaras se combinan por posición (09, 10, 8): si el `appsettings.local.json` del servidor ya tiene algo (por
+   ejemplo, la 10 con `"Activa": true`), agregar la tercera entrada y conservar lo demás.
+
+3. Probar sin mandar nada: `.\PSAG.Mantenimiento.ConteoCamara.exe vivo --camara T2-CAM08 --segundos 300`.
+   - Contar a mano los bolsones de esos 5 minutos y comparar con el total que imprime.
+4. Ajustar si no coincide:
+   - si cuenta de más: subir `UmbralPasoAlto` o `SegundosMinimosEntrePasos` (hoy 2 s: un bolsón no puede pasar más seguido que eso);
+   - si cuenta de menos: bajar `UmbralPasoAlto`.
+5. Si hay video grabado de la 8: `procesar --camara T2-CAM08 --archivo c08.mp4 --inicio <hora> --eco` repite la prueba sin la cámara en vivo.
+6. Con el conteo bien:
+   - (T-798) en Maestros → Cámaras, dar de alta o editar la `T2-CAM08`: línea Tango 2, canal 8, función CONTEO,
+     magnitud BOLSONES, método PASOS, sin paradas, *Habilitada*; producción oficial de BOLSONES si corresponde;
+   - sacarle a la 09 la producción oficial (o deshabilitarla);
+   - reiniciar `PSAG_ConteoCamara`.
+   (El script 33 viejo de T-785 y el alta en Maestros → Calidad ya no aplican: ver la sección 11.)
+
+
+## 11. Cámaras unificadas (T-798 etapa 4, script 36)
+
+**Maestro único `CAM_Camaras`** (Web → Maestros → Cámaras): cada cámara es un dispositivo con código, línea, equipo que
+mira, canal del grabador y función (CONTEO o CALIDAD). Las de conteo dicen qué cuentan (`Magnitud`: MANGAS, ROLLOS,
+PAQUETES, BOLSONES, PALLETS), cómo (`CARRILES` o `PASOS`), carriles, si detectan paradas, si crean detenciones y desde
+qué umbral (un solo campo en segundos, 30 a 14400; vacío = 5 min) y si son la **producción oficial** de su magnitud en
+la línea (una sola por línea y magnitud). Los puntos de control de calidad ya no tienen datos de cámara: eligen qué
+cámara usan (opcional). La pantalla muestra el **último dato recibido** (verde ≤ 5 min, amarillo ≤ 30 min, rojo).
+
+**`Habilitada` es la única fuente de verdad** de qué corre el servicio:
+
+1. Al arrancar y cada `ConteoCamara:Api:MinutosRefrescoConfiguracion` (5) el servicio pide
+   `GET api/camaras/configuracion` con `X-Clave-Ingesta` (la misma clave de la ingesta). La API devuelve las cámaras
+   activas y habilitadas: `codigo`, `nombre`, `lineaId`, `lineaNombre`, `canal`, `funcion`, `magnitud`,
+   `metodoDeteccion`, `cantidadCarriles`, `detectaParadas`, `creaDetenciones`, `umbralDetencionSegundos` (efectivo).
+2. Corre **sólo** las de CONTEO que además tienen calibración local en `ConteoCamara:Camaras` (por `Camara`, sin
+   distinguir mayúsculas). Si se deshabilita una, la detiene (manda lo pendiente); si se habilita, la arranca.
+3. Una habilitada **sin calibración local** se loguea y se manda la alerta `SIN_CONFIGURACION` (una vez por arranque; la
+   API no la duplica mientras siga abierta y la cierra cuando llegan minutos de esa cámara).
+4. El canal sale de la API si la entrada local de la cámara no define `Fuente:RutaRtsp` ni `Fuente:Canal`.
+5. Si la API no responde, sigue con la **última lista conocida** (`pendientes\camaras-configuracion.json`). Sin API ni
+   lista guardada (primer arranque con la API caída) no corre ninguna y reintenta cada 30 s.
+
+**Ingesta** (`POST api/conteo-camara/ingesta`): acepta `camara` (nuevo) o `puntoControl` (viejo: la cámara se busca por
+ese código, la migración lo conservó) y en cada minuto `cantidad` (nuevo) o `rollos` (viejo). Rechaza (400) si la
+cámara no existe, está inactiva, **no está habilitada** o es de calidad. Cada minuto y cada parada cuelgan del turno de
+producción de su hora (`AsegurarTurno`: si no había, lo abre el SISTEMA). Actualiza `UltimoDatoRecibido`. Las
+detenciones automáticas guardan `CamaraId` y usan el umbral de la cámara. Respuesta: además `minutosSinTurno`.
+
+**Alerta `SIN_DATOS`**: el job de la API (el de turnos de producción, cada minuto) abre la alerta si la línea tiene un
+turno ABIERTO y su cámara de producción oficial (habilitada) no manda minutos hace más de
+`TurnosProduccion:MinutosSinDatosCamara` (5). Se cierra cuando llega un minuto. **Sin datos no es producción cero**: un
+minuto con cantidad 0 es un dato y no abre la alerta.
+
+### 11.1 Cambios en el appsettings del servidor (`C:\PSAG\ConteoCamara`)
+
+| Antes | Ahora |
+|---|---|
+| `"PuntoControl": "T2-CAM10"` | `"Camara": "T2-CAM10"` (se sigue aceptando `PuntoControl`; si vienen las dos, gana `Camara`) |
+| `"Activa": true/false` por cámara | **se elimina**: se habilita en Maestros → Cámaras (si queda, se ignora y se loguea) |
+| — | `Api:MinutosRefrescoConfiguracion` (opcional, 5) |
+
+El `appsettings.json` del repo trae la calibración de la 09, la 10 y la 8 sin `Activa`. En el
+`appsettings.local.json` del servidor conviene reemplazar `PuntoControl` por `Camara` y borrar `Activa` (no es
+obligatorio el mismo día: se leen igual). **Antes de arrancar el servicio nuevo**, dejar habilitadas en Maestros →
+Cámaras sólo las cámaras que tienen que correr (las que tenían `"Activa": true`): el script 36 pone
+`Habilitada` = `Activo` del punto viejo, que puede no coincidir.
+
+### 11.2 Script 36
+
+Ver `database/README.md`. Migra los puntos que eran cámaras a `CAM_Camaras` conservando el código, repunta conteos,
+paradas, alertas y detenciones, cuelga conteos y paradas del turno de producción y recién al final borra las columnas
+viejas. Rollback: `36_t798_camaras_rollback.sql`.

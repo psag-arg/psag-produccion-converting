@@ -158,9 +158,7 @@ public class CalidadService : ICalidadService
     {
         var cuerpo = new
         {
-            punto.LineaId, punto.Codigo, punto.Nombre, punto.Descripcion, punto.Activo,
-            punto.EquipoId, punto.NumeroCamara, punto.CreaDetenciones, punto.MinutosUmbralDetencion, punto.SegundosUmbralDetencion,
-            punto.ObjetivoPorHora, punto.MetodoConteo
+            punto.LineaId, punto.Codigo, punto.Nombre, punto.Descripcion, punto.Activo, punto.CamaraId
         };
         var response = punto.PuntoControlCalidadId == 0
             ? await _httpClient.PostAsJsonAsync($"{Base}/puntos-control", cuerpo)

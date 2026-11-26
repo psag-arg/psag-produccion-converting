@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using PSAG.Mantenimiento.Api.Controllers;
@@ -12,18 +11,17 @@ namespace PSAG.Mantenimiento.Api.IntegrationTests;
 /// <summary>
 /// Nombres de usuario de los DTO: una consulta por lote, nombre completo o, si falta, el usuario.
 /// </summary>
+[Collection(ColeccionBaseDeDatos.Nombre)]
 public class NombresUsuarioTests : IDisposable
 {
-    private readonly SqliteConnection _conexion;
+    private readonly BaseDePrueba _base;
     private readonly MantenimientoDbContext _context;
     private readonly UserManager<ApplicationUser> _userManager;
 
     public NombresUsuarioTests()
     {
-        _conexion = new SqliteConnection("DataSource=:memory:");
-        _conexion.Open();
-        _context = new MantenimientoDbContext(new DbContextOptionsBuilder<MantenimientoDbContext>().UseSqlite(_conexion).Options);
-        _context.Database.EnsureCreated();
+        _base = BaseDePrueba.Crear();
+        _context = _base.Context;
         _userManager = new UserManager<ApplicationUser>(
             new UserStore<ApplicationUser>(_context), null!, null!, null!, null!, null!, null!, null!,
             NullLogger<UserManager<ApplicationUser>>.Instance);
@@ -33,7 +31,7 @@ public class NombresUsuarioTests : IDisposable
     {
         _userManager.Dispose();
         _context.Dispose();
-        _conexion.Dispose();
+        _base.Dispose();
     }
 
     [Fact]

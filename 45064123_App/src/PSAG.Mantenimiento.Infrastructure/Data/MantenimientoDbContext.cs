@@ -24,14 +24,21 @@ public class MantenimientoDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Detencion> Detenciones => Set<Detencion>();
     public DbSet<DetencionEstadoHistorial> DetencionesEstadoHistorial => Set<DetencionEstadoHistorial>();
     public DbSet<DetencionNota> DetencionesNotas => Set<DetencionNota>();
-    public DbSet<UsuarioLinea> UsuariosLineas => Set<UsuarioLinea>();
+    public DbSet<OperadorLinea> OperadoresLinea => Set<OperadorLinea>();
     public DbSet<Auditoria> Auditoria => Set<Auditoria>();
     public DbSet<ReglaAnalisis> ReglasAnalisis => Set<ReglaAnalisis>();
     public DbSet<TiempoProgramadoDia> TiemposProgramadosDia => Set<TiempoProgramadoDia>();
 
+    // Producción: turno de producción (T-798 etapa 2)
+    public DbSet<TurnoProduccion> TurnosProduccion => Set<TurnoProduccion>();
+    public DbSet<TurnoProduccionOperador> TurnosProduccionOperadores => Set<TurnoProduccionOperador>();
+    public DbSet<TurnoProduccionProducto> TurnosProduccionProductos => Set<TurnoProduccionProducto>();
+    public DbSet<ProduccionTurno> ProduccionesTurno => Set<ProduccionTurno>();
+
     // Eje 2: Variables de proceso
-    public DbSet<Producto> Productos => Set<Producto>();
-    public DbSet<LineaProducto> LineasProductos => Set<LineaProducto>();
+    public DbSet<ProductoMaestro> ProductosMaestro => Set<ProductoMaestro>();
+    public DbSet<ProductoSku> ProductosSku => Set<ProductoSku>();
+    public DbSet<ParametroLineaProducto> ParametrosLineaProducto => Set<ParametroLineaProducto>();
     public DbSet<GrupoParametro> GruposParametro => Set<GrupoParametro>();
     public DbSet<Parametro> Parametros => Set<Parametro>();
     public DbSet<EstandarParametro> EstandaresParametro => Set<EstandarParametro>();
@@ -55,9 +62,15 @@ public class MantenimientoDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<RegistroCalidadRevision> RegistrosCalidadRevisiones => Set<RegistroCalidadRevision>();
 
     // Conteo de producción y paradas por cámara (T-610)
+    public DbSet<Camara> Camaras => Set<Camara>();
     public DbSet<ConteoCamaraMinuto> ConteosCamaraMinuto => Set<ConteoCamaraMinuto>();
     public DbSet<ParadaCamara> ParadasCamara => Set<ParadaCamara>();
     public DbSet<AlertaCamara> AlertasCamara => Set<AlertaCamara>();
+
+    // Roles y permisos configurables (T-802)
+    public DbSet<PSAG.Mantenimiento.Domain.Permisos.OpcionSistema> OpcionesSistema => Set<PSAG.Mantenimiento.Domain.Permisos.OpcionSistema>();
+    public DbSet<PSAG.Mantenimiento.Domain.Permisos.PermisoRol> PermisosRol => Set<PSAG.Mantenimiento.Domain.Permisos.PermisoRol>();
+    public DbSet<PSAG.Mantenimiento.Domain.Permisos.RolConfiguracion> RolesConfiguracion => Set<PSAG.Mantenimiento.Domain.Permisos.RolConfiguracion>();
 
     private bool EsSqlite => Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true;
 

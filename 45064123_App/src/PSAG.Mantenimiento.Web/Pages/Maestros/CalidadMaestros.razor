@@ -2,17 +2,20 @@
 @using Microsoft.AspNetCore.Authorization
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
-@attribute [Authorize(Roles = "ADMINISTRADOR")]
+@attribute [Authorize]
 @inject ICalidadService CalidadService
 @inject ICatalogosService CatalogosService
+@inject ICamarasService CamarasService
 
 <PageTitle>Maestros de calidad - PSAG Produccion</PageTitle>
 
 <div class="container-fluid">
     <h3 class="mb-1">Maestros de calidad</h3>
     <p class="text-muted">
-        Puntos de control (cámaras) por línea y tipos de defecto. El detector manda los <strong>códigos</strong>:
+        Puntos de control por línea y tipos de defecto. El detector manda los <strong>códigos</strong>:
         tienen que coincidir con los que configure quien instale la cámara. Nada se borra: se desactiva.
+        Los datos de cada cámara (canal, qué cuenta, umbral, habilitación) están en <a href="maestros/camaras">Maestros → Cámaras</a>;
+        el punto sólo elige qué cámara usa.
     </p>
 
     <SwitchInactivos @bind-Mostrar="mostrarInactivos" @bind-Mostrar:after="Cargar"
@@ -28,12 +31,14 @@
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <strong>Puntos de control</strong>
+                    <SiPermiso Opcion="@Opciones.MaestrosCalidad" Accion="AccionPermiso.Alta">
                     <button class="btn btn-primary btn-sm" @onclick="NuevoPunto"><i class="bi bi-plus-circle me-1"></i>Nuevo punto</button>
+                    </SiPermiso>
                 </div>
                 <div class="card-body p-0 table-responsive">
                     <table class="table table-hover mb-0 align-middle">
                         <thead class="table-light">
-                            <tr><th>Código</th><th>Nombre</th><th>Línea</th><th>Cámara asociada</th><th class="text-center">Activo</th><th></th></tr>
+                            <tr><th>Código</th><th>Nombre</th><th>Línea</th><th>Cámara</th><th class="text-center">Activo</th><th></th></tr>
                         </thead>
                         <tbody>
                             @if (puntos.Any())
@@ -51,29 +56,13 @@
                                         </td>
                                         <td>@punto.LineaNombre</td>
                                         <td class="small">
-                                            @if (punto.NumeroCamara is { } numero)
+                                            @if (punto.CamaraCodigo != null)
                                             {
-                                                <div>Cámara @numero.ToString("00")@(punto.EquipoNombre is { } cuerpo ? $" · {cuerpo}" : "")</div>
-                                            }
-                                            else if (punto.EquipoNombre != null)
-                                            {
-                                                <div>@punto.EquipoNombre</div>
-                                            }
-                                            @if (punto.CreaDetenciones)
-                                            {
-                                                <span class="badge bg-warning text-dark" title="Crea una detención pendiente de declaración cuando la máquina para este tiempo o más">Crea detenciones desde @punto.UmbralTexto</span>
+                                                <span class="font-monospace">@punto.CamaraCodigo</span> <span class="text-muted">@punto.CamaraNombre</span>
                                             }
                                             else
                                             {
-                                                <span class="text-muted">Sólo informa paradas</span>
-                                            }
-                                            @if (punto.ObjetivoPorHora is { } objetivo)
-                                            {
-                                                <div><span class="badge bg-info text-dark" title="Objetivo para la eficiencia del Dashboard">Objetivo @objetivo.ToString("N0") @UnidadMetodo(punto.MetodoConteo)/h</span></div>
-                                            }
-                                            else if (punto.MetodoConteo != null || punto.NumeroCamara != null)
-                                            {
-                                                <div class="text-muted">Sin objetivo de eficiencia</div>
+                                                <span class="text-muted">Sin cámara</span>
                                             }
                                         </td>
                                         <td class="text-center"><span class="badge @(punto.Activo ? "bg-success" : "bg-secondary")">@(punto.Activo ? "Activo" : "Inactivo")</span></td>
@@ -96,7 +85,9 @@
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <strong>Tipos de defecto</strong>
+                    <SiPermiso Opcion="@Opciones.MaestrosCalidad" Accion="AccionPermiso.Alta">
                     <button class="btn btn-primary btn-sm" @onclick="NuevoTipo"><i class="bi bi-plus-circle me-1"></i>Nuevo defecto</button>
+                    </SiPermiso>
                 </div>
                 <div class="card-body p-0 table-responsive">
                     <table class="table table-hover mb-0 align-middle">
@@ -143,7 +134,7 @@
 
 @if (puntoActual != null)
 {
-    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: var(--psag-velo);">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
@@ -153,7 +144,7 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Línea *</label>
-                        <select class="form-select" @bind="puntoActual.LineaId" @bind:after="@(async () => await CargarEquiposPunto(limpiar: true))">
+                        <select class="form-select" @bind="puntoActual.LineaId" @bind:after="LimpiarCamara">
                             <option value="0">-- Elegí la línea --</option>
                             @foreach (var linea in lineas)
                             {
@@ -179,61 +170,17 @@
                         <label class="form-check-label" for="puntoActivo">Activo</label>
                     </div>
 
-                    @* T-610: cámara asociada (línea + cuerpo) y detención automática *@
-                    <hr />
-                    <h6 class="mb-2">Cámara asociada</h6>
-                    <div class="row g-2 mb-2">
-                        <div class="col-4">
-                            <label class="form-label">N.º de cámara</label>
-                            <input type="number" min="1" max="999" class="form-control" placeholder="Ej.: 10" @bind="puntoActual.NumeroCamara" />
-                        </div>
-                        <div class="col-8">
-                            <label class="form-label">Cuerpo / equipo que mira</label>
-                            <select class="form-select" @bind="puntoActual.EquipoId">
-                                <option value="">-- Sin especificar --</option>
-                                @foreach (var e in equiposPunto)
-                                {
-                                    <option value="@e.EquipoId">@e.Nombre</option>
-                                }
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-check mb-2">
-                        <input type="checkbox" class="form-check-input" id="creaDetenciones" @bind="puntoActual.CreaDetenciones" />
-                        <label class="form-check-label" for="creaDetenciones">Crea detenciones automáticas (pendientes de declaración)</label>
-                    </div>
-                    <div class="input-group" style="max-width: 320px;">
-                        <span class="input-group-text">Desde</span>
-                        <input type="number" min="@UmbralDetencionUi.Minimo(umbralUnidad)" max="@UmbralDetencionUi.Maximo(umbralUnidad)" class="form-control" @bind="umbralValor" disabled="@(!puntoActual.CreaDetenciones)" />
-                        <select class="form-select" style="max-width: 130px;" aria-label="Unidad del umbral" @bind="umbralUnidad" disabled="@(!puntoActual.CreaDetenciones)">
-                            <option value="@UmbralDetencionUi.Minutos">min</option>
-                            <option value="@UmbralDetencionUi.Segundos">segundos</option>
+                    <div class="mt-3">
+                        <label class="form-label" for="camaraPunto">Cámara que usa</label>
+                        <select id="camaraPunto" class="form-select" @bind="puntoActual.CamaraId">
+                            <option value="">-- Sin cámara --</option>
+                            @foreach (var c in camaras.Where(c => c.LineaId == puntoActual.LineaId && (c.Activo || c.CamaraId == puntoActual.CamaraId)))
+                            {
+                                <option value="@c.CamaraId">@c.Codigo · @c.Nombre@(c.Activo ? "" : " (inactiva)")</option>
+                            }
                         </select>
-                        <span class="input-group-text">de parada</span>
+                        <div class="form-text">Opcional. Las cámaras de la línea se cargan en Maestros → Cámaras.</div>
                     </div>
-                    <div class="form-text">@UmbralDetencionUi.TextoAyuda</div>
-                    <div class="form-text">Las paradas más cortas (microcortes) sólo quedan en el log de paradas de la cámara. El cuerpo viene elegido como equipo de la detención; el operador lo puede cambiar.</div>
-
-                    @* Eficiencia por turno en el Dashboard (reunión 03/11, script 28) *@
-                    <h6 class="mt-3 mb-2">Eficiencia (Dashboard)</h6>
-                    <div class="row g-2">
-                        <div class="col-12 col-sm-6">
-                            <label class="form-label" for="metodoConteo">Qué cuenta</label>
-                            <select id="metodoConteo" class="form-select" @bind="puntoActual.MetodoConteo">
-                                <option value="">-- Deducir de los datos --</option>
-                                <option value="CARRILES">Rollos (carriles, como la cámara 09)</option>
-                                <option value="MANGAS">Mangas (como la cámara 10)</option>
-                            </select>
-                        </div>
-                        <div class="col-12 col-sm-6">
-                            <label class="form-label" for="objetivoPorHora">Objetivo por hora</label>
-                            <div class="input-group">
-                                <input id="objetivoPorHora" type="number" min="1" max="100000" step="any" inputmode="decimal" class="form-control" placeholder="Vacío = sin cargar" @bind="puntoActual.ObjetivoPorHora" />
-                                <span class="input-group-text">@UnidadMetodo(puntoActual.MetodoConteo)/h</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="form-text">Unidades por hora con la máquina en marcha plena. El objetivo del turno es este valor por las horas programadas del turno. Si queda vacío, el Dashboard muestra "Falta cargar el objetivo".</div>
                     @if (!string.IsNullOrEmpty(errorModal))
                     {
                         <div class="alert alert-danger mt-3 mb-0">@errorModal</div>
@@ -250,7 +197,7 @@
 
 @if (tipoActual != null)
 {
-    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: var(--psag-velo);">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
@@ -303,12 +250,14 @@
     private string? errorModal;
     private PuntoControlCalidadDto? puntoActual;
     private TipoDefectoCalidadDto? tipoActual;
+    private List<CamaraDto> camaras = new();
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
             lineas = await CatalogosService.GetLineasAsync();
+            camaras = await CamarasService.GetCamarasAsync(incluirInactivas: true);
         }
         catch (Exception ex)
         {
@@ -338,22 +287,13 @@
     {
         errorModal = null;
         puntoActual = new PuntoControlCalidadDto { Activo = true, LineaId = lineas.Count == 1 ? lineas[0].LineaId : 0 };
-        (umbralValor, umbralUnidad) = UmbralDetencionUi.Leer(puntoActual);
-        _ = CargarEquiposPunto(limpiar: false);
     }
 
-    private List<EquipoDto> equiposPunto = new();
-
-    // Umbral de detención: número + unidad (min / segundos). Se pasa al punto al guardar.
-    private int umbralValor = 5;
-    private string umbralUnidad = UmbralDetencionUi.Minutos;
-
-    private async Task CargarEquiposPunto(bool limpiar)
+    // Al cambiar de línea, la cámara elegida (de otra línea) ya no vale.
+    private void LimpiarCamara()
     {
-        if (puntoActual == null) return;
-        if (limpiar) puntoActual.EquipoId = null;
-        equiposPunto = puntoActual.LineaId > 0 ? await CatalogosService.GetEquiposAsync(puntoActual.LineaId) : new List<EquipoDto>();
-        StateHasChanged();
+        if (puntoActual != null && camaras.All(c => c.CamaraId != puntoActual.CamaraId || c.LineaId != puntoActual.LineaId))
+            puntoActual.CamaraId = null;
     }
 
     private void EditarPunto(PuntoControlCalidadDto p)
@@ -362,21 +302,9 @@
         puntoActual = new PuntoControlCalidadDto
         {
             PuntoControlCalidadId = p.PuntoControlCalidadId, LineaId = p.LineaId, Codigo = p.Codigo,
-            Nombre = p.Nombre, Descripcion = p.Descripcion, Activo = p.Activo,
-            EquipoId = p.EquipoId, NumeroCamara = p.NumeroCamara, CreaDetenciones = p.CreaDetenciones,
-            MinutosUmbralDetencion = p.MinutosUmbralDetencion, SegundosUmbralDetencion = p.SegundosUmbralDetencion,
-            ObjetivoPorHora = p.ObjetivoPorHora, MetodoConteo = p.MetodoConteo
+            Nombre = p.Nombre, Descripcion = p.Descripcion, Activo = p.Activo, CamaraId = p.CamaraId
         };
-        (umbralValor, umbralUnidad) = UmbralDetencionUi.Leer(puntoActual);
-        _ = CargarEquiposPunto(limpiar: false);
     }
-
-    private static string UnidadMetodo(string? metodo) => metodo switch
-    {
-        "MANGAS" => "mangas",
-        "CARRILES" => "rollos",
-        _ => "unid."
-    };
 
     private void NuevoTipo()
     {
@@ -400,7 +328,6 @@
         guardando = true;
         try
         {
-            UmbralDetencionUi.Aplicar(puntoActual, umbralValor, umbralUnidad);
             var (punto, error) = await CalidadService.GuardarPuntoControlAsync(puntoActual);
             if (punto == null)
             {

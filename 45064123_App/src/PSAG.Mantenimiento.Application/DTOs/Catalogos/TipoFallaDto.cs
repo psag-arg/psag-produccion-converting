@@ -9,6 +9,9 @@ public class TipoFallaDto
     public int Orden { get; set; }
     public string? Color { get; set; }
     public bool Activo { get; set; }
+
+    /// <summary>T-798: las detenciones de este tipo suman en indisponibilidad y eficiencia.</summary>
+    public bool CuentaParaIndicadores { get; set; } = true;
 }
 
 public class CrearTipoFallaRequest
@@ -18,6 +21,9 @@ public class CrearTipoFallaRequest
     public string? Descripcion { get; set; }
     public int Orden { get; set; }
     public string? Color { get; set; }
+
+    /// <summary>T-798: por defecto, sí cuenta (lo conservador).</summary>
+    public bool CuentaParaIndicadores { get; set; } = true;
 }
 
 public class ActualizarTipoFallaRequest
@@ -28,4 +34,7 @@ public class ActualizarTipoFallaRequest
     public int Orden { get; set; }
     public string? Color { get; set; }
     public bool Activo { get; set; }
+
+    /// <summary>T-798: null = no se cambia (clientes viejos que no lo mandan).</summary>
+    public bool? CuentaParaIndicadores { get; set; }
 }

@@ -19,10 +19,10 @@
     transform: translateX(-50%);
     width: 40px;
     height: 40px;
-    border-radius: 8px;
-    background-color: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: white;
+    border-radius: var(--psag-radio);
+    background-color: var(--psag-encabezado-marca);
+    border: 1px solid var(--psag-encabezado-linea);
+    color: var(--psag-encabezado-texto);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -31,7 +31,7 @@
 }
 
 .collapse-btn:hover {
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: var(--psag-encabezado-activo);
     transform: translateX(-50%) scale(1.05);
 }
 
@@ -41,13 +41,15 @@
 
 .top-row {
     min-height: 3.5rem;
-    background-color: rgba(0,0,0,0.4);
+    background-color: var(--psag-encabezado-marca);
     display: flex;
     align-items: center;
 }
 
 .navbar-brand {
     font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--psag-encabezado-texto);
     flex-grow: 1;
 }
 
@@ -60,15 +62,18 @@
     display: flex;
     align-items: center;
     padding: 0.75rem 1rem;
-    color: #d7d7d7;
+    color: var(--psag-encabezado-texto-suave);
     cursor: pointer;
-    font-weight: 500;
+    font-weight: 600;
+    font-family: var(--psag-fuente-titulos);
+    margin: 0 .5rem 0 0;
+    border-radius: 0 var(--psag-radio-pill) var(--psag-radio-pill) 0;
     transition: background-color 0.2s;
 }
 
 .nav-section-header:hover {
-    background-color: rgba(255,255,255,0.1);
-    color: white;
+    background-color: var(--psag-encabezado-hover);
+    color: var(--psag-encabezado-texto);
 }
 
 .nav-section-header .ms-auto {
@@ -77,11 +82,13 @@
 
 .nav-section-items {
     padding-left: 1rem;
-    background-color: rgba(0,0,0,0.2);
+    background-color: var(--psag-encabezado-marca);
 }
 
-.nav-section-items .nav-link {
-    color: white;
+.nav-section-items ::deep .nav-link {
+    color: var(--psag-encabezado-texto);
+    margin: 1px .5rem 1px 0;
+    border-radius: var(--psag-radio-pill);
     padding: 0.5rem 1rem;
     display: flex;
     align-items: center;
@@ -89,15 +96,17 @@
     transition: background-color 0.2s;
 }
 
-.nav-section-items .nav-link:hover {
-    background-color: rgba(255,255,255,0.1);
-    color: white;
+.nav-section-items ::deep .nav-link:hover {
+    background-color: var(--psag-encabezado-hover);
+    color: var(--psag-encabezado-texto);
     text-decoration: none;
 }
 
-.nav-section-items .nav-link.active {
-    background-color: rgba(255,255,255,0.25);
-    color: white;
+.nav-section-items ::deep .nav-link.active {
+    background-color: var(--psag-encabezado-activo);
+    color: var(--psag-encabezado-texto);
+    font-weight: 600;
+    box-shadow: inset 3px 0 0 var(--psag-encabezado-texto);
 }
 
 /* Iconos Bootstrap */
@@ -145,7 +154,7 @@
     }
 
     .nav-section-header,
-    .nav-section-items .nav-link {
+    .nav-section-items ::deep .nav-link {
         min-height: 44px; /* tamaño de toque cómodo */
     }
 }

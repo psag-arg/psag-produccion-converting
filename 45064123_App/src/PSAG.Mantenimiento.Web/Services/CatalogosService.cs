@@ -43,9 +43,6 @@ public interface ICatalogosService
     // Maquinistas
     Task<List<MaquinistaDto>> GetMaquinistasAsync(int? lineaId = null);
     Task<List<MaquinistaDto>> GetMisAsignacionesAsync();
-    Task CreateMaquinistaAsync(MaquinistaDto maquinista);
-    Task UpdateMaquinistaAsync(MaquinistaDto maquinista);
-    Task DeleteMaquinistaAsync(int id);
 
     // Productos
     Task<List<ProductoDto>> GetProductosAsync(int? lineaId = null);
@@ -218,34 +215,6 @@ public class CatalogosService : ICatalogosService
         return result ?? new List<MaquinistaDto>();
     }
 
-    public async Task CreateMaquinistaAsync(MaquinistaDto maquinista)
-    {
-        var request = new
-        {
-            maquinista.UsuarioId,
-            maquinista.LineaId,
-            maquinista.TurnoId
-        };
-        var response = await _httpClient.PostAsJsonAsync("api/catalogos/maquinistas", request);
-        await ApiErrores.AsegurarExitoAsync(response);
-    }
-
-    public async Task UpdateMaquinistaAsync(MaquinistaDto maquinista)
-    {
-        var request = new
-        {
-            maquinista.LineaId,
-            maquinista.TurnoId
-        };
-        var response = await _httpClient.PutAsJsonAsync($"api/catalogos/maquinistas/{maquinista.UsuarioLineaId}", request);
-        await ApiErrores.AsegurarExitoAsync(response);
-    }
-
-    public async Task DeleteMaquinistaAsync(int id)
-    {
-        var response = await _httpClient.DeleteAsync($"api/catalogos/maquinistas/{id}");
-        await ApiErrores.AsegurarExitoAsync(response);
-    }
 
     public async Task<List<ProductoDto>> GetProductosAsync(int? lineaId = null)
     {

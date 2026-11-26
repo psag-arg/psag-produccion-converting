@@ -31,6 +31,9 @@ public class TipoFallaDto
     public int Orden { get; set; }
     public string? Color { get; set; }
     public bool Activo { get; set; }
+
+    /// <summary>T-798: las detenciones de este tipo suman en indisponibilidad y eficiencia (por defecto, sí).</summary>
+    public bool CuentaParaIndicadores { get; set; } = true;
 }
 
 public class DetalleFallaDto
@@ -68,8 +71,6 @@ public class MaquinistaDto
     public string EmailUsuario { get; set; } = string.Empty;
     public int LineaId { get; set; }
     public string LineaNombre { get; set; } = string.Empty;
-    public int? TurnoId { get; set; }
-    public string? TurnoNombre { get; set; }
     public DateTimeOffset FechaAsignacion { get; set; }
 }
 

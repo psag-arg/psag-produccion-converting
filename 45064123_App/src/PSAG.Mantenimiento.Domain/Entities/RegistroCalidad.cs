@@ -36,6 +36,13 @@ public class RegistroCalidad : EntityBase
     /// </summary>
     public int? TurnoId { get; set; }
 
+    /// <summary>
+    /// Turno de producción (T-798 etapa 3). Se completa al crear (null en los registros anteriores y si no hay turno
+    /// de planta a esa hora). PENDIENTE: TurnoId y Fecha se mantienen porque Control de Proceso / Calidad los usan
+    /// en pantallas; saldrán del turno de producción en una etapa siguiente.
+    /// </summary>
+    public long? TurnoProduccionId { get; set; }
+
     public int TipoDefectoCalidadId { get; set; }
 
     public OrigenRegistroCalidad Origen { get; set; }
@@ -55,7 +62,7 @@ public class RegistroCalidad : EntityBase
     /// </summary>
     public string? UnidadMedida { get; set; }
 
-    public int? ProductoId { get; set; }
+    public int? ProductoMaestroId { get; set; }
 
     /// <summary>
     /// Detención (parada) relacionada, para el cruce calidad - paradas. Opcional.
@@ -88,8 +95,9 @@ public class RegistroCalidad : EntityBase
     public virtual Linea Linea { get; set; } = null!;
     public virtual PuntoControlCalidad PuntoControl { get; set; } = null!;
     public virtual Turno? Turno { get; set; }
+    public virtual TurnoProduccion? TurnoProduccion { get; set; }
     public virtual TipoDefectoCalidad TipoDefecto { get; set; } = null!;
-    public virtual Producto? Producto { get; set; }
+    public virtual ProductoMaestro? ProductoMaestro { get; set; }
     public virtual Detencion? Detencion { get; set; }
     public virtual ICollection<RegistroCalidadRevision> Revisiones { get; set; } = new List<RegistroCalidadRevision>();
 

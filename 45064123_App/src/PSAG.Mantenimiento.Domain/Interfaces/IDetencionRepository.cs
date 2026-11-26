@@ -39,11 +39,14 @@ public interface IDetencionRepository : IRepository<Detencion>
     Task<IReadOnlyList<Detencion>> GetPorParadasCamaraAsync(IReadOnlyCollection<string> identificadores, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<int>> GetLineasConDetencionesAsync(DateOnly desde, DateOnly hasta, CancellationToken cancellationToken = default);
 
+    /// <summary>Detenciones de un turno de producción (con turno y tipo de falla), por hora de parada.</summary>
+    Task<IReadOnlyList<Detencion>> GetPorTurnoProduccionAsync(long turnoProduccionId, CancellationToken cancellationToken = default);
+
     /// <summary>
-    /// De esas asignaciones de maquinista (UsuarioLineaId), las que usa alguna detención, incluidas las eliminadas
-    /// (la FK no deja borrarlas: hay que revisarlo antes de quitar la asignación).
+    /// Σ MinutosEfectivos de las detenciones que cuentan para indicadores (DetencionIndicadores.CuentaExpr), por turno de
+    /// producción. Los turnos sin detenciones que cuenten no vienen en el diccionario (T-798 etapa 5).
     /// </summary>
-    Task<IReadOnlyList<int>> GetUsuarioLineaIdsEnUsoAsync(IReadOnlyCollection<int> usuarioLineaIds, CancellationToken cancellationToken = default);
+    Task<IReadOnlyDictionary<long, int>> GetMinutosQueCuentanPorTurnoAsync(IReadOnlyCollection<long> turnoProduccionIds, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Detenciones que requieren análisis y todavía no están cerradas, más antiguas primero.
@@ -105,5 +108,13 @@ public interface IDetencionRepository : IRepository<Detencion>
         string? ordenarPor = null,
         bool ordenDescendente = true,
         int? minutosMinimos = null,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        OrigenRegistroDetencion? origenRegistro = null);
+
+    /// <summary>
+    /// T-786: detenciones de la línea con hora de parada entre <paramref name="paradaDesde"/> y
+    /// <paramref name="paradaHasta"/> (sin las eliminadas), para avisar superposiciones al declarar a mano. Sólo lectura.
+    /// </summary>
+    Task<IReadOnlyList<Detencion>> GetConParadaEntreAsync(
+        int lineaId, DateTimeOffset paradaDesde, DateTimeOffset paradaHasta, CancellationToken cancellationToken = default);
 }

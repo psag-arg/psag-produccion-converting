@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using PSAG.Mantenimiento.Api.Configuration;
+using PSAG.Mantenimiento.Api.Jobs;
 using PSAG.Mantenimiento.Api.Middleware;
+using PSAG.Mantenimiento.Application.DTOs.Produccion;
 using PSAG.Mantenimiento.Application;
 using PSAG.Mantenimiento.Infrastructure;
 using PSAG.Mantenimiento.Infrastructure.Data;
@@ -35,6 +37,10 @@ builder.Services.AddAlmacenAdjuntos(configuration, builder.Environment.ContentRo
 builder.Services.AddAlmacenImagenesCalidad(configuration, builder.Environment.ContentRootPath);
 var zonaPlanta = ZonaHorariaPlanta.Resolver(configuration);
 builder.Services.AddSingleton(zonaPlanta);
+
+// Turnos de producción (T-798 etapa 2): tolerancias y job de cierre automático / SIN_APERTURA.
+builder.Services.AddSingleton(configuration.GetSection(TurnosProduccionOpciones.Seccion).Get<TurnosProduccionOpciones>() ?? new TurnosProduccionOpciones());
+builder.Services.AddHostedService<TurnosProduccionJob>();
 
 // Configurar Identity
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
@@ -92,6 +98,15 @@ builder.Services.AddAuthentication(options =>
 
     options.Events = new JwtBearerEvents
     {
+        // T-770: el navegador no puede mandar el encabezado Authorization en el WebSocket de SignalR: el token viaja en
+        // ?access_token= (sólo para /hubs; el log de requests no guarda la query).
+        OnMessageReceived = context =>
+        {
+            var token = context.Request.Query["access_token"];
+            if (!string.IsNullOrEmpty(token) && context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+                context.Token = token;
+            return Task.CompletedTask;
+        },
         OnAuthenticationFailed = context =>
         {
             if (context.Exception.GetType() == typeof(SecurityTokenExpiredException))
@@ -103,24 +118,13 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-// Configurar Authorization con políticas
-builder.Services.AddAuthorizationBuilder()
-    .AddPolicy("RequireAdministrador", policy => policy.RequireRole("ADMINISTRADOR"))
-    .AddPolicy("RequireGerencia", policy => policy.RequireRole("ADMINISTRADOR", "GERENCIA"))
-    .AddPolicy("RequireMantenimiento", policy => policy.RequireRole("ADMINISTRADOR", "MANTENIMIENTO"))
-    .AddPolicy("RequireSupervisor", policy => policy.RequireRole("ADMINISTRADOR", "MANTENIMIENTO", "SUPERVISOR"))
-    .AddPolicy("RequireOperario", policy => policy.RequireRole("ADMINISTRADOR", "MANTENIMIENTO", "SUPERVISOR", "OPERARIO"))
-    // Políticas para Detenciones (nuevo nombre)
-    .AddPolicy("CanCreateDetenciones", policy => policy.RequireRole("ADMINISTRADOR", "MANTENIMIENTO", "SUPERVISOR", "OPERARIO"))
-    .AddPolicy("CanEditDetenciones", policy => policy.RequireRole("ADMINISTRADOR", "MANTENIMIENTO"))
-    .AddPolicy("CanCloseDetenciones", policy => policy.RequireRole("ADMINISTRADOR", "MANTENIMIENTO"))
-    // Políticas legacy (compatibilidad)
-    .AddPolicy("CanCreateEventos", policy => policy.RequireRole("ADMINISTRADOR", "MANTENIMIENTO", "SUPERVISOR", "OPERARIO"))
-    .AddPolicy("CanEditEventos", policy => policy.RequireRole("ADMINISTRADOR", "MANTENIMIENTO"))
-    .AddPolicy("CanCloseEventos", policy => policy.RequireRole("ADMINISTRADOR", "MANTENIMIENTO"))
-    .AddPolicy("CanManageCatalogs", policy => policy.RequireRole("ADMINISTRADOR"))
-    .AddPolicy("CanManageUsers", policy => policy.RequireRole("ADMINISTRADOR"))
-    .AddPolicy("CanExport", policy => policy.RequireRole("ADMINISTRADOR", "GERENCIA", "MANTENIMIENTO"));
+// Autorización (T-802): roles y permisos configurables. Cada acción de los controllers lleva [Permiso("OPCION", Accion)]
+// (ver Autorizacion/ y docs/PERMISOS.md); las políticas fijas por rol de antes se reemplazaron por la matriz CFG_PermisosRol.
+builder.Services.AddAuthorization();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, PSAG.Mantenimiento.Api.Autorizacion.PermisoHandler>();
+builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationMiddlewareResultHandler, PSAG.Mantenimiento.Api.Autorizacion.PermisoResultHandler>();
+builder.Services.AddScoped<PSAG.Mantenimiento.Application.Services.Interfaces.IPermisosUsuarioActual, PSAG.Mantenimiento.Api.Autorizacion.PermisosUsuarioActualHttp>();
 
 // Configurar CORS
 builder.Services.AddCors(options =>
@@ -136,13 +140,20 @@ builder.Services.AddCors(options =>
 });
 
 // Configurar Controllers
-builder.Services.AddControllers()
+// T-802: obligado a turno (sin turno abierto, 409 en lo de negocio; con turno, todo ajustado a ese turno). Ver Autorizacion/TurnoObligatorio.cs.
+builder.Services.AddControllers(options => options.Filters.Add<PSAG.Mantenimiento.Api.Autorizacion.TurnoObligatorioFilter>())
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
         options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
         options.JsonSerializerOptions.Converters.Add(new FechaHoraPlantaJsonConverter(zonaPlanta));
     });
+
+// T-770: tablero del operador en línea (SignalR). La ingesta de cámara y las detenciones avisan por el UnitOfWork
+// (INotificadorTablero) al grupo del turno; el cliente vuelve a pedir api/tablero/turno. Kestrel directo: WebSockets sin
+// configurar nada; detrás de IIS haría falta la característica "WebSocket Protocol" (si no, cae a SSE / long polling).
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<PSAG.Mantenimiento.Application.Services.Interfaces.INotificadorTablero, PSAG.Mantenimiento.Api.TiempoReal.NotificadorTableroSignalR>();
 
 // Configurar Swagger
 builder.Services.AddEndpointsApiExplorer();
@@ -231,6 +242,7 @@ app.UseSerilogRequestLogging(options =>
 });
 
 app.MapControllers();
+app.MapHub<PSAG.Mantenimiento.Api.TiempoReal.TableroHub>(PSAG.Mantenimiento.Api.TiempoReal.TableroHub.Ruta);
 
 app.MapHealthChecks("/health");
 
@@ -269,3 +281,6 @@ finally
 {
     Log.CloseAndFlush();
 }
+
+/// <summary>Visible para los tests de integración (WebApplicationFactory).</summary>
+public partial class Program;

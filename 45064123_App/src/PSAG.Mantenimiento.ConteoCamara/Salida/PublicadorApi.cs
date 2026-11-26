@@ -55,7 +55,7 @@ public sealed class PublicadorApi : ISalidaConteo
         _retomados = LeerMinutoEnCurso();
     }
 
-    private LoteConteo Nuevo() => new() { PuntoControl = _opciones.PuntoControl };
+    private LoteConteo Nuevo() => new() { Camara = _opciones.Camara };
 
     private string RutaMinutoEnCurso => Path.Combine(_carpeta, ArchivoMinutoEnCurso);
 
@@ -121,13 +121,13 @@ public sealed class PublicadorApi : ISalidaConteo
             else if (parada >= acumulacion) parada -= exceso;
             else acumulacion -= exceso;
         }
-        return MinutoLote.Desde(new ConteoMinuto(a.Minuto, a.Carril, (double)(a.Rollos + b.Rollos), marcha, parada, acumulacion,
+        return MinutoLote.Desde(new ConteoMinuto(a.Minuto, a.Carril, (double)(a.Cantidad + b.Cantidad), marcha, parada, acumulacion,
             Math.Max(0, 60 - marcha - parada - acumulacion)));
     }
 
     public void Parada(ParadaDetectada parada)
     {
-        var lote = ParadaLote.Desde(_opciones.PuntoControl, parada);
+        var lote = ParadaLote.Desde(_opciones.Camara, parada);
         _logger.LogInformation("{Tipo} detectada: {Inicio:HH:mm:ss} a {Fin:HH:mm:ss} ({Segundos} s), carriles {Carriles}",
             parada.Tipo, parada.Inicio, parada.Fin, parada.DuracionSegundos, string.Join(",", parada.Carriles));
         lock (_lock) _actual.Paradas.Add(lote);
@@ -135,7 +135,7 @@ public sealed class PublicadorApi : ISalidaConteo
 
     public void ParadaEnCurso(ParadaEnCurso parada)
     {
-        var lote = ParadaEnCursoLote.Desde(_opciones.PuntoControl, parada);
+        var lote = ParadaEnCursoLote.Desde(_opciones.Camara, parada);
         lock (_lock)
         {
             // Sólo interesa la última vista de cada parada abierta.
@@ -147,9 +147,9 @@ public sealed class PublicadorApi : ISalidaConteo
     public void Alerta(AlertaVideo alerta)
     {
         if (alerta.Fin == null)
-            _logger.LogWarning("Alerta de cámara {Punto}: {Tipo} desde {Inicio:HH:mm:ss}", _opciones.PuntoControl, alerta.Tipo, alerta.Inicio);
+            _logger.LogWarning("Alerta de cámara {Camara}: {Tipo} desde {Inicio:HH:mm:ss}", _opciones.Camara, alerta.Tipo, alerta.Inicio);
         else
-            _logger.LogInformation("Alerta de cámara {Punto} cerrada: {Tipo} de {Inicio:HH:mm:ss} a {Fin:HH:mm:ss}", _opciones.PuntoControl, alerta.Tipo, alerta.Inicio, alerta.Fin);
+            _logger.LogInformation("Alerta de cámara {Camara} cerrada: {Tipo} de {Inicio:HH:mm:ss} a {Fin:HH:mm:ss}", _opciones.Camara, alerta.Tipo, alerta.Inicio, alerta.Fin);
         lock (_lock) _actual.Alertas.Add(AlertaLote.Desde(alerta));
     }
 

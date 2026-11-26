@@ -63,6 +63,8 @@ public static class DatabaseInitializer
             await SeedRolesAsync(roleManager, logger);
             await SeedAdminUserAsync(userManager, roleManager, logger);
             await SeedCatalogsAsync(context, logger);
+            // Roles y permisos configurables (T-802): catálogo de opciones y matriz migrada (en SQL Server también la carga el script 39).
+            await SemillaPermisos.SembrarAsync(context);
 
             logger.LogInformation("Inicializacion de base de datos completada.");
         }
@@ -131,7 +133,7 @@ public static class DatabaseInitializer
         }
     }
 
-    private static async Task SeedCatalogsAsync(MantenimientoDbContext context, ILogger logger)
+    internal static async Task SeedCatalogsAsync(MantenimientoDbContext context, ILogger logger)
     {
         var now = DateTimeOffset.UtcNow;
 
@@ -152,14 +154,14 @@ public static class DatabaseInitializer
             logger.LogInformation("Lineas sembradas: {Count}", lineas.Length);
         }
 
-        // Turnos
+        // Turnos de planta (T-798): T1 05-13, T2 13-21, T3 21-05, de 8 h cada uno (el T3 cruza medianoche).
         if (!await context.Turnos.AnyAsync())
         {
             var turnos = new[]
             {
-                new Turno { Codigo = "T1", Nombre = "Turno 1 (Mañana)", HoraInicio = new TimeOnly(6, 0), HoraFin = new TimeOnly(14, 0), Orden = 1, Activo = true, CreadoPorUsuarioId = SystemUserId, ModificadoPorUsuarioId = SystemUserId, FechaHoraCreacion = now, FechaHoraModificacion = now },
-                new Turno { Codigo = "T2", Nombre = "Turno 2 (Tarde)", HoraInicio = new TimeOnly(14, 0), HoraFin = new TimeOnly(22, 0), Orden = 2, Activo = true, CreadoPorUsuarioId = SystemUserId, ModificadoPorUsuarioId = SystemUserId, FechaHoraCreacion = now, FechaHoraModificacion = now },
-                new Turno { Codigo = "T3", Nombre = "Turno 3 (Noche)", HoraInicio = new TimeOnly(22, 0), HoraFin = new TimeOnly(6, 0), Orden = 3, Activo = true, CreadoPorUsuarioId = SystemUserId, ModificadoPorUsuarioId = SystemUserId, FechaHoraCreacion = now, FechaHoraModificacion = now },
+                new Turno { Codigo = "T1", Nombre = "Turno 1 (Mañana)", HoraInicio = new TimeOnly(5, 0), HoraFin = new TimeOnly(13, 0), Orden = 1, Activo = true, CreadoPorUsuarioId = SystemUserId, ModificadoPorUsuarioId = SystemUserId, FechaHoraCreacion = now, FechaHoraModificacion = now },
+                new Turno { Codigo = "T2", Nombre = "Turno 2 (Tarde)", HoraInicio = new TimeOnly(13, 0), HoraFin = new TimeOnly(21, 0), Orden = 2, Activo = true, CreadoPorUsuarioId = SystemUserId, ModificadoPorUsuarioId = SystemUserId, FechaHoraCreacion = now, FechaHoraModificacion = now },
+                new Turno { Codigo = "T3", Nombre = "Turno 3 (Noche)", HoraInicio = new TimeOnly(21, 0), HoraFin = new TimeOnly(5, 0), Orden = 3, Activo = true, CreadoPorUsuarioId = SystemUserId, ModificadoPorUsuarioId = SystemUserId, FechaHoraCreacion = now, FechaHoraModificacion = now },
             };
             await context.Turnos.AddRangeAsync(turnos);
             await context.SaveChangesAsync();

@@ -1,0 +1,31 @@
+@page "/"
+@page "/dashboard"
+@using Microsoft.AspNetCore.Authorization
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize]
+@inject IPermisosService PermisosService
+@inject NavigationManager Navigation
+
+@* T-803 · La raíz ya no es una pantalla ("Dashboard de Control" salió del menú y se quitó: no la usaba nada más).
+   Lleva a la pantalla que corresponde a los permisos del usuario (Shared/RutasInicio): el operario a su tablero del turno,
+   administrador / mantenimiento / supervisor / gerencia a Dashboard Admin. /dashboard queda por los enlaces guardados. *@
+
+<PageTitle>PSAG Produccion</PageTitle>
+
+<div class="text-muted small p-3">Cargando…</div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        string destino;
+        try
+        {
+            destino = RutasInicio.Destino(await PermisosService.ObtenerAsync());
+        }
+        catch (Exception)
+        {
+            destino = RutasInicio.PorDefecto;
+        }
+        Navigation.NavigateTo(destino, replace: true);
+    }
+}

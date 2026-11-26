@@ -8,7 +8,7 @@ public class EquipoConfiguration : IEntityTypeConfiguration<Equipo>
 {
     public void Configure(EntityTypeBuilder<Equipo> builder)
     {
-        builder.ToTable("Equipos", "mnt");
+        builder.ToTable("ABM_Equipos", "mnt");
 
         builder.HasKey(x => x.EquipoId);
 

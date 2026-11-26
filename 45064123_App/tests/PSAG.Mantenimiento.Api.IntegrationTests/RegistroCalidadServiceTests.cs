@@ -9,6 +9,7 @@ namespace PSAG.Mantenimiento.Api.IntegrationTests;
 /// <summary>
 /// T-611 contra SQLite y disco reales: ingesta, carga manual, imagen, revisión con historial, permisos y filtros.
 /// </summary>
+[Collection(ColeccionBaseDeDatos.Nombre)]
 public class RegistroCalidadServiceTests : CalidadTestBase
 {
     private IngestaCalidadRequest Ingesta(string? fechaHora = null, string? id = null, string tipo = "TEST-RABO", string punto = "test-cam-t2") => new()
@@ -191,7 +192,7 @@ public class RegistroCalidadServiceTests : CalidadTestBase
 
         Assert.True(resultado.IsSuccess, resultado.ErrorMessage);
         var registro = await Context.RegistrosCalidad.SingleAsync();
-        Assert.Equal(Producto.ProductoId, registro.ProductoId);
+        Assert.Equal(Producto.ProductoMaestroId, registro.ProductoMaestroId);
         Assert.Equal(DetencionTango.DetencionId, registro.DetencionId);
     }
 

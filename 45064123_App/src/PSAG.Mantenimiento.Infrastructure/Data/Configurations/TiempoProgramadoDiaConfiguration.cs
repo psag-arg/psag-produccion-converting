@@ -8,7 +8,7 @@ public class TiempoProgramadoDiaConfiguration : IEntityTypeConfiguration<TiempoP
 {
     public void Configure(EntityTypeBuilder<TiempoProgramadoDia> builder)
     {
-        builder.ToTable("TiemposProgramadosDia", "mnt", t =>
+        builder.ToTable("PRD_ExcepcionesHorasDia", "mnt", t =>
         {
             // CAST: SQLite guarda decimal como TEXT y compararía como texto.
             t.HasCheckConstraint("CK_TiemposProgramadosDia_Horas",

@@ -1,0 +1,39 @@
+@* T-770 · Detalle del tablero: presupuesto vs. real por tramo de producto del turno (lo calcula la API). *@
+@using PSAG.Mantenimiento.Web.Models
+
+<h5 class="mt-3">Por producto</h5>
+<div class="table-responsive">
+    <table class="table align-middle">
+        <thead>
+            <tr>
+                <th>Producto</th>
+                <th>Desde–hasta</th>
+                <th class="text-end">Mangas real / obj.</th>
+                <th class="text-end">Eficiencia</th>
+                <th class="text-end">Bolsones real / obj.</th>
+                <th class="text-end">Velocidad</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var t in Tramos)
+            {
+                <tr class="@(t.Abierto ? "table-active" : "")">
+                    <td>@t.ProductoNombre</td>
+                    <td>@t.Desde.ToString("HH:mm")–@(t.Hasta?.ToString("HH:mm") ?? "ahora")</td>
+                    <td class="text-end">@TableroUi.TextoReal(t.Mangas.Real) / @TableroUi.TextoObjetivo(t.Mangas.Objetivo)</td>
+                    <td class="text-end fw-bold @TableroUi.ClaseNumero(TableroUi.NivelEficiencia(t.Eficiencia))">@TableroUi.TextoEficiencia(t.Eficiencia)</td>
+                    <td class="text-end">@(t.Bolsones.Real == null && t.Bolsones.Objetivo == null ? EficienciaUi.TextoSinDatos : $"{TableroUi.TextoReal(t.Bolsones.Real)} / {TableroUi.TextoObjetivo(t.Bolsones.Objetivo)}")</td>
+                    <td class="text-end">@EficienciaUi.TextoVelocidad(t.VelocidadMetrosMinuto)</td>
+                </tr>
+            }
+            @if (Tramos.Count == 0)
+            {
+                <tr><td colspan="6" class="text-center text-muted">Turno sin producto: elegilo desde la barra (Cambiar producto).</td></tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public List<TramoIndicadorDto> Tramos { get; set; } = [];
+}

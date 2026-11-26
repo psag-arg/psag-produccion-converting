@@ -10,24 +10,10 @@ public class PuntoControlCalidadDto
     public string? Descripcion { get; set; }
     public bool Activo { get; set; } = true;
 
-    // Cámara asociada (T-610)
-    public int? EquipoId { get; set; }
-    public string? EquipoNombre { get; set; }
-    public int? NumeroCamara { get; set; }
-    public bool CreaDetenciones { get; set; }
-    public int MinutosUmbralDetencion { get; set; } = 5;
-
-    /// <summary>Umbral en segundos (modo prueba), o null si se usan los minutos.</summary>
-    public int? SegundosUmbralDetencion { get; set; }
-
-    /// <summary>Umbral efectivo legible que arma la API ("5 min", "45 s").</summary>
-    public string UmbralTexto { get; set; } = "5 min";
-
-    // Eficiencia (script 28)
-    public decimal? ObjetivoPorHora { get; set; }
-
-    /// <summary>CARRILES (rollos), MANGAS o null (se deduce de los datos).</summary>
-    public string? MetodoConteo { get; set; }
+    /// <summary>Cámara que usa el punto (Maestros → Cámaras), o null.</summary>
+    public int? CamaraId { get; set; }
+    public string? CamaraCodigo { get; set; }
+    public string? CamaraNombre { get; set; }
 }
 
 public class TipoDefectoCalidadDto

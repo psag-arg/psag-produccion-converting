@@ -8,7 +8,7 @@ public class CalendarioLineaConfiguration : IEntityTypeConfiguration<CalendarioL
 {
     public void Configure(EntityTypeBuilder<CalendarioLinea> builder)
     {
-        builder.ToTable("CalendariosLinea", "mnt");
+        builder.ToTable("PRD_ProgramacionLinea", "mnt");
 
         builder.HasKey(x => x.CalendarioLineaId);
 
@@ -46,7 +46,7 @@ public class CalendarioLineaTurnoConfiguration : IEntityTypeConfiguration<Calend
 {
     public void Configure(EntityTypeBuilder<CalendarioLineaTurno> builder)
     {
-        builder.ToTable("CalendariosLineaTurnos", "mnt", t =>
+        builder.ToTable("PRD_ProgramacionLineaTurnos", "mnt", t =>
             t.HasCheckConstraint("CK_CalendariosLineaTurnos_DiaSemana", "[DiaSemana] BETWEEN 0 AND 6"));
 
         builder.HasKey(x => x.CalendarioLineaTurnoId);

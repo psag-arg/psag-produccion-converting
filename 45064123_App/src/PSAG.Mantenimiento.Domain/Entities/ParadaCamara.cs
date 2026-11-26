@@ -11,11 +11,11 @@ public class ParadaCamara
 {
     public long ParadaCamaraId { get; set; }
 
-    public int LineaId { get; set; }
-    public int PuntoControlCalidadId { get; set; }
+    /// <summary>Cámara que la detectó (la línea sale de ella; T-798 etapa 4).</summary>
+    public int CamaraId { get; set; }
 
-    /// <summary>Turno materializado con la hora de inicio.</summary>
-    public int? TurnoId { get; set; }
+    /// <summary>Turno de producción de la hora de inicio (AsegurarTurno). Null si ningún turno de planta cubre la hora.</summary>
+    public long? TurnoProduccionId { get; set; }
 
     public DateTimeOffset FechaHoraInicio { get; set; }
     public DateTimeOffset FechaHoraFin { get; set; }
@@ -32,13 +32,22 @@ public class ParadaCamara
     /// <summary>Se cortó el video antes de que la línea arrancara: la parada pudo seguir después.</summary>
     public bool FinIncierto { get; set; }
 
-    /// <summary>Id del servicio (punto + inicio). Único: un reenvío no duplica.</summary>
+    /// <summary>Id del servicio (cámara + inicio). Único: un reenvío no duplica.</summary>
     public string IdentificadorExterno { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Umbral de detención efectivo de la cámara AL INGRESAR la parada, en segundos (T-784). Snapshot: si después
+    /// cambia el umbral (ej.: de 30 s de prueba a 5 min) la parada sigue marcada contra el de ese día. Null en las
+    /// paradas anteriores al script 32 (se usa el umbral actual).
+    /// </summary>
+    public int? UmbralSegundos { get; set; }
+
+    /// <summary>La parada llegó al umbral guardado (las demás son microparadas: no se le piden declarar al operador).</summary>
+    public bool? SuperaUmbral { get; set; }
 
     public DateTimeOffset FechaHoraCreacion { get; set; }
 
     // Navegación
-    public virtual Linea Linea { get; set; } = null!;
-    public virtual PuntoControlCalidad PuntoControl { get; set; } = null!;
-    public virtual Turno? Turno { get; set; }
+    public virtual Camara Camara { get; set; } = null!;
+    public virtual TurnoProduccion? TurnoProduccion { get; set; }
 }

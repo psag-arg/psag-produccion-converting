@@ -12,14 +12,19 @@ public interface IUnitOfWork : IDisposable
     ITipoFallaRepository TiposFalla { get; }
     IDetalleFallaRepository DetallesFalla { get; }
     ITurnoRepository Turnos { get; }
-    IUsuarioLineaRepository UsuariosLineas { get; }
+    IOperadorLineaRepository OperadoresLinea { get; }
     IAuditoriaRepository Auditoria { get; }
     IReglaAnalisisRepository ReglasAnalisis { get; }
     ITiempoProgramadoDiaRepository TiemposProgramadosDia { get; }
     ICalendarioLineaRepository CalendariosLinea { get; }
 
+    // Producción: turno de producción (T-798 etapa 2)
+    ITurnoProduccionRepository TurnosProduccion { get; }
+
     // Eje 2: Variables de proceso
-    IProductoRepository Productos { get; }
+    IProductoMaestroRepository ProductosMaestro { get; }
+    IProductoSkuRepository ProductosSku { get; }
+    IParametroLineaProductoRepository ParametrosLineaProducto { get; }
     IGrupoParametroRepository GruposParametro { get; }
     IParametroRepository Parametros { get; }
     IEstandarParametroRepository EstandaresParametro { get; }
@@ -38,7 +43,8 @@ public interface IUnitOfWork : IDisposable
     ITipoDefectoCalidadRepository TiposDefectoCalidad { get; }
     IRegistroCalidadRepository RegistrosCalidad { get; }
 
-    // Conteo de producción y paradas por cámara (T-610)
+    // Conteo de producción y paradas por cámara (T-610; maestro de cámaras T-798 etapa 4)
+    ICamaraRepository Camaras { get; }
     IConteoCamaraMinutoRepository ConteosCamaraMinuto { get; }
     IParadaCamaraRepository ParadasCamara { get; }
     IAlertaCamaraRepository AlertasCamara { get; }

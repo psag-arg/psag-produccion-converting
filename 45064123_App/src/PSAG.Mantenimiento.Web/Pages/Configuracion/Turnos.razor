@@ -3,7 +3,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
-@attribute [Authorize(Roles = "ADMINISTRADOR")]
+@attribute [Authorize]
 @inject ICatalogosService CatalogosService
 @inject IJSRuntime JS
 
@@ -12,9 +12,11 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h3>Turnos</h3>
+        <SiPermiso Opcion="@Opciones.ConfigTurnos" Accion="AccionPermiso.Alta">
         <button class="btn btn-primary" @onclick="NuevoTurno">
             <i class="bi bi-plus-circle me-2"></i>Nuevo turno
         </button>
+        </SiPermiso>
     </div>
 
     <AvisoDescartable @bind-Mensaje="mensajeLista" />
@@ -74,9 +76,11 @@
                                         </button>
                                         @if (turno.Activo)
                                         {
+                                            <SiPermiso Opcion="@Opciones.ConfigTurnos" Accion="AccionPermiso.Modificar">
                                             <button class="btn btn-sm btn-outline-danger" title="Desactivar" @onclick="() => ConfirmarDesactivar(turno)">
                                                 <i class="bi bi-pause-circle"></i>
                                             </button>
+                                            </SiPermiso>
                                         }
                                     </td>
                                 </tr>
@@ -104,7 +108,7 @@
 @* Modal para crear/editar *@
 @if (showModal)
 {
-    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: var(--psag-velo);">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
@@ -129,7 +133,7 @@
                             <label class="form-label">Hora de fin *</label>
                             <input type="time" class="form-control" value="@horaFinStr" @onchange="e => horaFinStr = e.Value?.ToString() ?? string.Empty" />
                         </div>
-                        <div class="col-12 form-text mt-n2 mb-3">Si la hora de fin es menor que la de inicio, el turno termina al día siguiente (por ejemplo, 22:00 a 06:00).</div>
+                        <div class="col-12 form-text mt-n2 mb-3">Si la hora de fin es menor que la de inicio, el turno termina al día siguiente (por ejemplo, 21:00 a 05:00).</div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Orden</label>

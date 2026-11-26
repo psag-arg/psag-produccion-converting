@@ -8,7 +8,7 @@ public class RegistroProcesoDetalleConfiguration : IEntityTypeConfiguration<Regi
 {
     public void Configure(EntityTypeBuilder<RegistroProcesoDetalle> builder)
     {
-        builder.ToTable("RegistrosProcesoDetalle", "mnt");
+        builder.ToTable("CPR_RegistrosDetalle", "mnt");
 
         builder.HasKey(x => x.RegistroProcesoDetalleId);
 

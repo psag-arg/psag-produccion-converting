@@ -3,9 +3,6 @@ using PSAG.Mantenimiento.Domain.Enums;
 
 namespace PSAG.Mantenimiento.Domain.Services;
 
-/// <summary>Maquinista elegido para una detención automática y por qué (queda en el historial).</summary>
-public sealed record EleccionMaquinista(UsuarioLinea? Elegido, string Motivo);
-
 /// <summary>
 /// Reglas de la detención automática por cámara (T-610). Funciones puras: las usan la ingesta del servicio de
 /// cámara, la declaración del operador y el aviso de fin de turno.
@@ -15,8 +12,7 @@ public static class DetencionCamaraReglas
     /// <summary>Umbral por defecto (reunión 03/11/2026 [26:21]): 5 minutos, configurable por cámara.</summary>
     public const int MinutosUmbralPorDefecto = 5;
 
-    public const int MinutosUmbralMinimo = 1;
-    public const int MinutosUmbralMaximo = 240;
+    public const int SegundosUmbralPorDefecto = MinutosUmbralPorDefecto * 60;
 
     /// <summary>Minutos antes del fin del turno en que se avisa al operador que le quedan detenciones sin declarar.</summary>
     public const int MinutosAvisoFinTurnoPorDefecto = 30;
@@ -32,97 +28,55 @@ public static class DetencionCamaraReglas
         "La detención está pendiente de declaración: no se edita. Declarala desde Mis pendientes (Declarar).";
 
     /// <summary>
-    /// Umbral en segundos, para probar en planta (reunión 10/11/2026). El servicio de cámara confirma una parada
-    /// recién a los 20 s (2 ventanas de 10 s): el mínimo útil es 30 s. El máximo equivale a 240 minutos.
+    /// Rango del umbral de detención en segundos (CAM_Camaras.UmbralDetencionSegundos, T-798 etapa 4). Mínimo 30 s
+    /// (criterio del 20/11: "hoy 30 s"; la cámara 10 da una parada a los 10 s sin mangas desde T-784, la 09 a los
+    /// 20 s). El máximo equivale a 240 minutos.
     /// </summary>
     public const int SegundosUmbralMinimo = 30;
-    public const int SegundosUmbralMaximo = MinutosUmbralMaximo * 60;
+    public const int SegundosUmbralMaximo = 240 * 60;
 
     /// <summary>
     /// La detención sólo se crea si la parada llegó al umbral efectivo de la cámara, en segundos (inclusive; ver
-    /// <see cref="UmbralSegundos(PuntoControlCalidad)"/>). Un valor fuera de rango vuelve al por defecto (5 min).
+    /// <see cref="UmbralSegundos(Camara)"/>). Un valor fuera de rango vuelve al por defecto (5 min).
     /// </summary>
     public static bool SuperaUmbral(DateTimeOffset inicio, DateTimeOffset hasta, int segundosUmbral) =>
         hasta - inicio >= TimeSpan.FromSeconds(UmbralSegundosValido(segundosUmbral));
 
     /// <summary>
-    /// Umbral efectivo de la cámara, en segundos: <c>SegundosUmbralDetencion</c> si está cargado (modo prueba); si
-    /// no, <c>MinutosUmbralDetencion</c> x 60. ÚNICO lugar donde se decide el umbral: ingesta, log de paradas y
-    /// eficiencia (microcortes) usan esto.
+    /// Umbral efectivo de la cámara, en segundos: <c>UmbralDetencionSegundos</c> si está cargado y en rango; si no,
+    /// el por defecto (5 min). ÚNICO lugar donde se decide el umbral: ingesta, log de paradas y microcortes usan esto.
     /// </summary>
-    public static int UmbralSegundos(PuntoControlCalidad punto) =>
-        UmbralSegundos(punto.SegundosUmbralDetencion, punto.MinutosUmbralDetencion);
+    public static int UmbralSegundos(Camara camara) => UmbralSegundos(camara.UmbralDetencionSegundos);
 
-    public static int UmbralSegundos(int? segundosUmbral, int minutosUmbral) =>
-        segundosUmbral is >= SegundosUmbralMinimo and <= SegundosUmbralMaximo
-            ? segundosUmbral.Value
-            : UmbralValido(minutosUmbral) * 60;
+    public static int UmbralSegundos(int? segundosUmbral) =>
+        segundosUmbral is { } s ? UmbralSegundosValido(s) : SegundosUmbralPorDefecto;
 
     /// <summary>Umbral en segundos dentro del rango admitido (fuera de rango vuelve al por defecto, 5 min).</summary>
     public static int UmbralSegundosValido(int segundosUmbral) =>
-        segundosUmbral is >= SegundosUmbralMinimo and <= SegundosUmbralMaximo ? segundosUmbral : MinutosUmbralPorDefecto * 60;
+        segundosUmbral is >= SegundosUmbralMinimo and <= SegundosUmbralMaximo ? segundosUmbral : SegundosUmbralPorDefecto;
 
-    /// <summary>Umbral dentro del rango admitido (un valor fuera de rango en la base vuelve al por defecto).</summary>
-    public static int UmbralValido(int minutosUmbral) =>
-        minutosUmbral is >= MinutosUmbralMinimo and <= MinutosUmbralMaximo ? minutosUmbral : MinutosUmbralPorDefecto;
-
-    public static string? MotivoUmbralInvalido(int minutosUmbral) =>
-        minutosUmbral is >= MinutosUmbralMinimo and <= MinutosUmbralMaximo
+    /// <summary>Motivo por el que el umbral cargado en Maestros → Cámaras no es válido, o null (vacío = por defecto).</summary>
+    public static string? MotivoUmbralInvalido(int? segundosUmbral) =>
+        segundosUmbral is null or (>= SegundosUmbralMinimo and <= SegundosUmbralMaximo)
             ? null
-            : $"El umbral de detención tiene que estar entre {MinutosUmbralMinimo} y {MinutosUmbralMaximo} minutos.";
-
-    /// <summary>
-    /// Motivo por el que el umbral guardado desde Maestros no es válido, o null. Con segundos cargados (modo prueba)
-    /// se validan los segundos (30 a 14400) y los minutos no se usan; sin segundos, los minutos (1 a 240).
-    /// </summary>
-    public static string? MotivoUmbralInvalido(int? segundosUmbral, int minutosUmbral) =>
-        segundosUmbral is { } s
-            ? s is >= SegundosUmbralMinimo and <= SegundosUmbralMaximo
-                ? null
-                : $"El umbral de detención en segundos tiene que estar entre {SegundosUmbralMinimo} y {SegundosUmbralMaximo} " +
-                  $"(la cámara confirma una parada recién a los 20 s; para más de {MinutosUmbralMaximo} minutos no se admite)."
-            : MotivoUmbralInvalido(minutosUmbral);
+            : $"El umbral de detención tiene que estar entre {SegundosUmbralMinimo} segundos y {SegundosUmbralMaximo / 60} minutos " +
+              "(la cámara confirma una parada recién a los 10-20 s).";
 
     /// <summary>Umbral legible para mostrar: "5 min" si es un número entero de minutos, si no "45 s".</summary>
     public static string TextoUmbral(int segundosUmbral) =>
         segundosUmbral % 60 == 0 ? $"{segundosUmbral / 60} min" : $"{segundosUmbral} s";
 
+    /// <summary>Umbral de la parada: el guardado al ingresarla (T-784) o, en las anteriores, el actual de su cámara.</summary>
+    public static int? UmbralSegundos(ParadaCamara parada) =>
+        parada.UmbralSegundos ?? (parada.Camara == null ? null : UmbralSegundos(parada.Camara));
+
+    /// <summary>Marca de la parada: la guardada al ingresarla o, en las anteriores, calculada con el umbral actual.</summary>
+    public static bool SuperaUmbral(ParadaCamara parada) =>
+        parada.SuperaUmbral
+        ?? (UmbralSegundos(parada) is { } umbral && SuperaUmbral(parada.FechaHoraInicio, parada.FechaHoraFin, umbral));
+
     /// <summary>Umbral efectivo legible de la cámara ("5 min", "45 s").</summary>
-    public static string TextoUmbral(PuntoControlCalidad punto) => TextoUmbral(UmbralSegundos(punto));
-
-    /// <summary>
-    /// Maquinista del turno en que empezó la parada, aunque no haya nadie logueado. Regla:
-    /// <list type="number">
-    /// <item>Asignaciones de la línea para ese turno (Maestros → Maquinistas). Si hay una, esa.</item>
-    /// <item>Si hay más de una (error de carga, como el turno mañana con dos maquinistas), la asignada más
-    /// recientemente: suele ser la corrección. El motivo deja escritos los otros para que se revise.</item>
-    /// <item>Si no hay ninguna para el turno, la única asignación de la línea sin turno fijo, si hay exactamente una.</item>
-    /// <item>Si no, queda sin maquinista; al declarar, se completa con el operador que declara si está asignado a la línea.</item>
-    /// </list>
-    /// </summary>
-    public static EleccionMaquinista ElegirMaquinista(IEnumerable<UsuarioLinea> asignacionesDeLaLinea, int? turnoId)
-    {
-        var todas = asignacionesDeLaLinea.ToList();
-        var delTurno = turnoId == null ? [] : todas.Where(a => a.TurnoId == turnoId).ToList();
-
-        if (delTurno.Count == 1)
-            return new(delTurno[0], "Maquinista asignado al turno.");
-
-        if (delTurno.Count > 1)
-        {
-            var ordenadas = delTurno.OrderByDescending(a => a.FechaAsignacion).ThenByDescending(a => a.UsuarioLineaId).ToList();
-            var otros = string.Join(", ", ordenadas.Skip(1).Select(a => a.UsuarioId));
-            return new(ordenadas[0], $"Hay {delTurno.Count} maquinistas asignados al turno; se tomó el asignado más recientemente. Revisar la asignación (otros: {otros}).");
-        }
-
-        var sinTurno = todas.Where(a => a.TurnoId == null).ToList();
-        if (sinTurno.Count == 1)
-            return new(sinTurno[0], "Sin maquinista para el turno; se tomó el único asignado a la línea sin turno fijo.");
-
-        return new(null, sinTurno.Count > 1
-            ? "Sin maquinista para el turno y varios asignados a la línea sin turno fijo: lo completa quien declara."
-            : "Sin maquinista asignado al turno: lo completa quien declara.");
-    }
+    public static string TextoUmbral(Camara camara) => TextoUmbral(UmbralSegundos(camara));
 
     /// <summary>Texto de la detención automática que ve el operador mientras está pendiente (la descripción la escribe él).</summary>
     public static string ObservacionAlta(string codigoCamara, DateTimeOffset inicioPlanta, bool inicioIncierto) =>
@@ -210,7 +164,25 @@ public static class DetencionCamaraReglas
     public static bool VeTodasLasLineasParaDeclarar(IEnumerable<string> roles, int lineasAsignadas) =>
         lineasAsignadas == 0 && roles.Any(r => r is Common.RolesSistema.Administrador or Common.RolesSistema.Supervisor);
 
-    /// <summary>Identificador único de la alerta: punto + tipo + inicio (UTC), como las paradas.</summary>
-    public static string IdentificadorAlerta(string codigoPunto, TipoAlertaCamara tipo, DateTimeOffset inicio) =>
-        $"{codigoPunto}-{tipo}-{inicio.ToUniversalTime():yyyyMMdd'T'HHmmss'Z'}";
+    /// <summary>Identificador único de la alerta: cámara + tipo + inicio (UTC), como las paradas.</summary>
+    public static string IdentificadorAlerta(string codigoCamara, TipoAlertaCamara tipo, DateTimeOffset inicio) =>
+        $"{codigoCamara}-{tipo}-{inicio.ToUniversalTime():yyyyMMdd'T'HHmmss'Z'}";
+
+    /// <summary>Texto de cada tipo de alerta para las pantallas.</summary>
+    public static string DescripcionAlerta(TipoAlertaCamara tipo) => tipo switch
+    {
+        TipoAlertaCamara.CONGELADA => "Cámara congelada",
+        TipoAlertaCamara.SIN_VIDEO => "Pérdida de conexión de cámara",
+        TipoAlertaCamara.SIN_DATOS => "Cámara sin datos con el turno abierto",
+        TipoAlertaCamara.SIN_CONFIGURACION => "Cámara habilitada sin calibración en el servicio",
+        _ => tipo.ToString()
+    };
+
+    /// <summary>
+    /// Alerta SIN_DATOS (T-798 etapa 4): con el turno ABIERTO, la cámara oficial no manda minutos desde
+    /// <paramref name="referencia"/> (el último minuto recibido o, si es posterior, el inicio del turno) hace más de
+    /// <paramref name="minutosSinDatos"/>. "Sin datos" no es producción cero: un minuto con cantidad 0 es un dato.
+    /// </summary>
+    public static bool CorrespondeAlertaSinDatos(DateTimeOffset referencia, DateTimeOffset ahora, int minutosSinDatos) =>
+        ahora - referencia > TimeSpan.FromMinutes(Math.Max(1, minutosSinDatos));
 }

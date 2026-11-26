@@ -1,0 +1,14 @@
+@* T-786: de dónde salió la detención. Manual = la cargó una persona (operario o supervisor, por ejemplo después de
+   un corte de energía); Cámara = la creó el servicio de cámara. *@
+@if (Origen == "CAMARA")
+{
+    <span class="badge bg-info-subtle text-info-emphasis" title="La creó la cámara">Cámara</span>
+}
+else
+{
+    <span class="badge bg-secondary-subtle text-secondary-emphasis" title="La cargó una persona">Manual</span>
+}
+
+@code {
+    [Parameter] public string? Origen { get; set; }
+}

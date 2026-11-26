@@ -1,0 +1,62 @@
+@* T-802: cada página exige VER de su opción (RutasPermiso). Sin permiso: aviso en lugar del contenido (la API igual rechaza con 403). *@
+@using PSAG.Mantenimiento.Web.Models
+@inject NavigationManager Navigation
+@inject PSAG.Mantenimiento.Web.Services.IPermisosService PermisosService
+@implements IDisposable
+
+@if (!cargado)
+{
+    <div class="text-muted small p-3">Cargando permisos…</div>
+}
+else if (opcion != null && !permisos.Ve(opcion) && !(permisos.ObligadoATurno && opcion == Opciones.ProduccionInicioTurno))
+{
+    <div class="alert alert-warning mt-3" role="alert">
+        <h5 class="alert-heading"><i class="bi bi-shield-lock me-2"></i>No tenés permiso</h5>
+        <p class="mb-0">Tu usuario no tiene permiso para ver esta pantalla. Si lo necesitás, pedíselo al administrador
+            (Configuración → Roles y permisos).</p>
+    </div>
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private PermisosUsuario permisos = PermisosUsuario.Ninguno;
+    private string? opcion;
+    private bool cargado;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Navigation.LocationChanged += AlNavegar;
+        PermisosService.Cambiaron += AlCambiarPermisos;
+        await EvaluarAsync();
+    }
+
+    private async Task EvaluarAsync()
+    {
+        permisos = await PermisosService.ObtenerAsync();
+        opcion = RutasPermiso.OpcionDe(Navigation.ToBaseRelativePath(Navigation.Uri));
+        cargado = true;
+    }
+
+    private async void AlNavegar(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        await EvaluarAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void AlCambiarPermisos()
+    {
+        await EvaluarAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= AlNavegar;
+        PermisosService.Cambiaron -= AlCambiarPermisos;
+    }
+}

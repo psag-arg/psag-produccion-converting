@@ -24,6 +24,12 @@ public class TipoFalla : CatalogoBase
     /// </summary>
     public string? Color { get; set; }
 
+    /// <summary>
+    /// T-798: si las detenciones de este tipo suman en indisponibilidad y eficiencia (no programadas).
+    /// En 0 (por ejemplo, paradas programadas) se registran igual pero no suman. Por defecto, sí.
+    /// </summary>
+    public bool CuentaParaIndicadores { get; set; } = true;
+
     // Navegación
     public virtual ICollection<Detencion> Detenciones { get; set; } = new List<Detencion>();
     public virtual ICollection<DetalleFalla> DetallesFalla { get; set; } = new List<DetalleFalla>();

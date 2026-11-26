@@ -8,7 +8,7 @@ public class EjecucionInspeccionConfiguration : IEntityTypeConfiguration<Ejecuci
 {
     public void Configure(EntityTypeBuilder<EjecucionInspeccion> builder)
     {
-        builder.ToTable("EjecucionesInspeccion", "mnt");
+        builder.ToTable("INS_Ejecuciones", "mnt");
 
         builder.HasKey(e => e.EjecucionInspeccionId);
 

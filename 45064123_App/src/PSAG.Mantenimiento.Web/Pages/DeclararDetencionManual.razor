@@ -1,0 +1,282 @@
+@page "/detenciones/declarar-manual"
+@using Microsoft.AspNetCore.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@using PSAG.Mantenimiento.Web.Shared
+@attribute [Authorize]
+@inject IDetencionesService DetencionesService
+@inject ICatalogosService CatalogosService
+
+<PageTitle>Declarar detención manual - PSAG Produccion</PageTitle>
+
+@* T-786 (Ferretti, 16/11 punto 5): ante un corte de energía las cámaras y el sistema se reinician y la detención no
+   queda registrada. El supervisor la declara a mano: máquina, desde/hasta (el turno sale de la hora desde), tipo de
+   falla y motivo. Queda como MANUAL (no de cámara), REGISTRADA, y cuenta en los reportes como cualquier otra; quién
+   la cargó y cuándo quedan guardados. Antes de guardar se avisa si ya hay otra detención en ese horario. *@
+
+<div class="container-fluid" style="max-width: 820px;">
+    <div class="mb-3">
+        <a href="/detenciones" class="text-decoration-none"><i class="bi bi-arrow-left me-1"></i>Volver a detenciones</a>
+    </div>
+    <h2 class="mb-1">Declarar detención manual</h2>
+    <div class="text-muted mb-3">Para paradas que no quedaron registradas (por ejemplo, un corte de energía que reinició las cámaras y el sistema).</div>
+
+    @if (creada != null)
+    {
+        <div class="alert alert-success">
+            <i class="bi bi-check-circle me-1"></i>Detención <a href="/detenciones/@creada.DetencionId"><strong>@creada.Codigo</strong></a> registrada
+            (@creada.TurnoNombre). Queda marcada como <strong>manual</strong>.
+            <button class="btn btn-sm btn-outline-success ms-2" @onclick="Otra">Declarar otra</button>
+        </div>
+    }
+
+    @if (cargando)
+    {
+        <div class="text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Cargando...</span></div></div>
+    }
+    else if (creada == null)
+    {
+        <div class="card">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <label class="form-label">Máquina</label>
+                        <select class="form-select" @bind="lineaId" @bind:after="@(async () => await CambioLinea())">
+                            <option value="0">Elegí...</option>
+                            @foreach (var l in lineas)
+                            {
+                                <option value="@l.LineaId">@l.Nombre</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label">Fecha (de la hora desde)</label>
+                        <input type="date" class="form-control" @bind="fecha" @bind:after="@(async () => await BuscarSuperpuestas())" />
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label class="form-label">Desde</label>
+                        <input type="time" class="form-control" @bind="desde" @bind:after="@(async () => await BuscarSuperpuestas())" />
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label class="form-label">Hasta</label>
+                        <input type="time" class="form-control" @bind="hasta" @bind:after="@(async () => await BuscarSuperpuestas())" />
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label">Turno</label>
+                        <div class="form-control-plaintext">
+                            @if (desde is { } d && hasta is { } h && d != h)
+                            {
+                                <strong>@(DeclaracionManualUi.TurnoDe(turnos, d)?.Nombre ?? "Sin turno para esa hora")</strong>
+                                <span class="text-muted"> · @DeclaracionManualUi.Minutos(d, h) min@(h < d ? " (termina al día siguiente)" : "")</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">Sale de la hora desde</span>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-md-6">
+                        <label class="form-label">Tipo de falla</label>
+                        <select class="form-select" @bind="tipoFallaId" @bind:after="@(async () => await CargarDetalles())">
+                            <option value="0">Elegí...</option>
+                            @foreach (var t in tiposFalla)
+                            {
+                                <option value="@t.TipoFallaId">@t.Nombre</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label">Detalle de falla <span class="text-muted small">(opcional)</span></label>
+                        <select class="form-select" @bind="detalleFallaId" disabled="@(detalles.Count == 0)">
+                            <option value="0">--</option>
+                            @foreach (var df in detalles)
+                            {
+                                <option value="@df.DetalleFallaId">@df.Nombre</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label">Equipo <span class="text-muted small">(opcional)</span></label>
+                        <select class="form-select" @bind="equipoId" @bind:after="@(async () => await CargarDetalles())" disabled="@(lineaId <= 0)">
+                            <option value="0">-- Toda la máquina --</option>
+                            @foreach (var e in equipos)
+                            {
+                                <option value="@e.EquipoId">@e.Nombre</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label">Maquinista <span class="text-muted small">(opcional)</span></label>
+                        <select class="form-select" @bind="usuarioLineaId" disabled="@(lineaId <= 0)">
+                            <option value="0">-- El del turno --</option>
+                            @foreach (var m in maquinistas)
+                            {
+                                <option value="@m.UsuarioLineaId">@m.NombreUsuario</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Motivo</label>
+                        <div class="mb-2">
+                            @foreach (var motivoRapido in DeclaracionManualUi.MotivosRapidos)
+                            {
+                                <button type="button" class="btn btn-sm btn-outline-secondary me-1 mb-1" @onclick="() => motivo = motivoRapido">@motivoRapido</button>
+                            }
+                        </div>
+                        <textarea class="form-control" rows="3" maxlength="2000" @bind="motivo" placeholder="Qué pasó: corte de energía, desde cuándo, qué se hizo..."></textarea>
+                    </div>
+                </div>
+
+                @if (superpuestas.Count > 0)
+                {
+                    <div class="alert alert-warning mt-3 mb-0">
+                        <div class="fw-semibold mb-1"><i class="bi bi-exclamation-triangle me-1"></i>Ya hay @(superpuestas.Count == 1 ? "una detención" : $"{superpuestas.Count} detenciones") de esta máquina en ese horario:</div>
+                        <ul class="mb-1">
+                            @foreach (var s in superpuestas)
+                            {
+                                <li>
+                                    <a href="/detenciones/@s.DetencionId">@s.Codigo</a>
+                                    <OrigenDetencion Origen="@s.OrigenRegistro" />
+                                    @s.FechaHoraParada.ToString("dd/MM HH:mm")@(s.FechaHoraFin is { } fin ? $" a {fin:HH:mm}" : "") · @s.EstadoActualDescripcion
+                                </li>
+                            }
+                        </ul>
+                        <div class="small">Si es la misma parada, conviene completar esa en lugar de cargar otra. Si no, podés guardar igual.</div>
+                    </div>
+                }
+
+                @if (error != null)
+                {
+                    <div class="alert alert-danger mt-3 mb-0">@error</div>
+                }
+            </div>
+            <div class="card-footer d-flex justify-content-end gap-2">
+                <a href="/detenciones" class="btn btn-outline-secondary">Cancelar</a>
+                <button class="btn btn-primary" disabled="@guardando" @onclick="@(async () => await Guardar())">
+                    <i class="bi bi-save me-1"></i>Guardar detención manual
+                </button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<LineaDto> lineas = [];
+    private List<TurnoDto> turnos = [];
+    private List<TipoFallaDto> tiposFalla = [];
+    private List<EquipoDto> equipos = [];
+    private List<DetalleFallaDto> detalles = [];
+    private List<MaquinistaDto> maquinistas = [];
+    private List<DetencionSuperpuestaDto> superpuestas = [];
+
+    private int lineaId;
+    private DateTime fecha = DateTime.Today;
+    private TimeOnly? desde;
+    private TimeOnly? hasta;
+    private int tipoFallaId;
+    private int detalleFallaId;
+    private int equipoId;
+    private int usuarioLineaId;
+    private string? motivo;
+
+    private bool cargando = true;
+    private bool guardando;
+    private string? error;
+    private CrearDetencionResponse? creada;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var l = CatalogosService.GetLineasAsync();
+            var t = CatalogosService.GetTurnosAsync();
+            var f = CatalogosService.GetTiposFallaAsync();
+            await Task.WhenAll(l, t, f);
+            lineas = l.Result.Where(x => x.Activo).ToList();
+            turnos = t.Result;
+            tiposFalla = f.Result.Where(x => x.Activo).ToList();
+            if (lineas.Count == 1)
+                await CambioLinea(lineas[0].LineaId);
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task CambioLinea(int? nueva = null)
+    {
+        if (nueva is { } n) lineaId = n;
+        equipoId = 0;
+        usuarioLineaId = 0;
+        equipos = lineaId > 0 ? await CatalogosService.GetEquiposAsync(lineaId) : [];
+        maquinistas = lineaId > 0 ? await CatalogosService.GetMaquinistasAsync(lineaId) : [];
+        await CargarDetalles();
+        await BuscarSuperpuestas();
+    }
+
+    private async Task CargarDetalles()
+    {
+        detalleFallaId = 0;
+        detalles = tipoFallaId > 0
+            ? await CatalogosService.GetDetallesFallaAsync(tipoFallaId, equipoId > 0 ? equipoId : null)
+            : [];
+    }
+
+    private async Task BuscarSuperpuestas()
+    {
+        superpuestas = lineaId > 0 && desde is { } d && hasta is { } h && d != h
+            ? await DetencionesService.GetSuperpuestasAsync(lineaId, DateOnly.FromDateTime(fecha), d, h)
+            : [];
+    }
+
+    private async Task Guardar()
+    {
+        error = DeclaracionManualUi.Falta(lineaId, desde, hasta, tipoFallaId, motivo);
+        if (error != null)
+            return;
+
+        guardando = true;
+        try
+        {
+            var (resultado, mensaje) = await DetencionesService.CrearDetencionAsync(new CrearDetencionRequest
+            {
+                LineaId = lineaId,
+                Fecha = DateOnly.FromDateTime(fecha),
+                HoraInicio = desde,
+                HoraFin = hasta,
+                OrigenTiempo = "CALCULADO",
+                TipoFallaId = tipoFallaId,
+                DetalleFallaId = detalleFallaId > 0 ? detalleFallaId : null,
+                EquipoId = equipoId > 0 ? equipoId : null,
+                // T-798 etapa 3: se manda el usuario del maquinista elegido (no la habilitación).
+                OperadorUsuarioId = usuarioLineaId > 0 ? maquinistas.FirstOrDefault(m => m.UsuarioLineaId == usuarioLineaId)?.UsuarioId : null,
+                Descripcion = motivo!.Trim()
+            });
+            if (resultado == null)
+            {
+                error = mensaje ?? "No se pudo guardar la detención.";
+                return;
+            }
+            creada = resultado;
+        }
+        finally
+        {
+            guardando = false;
+        }
+    }
+
+    private void Otra()
+    {
+        creada = null;
+        desde = hasta = null;
+        motivo = null;
+        superpuestas = [];
+        error = null;
+    }
+}

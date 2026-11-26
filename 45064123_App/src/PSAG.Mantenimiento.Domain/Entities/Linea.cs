@@ -17,10 +17,10 @@ public class Linea : CatalogoBase
     // Navegación
     public virtual ICollection<Equipo> Equipos { get; set; } = new List<Equipo>();
     public virtual ICollection<Detencion> Detenciones { get; set; } = new List<Detencion>();
-    public virtual ICollection<UsuarioLinea> UsuariosLineas { get; set; } = new List<UsuarioLinea>();
+    public virtual ICollection<OperadorLinea> OperadoresLinea { get; set; } = new List<OperadorLinea>();
 
     // Navegación - Eje 2: Variables de proceso
-    public virtual ICollection<LineaProducto> LineasProductos { get; set; } = new List<LineaProducto>();
+    public virtual ICollection<ParametroLineaProducto> ParametrosLineaProducto { get; set; } = new List<ParametroLineaProducto>();
     public virtual ICollection<GrupoParametro> GruposParametros { get; set; } = new List<GrupoParametro>();
     public virtual ICollection<EstandarParametro> Estandares { get; set; } = new List<EstandarParametro>();
     public virtual ICollection<RegistroProceso> RegistrosProceso { get; set; } = new List<RegistroProceso>();

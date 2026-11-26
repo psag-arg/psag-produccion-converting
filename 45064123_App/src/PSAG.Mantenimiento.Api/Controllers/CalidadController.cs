@@ -1,3 +1,5 @@
+using PSAG.Mantenimiento.Api.Autorizacion;
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -21,11 +23,6 @@ namespace PSAG.Mantenimiento.Api.Controllers;
 [Authorize]
 public class CalidadController : ApiControllerBase
 {
-    /// <summary>Mismos roles que CalidadReglas.RolesRevision.</summary>
-    public const string RolesRevision = RolesSistema.Supervisor + "," + RolesSistema.Mantenimiento + "," + RolesSistema.Administrador;
-
-    /// <summary>Mismos roles que CalidadReglas.RolesCargaManual.</summary>
-    public const string RolesCargaManual = RolesSistema.Supervisor + "," + RolesSistema.Administrador;
 
     /// <summary>Una imagen de hasta 10 MB más el sobre del multipart.</summary>
     public const long LimitePedidoImagen = AdjuntoImagenReglas.TamanoMaximoBytes + 1024 * 1024;
@@ -52,6 +49,7 @@ public class CalidadController : ApiControllerBase
     [HttpGet("registros")]
     [ProducesResponseType(typeof(PagedResult<RegistroCalidadDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.CalidadRegistro, AccionPermiso.Ver)]
     public async Task<IActionResult> GetRegistros([FromQuery] RegistrosCalidadFiltroRequest filtro)
     {
         var resultado = await _registros.ObtenerPaginadoAsync(filtro);
@@ -68,6 +66,7 @@ public class CalidadController : ApiControllerBase
     [HttpGet("registros/{id:long}")]
     [ProducesResponseType(typeof(RegistroCalidadDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.CalidadRegistro, AccionPermiso.Ver)]
     public async Task<IActionResult> GetRegistro(long id)
     {
         var resultado = await _registros.ObtenerAsync(id);
@@ -84,6 +83,7 @@ public class CalidadController : ApiControllerBase
     [HttpGet("registros/{id:long}/imagen")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.CalidadRegistro, AccionPermiso.Ver)]
     public async Task<IActionResult> GetImagen(long id)
     {
         var resultado = await _registros.AbrirImagenAsync(id);
@@ -100,12 +100,12 @@ public class CalidadController : ApiControllerBase
     /// Carga manual de un registro (multipart; imagen opcional en el campo "archivo"). Nace confirmado.
     /// </summary>
     [HttpPost("registros")]
-    [Authorize(Roles = RolesCargaManual)]
     [RequestSizeLimit(LimitePedidoImagen)]
     [RequestFormLimits(MultipartBodyLengthLimit = LimitePedidoImagen)]
     [ProducesResponseType(typeof(RegistroCalidadDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [Permiso(Opciones.CalidadRegistro, AccionPermiso.Alta)]
     public async Task<IActionResult> CrearManual([FromForm] CrearRegistroCalidadManualRequest request, IFormFile? archivo)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -126,12 +126,12 @@ public class CalidadController : ApiControllerBase
     /// Marcar como CONFIRMADO o FALSO_POSITIVO. Guarda quién y cuándo y deja el cambio en el historial.
     /// </summary>
     [HttpPost("registros/{id:long}/revision")]
-    [Authorize(Roles = RolesRevision)]
     [ProducesResponseType(typeof(RegistroCalidadDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [Permiso(Opciones.CalidadRegistro, AccionPermiso.Modificar)]
     public async Task<IActionResult> Revisar(long id, [FromBody] RevisarRegistroCalidadRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -149,11 +149,11 @@ public class CalidadController : ApiControllerBase
     /// Relacionar el registro con una detención de la misma línea (por código DET-...). Código vacío = quitar la relación.
     /// </summary>
     [HttpPost("registros/{id:long}/detencion")]
-    [Authorize(Roles = RolesRevision)]
     [ProducesResponseType(typeof(RegistroCalidadDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.CalidadRegistro, AccionPermiso.Modificar)]
     public async Task<IActionResult> VincularDetencion(long id, [FromBody] VincularDetencionCalidadRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -171,13 +171,14 @@ public class CalidadController : ApiControllerBase
 
     [HttpGet("puntos-control")]
     [ProducesResponseType(typeof(IEnumerable<PuntoControlCalidadDto>), StatusCodes.Status200OK)]
+    [Permiso(AccionPermiso.Ver, Opciones.CalidadRegistro, Opciones.MaestrosCalidad)]
     public async Task<IActionResult> GetPuntosControl([FromQuery] int? lineaId = null, [FromQuery] bool incluirInactivos = false) =>
         Ok(await _maestros.ObtenerPuntosControlAsync(lineaId, incluirInactivos));
 
     [HttpPost("puntos-control")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(PuntoControlCalidadDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.MaestrosCalidad, AccionPermiso.Alta)]
     public async Task<IActionResult> CrearPuntoControl([FromBody] GuardarPuntoControlCalidadRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -188,10 +189,10 @@ public class CalidadController : ApiControllerBase
     }
 
     [HttpPut("puntos-control/{id:int}")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(PuntoControlCalidadDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.MaestrosCalidad, AccionPermiso.Modificar)]
     public async Task<IActionResult> ActualizarPuntoControl(int id, [FromBody] GuardarPuntoControlCalidadRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -203,13 +204,14 @@ public class CalidadController : ApiControllerBase
 
     [HttpGet("tipos-defecto")]
     [ProducesResponseType(typeof(IEnumerable<TipoDefectoCalidadDto>), StatusCodes.Status200OK)]
+    [Permiso(AccionPermiso.Ver, Opciones.CalidadRegistro, Opciones.MaestrosCalidad)]
     public async Task<IActionResult> GetTiposDefecto([FromQuery] bool incluirInactivos = false) =>
         Ok(await _maestros.ObtenerTiposDefectoAsync(incluirInactivos));
 
     [HttpPost("tipos-defecto")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(TipoDefectoCalidadDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.MaestrosCalidad, AccionPermiso.Alta)]
     public async Task<IActionResult> CrearTipoDefecto([FromBody] GuardarTipoDefectoCalidadRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -220,10 +222,10 @@ public class CalidadController : ApiControllerBase
     }
 
     [HttpPut("tipos-defecto/{id:int}")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(TipoDefectoCalidadDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.MaestrosCalidad, AccionPermiso.Modificar)]
     public async Task<IActionResult> ActualizarTipoDefecto(int id, [FromBody] GuardarTipoDefectoCalidadRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))

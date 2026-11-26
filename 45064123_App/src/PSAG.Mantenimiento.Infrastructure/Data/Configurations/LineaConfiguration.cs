@@ -8,9 +8,14 @@ public class LineaConfiguration : IEntityTypeConfiguration<Linea>
 {
     public void Configure(EntityTypeBuilder<Linea> builder)
     {
-        builder.ToTable("Lineas", "mnt");
+        builder.ToTable("ABM_Lineas", "mnt");
 
         builder.HasKey(x => x.LineaId);
+
+        // Como en la base (04_create_tables.sql: NVARCHAR(50)).
+        builder.Property(x => x.Codigo)
+            .IsRequired()
+            .HasMaxLength(50);
 
         builder.Property(x => x.Nombre)
             .IsRequired()

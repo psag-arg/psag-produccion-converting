@@ -15,29 +15,11 @@
 
 ## Autorización
 
-### Roles
-| Rol | Descripción |
-|-----|-------------|
-| OPERARIO | Registrar en sus líneas |
-| SUPERVISOR | Revisar + panel NO OK |
-| MANTENIMIENTO | Todo + cerrar |
-| GERENCIA | Solo lectura |
-| ADMINISTRADOR | ABM completo |
-
-### Políticas
-```csharp
-RequireAdministrador    → ADMINISTRADOR
-RequireGerencia         → ADMINISTRADOR, GERENCIA
-RequireMantenimiento    → ADMINISTRADOR, MANTENIMIENTO
-RequireSupervisor       → ADMINISTRADOR, MANTENIMIENTO, SUPERVISOR
-RequireOperario         → ADMINISTRADOR, MANTENIMIENTO, SUPERVISOR, OPERARIO
-CanCreateDetenciones    → ADMINISTRADOR, MANTENIMIENTO, SUPERVISOR, OPERARIO
-CanEditDetenciones      → ADMINISTRADOR, MANTENIMIENTO
-CanCloseDetenciones     → ADMINISTRADOR, MANTENIMIENTO
-CanManageCatalogs       → ADMINISTRADOR
-CanManageUsers          → ADMINISTRADOR
-CanExport               → ADMINISTRADOR, GERENCIA, MANTENIMIENTO
-```
+### Roles y permisos (T-802)
+Los roles (OPERARIO, SUPERVISOR, MANTENIMIENTO, GERENCIA, ADMINISTRADOR) ya no tienen permisos fijos en el código: cada
+acción de la API lleva `[Permiso("OPCION", Accion)]` y lo que puede cada rol (VER / ALTA / MODIFICACIÓN / BAJA por opción)
+se configura en Configuración → Roles y permisos (tablas `CFG_`). Las políticas `Require*` / `Can*` de antes se eliminaron;
+la matriz migrada las reproduce. Detalle, matriz y mapa endpoint → permiso: [PERMISOS.md](PERMISOS.md).
 
 ### Restricción por Línea
 - Tabla `UsuarioLinea` define qué líneas puede operar cada usuario

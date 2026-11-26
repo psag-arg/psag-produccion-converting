@@ -9,7 +9,7 @@ public class DetencionNotaConfiguration : IEntityTypeConfiguration<DetencionNota
 {
     public void Configure(EntityTypeBuilder<DetencionNota> builder)
     {
-        builder.ToTable("DetencionesNotas", "mnt");
+        builder.ToTable("DET_Notas", "mnt");
 
         builder.HasKey(x => x.DetencionNotaId);
 

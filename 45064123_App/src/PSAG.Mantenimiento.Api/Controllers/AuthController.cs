@@ -1,3 +1,4 @@
+using PSAG.Mantenimiento.Api.Autorizacion;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -9,6 +10,7 @@ namespace PSAG.Mantenimiento.Api.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
+[SinTurnoObligatorio]
 public class AuthController : ApiControllerBase
 {
     private readonly IAuthService _authService;

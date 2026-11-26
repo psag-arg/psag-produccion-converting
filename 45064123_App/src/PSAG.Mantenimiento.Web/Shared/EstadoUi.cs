@@ -6,8 +6,8 @@ namespace PSAG.Mantenimiento.Web.Shared;
 /// </summary>
 public static class EstadoUi
 {
-    // Bootstrap 5.3 no trae un badge naranja.
-    private const string EstiloRequiereAnalisis = "background-color:#fd7e14;color:#fff";
+    // Bootstrap 5.3 no trae un badge naranja: el color es un token del tema (css/tema.css), con texto oscuro (T-806).
+    private const string EstiloRequiereAnalisis = "background-color:var(--psag-requiere-analisis);color:var(--psag-sobre-estado)";
 
     public static string BadgeClass(string estado, bool analisisPendiente) => estado switch
     {

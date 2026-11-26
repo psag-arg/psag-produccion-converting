@@ -305,10 +305,6 @@
             if (asignacion != null)
             {
                 maquinistaActual = asignacion;
-                if (asignacion.TurnoId.HasValue)
-                {
-                    turnoAsignado = asignacion.TurnoNombre;
-                }
             }
 
             equipos = await CatalogosService.GetEquiposAsync(model.LineaId);

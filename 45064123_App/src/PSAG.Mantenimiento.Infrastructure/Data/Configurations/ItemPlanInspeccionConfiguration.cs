@@ -8,7 +8,7 @@ public class ItemPlanInspeccionConfiguration : IEntityTypeConfiguration<ItemPlan
 {
     public void Configure(EntityTypeBuilder<ItemPlanInspeccion> builder)
     {
-        builder.ToTable("ItemsPlanInspeccion", "mnt");
+        builder.ToTable("INS_ItemsPlan", "mnt");
 
         builder.HasKey(i => i.ItemPlanInspeccionId);
 

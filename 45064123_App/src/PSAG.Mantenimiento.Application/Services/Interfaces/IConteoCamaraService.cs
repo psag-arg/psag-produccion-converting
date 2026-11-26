@@ -14,14 +14,14 @@ public interface IConteoCamaraService
     /// <summary>Paradas de la cámara cruzadas con las detenciones cargadas.</summary>
     Task<Result<ParadasCamaraResultado>> ObtenerParadasAsync(ParadasCamaraFiltroRequest filtro, CancellationToken cancellationToken = default);
 
-    /// <summary>Rollos (o mangas) por hora, carril y turno de un día de planta, de una línea o de una cámara.</summary>
-    Task<Result<ProduccionCamaraDto>> ObtenerProduccionAsync(DateOnly fecha, int? lineaId, int? puntoControlCalidadId = null, CancellationToken cancellationToken = default);
+    /// <summary>Cantidad (en la magnitud de cada cámara) por hora, carril y turno de un día de planta, de una línea o de una cámara.</summary>
+    Task<Result<ProduccionCamaraDto>> ObtenerProduccionAsync(DateOnly fecha, int? lineaId, int? camaraId = null, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Eficiencia por turno de cada cámara que cuenta producción (de una línea o de todas) en un día de planta:
-    /// contadas, objetivo (ObjetivoPorHora x horas programadas del turno), %, minutos de parada y microcortes.
+    /// Job (T-798 etapa 4): abre la alerta SIN_DATOS de cada cámara oficial habilitada cuya línea tiene un turno
+    /// ABIERTO y no manda minutos hace más de <paramref name="minutosSinDatos"/>. Devuelve cuántas abrió.
     /// </summary>
-    Task<Result<EficienciaCamaraDiaDto>> ObtenerEficienciaAsync(DateOnly fecha, int? lineaId, DateTimeOffset? ahora = null, CancellationToken cancellationToken = default);
+    Task<int> VigilarSinDatosAsync(DateTimeOffset ahora, int minutosSinDatos, CancellationToken cancellationToken = default);
 
     /// <summary>Alertas de cámara abiertas y las cerradas en las últimas horas.</summary>
     Task<IReadOnlyList<AlertaCamaraDto>> ObtenerAlertasAsync(int? lineaId, int horas = 24, CancellationToken cancellationToken = default);

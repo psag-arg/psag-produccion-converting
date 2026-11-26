@@ -8,7 +8,7 @@ public class TipoFallaConfiguration : IEntityTypeConfiguration<TipoFalla>
 {
     public void Configure(EntityTypeBuilder<TipoFalla> builder)
     {
-        builder.ToTable("TiposFalla", "mnt");
+        builder.ToTable("ABM_TiposFalla", "mnt");
 
         builder.HasKey(x => x.TipoFallaId);
 
@@ -25,6 +25,7 @@ public class TipoFallaConfiguration : IEntityTypeConfiguration<TipoFalla>
 
         builder.Property(x => x.Color)
             .HasMaxLength(7);
+
 
         builder.Property(x => x.CreadoPorUsuarioId)
             .IsRequired()

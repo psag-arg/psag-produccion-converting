@@ -1,3 +1,4 @@
+using PSAG.Mantenimiento.Domain.Permisos;
 using System.Globalization;
 using Microsoft.Extensions.Logging;
 using PSAG.Mantenimiento.Application.Common;
@@ -19,17 +20,35 @@ public class RegistroCalidadService : IRegistroCalidadService
     private readonly IAlmacenImagenesCalidad _almacen;
     private readonly TimeZoneInfo _zonaPlanta;
     private readonly ILogger<RegistroCalidadService> _logger;
+    private readonly ITurnoProduccionService? _turnosProduccion;
+
+    /// <summary>Permisos configurables del usuario de la request (T-802); null fuera de una request (tests, jobs): regla por rol.</summary>
+    private readonly IPermisosUsuarioActual? _permisos;
 
     public RegistroCalidadService(
         IUnitOfWork unitOfWork,
         IAlmacenImagenesCalidad almacen,
         TimeZoneInfo zonaPlanta,
         ILogger<RegistroCalidadService> logger)
+        : this(unitOfWork, almacen, zonaPlanta, logger, null)
     {
+    }
+
+    /// <summary>Con el turno de producción (T-798 etapa 3): el registro se cuelga del turno de la hora de la detección.</summary>
+    public RegistroCalidadService(
+        IUnitOfWork unitOfWork,
+        IAlmacenImagenesCalidad almacen,
+        TimeZoneInfo zonaPlanta,
+        ILogger<RegistroCalidadService> logger,
+        ITurnoProduccionService? turnosProduccion,
+        IPermisosUsuarioActual? permisos = null)
+    {
+        _permisos = permisos;
         _unitOfWork = unitOfWork;
         _almacen = almacen;
         _zonaPlanta = zonaPlanta;
         _logger = logger;
+        _turnosProduccion = turnosProduccion;
     }
 
     // ===================== Consultas =====================
@@ -102,7 +121,7 @@ public class RegistroCalidadService : IRegistroCalidadService
         IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken = default)
     {
-        if (!CalidadReglas.PuedeCargarManual(roles))
+        if (!await _permisos.PermiteAsync(Opciones.CalidadRegistro, AccionPermiso.Alta, () => CalidadReglas.PuedeCargarManual(roles), cancellationToken))
             return Result<RegistroCalidadDto>.Failure("FORBIDDEN", CalidadReglas.MensajeSinPermisoCargaManual);
 
         var faltan = new List<string>();
@@ -114,10 +133,10 @@ public class RegistroCalidadService : IRegistroCalidadService
         var punto = await _unitOfWork.PuntosControlCalidad.GetByIdAsync(request.PuntoControlCalidadId, cancellationToken);
         var tipo = await _unitOfWork.TiposDefectoCalidad.GetByIdAsync(request.TipoDefectoCalidadId, cancellationToken);
 
-        Producto? producto = null;
+        ProductoMaestro? producto = null;
         if (request.ProductoId is { } productoId)
         {
-            producto = await _unitOfWork.Productos.GetByIdAsync(productoId, cancellationToken);
+            producto = await _unitOfWork.ProductosMaestro.GetByIdAsync(productoId, cancellationToken);
             if (producto == null)
                 return Result<RegistroCalidadDto>.Failure("VALIDATION", "El producto no existe.");
         }
@@ -168,11 +187,11 @@ public class RegistroCalidadService : IRegistroCalidadService
         if (tipo == null)
             return Result<IngestaCalidadRespuesta>.Failure("VALIDATION", $"No existe el tipo de defecto {codigoTipo}. Cargalo en Maestros → Calidad.");
 
-        Producto? producto = null;
+        ProductoMaestro? producto = null;
         if (!string.IsNullOrWhiteSpace(request.Producto))
         {
             var codigoProducto = request.Producto.Trim();
-            producto = (await _unitOfWork.Productos.FindAsync(p => p.Codigo == codigoProducto, cancellationToken)).FirstOrDefault();
+            producto = (await _unitOfWork.ProductosMaestro.FindAsync(p => p.Codigo == codigoProducto, cancellationToken)).FirstOrDefault();
             if (producto == null)
                 return Result<IngestaCalidadRespuesta>.Failure("VALIDATION", $"No existe el producto {codigoProducto}.");
         }
@@ -200,7 +219,7 @@ public class RegistroCalidadService : IRegistroCalidadService
         decimal? Confianza,
         decimal? ValorMedido,
         string? UnidadMedida,
-        Producto? Producto,
+        ProductoMaestro? Producto,
         string? CodigoDetencion,
         string? Observaciones,
         string? IdentificadorExterno);
@@ -261,18 +280,24 @@ public class RegistroCalidadService : IRegistroCalidadService
             detencion = encontrada;
         }
 
+        // T-798 etapa 3: turno de producción de la hora de la detección (lo crea el SISTEMA si no existe).
+        var turnoProduccion = _turnosProduccion == null
+            ? null
+            : await _turnosProduccion.AsegurarTurnoAsync(datos.Punto.LineaId, fechaHora, cancellationToken);
+
         var registro = new RegistroCalidad
         {
             FechaHoraDeteccion = fechaHora,
             LineaId = datos.Punto.LineaId,
             PuntoControlCalidadId = datos.Punto.PuntoControlCalidadId,
             TurnoId = turno?.TurnoId,
+            TurnoProduccionId = turnoProduccion?.TurnoProduccionId,
             TipoDefectoCalidadId = datos.Tipo.TipoDefectoCalidadId,
             Origen = origen,
             Confianza = datos.Confianza,
             ValorMedido = datos.ValorMedido,
             UnidadMedida = datos.ValorMedido.HasValue ? unidad : null,
-            ProductoId = datos.Producto?.ProductoId,
+            ProductoMaestroId = datos.Producto?.ProductoMaestroId,
             DetencionId = detencion?.DetencionId,
             Observaciones = observaciones,
             IdentificadorExterno = datos.IdentificadorExterno,
@@ -315,7 +340,7 @@ public class RegistroCalidadService : IRegistroCalidadService
         registro.PuntoControl = datos.Punto;
         registro.TipoDefecto = datos.Tipo;
         registro.Turno = turno;
-        registro.Producto = datos.Producto;
+        registro.ProductoMaestro = datos.Producto;
         registro.Detencion = detencion;
         return Result<RegistroCalidad>.Success(registro);
     }
@@ -357,7 +382,7 @@ public class RegistroCalidadService : IRegistroCalidadService
         IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken = default)
     {
-        if (!CalidadReglas.PuedeRevisar(roles))
+        if (!await _permisos.PermiteAsync(Opciones.CalidadRegistro, AccionPermiso.Modificar, () => CalidadReglas.PuedeRevisar(roles), cancellationToken))
             return Result<RegistroCalidadDto>.Failure("FORBIDDEN", CalidadReglas.MensajeSinPermisoRevision);
 
         if (!Enum.TryParse<EstadoRevisionCalidad>(request.Estado, ignoreCase: true, out var nuevo)
@@ -395,7 +420,7 @@ public class RegistroCalidadService : IRegistroCalidadService
         IReadOnlyCollection<string> roles,
         CancellationToken cancellationToken = default)
     {
-        if (!CalidadReglas.PuedeRevisar(roles))
+        if (!await _permisos.PermiteAsync(Opciones.CalidadRegistro, AccionPermiso.Modificar, () => CalidadReglas.PuedeRevisar(roles), cancellationToken))
             return Result<RegistroCalidadDto>.Failure("FORBIDDEN", CalidadReglas.MensajeSinPermisoRevision);
 
         var registro = await _unitOfWork.RegistrosCalidad.GetByIdConDetalleAsync(registroCalidadId, cancellationToken);
@@ -529,9 +554,9 @@ public class RegistroCalidadService : IRegistroCalidadService
         Confianza = r.Confianza,
         ValorMedido = r.ValorMedido,
         UnidadMedida = r.UnidadMedida,
-        ProductoId = r.ProductoId,
-        ProductoCodigo = r.Producto?.Codigo,
-        ProductoNombre = r.Producto?.Nombre,
+        ProductoId = r.ProductoMaestroId,
+        ProductoCodigo = r.ProductoMaestro?.Codigo,
+        ProductoNombre = r.ProductoMaestro?.Nombre,
         DetencionId = r.DetencionId,
         DetencionCodigo = r.Detencion?.Codigo,
         Observaciones = r.Observaciones,

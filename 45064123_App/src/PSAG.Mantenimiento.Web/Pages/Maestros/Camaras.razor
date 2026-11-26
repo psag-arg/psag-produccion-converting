@@ -1,0 +1,364 @@
+@page "/maestros/camaras"
+@using Microsoft.AspNetCore.Authorization
+@using PSAG.Mantenimiento.Web.Models
+@using PSAG.Mantenimiento.Web.Services
+@attribute [Authorize]
+@inject ICamarasService CamarasService
+@inject ICatalogosService CatalogosService
+
+<PageTitle>Cámaras - PSAG Produccion</PageTitle>
+
+@* T-798 etapa 4: maestro único de cámaras (diseño 2.4). "Habilitada" es la única fuente de verdad del servicio
+   PSAG_ConteoCamara: corre sólo las habilitadas para las que tiene calibración local. *@
+<div class="container-fluid">
+    <h3 class="mb-1">Cámaras</h3>
+    <p class="text-muted">
+        Cada cámara es un dispositivo: línea, canal del grabador y qué hace (conteo o calidad). El servicio de conteo
+        corre <strong>sólo las habilitadas</strong> (las pide cada 5 minutos); el <strong>código</strong> tiene que coincidir con
+        el del <code>appsettings</code> del servicio. Nada se borra: se desactiva.
+    </p>
+
+    <SwitchInactivos @bind-Mostrar="mostrarInactivas" @bind-Mostrar:after="Cargar"
+                     Ayuda="Las desactivadas no corren ni reciben datos. Para reactivar una, mostrala y editala." />
+
+    @if (!string.IsNullOrEmpty(errorCarga))
+    {
+        <div class="alert alert-danger">@errorCarga</div>
+    }
+
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <strong>Cámaras</strong>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary btn-sm" @onclick="@(async () => await Cargar())" title="Actualizar el último dato"><i class="bi bi-arrow-clockwise"></i></button>
+                <SiPermiso Opcion="@Opciones.MaestrosCamaras" Accion="AccionPermiso.Alta">
+                <button class="btn btn-primary btn-sm" @onclick="Nueva"><i class="bi bi-plus-circle me-1"></i>Nueva cámara</button>
+                </SiPermiso>
+            </div>
+        </div>
+        <div class="card-body p-0 table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Código</th><th>Nombre</th><th>Línea</th><th class="text-center">Canal</th><th>Qué hace</th>
+                        <th>Último dato recibido</th><th class="text-center">Estado</th><th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (camaras.Any())
+                    {
+                        @foreach (var c in camaras)
+                        {
+                            <tr data-testid="fila-camara">
+                                <td class="font-monospace">@c.Codigo</td>
+                                <td>
+                                    <strong>@c.Nombre</strong>
+                                    @if (c.EquipoNombre != null) { <div class="small text-muted">Mira: @c.EquipoNombre</div> }
+                                </td>
+                                <td>@c.LineaNombre</td>
+                                <td class="text-center">@(c.NumeroCanalGrabador?.ToString("00") ?? "-")</td>
+                                <td class="small">
+                                    @if (c.Funcion == "CONTEO")
+                                    {
+                                        <div>Cuenta <strong>@CamarasUi.Unidad(c.Magnitud)</strong> (@(c.MetodoDeteccion == "CARRILES" ? $"{c.CantidadCarriles ?? 0} carriles" : "pasos"))</div>
+                                        @if (c.CuentaProduccionOficial)
+                                        {
+                                            <span class="badge text-bg-primary" title="Alimenta la producción oficial de su magnitud en la línea">Producción oficial</span>
+                                        }
+                                        @if (c.CreaDetenciones)
+                                        {
+                                            <span class="badge bg-warning text-dark" title="Crea una detención pendiente de declaración cuando la máquina para este tiempo o más">Crea detenciones desde @c.UmbralTexto</span>
+                                        }
+                                        else if (c.DetectaParadas)
+                                        {
+                                            <span class="text-muted">Informa paradas</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">Sin paradas</span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span>Calidad (defectos)</span>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="badge @CamarasUi.ClaseUltimoDato(c.EstadoUltimoDato)" data-testid="ultimo-dato">@CamarasUi.TextoUltimoDato(c.MinutosDesdeUltimoDato)</span>
+                                    @if (c.UltimoDatoRecibido is { } u) { <div class="small text-muted">@u.ToString("dd/MM HH:mm")</div> }
+                                </td>
+                                <td class="text-center">
+                                    @if (!c.Activo)
+                                    {
+                                        <span class="badge bg-secondary">Inactiva</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge @(c.Habilitada ? "bg-success" : "bg-secondary")">@(c.Habilitada ? "Habilitada" : "Deshabilitada")</span>
+                                    }
+                                </td>
+                                <td class="text-end text-nowrap">
+                                    <SiPermiso Opcion="@Opciones.MaestrosCamaras" Accion="AccionPermiso.Modificar">
+                                    <button class="btn btn-sm btn-outline-primary" title="Editar" @onclick="() => Editar(c)"><i class="bi bi-pencil"></i></button>
+                                    </SiPermiso>
+                                    @if (c.Activo)
+                                    {
+                                        <SiPermiso Opcion="@Opciones.MaestrosCamaras" Accion="AccionPermiso.Baja">
+                                        <button class="btn btn-sm btn-outline-danger ms-1" title="Desactivar" disabled="@guardando" @onclick="@(async () => await Desactivar(c))"><i class="bi bi-slash-circle"></i></button>
+                                        </SiPermiso>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr><td colspan="8" class="text-center text-muted py-4">No hay cámaras cargadas.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="small text-muted mt-2">
+        Último dato: verde hasta 5 min, amarillo hasta 30 min, rojo más. Con el turno abierto, si la cámara de producción
+        oficial no manda minutos en 5 min se abre la alerta "sin datos" (sin datos no es producción cero).
+    </div>
+</div>
+
+@if (actual != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: var(--psag-velo);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(actual.CamaraId == 0 ? "Nueva" : "Editar") cámara</h5>
+                    <button type="button" class="btn-close" @onclick="() => actual = null"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-2">
+                        <div class="col-12 col-md-4">
+                            <label class="form-label" for="camCodigo">Código *</label>
+                            <input id="camCodigo" type="text" class="form-control font-monospace" maxlength="30" placeholder="Ej.: T2-CAM10" @bind="actual.Codigo" />
+                            <div class="form-text">El mismo que en el appsettings del servicio (Camara). Sin espacios.</div>
+                        </div>
+                        <div class="col-12 col-md-8">
+                            <label class="form-label" for="camNombre">Nombre *</label>
+                            <input id="camNombre" type="text" class="form-control" maxlength="100" placeholder="Ej.: Cámara 10 - rebobinadora" @bind="actual.Nombre" />
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label" for="camLinea">Línea *</label>
+                            <select id="camLinea" class="form-select" @bind="actual.LineaId" @bind:after="@(async () => await CargarEquipos(limpiar: true))">
+                                <option value="0">-- Elegí la línea --</option>
+                                @foreach (var l in lineas)
+                                {
+                                    <option value="@l.LineaId">@l.Nombre</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-5">
+                            <label class="form-label" for="camEquipo">Equipo que mira</label>
+                            <select id="camEquipo" class="form-select" @bind="actual.EquipoId">
+                                <option value="">-- Sin especificar --</option>
+                                @foreach (var e in equipos)
+                                {
+                                    <option value="@e.EquipoId">@e.Nombre</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label" for="camCanal">Canal del grabador</label>
+                            <input id="camCanal" type="number" min="1" max="999" class="form-control" placeholder="Ej.: 10" @bind="actual.NumeroCanalGrabador" />
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label" for="camFuncion">Función *</label>
+                            <select id="camFuncion" class="form-select" @bind="actual.Funcion">
+                                <option value="CONTEO">Conteo de producción</option>
+                                <option value="CALIDAD">Calidad (defectos)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    @if (actual.Funcion == "CONTEO")
+                    {
+                        <hr />
+                        <div class="row g-2">
+                            <div class="col-12 col-md-4">
+                                <label class="form-label" for="camMagnitud">Qué cuenta *</label>
+                                <select id="camMagnitud" class="form-select" @bind="actual.Magnitud">
+                                    <option value="">-- Elegí --</option>
+                                    <option value="MANGAS">Mangas</option>
+                                    <option value="ROLLOS">Rollos</option>
+                                    <option value="PAQUETES">Paquetes</option>
+                                    <option value="BOLSONES">Bolsones</option>
+                                    <option value="PALLETS">Pallets</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label" for="camMetodo">Método *</label>
+                                <select id="camMetodo" class="form-select" @bind="actual.MetodoDeteccion">
+                                    <option value="">-- Elegí --</option>
+                                    <option value="CARRILES">Carriles (brillo, como la 09)</option>
+                                    <option value="PASOS">Pasos por una zona (como la 10 y la 8)</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label" for="camCarriles">Carriles</label>
+                                <input id="camCarriles" type="number" min="1" max="16" class="form-control" placeholder="4 en la 09, 1 en la 10" @bind="actual.CantidadCarriles" />
+                            </div>
+                        </div>
+                        <div class="form-check mt-3">
+                            <input type="checkbox" class="form-check-input" id="camOficial" @bind="actual.CuentaProduccionOficial" />
+                            <label class="form-check-label" for="camOficial">Cuenta la producción oficial (una sola por línea y magnitud)</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="camParadas" @bind="actual.DetectaParadas" />
+                            <label class="form-check-label" for="camParadas">Detecta paradas</label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input type="checkbox" class="form-check-input" id="camDetenciones" @bind="actual.CreaDetenciones" disabled="@(!actual.DetectaParadas)" />
+                            <label class="form-check-label" for="camDetenciones">Crea detenciones automáticas (pendientes de declaración)</label>
+                        </div>
+                        <div class="input-group" style="max-width: 320px;">
+                            <span class="input-group-text">Desde</span>
+                            <input type="number" min="@UmbralDetencionUi.Minimo(umbralUnidad)" max="@UmbralDetencionUi.Maximo(umbralUnidad)" class="form-control" @bind="umbralValor" disabled="@(!actual.CreaDetenciones)" aria-label="Umbral de detención" />
+                            <select class="form-select" style="max-width: 130px;" aria-label="Unidad del umbral" @bind="umbralUnidad" disabled="@(!actual.CreaDetenciones)">
+                                <option value="@UmbralDetencionUi.Minutos">min</option>
+                                <option value="@UmbralDetencionUi.Segundos">segundos</option>
+                            </select>
+                            <span class="input-group-text">de parada</span>
+                        </div>
+                        <div class="form-text">@UmbralDetencionUi.TextoAyuda Las paradas más cortas (microcortes) sólo quedan en el log de paradas.</div>
+                    }
+
+                    <hr />
+                    <div class="form-check form-switch">
+                        <input type="checkbox" class="form-check-input" role="switch" id="camHabilitada" @bind="actual.Habilitada" disabled="@(!actual.Activo)" />
+                        <label class="form-check-label" for="camHabilitada"><strong>Habilitada</strong>: el servicio la corre (si tiene su calibración)</label>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="camActivo" @bind="actual.Activo" />
+                        <label class="form-check-label" for="camActivo">Activa (desactivada = dada de baja)</label>
+                    </div>
+                    @if (!string.IsNullOrEmpty(errorModal))
+                    {
+                        <div class="alert alert-danger mt-3 mb-0">@errorModal</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => actual = null">Cancelar</button>
+                    <button type="button" class="btn btn-primary" disabled="@guardando" @onclick="@(async () => await Guardar())">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<CamaraDto> camaras = new();
+    private List<LineaDto> lineas = new();
+    private List<EquipoDto> equipos = new();
+    private bool mostrarInactivas;
+    private bool guardando;
+    private string? errorCarga;
+    private string? errorModal;
+    private CamaraDto? actual;
+    private int umbralValor = UmbralDetencionUi.MinutosPorDefecto;
+    private string umbralUnidad = UmbralDetencionUi.Minutos;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            lineas = await CatalogosService.GetLineasAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error cargando líneas: {ex.Message}");
+        }
+        await Cargar();
+    }
+
+    private async Task Cargar()
+    {
+        errorCarga = null;
+        try
+        {
+            camaras = await CamarasService.GetCamarasAsync(incluirInactivas: mostrarInactivas);
+        }
+        catch (Exception ex)
+        {
+            errorCarga = $"No se pudieron cargar las cámaras: {ex.Message}";
+        }
+    }
+
+    private async Task CargarEquipos(bool limpiar)
+    {
+        if (actual == null) return;
+        if (limpiar) actual.EquipoId = null;
+        equipos = actual.LineaId > 0 ? await CatalogosService.GetEquiposAsync(actual.LineaId) : new List<EquipoDto>();
+        StateHasChanged();
+    }
+
+    private void Nueva()
+    {
+        errorModal = null;
+        actual = new CamaraDto { Activo = true, Funcion = "CONTEO", DetectaParadas = true, LineaId = lineas.Count == 1 ? lineas[0].LineaId : 0 };
+        (umbralValor, umbralUnidad) = UmbralDetencionUi.Leer(actual);
+        _ = CargarEquipos(limpiar: false);
+    }
+
+    private void Editar(CamaraDto c)
+    {
+        errorModal = null;
+        actual = new CamaraDto
+        {
+            CamaraId = c.CamaraId, Codigo = c.Codigo, Nombre = c.Nombre, LineaId = c.LineaId, EquipoId = c.EquipoId,
+            NumeroCanalGrabador = c.NumeroCanalGrabador, Funcion = c.Funcion, Magnitud = c.Magnitud, MetodoDeteccion = c.MetodoDeteccion,
+            CantidadCarriles = c.CantidadCarriles, DetectaParadas = c.DetectaParadas, CreaDetenciones = c.CreaDetenciones,
+            UmbralDetencionSegundos = c.UmbralDetencionSegundos, CuentaProduccionOficial = c.CuentaProduccionOficial,
+            Habilitada = c.Habilitada, Activo = c.Activo
+        };
+        (umbralValor, umbralUnidad) = UmbralDetencionUi.Leer(actual);
+        _ = CargarEquipos(limpiar: false);
+    }
+
+    private async Task Guardar()
+    {
+        if (actual == null) return;
+        guardando = true;
+        try
+        {
+            if (actual.Funcion == "CONTEO" && actual.CreaDetenciones)
+                UmbralDetencionUi.Aplicar(actual, umbralValor, umbralUnidad);
+            if (!actual.DetectaParadas) actual.CreaDetenciones = false;
+            var (camara, error) = await CamarasService.GuardarAsync(actual);
+            if (camara == null)
+            {
+                errorModal = error;
+                return;
+            }
+            actual = null;
+            await Cargar();
+        }
+        finally
+        {
+            guardando = false;
+        }
+    }
+
+    private async Task Desactivar(CamaraDto c)
+    {
+        guardando = true;
+        try
+        {
+            var (_, error) = await CamarasService.DesactivarAsync(c.CamaraId);
+            errorCarga = error;
+            await Cargar();
+            if (error != null) errorCarga = error;
+        }
+        finally
+        {
+            guardando = false;
+        }
+    }
+}

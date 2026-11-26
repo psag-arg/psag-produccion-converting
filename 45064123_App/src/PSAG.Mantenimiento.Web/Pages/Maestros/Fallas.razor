@@ -2,7 +2,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using PSAG.Mantenimiento.Web.Models
 @using PSAG.Mantenimiento.Web.Services
-@attribute [Authorize(Roles = "ADMINISTRADOR")]
+@attribute [Authorize]
 @inject ICatalogosService CatalogosService
 @inject IJSRuntime JS
 
@@ -26,9 +26,11 @@
                     </ItemTemplate>
                 </AutocompleteSelect>
             </div>
+            <SiPermiso Opcion="@Opciones.MaestrosFallas" Accion="AccionPermiso.Alta">
             <button class="btn btn-primary" @onclick="NuevaFalla">
                 <i class="bi bi-plus-circle me-2"></i>Nueva falla
             </button>
+            </SiPermiso>
         </div>
     </div>
 
@@ -94,9 +96,11 @@
                                         </button>
                                         @if (falla.Activo)
                                         {
+                                            <SiPermiso Opcion="@Opciones.MaestrosFallas" Accion="AccionPermiso.Modificar">
                                             <button class="btn btn-sm btn-outline-danger" title="Desactivar" @onclick="() => ConfirmarDesactivar(falla)">
                                                 <i class="bi bi-pause-circle"></i>
                                             </button>
+                                            </SiPermiso>
                                         }
                                     </td>
                                 </tr>
@@ -118,7 +122,7 @@
 @* Modal para crear/editar *@
 @if (showModal)
 {
-    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: var(--psag-velo);">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">

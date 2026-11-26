@@ -2,7 +2,6 @@ using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using PSAG.Mantenimiento.Api.Controllers;
@@ -20,6 +19,7 @@ namespace PSAG.Mantenimiento.Api.IntegrationTests;
 /// <summary>
 /// T-543 (editar análisis cerrado con historial) y T-544 (fotos del análisis) contra SQLite y disco reales.
 /// </summary>
+[Collection(ColeccionBaseDeDatos.Nombre)]
 public class AnalisisEdicionTests : IDisposable
 {
     private const string Usuario = "usuario-test";
@@ -35,7 +35,7 @@ public class AnalisisEdicionTests : IDisposable
 
     private static readonly byte[] Jpeg = [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46];
 
-    private readonly SqliteConnection _conexion;
+    private readonly BaseDePrueba _base;
     private readonly MantenimientoDbContext _context;
     private readonly string _carpeta;
     private readonly AlmacenAdjuntosDisco _almacen;
@@ -47,10 +47,8 @@ public class AnalisisEdicionTests : IDisposable
 
     public AnalisisEdicionTests()
     {
-        _conexion = new SqliteConnection("DataSource=:memory:");
-        _conexion.Open();
-        _context = new MantenimientoDbContext(new DbContextOptionsBuilder<MantenimientoDbContext>().UseSqlite(_conexion).Options);
-        _context.Database.EnsureCreated();
+        _base = BaseDePrueba.Crear();
+        _context = _base.Context;
 
         _carpeta = Path.Combine(Path.GetTempPath(), "psag-adjuntos-test-" + Guid.NewGuid().ToString("N"));
         _almacen = new AlmacenAdjuntosDisco(_carpeta);
@@ -65,7 +63,7 @@ public class AnalisisEdicionTests : IDisposable
     public void Dispose()
     {
         _context.Dispose();
-        _conexion.Dispose();
+        _base.Dispose();
         if (Directory.Exists(_carpeta))
             Directory.Delete(_carpeta, recursive: true);
     }
@@ -424,8 +422,7 @@ public class AnalisisEdicionTests : IDisposable
         {
             Codigo = $"DET-20261022-{_secuencia:000000}",
             LineaId = _lineaId,
-            TurnoId = _turnoId,
-            Fecha = new DateOnly(2026, 10, 22),
+            TurnoProduccionId = _context.TurnoProduccionId(_lineaId, _turnoId, new DateOnly(2026, 10, 22)),
             OrigenTiempo = OrigenTiempo.DECLARADO,
             MinutosDeclarados = 40,
             MinutosEfectivos = 40,

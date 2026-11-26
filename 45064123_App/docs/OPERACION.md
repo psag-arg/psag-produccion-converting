@@ -58,11 +58,25 @@ Get-ChildItem -Path "C:\inetpub\wwwroot\PSAGMantenimiento\api\logs" -Recurse |
 
 ### Catálogos
 
-#### Sincronización de turnos
-Si cambian los horarios de turno:
-1. Actualizar registros en `mnt.Turnos`
-2. **NO recalcular** detenciones históricas
-3. Los nuevos registros usarán los nuevos horarios
+#### Horarios de turno (T-798)
+Los turnos son un ABM global (`mnt.ABM_Turnos`, Configuración → Turnos): T1 05–13, T2 13–21, T3 21–05.
+Si cambian los horarios:
+1. Cambiarlos desde la Web (no a mano en la base).
+2. **NO recalcular** nada histórico: cada detención, conteo, parada y registro cuelga de su turno de producción
+   (`mnt.PRD_TurnosProduccion`), que guarda el inicio, el fin y los minutos programados de ese día (snapshot).
+3. Los turnos que se abran después usan los horarios nuevos.
+
+#### Turnos de producción (T-798)
+- El operario abre el turno al entrar (con el producto); el supervisor lo corrige en **Turnos de producción**.
+- Cierre automático a `FinProgramado` + `TurnosProduccion:ToleranciaCierreAutomaticoMinutos` (30) y `SIN_APERTURA`
+  si un turno programado no se abrió en `ToleranciaSinAperturaMinutos` (30): lo hace el job de la API
+  (`TurnosProduccion:JobHabilitado`, cada `JobIntervaloSegundos`).
+- Qué turnos están programados sale de **Horas programadas** (programación de cada línea: día de la semana × turno). Sin programación cargada, la API
+  toma todos los turnos activos como programados (y marca `SIN_APERTURA` en todos los que nadie abra).
+- La producción oficial de cada tramo de producto la valida, corrige o carga a mano el supervisor
+  (`PENDIENTE` / `VALIDADA` / `SIN_DATOS`). Sin datos no es producción cero.
+- Los turnos que vienen de la conversión del deploy de T-798 son `CERRADO` por `SISTEMA`, sin operador ni producto
+  ("a completar"): su eficiencia dice "sin objetivo".
 
 #### Nuevos productos/estándares
 1. ABM desde la UI (rol ADMINISTRADOR)
@@ -71,6 +85,9 @@ Si cambian los horarios de turno:
 ## Procedimientos de Emergencia
 
 ### Rollback de despliegue
+> Para el deploy de T-798 (cambio de esquema): seguir `deploy/T-798_DEPLOY.md` (scripts `*_rollback.sql` en orden
+> inverso y, como último recurso, restore del backup). Lo de abajo vale sólo para volver binarios sin cambio de base.
+
 ```powershell
 # Mantener carpeta backup del despliegue anterior
 # Para rollback:
@@ -112,3 +129,21 @@ Desde la UI o:
 - [ ] Revisar logs de errores
 - [ ] Verificar backups completados
 - [ ] Revisar panel de NO OK (si hay pendientes críticos)
+
+## Declarar una detención manual (corte de energía) — T-786
+
+Ante un corte de energía las cámaras y el sistema se reinician y la detención no queda registrada. El supervisor
+(también mantenimiento o administrador) la declara en **Detenciones → Declarar detención manual**
+(`/detenciones/declarar-manual`):
+
+1. Máquina, fecha, hora **desde** y **hasta** (si hasta es menor, termina al día siguiente). El turno sale de la hora
+   desde y se muestra antes de guardar.
+2. Tipo de falla (obligatorio), detalle y equipo (opcionales), maquinista (opcional: si no se elige, el del turno) y
+   **motivo** (obligatorio; botones rápidos "Corte de energía", "Reinicio del sistema", "Falla de cámara").
+3. Si ya hay otra detención de esa máquina en ese horario (por ejemplo, la que creó la cámara al volver) se avisa con
+   el código: conviene completar esa en lugar de cargar otra. El aviso no bloquea.
+
+La detención queda **REGISTRADA**, con `OrigenRegistro = MANUAL` (las de la cámara son `CAMARA`), minutos calculados
+con desde/hasta, y cuenta en los reportes como cualquier otra. Quién la cargó y cuándo se ven en el detalle
+("Registrado": fecha y "Cargada por …"). El listado de detenciones muestra la insignia **Manual** / **Cámara** y filtra
+por **Origen**; el Excel exportado trae la columna *Origen*.

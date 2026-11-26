@@ -1,3 +1,5 @@
+using PSAG.Mantenimiento.Api.Autorizacion;
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PSAG.Mantenimiento.Application.DTOs.Proceso;
@@ -11,7 +13,7 @@ namespace PSAG.Mantenimiento.Api.Controllers;
 /// </summary>
 [Route("api/control-proceso")]
 [ApiController]
-[Authorize(Policy = "CanManageCatalogs")]
+[Authorize]
 public class ControlProcesoController : ApiControllerBase
 {
     private readonly IControlProcesoPlantillaService _plantillaService;
@@ -26,6 +28,7 @@ public class ControlProcesoController : ApiControllerBase
     /// </summary>
     [HttpGet("plantilla/{lineaId:int}")]
     [ProducesResponseType(typeof(IReadOnlyList<GrupoParametroDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.MaestrosControlProceso, AccionPermiso.Ver)]
     public async Task<IActionResult> GetPlantilla(int lineaId)
     {
         var result = await _plantillaService.ObtenerPlantillaAsync(lineaId);
@@ -33,6 +36,7 @@ public class ControlProcesoController : ApiControllerBase
     }
 
     [HttpPost("grupos")]
+    [Permiso(Opciones.MaestrosControlProceso, AccionPermiso.Alta)]
     public async Task<IActionResult> CrearGrupo([FromBody] GuardarGrupoControlRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -43,6 +47,7 @@ public class ControlProcesoController : ApiControllerBase
     }
 
     [HttpPut("grupos/{id:int}")]
+    [Permiso(Opciones.MaestrosControlProceso, AccionPermiso.Modificar)]
     public async Task<IActionResult> ActualizarGrupo(int id, [FromBody] GuardarGrupoControlRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -53,6 +58,7 @@ public class ControlProcesoController : ApiControllerBase
     }
 
     [HttpPost("puntos")]
+    [Permiso(Opciones.MaestrosControlProceso, AccionPermiso.Alta)]
     public async Task<IActionResult> CrearPunto([FromBody] GuardarPuntoControlRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -63,6 +69,7 @@ public class ControlProcesoController : ApiControllerBase
     }
 
     [HttpPut("puntos/{id:int}")]
+    [Permiso(Opciones.MaestrosControlProceso, AccionPermiso.Modificar)]
     public async Task<IActionResult> ActualizarPunto(int id, [FromBody] GuardarPuntoControlRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))

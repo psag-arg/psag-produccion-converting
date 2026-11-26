@@ -22,7 +22,7 @@ internal sealed class Camara10
 
     public static OpcionesConteo Opciones()
     {
-        var o = new OpcionesConteo { PuntoControl = "T2-CAM10", Metodo = MetodosConteo.Mangas };
+        var o = new OpcionesConteo { Camara = "T2-CAM10", Metodo = MetodosConteo.Mangas };
         o.Fuente.AnchoDecodificado = Ancho;
         o.Fuente.AltoDecodificado = Alto;
         o.Fuente.Fps = Fps;
@@ -91,13 +91,25 @@ internal sealed class Captura : ISalidaConteo
     public void Alerta(AlertaVideo alerta) => Alertas.Add(alerta);
 }
 
+/// <summary>
+/// Cámara 10 con el detector por defecto (VENTANAS, T-804). Los mismos casos corren con el detector de T-784 en
+/// <see cref="ProcesadorMangasDetectorMangasTests"/>.
+/// </summary>
 public class ProcesadorMangasTests
 {
     private readonly Camara10 _cam = new();
     private readonly Captura _salida = new();
     private readonly VigilanteVideo _cadena;
 
-    public ProcesadorMangasTests() => _cadena = Analizadores.Crear(Camara10.Opciones(), _salida);
+    /// <summary>Detector de paradas de los casos (Mangas:DetectorParadas).</summary>
+    protected virtual string Detector => DetectoresParadas.Ventanas;
+
+    public ProcesadorMangasTests()
+    {
+        var o = Camara10.Opciones();
+        o.Mangas.DetectorParadas = Detector;
+        _cadena = Analizadores.Crear(o, _salida);
+    }
 
     [Fact]
     public void EnMarcha_CuentaUnaMangaCadaPasoYNoHayParadas()
@@ -174,12 +186,13 @@ public class ProcesadorMangasTests
         Assert.DoesNotContain(_salida.Ventanas, v => v.EstadoLinea == EstadoCarril.PARADA);
         Assert.All(_salida.Ventanas.Where(v => v.Inicio >= Camara10.T0.AddSeconds(60) && v.Fin <= Camara10.T0.AddSeconds(60 + segundos)),
             v => Assert.InRange(v.Carriles[0].ProporcionPico, 8, 12));      // movimiento medio del rodillo lento
-        // Con mangas cada 20 s o más, ventanas sin mangas alternan con ventanas con una: el SIN_MANGAS puede
-        // durar todo el empalme (no se confirma el arranque hasta dos ventanas con mangas), nunca más.
+        // Con mangas cada 15 s o más (más de 10 s entre mangas) el SIN_MANGAS puede durar todo el empalme: va de la
+        // última manga a ritmo normal a la primera de dos seguidas (T-784), así que a lo sumo el empalme más un
+        // intervalo normal entre mangas (2,7 s). Nunca más.
         Assert.All(_salida.Paradas, p =>
         {
             Assert.Equal(TipoParada.SIN_MANGAS, p.Tipo);
-            Assert.True(p.DuracionSegundos <= segundos, $"microcorte de {p.DuracionSegundos} s");
+            Assert.True(p.DuracionSegundos <= segundos + 3, $"microcorte de {p.DuracionSegundos} s");
         });
         Assert.DoesNotContain(_salida.EnCurso, p => p.Tipo == TipoParada.PARADA || p.Hasta - p.Inicio >= TimeSpan.FromMinutes(5));
     }
@@ -221,6 +234,26 @@ public class ProcesadorMangasTests
         Assert.Contains(_salida.EnCurso, p => p.Hasta - p.Inicio >= TimeSpan.FromMinutes(5));
     }
 
+    /// <summary>T-785: la cámara 8 cuenta bolsones con el mismo contador y no da paradas (las da la 10).</summary>
+    [Fact]
+    public void Bolsones_CuentaPasosYNoDaParadas()
+    {
+        var o = Camara10.Opciones();
+        o.Camara = "T2-CAM08";
+        o.Metodo = MetodosConteo.Bolsones;
+        o.Mangas.UsarRodillo = false;
+        var cadena = Analizadores.Crear(o, _salida);
+
+        var t = _cam.Pasar(cadena, 0, 120, periodo: 6);         // un bolsón cada 6 s
+        t = _cam.Pasar(cadena, t, 6 * 60, periodo: 0);          // 6 min sin bolsones
+        _cam.Pasar(cadena, t, 60, periodo: 6);
+        cadena.CortarSenal(final: true);
+
+        Assert.InRange(_salida.Minutos_.Sum(m => m.Rollos), 28, 32);   // 180 s / 6 = 30
+        Assert.Empty(_salida.Paradas);
+        Assert.Empty(_salida.EnCurso);
+    }
+
     [Fact]
     public void Microcorte_QuedaComoParadaCorta()
     {
@@ -232,6 +265,40 @@ public class ProcesadorMangasTests
         var parada = Assert.Single(_salida.Paradas);
         Assert.InRange(parada.DuracionSegundos, 20, 60);      // al log; la API no crea detención (< 5 min)
         Assert.DoesNotContain(_salida.EnCurso, p => p.Hasta - p.Inicio >= TimeSpan.FromMinutes(5));
+    }
+
+    /// <summary>
+    /// T-784, caso 13/11: microparadas de 40 s con arranques de 8 s entre medio. Con MANGAS cada una queda aparte, de
+    /// la última manga a la primera del arranque. Con VENTANAS (default) la histéresis de 20 s junta varias.
+    /// </summary>
+    [Fact]
+    public void MicroparadasSeguidasConArranquesCortos_SegunElDetector()
+    {
+        var t = _cam.Pasar(_cadena, 0, 60, periodo: 2.7);
+        for (var i = 0; i < 4; i++)
+        {
+            t = _cam.Pasar(_cadena, t, 40, periodo: 0);
+            t = _cam.Pasar(_cadena, t, 8, periodo: 2.7);
+        }
+        _cam.Pasar(_cadena, t, 60, periodo: 2.7);
+        _cadena.CortarSenal(final: true);
+
+        if (Detector == DetectoresParadas.Mangas)
+        {
+            Assert.Equal(4, _salida.Paradas.Count);
+            Assert.All(_salida.Paradas, p =>
+            {
+                Assert.Equal(TipoParada.SIN_MANGAS, p.Tipo);
+                Assert.InRange(p.DuracionSegundos, 39, 46);
+            });
+        }
+        else
+        {
+            // La histéresis de 2 ventanas junta microparadas seguidas: menos paradas y más largas (el caso que motivó T-784).
+            Assert.InRange(_salida.Paradas.Count, 1, 3);
+            Assert.Contains(_salida.Paradas, p => p.DuracionSegundos > 46);
+            Assert.All(_salida.Paradas, p => Assert.Equal(TipoParada.SIN_MANGAS, p.Tipo));
+        }
     }
 
     [Fact]
@@ -324,11 +391,11 @@ public class ConfiguracionCamarasTests
     public void SinLista_EsUnaSolaCamaraComoAntes()
     {
         var camaras = OpcionesConteo.CargarCamaras(Config("""
-            { "ConteoCamara": { "PuntoControl": "T2-CAM09", "Fuente": { "RutaRtsp": "/Streaming/Channels/901" },
+            { "ConteoCamara": { "Camara": "T2-CAM09", "Fuente": { "RutaRtsp": "/Streaming/Channels/901" },
               "Zonas": { "Carriles": [ { "Carril": 1, "X": 1092, "Y": 984 } ] } } }
             """));
         var c = Assert.Single(camaras);
-        Assert.Equal("T2-CAM09", c.PuntoControl);
+        Assert.Equal("T2-CAM09", c.Camara);
         Assert.False(c.EsMangas);
         Assert.Equal("pendientes", c.Api.CarpetaPendientes);
         Assert.Single(c.Zonas.Carriles);
@@ -339,13 +406,13 @@ public class ConfiguracionCamarasTests
     {
         var camaras = OpcionesConteo.CargarCamaras(Config("""
             { "ConteoCamara": {
-                "PuntoControl": "T2-CAM09",
+                "Camara": "T2-CAM09",
                 "Fuente": { "RutaRtsp": "/Streaming/Channels/901", "ArchivoCredenciales": "C:/s/nvr.env", "Fps": 10 },
                 "Zonas": { "Carriles": [ { "Carril": 1, "X": 1092, "Y": 984 } ] },
                 "Api": { "UrlBase": "http://api", "CarpetaPendientes": "pendientes" },
                 "Camaras": [
-                  { "PuntoControl": "T2-CAM09", "Metodo": "CARRILES" },
-                  { "PuntoControl": "T2-CAM10", "Metodo": "MANGAS", "Activa": false,
+                  { "Camara": "T2-CAM09", "Metodo": "CARRILES" },
+                  { "Camara": "T2-CAM10", "Metodo": "MANGAS",
                     "Fuente": { "RutaRtsp": "/Streaming/Channels/1001", "Fps": 5, "AnchoDecodificado": 320, "AltoDecodificado": 180 } }
                 ] } }
             """));
@@ -356,9 +423,9 @@ public class ConfiguracionCamarasTests
         Assert.Equal("/Streaming/Channels/901", c09.Fuente.RutaRtsp);
         Assert.Single(c09.Zonas.Carriles);                                   // sigue leyendo zonas-camara.json
         Assert.Equal("pendientes", c09.Api.CarpetaPendientes);               // no quedan lotes huérfanos
-        Assert.True(c09.Activa);
+        Assert.False(c09.RutaPropia);                                        // el canal puede venir de la API
         Assert.True(c10.EsMangas);
-        Assert.False(c10.Activa);
+        Assert.True(c10.RutaPropia);
         Assert.Equal("/Streaming/Channels/1001", c10.Fuente.RutaRtsp);
         Assert.Equal(5, c10.Fuente.Fps);
         Assert.Equal("C:/s/nvr.env", c10.Fuente.ArchivoCredenciales);       // heredado
@@ -367,21 +434,61 @@ public class ConfiguracionCamarasTests
     }
 
     [Fact]
-    public void ElAppsettingsDelRepoTraeLa09ActivaYLa10Apagada()
+    public void AppsettingsViejo_PuntoControlSeLeeComoCamara_YActivaSeIgnora()
+    {
+        // T-798 etapa 4: el appsettings.local.json del servidor puede seguir con "PuntoControl" y "Activa".
+        var camaras = OpcionesConteo.CargarCamaras(Config("""
+            { "ConteoCamara": {
+                "PuntoControl": "T2-CAM09",
+                "Api": { "CarpetaPendientes": "pendientes" },
+                "Camaras": [
+                  { "PuntoControl": "T2-CAM09" },
+                  { "PuntoControl": "T2-CAM10", "Metodo": "MANGAS", "Activa": true },
+                  { "Camara": "T2-CAM08", "PuntoControl": "OTRO", "Metodo": "BOLSONES" }
+                ] } }
+            """));
+
+        Assert.Equal(["T2-CAM09", "T2-CAM10", "T2-CAM08"], camaras.Select(c => c.Camara));   // "Camara" gana
+        Assert.Equal("pendientes", camaras[0].Api.CarpetaPendientes);                         // la 09 de siempre
+        Assert.False(camaras[0].ActivaIgnorada);
+        Assert.True(camaras[1].ActivaIgnorada);
+    }
+
+    [Fact]
+    public void ElAppsettingsDelRepoTraeLaCalibracionDeLa09La10YLa8_SinActiva()
     {
         var ruta = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+        Assert.DoesNotContain("\"Activa\"", File.ReadAllText(ruta));
+        Assert.DoesNotContain("PuntoControl", File.ReadAllText(ruta));
         var camaras = OpcionesConteo.CargarCamaras(new ConfigurationBuilder().AddJsonFile(ruta).Build());
+        Assert.All(camaras, c => Assert.False(c.ActivaIgnorada));
         Assert.Collection(camaras,
-            c => { Assert.Equal("T2-CAM09", c.PuntoControl); Assert.True(c.Activa); Assert.False(c.EsMangas); },
-            c => { Assert.Equal("T2-CAM10", c.PuntoControl); Assert.False(c.Activa); Assert.True(c.EsMangas); });
+            c => { Assert.Equal("T2-CAM09", c.Camara); Assert.False(c.EsMangas); Assert.Equal("/Streaming/Channels/901", c.Fuente.RutaEfectiva); },
+            c => { Assert.Equal("T2-CAM10", c.Camara); Assert.True(c.EsMangas); Assert.Equal("/Streaming/Channels/1001", c.Fuente.RutaEfectiva); },
+            c =>
+            {
+                // T-785: la 8 cuenta bolsones; el canal sale del número de cámara, no de una ruta fija en el código.
+                Assert.Equal("T2-CAM08", c.Camara);
+                Assert.True(c.EsBolsones);
+                Assert.Equal(8, c.Fuente.Canal);
+                Assert.Equal("/Streaming/Channels/801", c.Fuente.RutaEfectiva);
+                Assert.False(c.Mangas.UsarRodillo);
+            });
     }
+
+    [Theory]
+    [InlineData(null, "/Streaming/Channels/901")]   // sin canal: la ruta de siempre
+    [InlineData(8, "/Streaming/Channels/801")]
+    [InlineData(12, "/Streaming/Channels/1201")]
+    public void Canal_ArmaLaRutaDelStreamPrincipal(int? canal, string esperada) =>
+        Assert.Equal(esperada, new OpcionesFuente { RutaRtsp = "/Streaming/Channels/901", Canal = canal }.RutaEfectiva);
 
     [Fact]
     public void ElLoteConParadasEnCursoYAlertasSeLeeConLosDtoDeLaApi()
     {
         var lote = new LoteConteo
         {
-            PuntoControl = "T2-CAM10",
+            Camara = "T2-CAM10",
             ParadasEnCurso = [ParadaEnCursoLote.Desde("T2-CAM10", new ParadaEnCurso(Camara10.T0, Camara10.T0.AddMinutes(6), TipoParada.SIN_MANGAS, false))],
             Alertas = [AlertaLote.Desde(new AlertaVideo(TipoAlertaVideo.CONGELADA, Camara10.T0, null, "x"))]
         };

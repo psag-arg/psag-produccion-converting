@@ -1,3 +1,5 @@
+using PSAG.Mantenimiento.Api.Autorizacion;
+using PSAG.Mantenimiento.Domain.Permisos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -50,11 +52,16 @@ public class CatalogosController : ApiControllerBase
 
     [HttpGet("lineas")]
     [ProducesResponseType(typeof(IEnumerable<LineaDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
+    [SinTurnoObligatorio]
     public async Task<IActionResult> GetLineas([FromQuery] bool? soloActivas = true)
     {
         var lineas = soloActivas == true
             ? await _unitOfWork.Lineas.GetActivasAsync()
             : await _unitOfWork.Lineas.GetAllAsync();
+        // T-802: el obligado a turno, con turno abierto, sólo ve la línea de su turno (los combos quedan fijos).
+        if (TurnoObligado is { } turno)
+            lineas = lineas.Where(l => l.LineaId == turno.LineaId);
 
         var items = lineas.Select(l => new LineaDto
         {
@@ -71,6 +78,7 @@ public class CatalogosController : ApiControllerBase
     [HttpGet("lineas/{id:int}")]
     [ProducesResponseType(typeof(LineaDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetLinea(int id)
     {
         var linea = await _unitOfWork.Lineas.GetByIdAsync(id);
@@ -88,8 +96,8 @@ public class CatalogosController : ApiControllerBase
     }
 
     [HttpPost("lineas")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(LineaDto), StatusCodes.Status201Created)]
+    [Permiso(Opciones.MaestrosLineas, AccionPermiso.Alta)]
     public async Task<IActionResult> CreateLinea([FromBody] CrearLineaRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -121,10 +129,10 @@ public class CatalogosController : ApiControllerBase
     }
 
     [HttpPut("lineas/{id:int}")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(LineaDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.MaestrosLineas, AccionPermiso.Modificar)]
     public async Task<IActionResult> UpdateLinea(int id, [FromBody] ActualizarLineaRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -177,6 +185,7 @@ public class CatalogosController : ApiControllerBase
 
     [HttpGet("equipos")]
     [ProducesResponseType(typeof(IEnumerable<EquipoDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetEquipos([FromQuery] int? lineaId = null, [FromQuery] bool? soloActivos = true)
     {
         IEnumerable<Domain.Entities.Equipo> equipos;
@@ -211,6 +220,7 @@ public class CatalogosController : ApiControllerBase
     [HttpGet("equipos/{id:int}")]
     [ProducesResponseType(typeof(EquipoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetEquipo(int id)
     {
         var equipo = await _unitOfWork.Equipos.GetByIdAsync(id);
@@ -231,8 +241,8 @@ public class CatalogosController : ApiControllerBase
     }
 
     [HttpPost("equipos")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(EquipoDto), StatusCodes.Status201Created)]
+    [Permiso(Opciones.MaestrosEquipos, AccionPermiso.Alta)]
     public async Task<IActionResult> CreateEquipo([FromBody] CrearEquipoRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -270,10 +280,10 @@ public class CatalogosController : ApiControllerBase
     }
 
     [HttpPut("equipos/{id:int}")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(EquipoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.MaestrosEquipos, AccionPermiso.Modificar)]
     public async Task<IActionResult> UpdateEquipo(int id, [FromBody] ActualizarEquipoRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -332,6 +342,7 @@ public class CatalogosController : ApiControllerBase
 
     [HttpGet("tipos-falla")]
     [ProducesResponseType(typeof(IEnumerable<TipoFallaDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetTiposFalla([FromQuery] bool? soloActivos = true)
     {
         var tipos = soloActivos == true
@@ -346,7 +357,8 @@ public class CatalogosController : ApiControllerBase
             Descripcion = t.Descripcion,
             Orden = t.Orden,
             Color = t.Color,
-            Activo = t.Activo
+            Activo = t.Activo,
+            CuentaParaIndicadores = t.CuentaParaIndicadores
         }).OrderBy(t => t.Orden);
 
         return Ok(items);
@@ -355,6 +367,7 @@ public class CatalogosController : ApiControllerBase
     [HttpGet("tipos-falla/{id:int}")]
     [ProducesResponseType(typeof(TipoFallaDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetTipoFalla(int id)
     {
         var tipo = await _unitOfWork.TiposFalla.GetByIdAsync(id);
@@ -369,13 +382,14 @@ public class CatalogosController : ApiControllerBase
             Descripcion = tipo.Descripcion,
             Orden = tipo.Orden,
             Color = tipo.Color,
-            Activo = tipo.Activo
+            Activo = tipo.Activo,
+            CuentaParaIndicadores = tipo.CuentaParaIndicadores
         });
     }
 
     [HttpPost("tipos-falla")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(TipoFallaDto), StatusCodes.Status201Created)]
+    [Permiso(Opciones.MaestrosTiposFalla, AccionPermiso.Alta)]
     public async Task<IActionResult> CreateTipoFalla([FromBody] CrearTipoFallaRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -397,6 +411,7 @@ public class CatalogosController : ApiControllerBase
             Orden = request.Orden,
             Color = color,
             Activo = true,
+            CuentaParaIndicadores = request.CuentaParaIndicadores,
             CreadoPorUsuarioId = CurrentUserId,
             ModificadoPorUsuarioId = CurrentUserId
         };
@@ -414,15 +429,16 @@ public class CatalogosController : ApiControllerBase
             Descripcion = tipo.Descripcion,
             Orden = tipo.Orden,
             Color = tipo.Color,
-            Activo = tipo.Activo
+            Activo = tipo.Activo,
+            CuentaParaIndicadores = tipo.CuentaParaIndicadores
         });
     }
 
     [HttpPut("tipos-falla/{id:int}")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(TipoFallaDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.MaestrosTiposFalla, AccionPermiso.Modificar)]
     public async Task<IActionResult> UpdateTipoFalla(int id, [FromBody] ActualizarTipoFallaRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -461,6 +477,8 @@ public class CatalogosController : ApiControllerBase
         tipo.Orden = request.Orden;
         tipo.Color = color;
         tipo.Activo = request.Activo;
+        if (request.CuentaParaIndicadores is { } cuenta)
+            tipo.CuentaParaIndicadores = cuenta;
         tipo.ModificadoPorUsuarioId = CurrentUserId;
         tipo.FechaHoraModificacion = DateTimeOffset.UtcNow;
 
@@ -477,7 +495,8 @@ public class CatalogosController : ApiControllerBase
             Descripcion = tipo.Descripcion,
             Orden = tipo.Orden,
             Color = tipo.Color,
-            Activo = tipo.Activo
+            Activo = tipo.Activo,
+            CuentaParaIndicadores = tipo.CuentaParaIndicadores
         });
     }
 
@@ -487,6 +506,7 @@ public class CatalogosController : ApiControllerBase
 
     [HttpGet("detalles-falla")]
     [ProducesResponseType(typeof(IEnumerable<DetalleFallaDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetDetallesFalla(
         [FromQuery] int? tipoFallaId = null,
         [FromQuery] int? equipoId = null,
@@ -526,6 +546,7 @@ public class CatalogosController : ApiControllerBase
     [HttpGet("detalles-falla/{id:int}")]
     [ProducesResponseType(typeof(DetalleFallaDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetDetalleFalla(int id)
     {
         var detalle = await _unitOfWork.DetallesFalla.GetByIdAsync(id);
@@ -547,8 +568,8 @@ public class CatalogosController : ApiControllerBase
     }
 
     [HttpPost("detalles-falla")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(DetalleFallaDto), StatusCodes.Status201Created)]
+    [Permiso(Opciones.MaestrosFallas, AccionPermiso.Alta)]
     public async Task<IActionResult> CreateDetalleFalla([FromBody] CrearDetalleFallaRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -588,9 +609,9 @@ public class CatalogosController : ApiControllerBase
     }
 
     [HttpPut("detalles-falla/{id:int}")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(DetalleFallaDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.MaestrosFallas, AccionPermiso.Modificar)]
     public async Task<IActionResult> UpdateDetalleFalla(int id, [FromBody] ActualizarDetalleFallaRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -636,11 +657,16 @@ public class CatalogosController : ApiControllerBase
 
     [HttpGet("turnos")]
     [ProducesResponseType(typeof(IEnumerable<TurnoDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
+    [SinTurnoObligatorio]
     public async Task<IActionResult> GetTurnos([FromQuery] bool? soloActivos = true)
     {
         var turnos = soloActivos == true
             ? await _unitOfWork.Turnos.GetActivosAsync()
             : await _unitOfWork.Turnos.GetAllAsync();
+        // T-802: con turno abierto, el obligado a turno sólo ve el turno que declaró.
+        if (TurnoObligado is { } turnoAbierto)
+            turnos = turnos.Where(t => t.TurnoId == turnoAbierto.TurnoId);
 
         var items = turnos.Select(t => new TurnoDto
         {
@@ -660,6 +686,7 @@ public class CatalogosController : ApiControllerBase
     [HttpGet("turnos/{id:int}")]
     [ProducesResponseType(typeof(TurnoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetTurno(int id)
     {
         var turno = await _unitOfWork.Turnos.GetByIdAsync(id);
@@ -682,6 +709,8 @@ public class CatalogosController : ApiControllerBase
     [HttpGet("turnos/actual")]
     [ProducesResponseType(typeof(TurnoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
+    [SinTurnoObligatorio]
     public async Task<IActionResult> GetTurnoActual()
     {
         var turno = await _unitOfWork.Turnos.GetTurnoActualAsync(_zonaPlanta);
@@ -707,8 +736,8 @@ public class CatalogosController : ApiControllerBase
     }
 
     [HttpPost("turnos")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(TurnoDto), StatusCodes.Status201Created)]
+    [Permiso(Opciones.ConfigTurnos, AccionPermiso.Alta)]
     public async Task<IActionResult> CreateTurno([FromBody] CrearTurnoRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -749,9 +778,9 @@ public class CatalogosController : ApiControllerBase
     }
 
     [HttpPut("turnos/{id:int}")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(TurnoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.ConfigTurnos, AccionPermiso.Modificar)]
     public async Task<IActionResult> UpdateTurno(int id, [FromBody] ActualizarTurnoRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -826,6 +855,7 @@ public class CatalogosController : ApiControllerBase
 
     [HttpGet("reglas-analisis")]
     [ProducesResponseType(typeof(IEnumerable<ReglaAnalisisDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.MaestrosReglasAnalisis, AccionPermiso.Ver)]
     public async Task<IActionResult> GetReglasAnalisis()
     {
         var reglas = await _unitOfWork.ReglasAnalisis.GetAllAsync();
@@ -835,6 +865,7 @@ public class CatalogosController : ApiControllerBase
     [HttpGet("reglas-analisis/{id:int}")]
     [ProducesResponseType(typeof(ReglaAnalisisDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.MaestrosReglasAnalisis, AccionPermiso.Ver)]
     public async Task<IActionResult> GetReglaAnalisis(int id)
     {
         var regla = await _unitOfWork.ReglasAnalisis.GetByIdAsync(id);
@@ -845,9 +876,9 @@ public class CatalogosController : ApiControllerBase
     }
 
     [HttpPost("reglas-analisis")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(ReglaAnalisisDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.MaestrosReglasAnalisis, AccionPermiso.Alta)]
     public async Task<IActionResult> CreateReglaAnalisis([FromBody] CrearReglaAnalisisRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -880,10 +911,10 @@ public class CatalogosController : ApiControllerBase
     }
 
     [HttpPut("reglas-analisis/{id:int}")]
-    [Authorize(Policy = "CanManageCatalogs")]
     [ProducesResponseType(typeof(ReglaAnalisisDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.MaestrosReglasAnalisis, AccionPermiso.Modificar)]
     public async Task<IActionResult> UpdateReglaAnalisis(int id, [FromBody] ActualizarReglaAnalisisRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -1064,6 +1095,7 @@ public class CatalogosController : ApiControllerBase
     [ProducesResponseType(typeof(IEnumerable<DiaProgramadoDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.DashboardHorasProgramadas, AccionPermiso.Ver)]
     public async Task<IActionResult> GetTiemposProgramados([FromQuery] int lineaId, [FromQuery] DateOnly desde, [FromQuery] DateOnly hasta)
     {
         if (desde > hasta || hasta.DayNumber - desde.DayNumber > 366)
@@ -1101,9 +1133,9 @@ public class CatalogosController : ApiControllerBase
     /// Una fila histórica pasa a EXCEPCION al editarla.
     /// </summary>
     [HttpPost("tiempos-programados")]
-    [Authorize(Roles = RolesSistema.Administrador + "," + RolesSistema.Supervisor)]
     [ProducesResponseType(typeof(DiaProgramadoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [Permiso(Opciones.DashboardHorasProgramadas, AccionPermiso.Alta)]
     public async Task<IActionResult> GuardarTiempoProgramado([FromBody] GuardarTiempoProgramadoDiaRequest request)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -1135,7 +1167,7 @@ public class CatalogosController : ApiControllerBase
             });
 
         // El supervisor carga las excepciones de sus líneas; el administrador, de todas.
-        if (!await PuedeEditarCalendarioAsync(_unitOfWork.UsuariosLineas, request.LineaId))
+        if (!await PuedeEditarCalendarioAsync(_unitOfWork.OperadoresLinea, request.LineaId))
             return Forbid();
 
         var fila = (await _unitOfWork.TiemposProgramadosDia.FindAsync(
@@ -1197,9 +1229,9 @@ public class CatalogosController : ApiControllerBase
     /// Quita una excepción sin borrarla: el día vuelve a regirse por los turnos activos.
     /// </summary>
     [HttpPost("tiempos-programados/{id:int}/desactivar")]
-    [Authorize(Roles = RolesSistema.Administrador + "," + RolesSistema.Supervisor)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.DashboardHorasProgramadas, AccionPermiso.Baja)]
     public async Task<IActionResult> DesactivarTiempoProgramado(int id)
     {
         if (string.IsNullOrEmpty(CurrentUserId))
@@ -1209,7 +1241,7 @@ public class CatalogosController : ApiControllerBase
         if (fila == null)
             return NotFound();
 
-        if (!await PuedeEditarCalendarioAsync(_unitOfWork.UsuariosLineas, fila.LineaId))
+        if (!await PuedeEditarCalendarioAsync(_unitOfWork.OperadoresLinea, fila.LineaId))
             return Forbid();
 
         fila.Activo = false;
@@ -1225,38 +1257,21 @@ public class CatalogosController : ApiControllerBase
 
     #region Maquinistas
 
+    // T-802: las habilitaciones usuario–línea (ABM_OperadoresLinea) se cargan sólo desde el alta / edición del usuario
+    // (UsuariosController). Acá quedan las consultas; no hay alta, edición ni baja, y ya no hay turno habitual.
+
     [HttpGet("maquinistas")]
     [ProducesResponseType(typeof(IEnumerable<MaquinistaDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetMaquinistas([FromQuery] int? lineaId = null)
     {
-        IEnumerable<Domain.Entities.UsuarioLinea> maquinistas;
-
-        if (lineaId.HasValue)
-        {
-            maquinistas = await _unitOfWork.UsuariosLineas.GetByLineaIdAsync(lineaId.Value);
-        }
-        else
-        {
-            maquinistas = await _unitOfWork.UsuariosLineas.GetAllWithRelationsAsync();
-        }
+        var maquinistas = lineaId.HasValue
+            ? await _unitOfWork.OperadoresLinea.GetByLineaIdAsync(lineaId.Value)
+            : await _unitOfWork.OperadoresLinea.GetAllWithRelationsAsync();
 
         var items = new List<MaquinistaDto>();
         foreach (var m in maquinistas)
-        {
-            var user = await _userManager.FindByIdAsync(m.UsuarioId);
-            items.Add(new MaquinistaDto
-            {
-                UsuarioLineaId = m.UsuarioLineaId,
-                UsuarioId = m.UsuarioId,
-                NombreUsuario = user?.NombreCompleto ?? user?.UserName ?? "Usuario desconocido",
-                EmailUsuario = user?.Email ?? string.Empty,
-                LineaId = m.LineaId,
-                LineaNombre = m.Linea?.Nombre ?? string.Empty,
-                TurnoId = m.TurnoId,
-                TurnoNombre = m.Turno?.Nombre,
-                FechaAsignacion = m.FechaAsignacion
-            });
-        }
+            items.Add(Maquinista(m, await _userManager.FindByIdAsync(m.UsuarioId)));
 
         return Ok(items.OrderBy(m => m.LineaNombre).ThenBy(m => m.NombreUsuario));
     }
@@ -1264,238 +1279,60 @@ public class CatalogosController : ApiControllerBase
     [HttpGet("maquinistas/{id:int}")]
     [ProducesResponseType(typeof(MaquinistaDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetMaquinista(int id)
     {
-        var maquinista = await _unitOfWork.UsuariosLineas.GetByIdAsync(id);
+        var maquinista = await _unitOfWork.OperadoresLinea.GetByIdAsync(id);
         if (maquinista == null)
             return NotFound();
-
-        var user = await _userManager.FindByIdAsync(maquinista.UsuarioId);
-
-        return Ok(new MaquinistaDto
-        {
-            UsuarioLineaId = maquinista.UsuarioLineaId,
-            UsuarioId = maquinista.UsuarioId,
-            NombreUsuario = user?.NombreCompleto ?? user?.UserName ?? "Usuario desconocido",
-            EmailUsuario = user?.Email ?? string.Empty,
-            LineaId = maquinista.LineaId,
-            LineaNombre = maquinista.Linea?.Nombre ?? string.Empty,
-            TurnoId = maquinista.TurnoId,
-            TurnoNombre = maquinista.Turno?.Nombre,
-            FechaAsignacion = maquinista.FechaAsignacion
-        });
+        maquinista.Linea ??= (await _unitOfWork.Lineas.GetByIdAsync(maquinista.LineaId))!;
+        return Ok(Maquinista(maquinista, await _userManager.FindByIdAsync(maquinista.UsuarioId)));
     }
 
     [HttpGet("maquinistas/por-usuario/{usuarioId}")]
     [ProducesResponseType(typeof(MaquinistaDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetMaquinistaPorUsuario(string usuarioId)
     {
-        var maquinista = await _unitOfWork.UsuariosLineas.GetByUsuarioIdAsync(usuarioId);
+        var maquinista = await _unitOfWork.OperadoresLinea.GetByUsuarioIdAsync(usuarioId);
         if (maquinista == null)
             return NotFound();
-
-        var user = await _userManager.FindByIdAsync(maquinista.UsuarioId);
-
-        return Ok(new MaquinistaDto
-        {
-            UsuarioLineaId = maquinista.UsuarioLineaId,
-            UsuarioId = maquinista.UsuarioId,
-            NombreUsuario = user?.NombreCompleto ?? user?.UserName ?? "Usuario desconocido",
-            EmailUsuario = user?.Email ?? string.Empty,
-            LineaId = maquinista.LineaId,
-            LineaNombre = maquinista.Linea?.Nombre ?? string.Empty,
-            TurnoId = maquinista.TurnoId,
-            TurnoNombre = maquinista.Turno?.Nombre,
-            FechaAsignacion = maquinista.FechaAsignacion
-        });
+        return Ok(Maquinista(maquinista, await _userManager.FindByIdAsync(maquinista.UsuarioId)));
     }
 
     /// <summary>
-    /// Obtiene todas las asignaciones del usuario actual (mis lineas y turnos).
+    /// Líneas en las que está habilitado el usuario actual. T-802: la usa la pantalla de inicio de turno y la barra
+    /// de turno, así que se puede consultar sin turno abierto.
     /// </summary>
     [HttpGet("maquinistas/mis-asignaciones")]
     [ProducesResponseType(typeof(IEnumerable<MaquinistaDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
+    [SinTurnoObligatorio]
     public async Task<IActionResult> GetMisAsignaciones()
     {
         if (string.IsNullOrEmpty(CurrentUserId))
             return Unauthorized();
 
-        var asignaciones = await _unitOfWork.UsuariosLineas.GetAllWithRelationsAsync();
-        var misAsignaciones = asignaciones.Where(a => a.UsuarioId == CurrentUserId);
-
+        var asignaciones = await _unitOfWork.OperadoresLinea.GetAllWithRelationsAsync();
         var user = await _userManager.FindByIdAsync(CurrentUserId);
-
-        var items = misAsignaciones.Select(m => new MaquinistaDto
-        {
-            UsuarioLineaId = m.UsuarioLineaId,
-            UsuarioId = m.UsuarioId,
-            NombreUsuario = user?.NombreCompleto ?? user?.UserName ?? "Usuario desconocido",
-            EmailUsuario = user?.Email ?? string.Empty,
-            LineaId = m.LineaId,
-            LineaNombre = m.Linea?.Nombre ?? string.Empty,
-            TurnoId = m.TurnoId,
-            TurnoNombre = m.Turno?.Nombre,
-            FechaAsignacion = m.FechaAsignacion
-        }).OrderBy(m => m.LineaNombre).ToList();
-
+        var items = asignaciones.Where(a => a.UsuarioId == CurrentUserId)
+            .Select(m => Maquinista(m, user))
+            .OrderBy(m => m.LineaNombre)
+            .ToList();
         return Ok(items);
     }
 
-    [HttpPost("maquinistas")]
-    [Authorize(Policy = "CanManageCatalogs")]
-    [ProducesResponseType(typeof(MaquinistaDto), StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CreateMaquinista([FromBody] CrearMaquinistaRequest request)
+    private static MaquinistaDto Maquinista(Domain.Entities.OperadorLinea m, ApplicationUser? user) => new()
     {
-        if (string.IsNullOrEmpty(CurrentUserId))
-            return Unauthorized();
-
-        // Validar que el usuario existe
-        var user = await _userManager.FindByIdAsync(request.UsuarioId);
-        if (user == null)
-        {
-            return BadRequest(new ProblemDetails
-            {
-                Title = "Usuario no encontrado",
-                Detail = "El usuario especificado no existe en el sistema.",
-                Status = StatusCodes.Status400BadRequest
-            });
-        }
-
-        // Validar que no exista ya una asignacion para ese usuario y linea
-        var existente = await _unitOfWork.UsuariosLineas.GetByUsuarioYLineaAsync(request.UsuarioId, request.LineaId);
-        if (existente != null)
-        {
-            return BadRequest(new ProblemDetails
-            {
-                Title = "Asignacion duplicada",
-                Detail = "El usuario ya está asignado a esta línea.",
-                Status = StatusCodes.Status400BadRequest
-            });
-        }
-
-        var maquinista = new Domain.Entities.UsuarioLinea
-        {
-            UsuarioId = request.UsuarioId,
-            LineaId = request.LineaId,
-            TurnoId = request.TurnoId,
-            FechaAsignacion = DateTimeOffset.UtcNow,
-            AsignadoPorUsuarioId = CurrentUserId
-        };
-
-        await _unitOfWork.UsuariosLineas.AddAsync(maquinista);
-        await _unitOfWork.SaveChangesAsync();
-
-        _logger.LogInformation("Maquinista {UsuarioId} asignado a linea {LineaId} por usuario {UserId}",
-            maquinista.UsuarioId, maquinista.LineaId, CurrentUserId);
-
-        // Recargar con relaciones
-        var creado = await _unitOfWork.UsuariosLineas.GetByUsuarioYLineaAsync(maquinista.UsuarioId, maquinista.LineaId);
-
-        return CreatedAtAction(nameof(GetMaquinista), new { id = maquinista.UsuarioLineaId }, new MaquinistaDto
-        {
-            UsuarioLineaId = maquinista.UsuarioLineaId,
-            UsuarioId = maquinista.UsuarioId,
-            NombreUsuario = user.NombreCompleto ?? user.UserName ?? "Usuario desconocido",
-            EmailUsuario = user.Email ?? string.Empty,
-            LineaId = maquinista.LineaId,
-            LineaNombre = creado?.Linea?.Nombre ?? string.Empty,
-            TurnoId = maquinista.TurnoId,
-            TurnoNombre = creado?.Turno?.Nombre,
-            FechaAsignacion = maquinista.FechaAsignacion
-        });
-    }
-
-    [HttpPut("maquinistas/{id:int}")]
-    [Authorize(Policy = "CanManageCatalogs")]
-    [ProducesResponseType(typeof(MaquinistaDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateMaquinista(int id, [FromBody] ActualizarMaquinistaRequest request)
-    {
-        if (string.IsNullOrEmpty(CurrentUserId))
-            return Unauthorized();
-
-        var maquinista = await _unitOfWork.UsuariosLineas.GetByIdAsync(id);
-        if (maquinista == null)
-            return NotFound();
-
-        // Si cambia la linea, validar que no exista otra asignacion
-        if (maquinista.LineaId != request.LineaId)
-        {
-            var existente = await _unitOfWork.UsuariosLineas.GetByUsuarioYLineaAsync(maquinista.UsuarioId, request.LineaId);
-            if (existente != null && existente.UsuarioLineaId != id)
-            {
-                return BadRequest(new ProblemDetails
-                {
-                    Title = "Asignacion duplicada",
-                    Detail = "El usuario ya está asignado a esta línea.",
-                    Status = StatusCodes.Status400BadRequest
-                });
-            }
-        }
-
-        maquinista.LineaId = request.LineaId;
-        maquinista.TurnoId = request.TurnoId;
-
-        await _unitOfWork.UsuariosLineas.UpdateAsync(maquinista);
-        await _unitOfWork.SaveChangesAsync();
-
-        _logger.LogInformation("Maquinista {UsuarioLineaId} actualizado por usuario {UserId}", id, CurrentUserId);
-
-        // Recargar con relaciones
-        var actualizado = await _unitOfWork.UsuariosLineas.GetByUsuarioYLineaAsync(maquinista.UsuarioId, maquinista.LineaId);
-        var user = await _userManager.FindByIdAsync(maquinista.UsuarioId);
-
-        return Ok(new MaquinistaDto
-        {
-            UsuarioLineaId = maquinista.UsuarioLineaId,
-            UsuarioId = maquinista.UsuarioId,
-            NombreUsuario = user?.NombreCompleto ?? user?.UserName ?? "Usuario desconocido",
-            EmailUsuario = user?.Email ?? string.Empty,
-            LineaId = maquinista.LineaId,
-            LineaNombre = actualizado?.Linea?.Nombre ?? string.Empty,
-            TurnoId = maquinista.TurnoId,
-            TurnoNombre = actualizado?.Turno?.Nombre,
-            FechaAsignacion = maquinista.FechaAsignacion
-        });
-    }
-
-    [HttpDelete("maquinistas/{id:int}")]
-    [Authorize(Policy = "CanManageCatalogs")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> DeleteMaquinista(int id)
-    {
-        if (string.IsNullOrEmpty(CurrentUserId))
-            return Unauthorized();
-
-        var maquinista = await _unitOfWork.UsuariosLineas.GetByIdAsync(id);
-        if (maquinista == null)
-            return NotFound();
-
-        // Validar que no tenga detenciones asociadas (también las eliminadas: la FK las sigue viendo)
-        var tieneDetenciones = (await _unitOfWork.Detenciones.GetUsuarioLineaIdsEnUsoAsync([id])).Count > 0;
-        if (tieneDetenciones)
-        {
-            return BadRequest(new ProblemDetails
-            {
-                Title = "No se puede eliminar",
-                Detail = "El maquinista tiene detenciones asociadas. Podés reasignarlo a otra línea en lugar de eliminarlo.",
-                Status = StatusCodes.Status400BadRequest
-            });
-        }
-
-        // Para UsuarioLinea usamos delete real ya que no tiene Activo
-        // Esto es una excepcion al patron de soft delete porque es una tabla de relacion
-        _unitOfWork.UsuariosLineas.DeleteAsync(maquinista);
-        await _unitOfWork.SaveChangesAsync();
-
-        _logger.LogInformation("Maquinista {UsuarioLineaId} eliminado por usuario {UserId}", id, CurrentUserId);
-
-        return NoContent();
-    }
+        UsuarioLineaId = m.UsuarioLineaId,
+        UsuarioId = m.UsuarioId,
+        NombreUsuario = user?.NombreCompleto ?? user?.UserName ?? "Usuario desconocido",
+        EmailUsuario = user?.Email ?? string.Empty,
+        LineaId = m.LineaId,
+        LineaNombre = m.Linea?.Nombre ?? string.Empty,
+        FechaAsignacion = m.FechaAsignacion
+    };
 
     #endregion
 
@@ -1503,24 +1340,26 @@ public class CatalogosController : ApiControllerBase
 
     [HttpGet("productos")]
     [ProducesResponseType(typeof(IEnumerable<Application.DTOs.Proceso.ProductoDto>), StatusCodes.Status200OK)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetProductos([FromQuery] int? lineaId = null, [FromQuery] bool? soloActivos = true)
     {
-        IEnumerable<Domain.Entities.Producto> productos;
+        IEnumerable<Domain.Entities.ProductoMaestro> productos;
 
         if (lineaId.HasValue)
         {
-            productos = await _unitOfWork.Productos.GetByLineaIdAsync(lineaId.Value);
+            // Control de Proceso: productos con el parámetro línea-producto vigente hoy (hora de planta) y habilitado.
+            productos = await _unitOfWork.ProductosMaestro.GetByLineaIdAsync(lineaId.Value, HoraPlanta.Hoy(_zonaPlanta));
         }
         else
         {
             productos = soloActivos == true
-                ? await _unitOfWork.Productos.GetActivosAsync()
-                : await _unitOfWork.Productos.GetAllAsync();
+                ? await _unitOfWork.ProductosMaestro.GetActivosAsync()
+                : await _unitOfWork.ProductosMaestro.GetAllAsync();
         }
 
         var items = productos.Select(p => new Application.DTOs.Proceso.ProductoDto
         {
-            ProductoId = p.ProductoId,
+            ProductoId = p.ProductoMaestroId,
             Codigo = p.Codigo,
             Nombre = p.Nombre,
             Descripcion = p.Descripcion,
@@ -1533,15 +1372,16 @@ public class CatalogosController : ApiControllerBase
     [HttpGet("productos/{id:int}")]
     [ProducesResponseType(typeof(Application.DTOs.Proceso.ProductoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [Permiso(Opciones.GeneralCatalogos, AccionPermiso.Ver)]
     public async Task<IActionResult> GetProducto(int id)
     {
-        var producto = await _unitOfWork.Productos.GetByIdAsync(id);
+        var producto = await _unitOfWork.ProductosMaestro.GetByIdAsync(id);
         if (producto == null)
             return NotFound();
 
         return Ok(new Application.DTOs.Proceso.ProductoDto
         {
-            ProductoId = producto.ProductoId,
+            ProductoId = producto.ProductoMaestroId,
             Codigo = producto.Codigo,
             Nombre = producto.Nombre,
             Descripcion = producto.Descripcion,

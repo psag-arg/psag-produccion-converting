@@ -4,60 +4,53 @@ using PSAG.Mantenimiento.Web.Shared;
 
 namespace PSAG.Mantenimiento.Web.Tests;
 
-/// <summary>Tarjeta "Eficiencia (cámara)" del Dashboard: sin objetivo nunca muestra 0 %.</summary>
+/// <summary>Tarjeta "Presupuesto vs. real" del Dashboard (T-798 etapa 5) y Maestros → Cámaras: sin datos nunca es 0.</summary>
 public class EficienciaUiTests
 {
     public EficienciaUiTests() => CultureInfo.CurrentCulture = new CultureInfo("es-AR");
 
     [Fact]
-    public void SinObjetivo_MuestraFaltaCargar_NoCeroPorCiento()
+    public void SinDatos_MuestraSinDatos_NoCero()
     {
-        var t = new EficienciaTurnoDto { Estado = "SIN_OBJETIVO", Contadas = 500 };
+        var c = new ComparacionProduccionDto { Objetivo = 11200, Real = null, Estado = "SIN_DATOS" };
 
-        Assert.Equal("Falta cargar el objetivo", EficienciaUi.TextoPorcentaje(t));
+        Assert.Equal("Sin datos", EficienciaUi.TextoReal(c));
+        Assert.Equal("Sin datos", EficienciaUi.TextoPorcentaje(c));
+        Assert.Equal("text-muted", EficienciaUi.ClasePorcentaje(c));
     }
 
     [Fact]
-    public void NoProgramado_NoMuestraPorcentaje()
+    public void SinObjetivo_NoEsCeroPorCiento()
     {
-        var t = new EficienciaTurnoDto { Estado = "NO_PROGRAMADO", Objetivo = 0 };
+        var c = new ComparacionProduccionDto { Objetivo = null, Real = 500, Estado = "SIN_OBJETIVO" };
 
-        Assert.Equal("Turno no programado", EficienciaUi.TextoPorcentaje(t));
+        Assert.Equal("Sin objetivo", EficienciaUi.TextoObjetivo(c));
+        Assert.Equal("Sin objetivo", EficienciaUi.TextoPorcentaje(c));
     }
 
     [Fact]
-    public void ConObjetivo_MuestraElPorcentajeConComa()
+    public void ConDatos_PorcentajeConUnDecimal_YProvisorioMarcado()
     {
-        var t = new EficienciaTurnoDto { Estado = "OK", Objetivo = 8000, Porcentaje = 87.5m };
-
-        Assert.Equal("87,5 %", EficienciaUi.TextoPorcentaje(t));
+        Assert.Equal("83,0 %", EficienciaUi.TextoPorcentaje(new ComparacionProduccionDto { Porcentaje = 83.0m, Estado = "OK" }));
+        Assert.Equal("92,3 % *", EficienciaUi.TextoPorcentaje(new ComparacionProduccionDto { Porcentaje = 92.3m, Estado = "OK", Provisorio = true }));
+        Assert.Equal("0", EficienciaUi.TextoReal(new ComparacionProduccionDto { Real = 0, Estado = "OK", Porcentaje = 0 }));
+        Assert.Equal("9.300", EficienciaUi.TextoReal(new ComparacionProduccionDto { Real = 9300 }));
+        Assert.Equal("text-warning-emphasis", EficienciaUi.ClasePorcentaje(new ComparacionProduccionDto { Porcentaje = 83.0m, Estado = "OK" }));
+        Assert.Equal("670 m/min", EficienciaUi.TextoVelocidad(669.9m));
+        Assert.Equal("-", EficienciaUi.TextoVelocidad(null));
     }
 
     [Theory]
-    [InlineData(95.0, "text-success")]
-    [InlineData(90.0, "text-success")]
-    [InlineData(75.0, "text-warning")]
-    [InlineData(40.0, "text-danger")]
-    [InlineData(null, "text-muted")]
-    public void ColorPorcentaje(double? porcentaje, string clase)
-    {
-        Assert.Equal(clase, EficienciaUi.ColorPorcentaje(porcentaje is { } p ? (decimal)p : null));
-    }
+    [InlineData("VERDE", "bg-success")]
+    [InlineData("AMARILLO", "bg-warning text-dark")]
+    [InlineData("ROJO", "bg-danger")]
+    [InlineData("SIN_DATOS", "bg-secondary")]
+    public void UltimoDato_Color(string estado, string clase) => Assert.Equal(clase, CamarasUi.ClaseUltimoDato(estado));
 
     [Theory]
-    [InlineData(130.0, "100%")]
-    [InlineData(42.5, "42.5%")]
-    [InlineData(null, "0%")]
-    public void AnchoBarra_EntreCeroYCien(double? porcentaje, string ancho)
-    {
-        Assert.Equal(ancho, EficienciaUi.AnchoBarra(porcentaje is { } p ? (decimal)p : null));
-    }
-
-    [Fact]
-    public void Titulo_ConNumeroDeCamaraYUnidad()
-    {
-        var c = new EficienciaCamaraPuntoDto { LineaNombre = "Tango 2", NumeroCamara = 9, Nombre = "x", Unidad = "rollos" };
-
-        Assert.Equal("Tango 2 · Cámara 09 (rollos)", EficienciaUi.Titulo(c));
-    }
+    [InlineData(null, "nunca")]
+    [InlineData(0, "hace menos de 1 min")]
+    [InlineData(7, "hace 7 min")]
+    [InlineData(125, "hace 2 h 05 min")]
+    public void UltimoDato_Texto(int? minutos, string texto) => Assert.Equal(texto, CamarasUi.TextoUltimoDato(minutos));
 }
